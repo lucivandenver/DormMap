@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import bcrypt from 'bcrypt';
+import crypto from 'node:crypto';
 
 test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
   skip: process.env.RUN_DB_TESTS !== 'true', timeout: 90000,
@@ -19,6 +20,11 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
   const { User } = await import('../../models/userModel.js');
   const { BoardingHouse, OwnerRoom, OwnerTenant } = await import('../../models/ownerModels.js');
   const { Barangay, EducationalInstitution } = await import('../../models/adminModels.js');
+  const { TenantApplication } = await import('../../models/tenantModels.js');
+  const { OwnerPayment } = await import('../../models/ownerModels.js');
+  const { Payment, PaymentReceipt, PaymentWebhook, PaymentAuditLog } = await import('../../models/paymentModels.js');
+  const { initiateRentPayment, handlePaymongoWebhookPayload } = await import('../../services/paymentService.js');
+  const { saveRoom, saveTenant, offerApplication, confirmOffer } = await import('../../services/occupancyService.js');
   const { SavedDorm } = await import('../../models/savedDormModel.js');
   const { TenantDocument } = await import('../../models/tenantModels.js');
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'dormmap-integration-'));
@@ -44,7 +50,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
     `);
     server = spawn(process.execPath, [...(deniedUploads ? ['--import', preload] : []), 'index.js'], {
       cwd: new URL('../../', import.meta.url),
-      env: { ...process.env, NODE_ENV: 'development', PORT: String(port), UPLOAD_DIR: deniedUploads ? path.join(directory, 'denied-mount') : directory, UPLOAD_DIR_STRICT: 'false', SESSION_SECRET: 'integration-session-secret-keep-between-restarts' },
+      env: { ...process.env, NODE_ENV: 'development', PORT: String(port), UPLOAD_DIR: deniedUploads ? path.join(directory, 'denied-mount') : directory, UPLOAD_DIR_STRICT: 'false', SESSION_SECRET: 'integration-session-secret-keep-between-restarts', PAYMONGO_SECRET_KEY: 'sk_test_integration_webhook', PAYMONGO_WEBHOOK_SECRET_KEY: 'integration-only-webhook-secret' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     await new Promise((resolve, reject) => {
@@ -205,6 +211,121 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       uploadedFiles.push(new URL('../../public' + data.document.fileUrl, import.meta.url));
       assert.equal(await (await request(data.document.fileUrl)).text(), 'fallback upload works');
     });
+    await t.test('room capacity, transfers, move-out, ownership and billing are connected', async () => {
+      await owner.update({ barangay: 'Orconuma', boardingHouseName: house.name, mapPin: 'Lat 12.72, Lon 121.47', boardingHouseLatitude: '12.72', boardingHouseLongitude: '121.47' });
+      const ownerCookie = await login(owner.email);
+      const post = body => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const r = await request('/owner-dashboard/api/rooms', ownerCookie, post({ boardingHouseId: house.id, roomNumber: 'Shared', capacity: 2, availableSlots: 2, rentalPrice: 1800 }));
+      assert.equal(r.status, 201, await r.clone().text()); const shared = (await r.json()).data;
+      const residents = await Promise.all(['One','Two'].map(fullName => request('/owner-dashboard/api/tenants', ownerCookie, post({ roomId: shared.id, fullName, monthlyRent: 1800 }))));
+      assert.ok(residents.every(response => response.status === 201));
+      const resident = (await residents[0].json()).data;
+      const full = await OwnerRoom.findByPk(shared.id); assert.equal(full.availableSlots, 0); assert.equal(full.status, 'occupied');
+      assert.equal((await request('/owner-dashboard/api/tenants', ownerCookie, post({ roomId: shared.id, fullName: 'Overbooking', monthlyRent: 1800 }))).status, 409);
+      const patch = body => ({ ...post(body), method: 'PATCH' });
+      assert.equal((await request(`/owner-dashboard/api/rooms/${shared.id}`, ownerCookie, patch({ capacity: 1 }))).status, 422);
+      const transferRoom = await saveRoom(owner.id, null, { boardingHouseId: house.id, roomNumber: 'Transfer', capacity: 1, rentalPrice: 1800 });
+      assert.equal((await request(`/owner-dashboard/api/tenants/${resident.id}`, ownerCookie, patch({ roomId: transferRoom.id }))).status, 200);
+      assert.equal((await OwnerRoom.findByPk(shared.id)).availableSlots, 1);
+      assert.equal((await OwnerRoom.findByPk(transferRoom.id)).availableSlots, 0);
+      assert.equal((await request(`/owner-dashboard/api/rooms/${shared.id}`, ownerCookie, { method: 'DELETE' })).status, 409);
+      const billResponse = await request('/owner-dashboard/api/payments', ownerCookie, post({ tenantId: resident.id, amount: 1800, dueDate: '2026-11-01', month: '2026-11' }));
+      assert.equal(billResponse.status, 201); const bill = (await billResponse.json()).data;
+      assert.equal(Number((await OwnerTenant.findByPk(resident.id)).balance), 1800);
+      for (let n=0;n<2;n++) assert.equal((await request(`/owner-dashboard/api/payments/${bill.id}/pay`, ownerCookie, patch({ method: 'Cash' }))).status, 200);
+      assert.equal(Number((await OwnerTenant.findByPk(resident.id)).balance), 0);
+      const adminCookie = await login(admin.email);
+      const overview = await (await request('/admin/api/overview', adminCookie)).json();
+      assert.ok(overview.cards.occupiedRooms >= 1); assert.ok(overview.cards.occupancy > 0);
+      assert.equal((await request(`/owner-dashboard/api/tenants/${resident.id}`, ownerCookie, patch({ status: 'moved_out' }))).status, 200);
+      assert.equal((await OwnerRoom.findByPk(transferRoom.id)).availableSlots, 1);
+      await assert.rejects(saveRoom(pending.id, null, { boardingHouseId: house.id, roomNumber: 'Foreign', capacity: 1, rentalPrice: 1000 }), /does not belong/);
+    });
+    await t.test('owner, barangay and BPLO module endpoints load connected records without server errors', async () => {
+      const ownerCookie = await login(owner.email), adminCookie = await login(admin.email);
+      await official.reload();
+      await official.update({ barangay: 'Orconuma', applicationStatus: 'approved', isSuspended: false });
+      const officialCookie = await login(official.email);
+      for (const path of ['overview','profile','boarding-houses','rooms','tenants','payments','inquiries','messages','notifications','gallery','reports','activity-logs','permit','announcements','settings']) {
+        const response = await request('/owner-dashboard/api/' + path, ownerCookie);
+        assert.ok(response.status < 500, `Owner ${path}: ${await response.clone().text()}`);
+      }
+      for (const path of ['overview','applications','houses','permits','permit-alerts','map-houses','messages','notifications','audit-logs','tenants','reports','profile','data-requests','submissions','permit-renewals']) {
+        const response = await request('/barangay-dashboard/api/' + path, officialCookie);
+        assert.ok(response.status < 500, `Barangay ${path}: ${await response.clone().text()}`);
+      }
+      for (const path of ['overview','owners','barangay-accounts','barangays','institutions','permits','submissions','data-requests','permit-renewals','audit-logs','settings']) {
+        const response = await request('/admin/api/' + path, adminCookie);
+        assert.ok(response.status < 500, `BPLO ${path}: ${await response.clone().text()}`);
+      }
+    });
+    await t.test('room offers consume a slot only on tenant confirmation and cannot overbook', async () => {
+      const offeredRoom = await saveRoom(owner.id, null, { boardingHouseId: house.id, roomNumber: 'Offered', capacity: 1, rentalPrice: 1500 });
+      const app = await TenantApplication.create({ tenantId: second.id, ownerId: owner.id, boardingHouseId: house.id, boardingHouseName: house.name });
+      await offerApplication(owner.id, second.id, { applicationId: app.id, roomId: offeredRoom.id, monthlyRent: 1500 });
+      assert.equal((await OwnerRoom.findByPk(offeredRoom.id)).availableSlots, 1);
+      assert.equal(await OwnerTenant.count({ where: { tenantUserId: second.id } }), 0);
+      await confirmOffer(second.id, app.id); await confirmOffer(second.id, app.id);
+      assert.equal(await OwnerTenant.count({ where: { tenantUserId: second.id } }), 1);
+      assert.equal((await OwnerRoom.findByPk(offeredRoom.id)).availableSlots, 0);
+    });
+    await t.test('unregistered map publication is explicitly scoped and excluded from rental applications', async () => {
+      const adminCookie = await login(admin.email);
+      const patch = action => ({ method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) });
+      assert.equal((await request(`/admin/api/owners/${owner.id}/map-status`, cookie, patch('unregistered'))).status, 403);
+      assert.equal((await request(`/admin/api/owners/${owner.id}/map-status`, adminCookie, patch('unregistered'))).status, 200);
+      let listings = await (await request('/api/boarding-houses')).json(); assert.ok(!listings.some(item => item.ownerId === owner.id));
+      const officialCookie = await login(official.email);
+      assert.equal((await request(`/barangay-dashboard/api/houses/${pending.id}/map-status`, officialCookie, patch('unregistered'))).status, 404);
+      assert.equal((await request(`/barangay-dashboard/api/houses/${owner.id}/map-status`, officialCookie, patch('publish'))).status, 200);
+      listings = await (await request('/api/boarding-houses')).json();
+      assert.ok(listings.some(item => item.ownerId === owner.id && item.registrationStatus === 'unregistered'));
+      const browsed = await (await request('/tenant-dashboard/api/browse-boarding-houses', cookie)).json(); assert.ok(!browsed.boardingHouses.some(item => item.ownerId === owner.id));
+      assert.equal((await request(`/admin/api/owners/${owner.id}/map-status`, adminCookie, patch('registered'))).status, 200);
+    });
+    await t.test('GCash checkout binds the correct tenant bill; duplicate webhooks reconcile once', async () => {
+      const linked = await OwnerTenant.findOne({ where: { tenantUserId: second.id, ownerId: owner.id } });
+      const other = await OwnerTenant.create({ ownerId: owner.id, fullName: 'Different payer', balance: 900 });
+      const bill = await OwnerPayment.create({ ownerId: owner.id, tenantId: linked.id, roomId: linked.roomId, amount: 1500, penalty: 50, month: '2026-12', dueDate: '2026-12-01' });
+      await linked.update({ balance: 1550 });
+      const foreignBill = await OwnerPayment.create({ ownerId: owner.id, tenantId: other.id, amount: 900, dueDate: '2026-12-01', month: '2026-12' });
+      await assert.rejects(initiateRentPayment({ user: second, tenantPaymentId: foreignBill.id, billingMonth: '2026-12' }), /does not belong/);
+      const originalKey = process.env.PAYMONGO_SECRET_KEY; process.env.PAYMONGO_SECRET_KEY = 'sk_test_integration_contract';
+      let checkouts = 0;
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = async (url, options) => {
+        assert.match(String(url), /checkout_sessions$/); const body = JSON.parse(options.body); assert.equal(body.data.attributes.line_items[0].amount, 155000); checkouts++;
+        return { ok: true, json: async () => ({ data: { id: `cs_contract_${suffix}`, attributes: { checkout_url: 'https://checkout.paymongo.com/test-contract', reference_number: body.data.attributes.reference_number } } }) };
+      };
+      let checkout;
+      try {
+        [checkout] = await Promise.all([initiateRentPayment({ user: second, tenantPaymentId: bill.id, billingMonth: '2026-12' }), initiateRentPayment({ user: second, tenantPaymentId: bill.id, billingMonth: '2026-12' })]);
+      } finally { globalThis.fetch = originalFetch; if (originalKey === undefined) delete process.env.PAYMONGO_SECRET_KEY; else process.env.PAYMONGO_SECRET_KEY = originalKey; }
+      assert.equal(checkouts, 1);
+      const payload = { data: { id: `evt_contract_${suffix}`, attributes: { type: 'checkout_session.payment.paid', livemode: false, data: { id: `cs_contract_${suffix}`, attributes: { reference_number: checkout.payment.internalReference, payments: [{ id: `pay_contract_${suffix}`, attributes: { status: 'paid', amount: 155000, currency: 'PHP' } }] } } } } };
+      const wrong = structuredClone(payload); wrong.data.attributes.data.attributes.payments[0].attributes.amount = 1;
+      await assert.rejects(handlePaymongoWebhookPayload(wrong), /amount/);
+      const raw = JSON.stringify(payload);
+      const timestamp = String(Math.floor(Date.now()/1000));
+      const signature = crypto.createHmac('sha256', 'integration-only-webhook-secret').update(`${timestamp}.${raw}`).digest('hex');
+      const signedResponse = await request('/api/payments/paymongo/webhook', null, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Paymongo-Signature': `t=${timestamp},te=${signature}` }, body: raw });
+      assert.equal(signedResponse.status, 200, await signedResponse.clone().text());
+      await Promise.all([handlePaymongoWebhookPayload(payload), handlePaymongoWebhookPayload(payload)]);
+      assert.equal((await Payment.findByPk(checkout.payment.id)).status, 'SUCCEEDED');
+      assert.equal(Number((await OwnerTenant.findByPk(linked.id)).balance), 0);
+      assert.equal(Number((await OwnerTenant.findByPk(other.id)).balance), 900);
+      assert.equal((await OwnerPayment.findByPk(bill.id)).status, 'paid');
+      assert.equal(await PaymentReceipt.count({ where: { paymentId: checkout.payment.id } }), 1);
+      const ownerCookie = await login(owner.email);
+      const collections = await request('/api/payments/owner/list', ownerCookie);
+      assert.equal(collections.status, 200);
+      assert.ok((await collections.json()).payments.some(item => item.id === checkout.payment.id && item.status === 'SUCCEEDED'));
+      const secondCookie = await login(second.email);
+      assert.equal((await request(`/api/payments/${checkout.payment.id}/status`, secondCookie)).status, 200);
+      assert.equal((await request(`/api/payments/${checkout.payment.id}/status`, cookie)).status, 403);
+      assert.equal((await request(`/api/payments/status/by-ref?ref=${checkout.payment.internalReference}`, cookie)).status, 403);
+      assert.equal((await request(`/api/payments/${checkout.payment.id}/receipt/download`, secondCookie)).status, 200);
+    });
     await request(`/tenant-dashboard/api/saved-dorms/${key}`, cookie, { method: 'DELETE' });
     assert.equal(await SavedDorm.count({ where: { tenantId: tenant.id } }), 0);
     assert.ok(room.id);
@@ -214,6 +335,13 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const { Op } = await import('sequelize');
       await SavedDorm.destroy({ where: { tenantId: { [Op.in]: ids } } });
       await TenantDocument.destroy({ where: { tenantId: { [Op.in]: ids } } });
+      const paymentIds = (await Payment.findAll({ where: { ownerId: { [Op.in]: ids } }, attributes: ['id'] })).map(item => item.id);
+      await PaymentReceipt.destroy({ where: { paymentId: { [Op.in]: paymentIds } } });
+      await PaymentWebhook.destroy({ where: { paymentId: { [Op.in]: paymentIds } } });
+      await PaymentAuditLog.destroy({ where: { paymentId: { [Op.in]: paymentIds } } });
+      await Payment.destroy({ where: { id: { [Op.in]: paymentIds } } });
+      await OwnerPayment.destroy({ where: { ownerId: { [Op.in]: ids } } });
+      await TenantApplication.destroy({ where: { ownerId: { [Op.in]: ids } } });
       await OwnerTenant.destroy({ where: { ownerId: { [Op.in]: ids } } });
       await Barangay.destroy({ where: { name: { [Op.like]: 'Review Barangay %' } } });
       await EducationalInstitution.destroy({ where: { name: { [Op.like]: 'Review School %' } } });

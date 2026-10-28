@@ -432,8 +432,8 @@
                 <th>Email</th>
                 <th>Contact Number</th>
                 <th>Selected Boarding House</th>
-                <th>Verification</th>
-                <th>Joined Date</th>
+                <th>Tenancy status</th>
+                <th>Move-in / recorded</th>
               </tr>
             </thead>
             <tbody id="tenantRows"></tbody>
@@ -1448,6 +1448,9 @@ async function loadHouses() {
         <td class="text-xs">${x.boardingHouseLatitude ? '📍 Geolocated' : '❌ Map pin missing'}</td>
         <td><span class="badge status-${x.isSuspended ? 'suspended' : x.applicationStatus}">${x.isSuspended ? 'Suspended' : esc(x.applicationStatus)}</span></td>
         <td class="space-x-2">
+          <p class="text-xs font-semibold ${x.publicMapUnregistered ? 'text-red-700' : 'text-emerald-700'}">${x.publicMapUnregistered ? 'Unregistered' : 'Registered status'} · ${x.publicMapPublished ? 'Map published' : 'No unregistered notice published'}</p>
+          <button class="text-xs text-red-700 font-bold" onclick="setHouseMapStatus(${x.id}, '${x.publicMapUnregistered ? 'registered' : 'unregistered'}')">${x.publicMapUnregistered ? 'Mark registered' : 'Mark unregistered'}</button>
+          ${x.publicMapUnregistered ? `<button class="text-xs font-bold text-slate-700" onclick="setHouseMapStatus(${x.id}, '${x.publicMapPublished ? 'hide' : 'publish'}')">${x.publicMapPublished ? 'Hide red pin' : 'Publish red pin'}</button>` : ''}
           <button class="text-xs font-bold ${x.isSuspended ? 'text-emerald-700' : 'text-rose-700'}" onclick="houseStatus(${x.id}, ${!x.isSuspended})">
             ${x.isSuspended ? 'Activate' : 'Suspend'}
           </button>
@@ -1455,6 +1458,12 @@ async function loadHouses() {
       </tr>
     `).join('') : '<tr><td colspan="6" class="text-slate-400 text-center py-4">No registered boarding houses.</td></tr>';
   } catch (e) { toast(e.message, true); }
+}
+
+async function setHouseMapStatus(id, action) {
+  if (!confirm(`Apply ${action} to this establishment's public map status?`)) return;
+  try { await req(`${api}/houses/${id}/map-status`, { method: 'PATCH', body: JSON.stringify({ action }) }); toast('Map status updated.'); loadHouses(); }
+  catch (e) { toast(e.message, true); }
 }
 
 async function houseStatus(id, isSuspended) {
@@ -1542,7 +1551,7 @@ async function loadTenants() {
         <td class="text-xs">${esc(x.email)}</td>
         <td class="text-xs">${esc(x.contactNumber || '—')}</td>
         <td class="text-xs font-semibold">${esc(x.selectedBoardingHouse || 'Unassigned')}</td>
-        <td><span class="badge status-${x.emailVerified ? 'approved' : 'pending'}">${x.emailVerified ? 'Verified' : 'Unverified'}</span></td>
+        <td><span class="badge">${esc(x.status || '—')}</span></td>
         <td class="text-xs">${new Date(x.createdAt).toLocaleDateString()}</td>
       </tr>
     `).join('') : '<tr><td colspan="6" class="text-slate-400 text-center py-4">No tenants found in system.</td></tr>';

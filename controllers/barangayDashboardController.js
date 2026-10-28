@@ -1,3 +1,6 @@
+import { OwnerTenant, OwnerRoom, BoardingHouse } from '../models/ownerModels.js';
+import { inventorySummary } from '../services/inventorySummaryService.js';
+import { setPublicMapStatus } from '../services/publicMapStatusService.js';
 import { uploadDir } from '../config/storage.js';
 import path from 'path';
 import { Op, fn, col } from 'sequelize';
@@ -28,7 +31,7 @@ export const overview = async (req, res, next) => {
     const ownerFilter = ownersWhere(barangay);
     const owners = await User.findAll({ 
       where: ownerFilter, 
-      attributes: ['id', 'roomsAvailable', 'occupiedRooms', 'applicationStatus', 'boardingHouseName', 'createdAt'], 
+      attributes: ['id', 'roomsAvailable', 'occupiedRooms', 'applicationStatus', 'boardingHouseName', 'createdAt', 'isSuspended', 'publicMapUnregistered'],
       raw: true 
     });
     
@@ -49,8 +52,9 @@ export const overview = async (req, res, next) => {
     const pendingDataRequests = targetRequests.filter(r => !submittedReqIds.has(r.id)).length;
     const revisionSubmissionsCount = mySubmissions.filter(s => s.status === 'revision_requested').length;
 
+    const inventory = await inventorySummary(owners);
     const [tenants, unreadMessages, expiredPermits, expiringPermits, permitStatus, monthly, tenantStats, pendingRenewalsCount] = await Promise.all([
-      User.count({ where: { accountType: 'tenant', barangay, isArchived: false } }),
+      Promise.resolve(inventory.tenants),
       BarangayMessage.count({ where: { recipientId: req.session.userId, isRead: false } }),
       BusinessPermit.count({ where: { ...permitWhere, expirationDate: { [Op.lt]: today } } }),
       BusinessPermit.count({ where: { ...permitWhere, expirationDate: { [Op.between]: [today, next30] } } }),
@@ -69,34 +73,26 @@ export const overview = async (req, res, next) => {
         group: [fn('DATE_FORMAT', col('createdAt'), '%b %Y')], 
         raw: true 
       }),
-      User.findAll({
-        attributes: [
-          [fn('DATE_FORMAT', col('createdAt'), '%b'), 'month'],
-          [fn('COUNT', col('id')), 'count']
-        ],
-        where: { accountType: 'tenant', isArchived: false, createdAt: { [Op.gte]: new Date(today.getFullYear(), today.getMonth() - 5, 1) } },
-        group: [fn('DATE_FORMAT', col('createdAt'), '%b')],
-        raw: true
+      OwnerTenant.findAll({
+        attributes: [[fn('DATE_FORMAT', col('createdAt'), '%b'), 'month'], [fn('COUNT', col('id')), 'count']],
+        where: { ownerId: { [Op.in]: ownerIds }, createdAt: { [Op.gte]: new Date(today.getFullYear(), today.getMonth()-5, 1) } },
+        group: [fn('DATE_FORMAT', col('createdAt'), '%b')], raw: true
       }),
       BploPermitRenewal.count({ where: { barangay, status: { [Op.in]: ['pending_barangay', 'revision_required'] } } })
     ]);
 
-    const vacantRooms = owners.reduce((sum, owner) => sum + Math.max(0, Number(owner.roomsAvailable || 0)), 0);
-    const occupiedRooms = owners.reduce((sum, owner) => sum + Math.max(0, Number(owner.occupiedRooms || 0)), 0);
+    const vacantRooms = inventory.availableRooms;
+    const occupiedRooms = inventory.occupiedRooms;
     const currentMonthStr = today.toLocaleString('default', { month: 'short', year: 'numeric' });
-    const currentMonthRegs = monthly.find(m => m.month === currentMonthStr)?.count || (monthly.length ? monthly[monthly.length - 1].count : 0);
+    const currentMonthRegs = monthly.find(m => m.month === currentMonthStr)?.count || 0;
 
-    const occupancyTrends = [
-      { month: '3 Mos Ago', occupied: Math.round(occupiedRooms * 0.75), vacant: Math.round(vacantRooms * 1.1) },
-      { month: '2 Mos Ago', occupied: Math.round(occupiedRooms * 0.85), vacant: Math.round(vacantRooms * 1.05) },
-      { month: 'Last Month', occupied: Math.round(occupiedRooms * 0.95), vacant: Math.round(vacantRooms * 0.98) },
-      { month: 'Current', occupied: occupiedRooms, vacant: vacantRooms }
-    ];
+    // Historical occupancy cannot be reconstructed from current tenant records.
+    const occupancyTrends = [{ month: 'Current', occupied: occupiedRooms, vacant: vacantRooms }];
 
     res.json({ 
       barangay, 
       cards: { 
-        houses: owners.filter(x => x.boardingHouseName).length, 
+        houses: inventory.houses,
         pending: owners.filter(x => ['pending', 'revision_requested'].includes(x.applicationStatus)).length, 
         activeOwners: owners.filter(x => x.applicationStatus === 'approved' || x.applicationStatus === 'approved_barangay').length, 
         expiredPermits, 
@@ -549,6 +545,7 @@ export const submitPermitRenewal = async (req, res, next) => {
     const { ownerId, permitNumber, currentExpirationDate, requestedRenewalDate, barangayNotes } = req.body;
 
     if (!ownerId) return res.status(422).json({ error: 'Boarding house owner selection is required.' });
+    if (!await User.findOne({ where: { id: ownerId, ...ownersWhere(barangay) } })) return res.status(403).json({ error: 'This owner is outside your assigned barangay.' });
 
     let documents = {};
     if (req.file) {
@@ -706,10 +703,11 @@ export const changeHouseStatus = async (req, res, next) => {
     const owner = await User.findOne({ where: { id: req.params.id, ...ownersWhere(barangay) } }); 
     if (!owner) return res.status(404).json({ error: 'Boarding house not found.' }); 
     
-    const isSuspended = Boolean(req.body.isSuspended); 
+    if (typeof req.body.isSuspended !== 'boolean') return res.status(422).json({ error: 'isSuspended must be true or false.' });
+    const isSuspended = req.body.isSuspended;
     await owner.update({ 
       isSuspended, 
-      applicationStatus: isSuspended ? 'suspended' : owner.applicationStatus 
+      applicationStatus: isSuspended ? 'suspended' : owner.applicationStatus === 'suspended' ? 'pending' : owner.applicationStatus
     }); 
     
     await audit(req, isSuspended ? 'suspend_house' : 'activate_house', 'User', owner.id, { barangay, isSuspended }); 
@@ -839,20 +837,24 @@ export const publishAnnouncement = async (req, res, next) => {
   } catch (e) { next(e); } 
 };
 
+async function scopedTenantRows(barangay, search = '') {
+  const owners = await User.findAll({ where: ownersWhere(barangay), attributes: ['id','boardingHouseName'] });
+  const ownerIds = owners.map(owner => owner.id);
+  const where = { ownerId: { [Op.in]: ownerIds } };
+  if (search) where[Op.or] = ['fullName','email','contactNumber'].map(field => ({ [field]: { [Op.like]: `%${search}%` } }));
+  const [tenants, rooms, houses] = await Promise.all([
+    OwnerTenant.findAll({ where, order: [['createdAt','DESC']] }),
+    OwnerRoom.findAll({ where: { ownerId: { [Op.in]: ownerIds } } }),
+    BoardingHouse.findAll({ where: { ownerId: { [Op.in]: ownerIds } } }),
+  ]);
+  return tenants.map(tenant => {
+    const room = rooms.find(room => room.id === tenant.roomId);
+    return { ...tenant.toJSON(), roomNumber: room?.roomNumber || null, selectedBoardingHouse: houses.find(house => house.id === room?.boardingHouseId)?.name || owners.find(owner => owner.id === tenant.ownerId)?.boardingHouseName || '' };
+  });
+}
 export const tenants = async (req, res, next) => {
-  try {
-    const barangay = await barangayOf(req);
-    const where = { accountType: 'tenant', isArchived: false, barangay };
-    if (req.query.search) {
-      where[Op.or] = ['fullName', 'email', 'contactNumber'].map(f => ({ [f]: { [Op.like]: `%${req.query.search}%` } }));
-    }
-    const data = await User.findAll({
-      where,
-      attributes: { exclude: ['password', 'verificationToken'] },
-      order: [['createdAt', 'DESC']],
-    });
-    res.json({ data });
-  } catch (error) { next(error); }
+  try { res.json({ data: await scopedTenantRows(await barangayOf(req), req.query.search) }); }
+  catch (error) { next(error); }
 };
 
 export const getReportsData = async (req, res, next) => {
@@ -878,10 +880,7 @@ export const getReportsData = async (req, res, next) => {
     }
 
     if (type === 'tenants') {
-      const tenantsData = await User.findAll({
-        where: { accountType: 'tenant', barangay, isArchived: false },
-        attributes: ['id', 'fullName', 'email', 'contactNumber', 'selectedBoardingHouse', 'emailVerified', 'createdAt']
-      });
+      const tenantsData = await scopedTenantRows(barangay);
       return res.json({ barangay, type, data: tenantsData });
     }
 
@@ -924,5 +923,17 @@ export const updateProfile = async (req, res, next) => {
       ipAddress: req.ip,
     });
     res.json({ data: user.get({ plain: true }), message: 'Profile updated.' });
+  } catch (error) { next(error); }
+};
+
+export const updatePublicMapStatus = async (req, res, next) => {
+  try {
+    const where = { id: req.params.id, accountType: 'boarding_house_owner' };
+    where.barangay = await barangayOf(req);
+    const owner = await User.findOne({ where });
+    if (!owner) return res.status(404).json({ error: 'Establishment not found in your jurisdiction.' });
+    const data = await setPublicMapStatus(owner, req.body.action);
+    await audit(req, 'public_map_status', 'User', owner.id, { action: req.body.action, ...data });
+    res.json({ data, message: 'Public map status updated.' });
   } catch (error) { next(error); }
 };

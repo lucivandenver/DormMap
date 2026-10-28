@@ -9,6 +9,7 @@ export const approvedOwnerWhere = {
   applicationStatus: { [Op.in]: ['approved', 'approved_barangay'] },
   isSuspended: false,
   isArchived: false,
+  publicMapUnregistered: false,
 };
 
 export function filterDormListings(listings, query = {}) {
@@ -48,12 +49,12 @@ function price(value) {
   return Number.isFinite(number) && number >= 0 ? number : null;
 }
 
-export async function listTenantDorms(tenantId, query = {}) {
+export async function listTenantDorms(tenantId, query = {}, { includeUnregistered = false } = {}) {
   const owners = await User.findAll({
-    where: approvedOwnerWhere,
+    where: includeUnregistered ? { accountType: 'boarding_house_owner', isSuspended: false, isArchived: false, [Op.or]: [{ applicationStatus: { [Op.in]: ['approved','approved_barangay'] }, publicMapUnregistered: false }, { publicMapUnregistered: true, publicMapPublished: true }] } : approvedOwnerWhere,
     attributes: ['id', 'fullName', 'contactNumber', 'boardingHouseName', 'boardingHouseAddress',
       'boardingHousePicture', 'barangay', 'boardingHouseLatitude', 'boardingHouseLongitude',
-      'rentalPriceMin', 'rentalPriceMax', 'amenities', 'houseRules', 'roomTypes', 'paymentMethods', 'galleryImages', 'createdAt'],
+      'rentalPriceMin', 'rentalPriceMax', 'amenities', 'houseRules', 'roomTypes', 'paymentMethods', 'galleryImages', 'createdAt', 'publicMapUnregistered'],
   });
   const ownerIds = owners.map(owner => owner.id);
   const [houses, rooms, applications, saved] = await Promise.all([
@@ -68,6 +69,7 @@ export async function listTenantDorms(tenantId, query = {}) {
     const ownedHouses = houses.filter(house => house.ownerId === owner.id);
     if (!ownedHouses.length && !owner.boardingHouseName) continue;
     for (const house of ownedHouses.length ? ownedHouses : [null]) {
+      if (owner.publicMapUnregistered && house && house.barangay !== owner.barangay) continue;
       const key = house ? `bh-${house.id}` : `owner-${owner.id}`;
       const name = house?.name || owner.boardingHouseName || `${owner.fullName}'s Boarding House`;
       const houseRooms = rooms.filter(room => room.ownerId === owner.id &&
@@ -78,6 +80,8 @@ export async function listTenantDorms(tenantId, query = {}) {
         (house ? item.boardingHouseId === house.id || (!item.boardingHouseId && item.boardingHouseName === name) : item.boardingHouseName === name));
       listings.push({
         id: key,
+        isPrimary: !house || house.isPrimary,
+        registrationStatus: owner.publicMapUnregistered ? 'unregistered' : 'registered',
         createdAt: house?.createdAt || owner.createdAt,
         roomTypes: [...new Set(houseRooms.map(room => room.roomType))],
         legacyRoomTypes: owner.roomTypes,

@@ -24,6 +24,7 @@ export const OwnerRoom = sequelize.define('OwnerRoom', {
   floor:           { type: DataTypes.STRING,  allowNull: false, defaultValue: '1st Floor' },
   capacity:        { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
   availableSlots:  { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+  reservedSlots:   { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   rentalPrice:     { type: DataTypes.DECIMAL(10,2), allowNull: false, defaultValue: 0 },
   dimensions:      { type: DataTypes.STRING,  allowNull: true },
   genderPref:      { type: DataTypes.STRING,  allowNull: true, defaultValue: 'Any' },
@@ -36,6 +37,7 @@ export const OwnerRoom = sequelize.define('OwnerRoom', {
 }, { tableName: 'OwnerRooms' });
 
 export const OwnerTenant = sequelize.define('OwnerTenant', {
+  tenantUserId: { type: DataTypes.INTEGER, allowNull: true },
   ownerId:          { type: DataTypes.INTEGER, allowNull: false },
   roomId:           { type: DataTypes.INTEGER, allowNull: true },
   fullName:         { type: DataTypes.STRING,  allowNull: false },

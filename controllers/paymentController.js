@@ -1,4 +1,4 @@
-import { initiateRentPayment, getLandlordGcashDetails } from '../services/paymentService.js';
+import { initiateRentPayment, getLandlordGcashDetails, handlePaymongoWebhookPayload } from '../services/paymentService.js';
 import { getPaymongoCheckoutStatus } from '../services/paymongoService.js';
 import { Payment, PaymentReceipt } from '../models/paymentModels.js';
 import { User } from '../models/userModel.js';
@@ -56,20 +56,20 @@ export const getPaymentStatus = async (req, res, next) => {
       return res.status(404).json({ error: 'Payment record not found.' });
     }
 
-    // Check PayMongo status if still pending & not simulated
-    if (payment.status === PAYMENT_STATUS.PENDING && payment.paymongoCheckoutId) {
+    // Reconciliation uses the same atomic path whether received by signed webhook
+    // or retrieved directly from PayMongo with the server's secret key.
+    if (['PENDING','PROCESSING'].includes(payment.status) && payment.paymongoCheckoutId) {
       try {
-        const paymongoStatus = await getPaymongoCheckoutStatus(payment.paymongoCheckoutId);
-        if (paymongoStatus.status === 'SUCCEEDED' || paymongoStatus.status === 'COMPLETED') {
-          payment.status = PAYMENT_STATUS.SUCCEEDED;
-          payment.paidAt = new Date();
-          await payment.save();
+        const provider = await getPaymongoCheckoutStatus(payment.paymongoCheckoutId);
+        if (provider.status === 'SUCCEEDED') {
+          await handlePaymongoWebhookPayload({ data: { attributes: { type: 'checkout_session.payment.paid', data: { id: payment.paymongoCheckoutId, attributes: { reference_number: provider.reference, payments: provider.payments } } } } });
+          await payment.reload();
+        } else if (provider.status === 'EXPIRED') {
+          await handlePaymongoWebhookPayload({ data: { attributes: { type: 'checkout_session.expired', data: { id: payment.paymongoCheckoutId, attributes: {} } } } });
+          await payment.reload();
         }
-      } catch (e) {
-        // Fallback silently if offline or sandbox mode
-      }
+      } catch (error) { console.error('Provider reconciliation pending:', error.message); }
     }
-
     const receipt = payment.status === PAYMENT_STATUS.SUCCEEDED
       ? await PaymentReceipt.findOne({ where: { paymentId: payment.id } })
       : null;
@@ -182,66 +182,8 @@ export const renderFailurePage = async (req, res) => {
   });
 };
 
-export const renderGcashPortal = async (req, res) => {
-  if (process.env.NODE_ENV === 'production') return res.status(404).send('Page not found.');
-  try {
-    const { ref } = req.query;
-    let payment = null;
-    let owner = null;
-    let tenant = null;
-
-    if (ref) {
-      payment = await Payment.findOne({ where: { internalReference: ref } });
-      if (payment) {
-        owner = await User.findByPk(payment.ownerId);
-        tenant = await User.findByPk(payment.tenantId);
-      }
-    }
-
-    res.render('gcashPortal', {
-      title: 'GCash Web Checkout',
-      reference: ref || '',
-      amount: payment ? Number(payment.amount).toFixed(2) : '150.00',
-      billingMonth: payment?.billingMonth || '2026-10',
-      ownerName: owner?.gcashName || owner?.fullName || 'Boarding House Owner',
-      ownerGcashNumber: owner?.gcashNumber || '09161475692',
-      boardingHouseName: owner?.boardingHouseName || 'Boarding House',
-      tenantName: tenant?.fullName || '',
-      tenantPhone: tenant?.contactNumber || ''
-    });
-  } catch (err) {
-    console.error('renderGcashPortal error:', err);
-    res.redirect('/tenant-dashboard');
-  }
-};
-
-export const authorizePortalPayment = async (req, res) => {
-  if (process.env.NODE_ENV === 'production') return res.status(404).json({ error: 'Demo payment authorization is disabled.' });
-  try {
-    const { ref, gcashNumber } = req.body;
-    if (!ref) {
-      return res.status(400).json({ error: 'Missing payment reference.' });
-    }
-
-    const payment = await Payment.findOne({ where: { internalReference: ref, tenantId: req.currentUser.id } });
-    if (!payment) return res.status(404).json({ error: 'Payment not found.' });
-
-    const { processDirectGcashPayment } = await import('../services/paymentService.js');
-    const result = await processDirectGcashPayment({ reference: ref, gcashNumber });
-
-    if (result.success) {
-      return res.json({
-        success: true,
-        redirectUrl: `/payments/success?ref=${ref}`
-      });
-    } else {
-      return res.status(400).json({ error: result.reason || 'Failed to authorize GCash payment.' });
-    }
-  } catch (err) {
-    console.error('authorizePortalPayment error:', err);
-    res.status(500).json({ error: err.message || 'Payment authorization failed.' });
-  }
-};
+export const renderGcashPortal = async (req, res) => res.status(410).send('The legacy demo portal is disabled. Use the real PayMongo checkout from your tenant dashboard.');
+export const authorizePortalPayment = async (req, res) => res.status(410).json({ error: 'Simulated GCash authorization is disabled. Only verified PayMongo payments can settle rent.' });
 
 export const seedDemoAccounts = async (req, res) => {
   try {

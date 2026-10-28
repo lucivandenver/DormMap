@@ -1,3 +1,4 @@
+import { confirmOffer } from '../services/occupancyService.js';
 import { listTenantDorms } from '../services/dormListingService.js';
 import { Op, fn, col } from 'sequelize';
 import bcrypt from 'bcrypt';
@@ -9,19 +10,16 @@ import {
 } from '../models/ownerModels.js';
 import { MaintenanceRequest, TenantDocument, TenantApplication } from '../models/tenantModels.js';
 
-const getTenantRecord = async (user) => {
-  // Find linked OwnerTenant record by email, contact number, or full name
-  return await OwnerTenant.findOne({
-    where: {
-      [Op.or]: [
-        ...(user.email ? [{ email: user.email }] : []),
-        ...(user.contactNumber ? [{ contactNumber: user.contactNumber }] : []),
-        ...(user.fullName ? [{ fullName: user.fullName }] : [])
-      ],
-      status: 'active'
-    }
-  });
-};
+import { findActiveRental } from '../services/rentalIdentityService.js';
+const getTenantRecord = findActiveRental;
+async function propertyOwnerView(owner, room) {
+  if (!owner) return null;
+  const result = owner.get({ plain: true });
+  const house = room?.boardingHouseId ? await BoardingHouse.findOne({ where: { id: room.boardingHouseId, ownerId: owner.id } }) : null;
+  if (house) Object.assign(result, { boardingHouseName: house.name, boardingHouseAddress: house.address, barangay: house.barangay, boardingHousePicture: house.picture, boardingHouseLatitude: house.latitude, boardingHouseLongitude: house.longitude, amenities: house.amenities, houseRules: house.houseRules, description: house.description });
+  return result;
+}
+
 
 // ─── Render Page ─────────────────────────────────────────────────────────────
 
@@ -104,7 +102,7 @@ export const overview = async (req, res, next) => {
     const expenseBreakdown = [
       { category: 'Monthly Rent', amount: monthlyRentAmount },
       { category: 'Penalties & Fees', amount: payments.reduce((s, p) => s + Number(p.penalty || 0), 0) },
-      { category: 'Paid Total', amount: payments.filter(p => p.status === 'paid').reduce((s, p) => s + Number(p.amount), 0) }
+      { category: 'Paid Total', amount: payments.filter(p => p.status === 'paid').reduce((s, p) => s + Number(p.amount) + Number(p.penalty || 0), 0) }
     ];
 
     // Fetch tenant applications
@@ -177,36 +175,6 @@ export const overview = async (req, res, next) => {
       await user.save().catch(() => {});
     }
 
-    // Self-heal: if confirmed/accepted app exists but no tenantRec, ensure OwnerTenant is linked
-    if (!tenantRec && (hasConfirmedApp || hasAcceptedApp)) {
-      const activeApp = enrichedApplications.find(a => ['confirmed', 'accepted_by_owner'].includes(a.status));
-      if (activeApp && activeApp.ownerId) {
-        try {
-          tenantRec = await OwnerTenant.findOne({
-            where: {
-              ownerId: activeApp.ownerId,
-              [Op.or]: [
-                ...(user.email ? [{ email: user.email }] : []),
-                ...(user.contactNumber ? [{ contactNumber: user.contactNumber }] : []),
-                ...(user.fullName ? [{ fullName: user.fullName }] : [])
-              ]
-            }
-          });
-          if (!tenantRec) {
-            tenantRec = await OwnerTenant.create({
-              ownerId: activeApp.ownerId,
-              roomId: activeApp.roomId || null,
-              fullName: user.fullName,
-              email: user.email,
-              contactNumber: user.contactNumber,
-              monthlyRent: activeApp.monthlyRent || 0,
-              moveInDate: activeApp.moveInDate || new Date(),
-              status: 'active'
-            });
-          }
-        } catch (e) {}
-      }
-    }
 
     // Fallback load room and owner if not loaded yet
     if (!room && tenantRec?.roomId) {
@@ -240,7 +208,7 @@ export const overview = async (req, res, next) => {
         unreadMessages: unreadCount,
       },
       room: room ? room.get({ plain: true }) : null,
-      owner: owner ? owner.get({ plain: true }) : null,
+      owner: await propertyOwnerView(owner, room),
       tenantRecord: tenantRec ? tenantRec.get({ plain: true }) : null,
       charts: {
         paymentHistory: months,
@@ -274,7 +242,7 @@ export const getMyRoom = async (req, res, next) => {
           hasRoom: !!room,
           tenantRecord: { monthlyRent: app.monthlyRent, moveInDate: app.moveInDate },
           room: room ? room.get({ plain: true }) : null,
-          boardingHouse: owner ? owner.get({ plain: true }) : null,
+          boardingHouse: await propertyOwnerView(owner, room),
         });
       }
       return res.json({
@@ -289,10 +257,10 @@ export const getMyRoom = async (req, res, next) => {
     }) : null;
 
     res.json({
-      hasRoom: true,
+      hasRoom: Boolean(room),
       tenantRecord: tenantRec.get({ plain: true }),
       room: room ? room.get({ plain: true }) : null,
-      boardingHouse: owner ? owner.get({ plain: true }) : null,
+      boardingHouse: await propertyOwnerView(owner, room),
     });
   } catch (err) { next(err); }
 };
@@ -318,7 +286,7 @@ export const getPaymentHistory = async (req, res, next) => {
       order: [['dueDate', 'DESC']]
     });
 
-    const totalPaid = payments.filter(p => p.status === 'paid').reduce((s, p) => s + Number(p.amount), 0);
+    const totalPaid = payments.filter(p => p.status === 'paid').reduce((s, p) => s + Number(p.amount) + Number(p.penalty || 0), 0);
     const totalBalance = payments.filter(p => p.status === 'pending').reduce((s, p) => s + Number(p.amount) + Number(p.penalty || 0), 0);
 
     res.json({
@@ -727,6 +695,9 @@ export const applyBoardingHouse = async (req, res, next) => {
       return res.status(404).json({ error: 'Boarding house owner not found.' });
     }
 
+    if (owner.accountType !== 'boarding_house_owner' || owner.isSuspended || owner.isArchived || owner.publicMapUnregistered || !['approved','approved_barangay'].includes(owner.applicationStatus)) return res.status(422).json({ error: 'Applications are available only for approved, registered establishments.' });
+    if (establishmentId && !await BoardingHouse.findOne({ where: { id: establishmentId, ownerId: owner.id } })) return res.status(422).json({ error: 'This boarding house does not belong to the selected owner.' });
+
     // Check existing applications
     const existing = await TenantApplication.findOne({
       where: {
@@ -797,111 +768,10 @@ export const applyBoardingHouse = async (req, res, next) => {
 
 export const confirmApplication = async (req, res, next) => {
   try {
-    const user = req.currentUser;
-    const { id } = req.params;
-
-    const app = await TenantApplication.findOne({
-      where: { id, tenantId: user.id }
-    });
-
-    if (!app) {
-      return res.status(404).json({ error: 'Application record not found.' });
-    }
-
-    if (app.status === 'confirmed') {
-      return res.json({ success: true, message: 'You have already confirmed this boarding house!' });
-    }
-
-    if (app.status !== 'accepted_by_owner') {
-      return res.status(400).json({ error: 'This application cannot be confirmed yet because the owner has not accepted it.' });
-    }
-
-    // 1. Mark this application as confirmed
-    app.status = 'confirmed';
-    app.confirmedAt = new Date();
-    await app.save();
-
-    // 2. Update user official boarding house and status
-    user.selectedBoardingHouse = app.boardingHouseName;
-    user.applicationStatus = 'approved';
-    await user.save();
-
-    // 3. Create or activate OwnerTenant
-    let ot = await OwnerTenant.findOne({
-      where: {
-        ownerId: app.ownerId,
-        [Op.or]: [
-          { email: user.email },
-          ...(user.contactNumber ? [{ contactNumber: user.contactNumber }] : [])
-        ]
-      }
-    });
-
-    if (ot) {
-      ot.status = 'active';
-      if (app.roomId) ot.roomId = app.roomId;
-      if (app.monthlyRent) ot.monthlyRent = app.monthlyRent;
-      if (app.moveInDate) ot.moveInDate = app.moveInDate;
-      await ot.save();
-    } else {
-      ot = await OwnerTenant.create({
-        ownerId: app.ownerId,
-        roomId: app.roomId || null,
-        fullName: user.fullName,
-        email: user.email,
-        contactNumber: user.contactNumber,
-        monthlyRent: app.monthlyRent || 0,
-        moveInDate: app.moveInDate || new Date(),
-        status: 'active'
-      });
-    }
-
-    if (app.roomId) {
-      await OwnerRoom.update({ status: 'occupied' }, { where: { id: app.roomId, ownerId: app.ownerId } });
-    }
-
-    // 4. Notify chosen owner
-    await OwnerNotification.create({
-      ownerId: app.ownerId,
-      title: '🎉 Tenant Confirmed Tenancy!',
-      body: `${user.fullName} accepted your offer and confirmed their stay at ${app.boardingHouseName}! They are now an active tenant.`,
-      type: 'tenant_confirmed',
-      link: '#tenants'
-    }).catch(() => {});
-
-    // 5. AUTOMATICALLY CANCEL ALL OTHER APPLICATIONS OF THIS TENANT
-    const otherApps = await TenantApplication.findAll({
-      where: {
-        tenantId: user.id,
-        id: { [Op.ne]: app.id },
-        status: { [Op.in]: ['pending_owner', 'accepted_by_owner'] }
-      }
-    });
-
-    for (const other of otherApps) {
-      other.status = 'cancelled_by_tenant';
-      await other.save();
-
-      // Notify other owner that tenant chose another boarding house
-      await OwnerNotification.create({
-        ownerId: other.ownerId,
-        title: 'Tenant Cancelled Application',
-        body: `${user.fullName} has confirmed another boarding house and cancelled their application for ${other.boardingHouseName}.`,
-        type: 'tenant_cancelled',
-        link: '#tenants'
-      }).catch(() => {});
-
-      // Free any provisional room
-      if (other.roomId) {
-        await OwnerRoom.update({ status: 'available' }, { where: { id: other.roomId, ownerId: other.ownerId } });
-      }
-    }
-
-    res.json({
-      success: true,
-      message: `🎉 Congratulations! You have accepted the owner's acceptance and confirmed your stay at ${app.boardingHouseName}! Your full tenant portal is now completely unlocked!`
-    });
-  } catch (err) { next(err); }
+    const application = await confirmOffer(req.currentUser.id, req.params.id);
+    await OwnerNotification.create({ ownerId: application.ownerId, title: 'Tenancy confirmed', body: `${req.currentUser.fullName} confirmed the room offer for ${application.boardingHouseName}.`, type: 'tenant_confirmed' });
+    res.json({ success: true, message: 'Tenancy confirmed. Your room assignment and available slots have been updated.' });
+  } catch (error) { next(error); }
 };
 
 export const cancelApplication = async (req, res, next) => {
@@ -917,6 +787,7 @@ export const cancelApplication = async (req, res, next) => {
       return res.status(404).json({ error: 'Application not found.' });
     }
 
+    if (app.status === 'confirmed') return res.status(409).json({ error: 'Contact your owner to record move-out from an active tenancy.' });
     app.status = 'cancelled_by_tenant';
     await app.save();
 
@@ -928,11 +799,6 @@ export const cancelApplication = async (req, res, next) => {
       type: 'tenant_cancelled',
       link: '#tenants'
     }).catch(() => {});
-
-    // Free any provisional room
-    if (app.roomId) {
-      await OwnerRoom.update({ status: 'available' }, { where: { id: app.roomId, ownerId: app.ownerId } });
-    }
 
     res.json({ success: true, message: 'Application cancelled successfully.' });
   } catch (err) { next(err); }

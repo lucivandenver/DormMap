@@ -5,9 +5,10 @@ export const createPaymentReceipt = async ({
   payment,
   tenant,
   owner,
-  room
+  room,
+  transaction
 }) => {
-  const existingReceipt = await PaymentReceipt.findOne({ where: { paymentId: payment.id } });
+  const existingReceipt = await PaymentReceipt.findOne({ where: { paymentId: payment.id }, transaction });
   if (existingReceipt) return existingReceipt;
 
   const receiptNumber = generateReceiptNumber(payment.billingMonth);
@@ -23,10 +24,12 @@ export const createPaymentReceipt = async ({
     billingPeriod: payment.billingMonth,
     paidAt: payment.paidAt || new Date(),
     receiptFile: receiptFileUrl
-  });
+  }, { transaction });
 
   return receipt;
 };
+
+const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 
 export const generateReceiptHtml = ({ receipt, payment, tenant, owner, room }) => {
   return `
@@ -34,7 +37,7 @@ export const generateReceiptHtml = ({ receipt, payment, tenant, owner, room }) =
     <html>
     <head>
       <meta charset="utf-8">
-      <title>Official Receipt - ${receipt.receiptNumber}</title>
+      <title>Official Receipt - ${escapeHtml(receipt.receiptNumber)}</title>
       <style>
         body { font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; padding: 40px; color: #1e293b; background: #f8fafc; }
         .receipt-card { max-width: 650px; margin: 0 auto; background: #ffffff; padding: 40px; border-radius: 20px; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
@@ -67,24 +70,24 @@ export const generateReceiptHtml = ({ receipt, payment, tenant, owner, room }) =
         <div class="grid section">
           <div>
             <div class="label">Receipt Number</div>
-            <div class="value">${receipt.receiptNumber}</div>
+            <div class="value">${escapeHtml(receipt.receiptNumber)}</div>
           </div>
           <div>
             <div class="label">Transaction Reference</div>
-            <div class="value">${payment.internalReference}</div>
+            <div class="value">${escapeHtml(payment.internalReference)}</div>
           </div>
         </div>
 
         <div class="grid section">
           <div>
             <div class="label">Tenant Name</div>
-            <div class="value">${tenant?.fullName || 'Tenant'}</div>
-            <div style="font-size: 12px; color: #64748b;">${tenant?.email || ''}</div>
+            <div class="value">${escapeHtml(tenant?.fullName || 'Tenant')}</div>
+            <div style="font-size: 12px; color: #64748b;">${escapeHtml(tenant?.email || '')}</div>
           </div>
           <div>
             <div class="label">Boarding House / Owner</div>
-            <div class="value">${owner?.boardingHouseName || owner?.fullName || 'Boarding House Owner'}</div>
-            <div style="font-size: 12px; color: #64748b;">Room ${room?.roomNumber || 'Assigned'}</div>
+            <div class="value">${escapeHtml(owner?.boardingHouseName || owner?.fullName || 'Boarding House Owner')}</div>
+            <div style="font-size: 12px; color: #64748b;">Room ${escapeHtml(room?.roomNumber || 'Assigned')}</div>
           </div>
         </div>
 
@@ -97,7 +100,7 @@ export const generateReceiptHtml = ({ receipt, payment, tenant, owner, room }) =
           </thead>
           <tbody>
             <tr>
-              <td>Monthly Rent - Period: <strong>${payment.billingMonth}</strong></td>
+              <td>Monthly Rent - Period: <strong>${escapeHtml(payment.billingMonth)}</strong></td>
               <td style="text-align: right;">₱${Number(payment.baseAmount).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
             </tr>
             ${payment.penaltyAmount > 0 ? `

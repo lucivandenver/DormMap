@@ -1,3 +1,6 @@
+import { syncPrimaryHouse } from '../services/primaryHouseService.js';
+import { saveRoom, saveTenant, removeRoom, removeTenant, offerApplication, ownerLock, fail } from '../services/occupancyService.js';
+import { hasApprovedBarangay } from '../services/registrationPolicy.js';
 import { Op, fn, col, literal } from 'sequelize';
 import { User } from '../models/userModel.js';
 import { BusinessPermit, AdminAuditLog, Announcement, BarangayNotification, BploPermitRenewal } from '../models/adminModels.js';
@@ -37,30 +40,15 @@ export const overview = async (req, res, next) => {
     ]);
 
     const totalRooms    = rooms.length;
-    const availableRooms = rooms.filter(r => r.status === 'available').length;
+    const availableRooms = rooms.filter(r => r.status === 'available' && r.availableSlots > 0).length;
     const occupiedRooms  = rooms.filter(r => r.status === 'occupied').length;
-    const monthlyIncome  = payments.filter(p => p.status === 'paid' && p.month === `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`).reduce((s, p) => s + Number(p.amount), 0);
+    const monthlyIncome  = payments.filter(p => p.status === 'paid' && p.month === `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`).reduce((s, p) => s + Number(p.amount) + Number(p.penalty || 0), 0);
     const pendingPayments = payments.filter(p => p.status === 'pending').length;
     const overduePayments = payments.filter(p => p.status === 'pending' && new Date(p.dueDate) < today).length;
     const permitDaysLeft = permit?.expirationDate ? Math.ceil((new Date(permit.expirationDate) - today) / 86400000) : null;
 
     // Count pending tenant applications (tenants who selected this BH but not yet accepted)
-    let pendingApplications = 0;
-    if (owner?.boardingHouseName) {
-      const pendingTenantUsers = await User.findAll({
-        where: { accountType: 'tenant', selectedBoardingHouse: { [Op.like]: owner.boardingHouseName } },
-        attributes: ['id', 'email', 'fullName'],
-      });
-      const existingTenants = await OwnerTenant.findAll({ where: { ownerId: id }, attributes: ['email', 'fullName'] });
-      const regEmails = new Set(existingTenants.map(t => (t.email || '').toLowerCase()).filter(Boolean));
-      const regNames  = new Set(existingTenants.map(t => (t.fullName || '').toLowerCase()).filter(Boolean));
-      pendingApplications = pendingTenantUsers.filter(u => {
-        const em = u.email && regEmails.has(u.email.toLowerCase());
-        const nm = u.fullName && regNames.has(u.fullName.toLowerCase());
-        return !em && !nm;
-      }).length;
-    }
-
+    const pendingApplications = await TenantApplication.count({ where: { ownerId: id, status: 'pending_owner' } });
 
     // 6-month payment trend
     const months = [];
@@ -68,7 +56,7 @@ export const overview = async (req, res, next) => {
       const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
       const label = d.toLocaleString('default', { month: 'short' });
-      const income = payments.filter(p => p.month === key && p.status === 'paid').reduce((s,p) => s + Number(p.amount), 0);
+      const income = payments.filter(p => p.month === key && p.status === 'paid').reduce((s,p) => s + Number(p.amount) + Number(p.penalty || 0), 0);
       months.push({ label, income, month: key });
     }
 
@@ -137,8 +125,9 @@ export const updateProfile = async (req, res, next) => {
     const updates = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
     // Sync barangay for filtering
-    if (updates.boardingHouseAddress) updates.barangay = updates.boardingHouseAddress;
+
     await user.update(updates);
+    await syncPrimaryHouse(user.id, updates);
     await audit(req, 'update_profile', 'User', user.id, updates);
     res.json({ data: user.get({ plain: true }), message: 'Profile updated.' });
   } catch (err) { next(err); }
@@ -149,38 +138,17 @@ export const updateProfile = async (req, res, next) => {
 export const getBoardingHouses = async (req, res, next) => {
   try {
     const ownerId = oid(req);
-    let houses = await BoardingHouse.findAll({ where: { ownerId }, order: [['isPrimary', 'DESC'], ['id', 'ASC']] });
-
-    // Auto-seed primary boarding house from User profile if none exist
-    if (!houses || houses.length === 0) {
-      const user = await User.findByPk(ownerId);
-      if (user) {
-        const primaryHouse = await BoardingHouse.create({
-          ownerId,
-          name: user.boardingHouseName || `${user.fullName}'s Boarding House`,
-          address: user.boardingHouseAddress || user.barangay || 'Bongabong',
-          barangay: user.barangay || '',
-          latitude: user.boardingHouseLatitude || '12.7192',
-          longitude: user.boardingHouseLongitude || '121.4719',
-          mapPin: user.mapPin || 'Lat 12.7192, Lon 121.4719',
-          picture: user.boardingHousePicture || '',
-          description: user.description || '',
-          amenities: user.amenities || '',
-          houseRules: user.houseRules || '',
-          isPrimary: true
-        });
-
-        // Link existing rooms to primary house
-        await OwnerRoom.update({ boardingHouseId: primaryHouse.id }, { where: { ownerId, boardingHouseId: null } });
-        houses = [primaryHouse];
+    const houses = await sequelize.transaction(async transaction => {
+      const user = await ownerLock(ownerId, transaction);
+      let records = await BoardingHouse.findAll({ where: { ownerId }, order: [['isPrimary','DESC'],['id','ASC']], transaction });
+      if (!records.length) {
+        const house = await BoardingHouse.create({ ownerId, name: user.boardingHouseName || `${user.fullName}'s Boarding House`, address: user.boardingHouseAddress || '', barangay: user.barangay, latitude: user.boardingHouseLatitude || null, longitude: user.boardingHouseLongitude || null, mapPin: user.mapPin || null, picture: user.boardingHousePicture || '', amenities: user.amenities || '', houseRules: user.houseRules || '', isPrimary: true }, { transaction });
+        records = [house];
       }
-    } else {
-      // Ensure any orphaned room is linked to the primary house
-      const primaryHouse = houses.find(h => h.isPrimary) || houses[0];
-      if (primaryHouse) {
-        await OwnerRoom.update({ boardingHouseId: primaryHouse.id }, { where: { ownerId, boardingHouseId: null } });
-      }
-    }
+      const primary = records.find(house => house.isPrimary) || records[0];
+      await OwnerRoom.update({ boardingHouseId: primary.id }, { where: { ownerId, boardingHouseId: null }, transaction });
+      return records;
+    });
 
     res.json({ data: houses });
   } catch (err) { next(err); }
@@ -193,14 +161,18 @@ export const createBoardingHouse = async (req, res, next) => {
     if (!name) {
       return res.status(400).json({ error: 'Boarding House name is required.' });
     }
+    const owner = await User.findByPk(ownerId);
+    if (!barangay || barangay !== owner.barangay || !await hasApprovedBarangay(barangay)) return res.status(422).json({ error: 'Choose your approved barangay jurisdiction. Contact BPLO to transfer to another barangay.' });
+    if (!latitude || !longitude) return res.status(422).json({ error: 'Select the actual property location on the map.' });
+    if ((latitude && (!Number.isFinite(Number(latitude)) || Math.abs(Number(latitude)) > 90)) || (longitude && (!Number.isFinite(Number(longitude)) || Math.abs(Number(longitude)) > 180))) return res.status(422).json({ error: 'Invalid map coordinates.' });
     const house = await BoardingHouse.create({
       ownerId,
       name,
       address: address || '',
       barangay: barangay || address || '',
-      latitude: latitude || '12.7192',
-      longitude: longitude || '121.4719',
-      mapPin: mapPin || `Lat ${latitude || '12.7192'}, Lon ${longitude || '121.4719'}`,
+      latitude: latitude || null,
+      longitude: longitude || null,
+      mapPin: latitude && longitude ? `Lat ${latitude}, Lon ${longitude}` : null,
       picture: picture || '',
       description: description || '',
       amenities: amenities || '',
@@ -217,8 +189,13 @@ export const updateBoardingHouse = async (req, res, next) => {
     const ownerId = oid(req);
     const house = await BoardingHouse.findOne({ where: { id: req.params.id, ownerId } });
     if (!house) return res.status(404).json({ error: 'Boarding house not found.' });
-    const { id: _id, ownerId: _ownerId, ...safeBody } = req.body;
+    const safeBody = Object.fromEntries(['name','address','latitude','longitude','picture','description','amenities','houseRules'].filter(key => req.body[key] !== undefined).map(key => [key, req.body[key]]));
+    if ('name' in safeBody && !String(safeBody.name).trim()) fail('Boarding house name cannot be empty.');
+    if ('latitude' in safeBody && safeBody.latitude !== '' && (!Number.isFinite(Number(safeBody.latitude)) || Math.abs(Number(safeBody.latitude)) > 90)) fail('Invalid latitude.');
+    if ('longitude' in safeBody && safeBody.longitude !== '' && (!Number.isFinite(Number(safeBody.longitude)) || Math.abs(Number(safeBody.longitude)) > 180)) fail('Invalid longitude.');
+    if (safeBody.latitude !== undefined || safeBody.longitude !== undefined) safeBody.mapPin = `Lat ${safeBody.latitude ?? house.latitude}, Lon ${safeBody.longitude ?? house.longitude}`;
     await house.update(safeBody);
+    if (house.isPrimary) await User.update({ boardingHouseName: house.name, boardingHouseAddress: house.address, boardingHouseLatitude: house.latitude, boardingHouseLongitude: house.longitude, mapPin: house.mapPin, amenities: house.amenities, houseRules: house.houseRules }, { where: { id: ownerId } });
     await audit(req, 'update_boarding_house', 'BoardingHouse', house.id, safeBody);
     res.json({ data: house, message: 'Boarding house updated.' });
   } catch (err) { next(err); }
@@ -226,16 +203,18 @@ export const updateBoardingHouse = async (req, res, next) => {
 
 export const deleteBoardingHouse = async (req, res, next) => {
   try {
-    const ownerId = oid(req);
-    const house = await BoardingHouse.findOne({ where: { id: req.params.id, ownerId } });
-    if (!house) return res.status(404).json({ error: 'Boarding house not found.' });
-    if (house.isPrimary) {
-      return res.status(400).json({ error: 'Cannot delete the main primary boarding house.' });
-    }
-    await house.destroy();
+    await sequelize.transaction(async transaction => {
+      const ownerId = oid(req); await ownerLock(ownerId, transaction);
+      const house = await BoardingHouse.findOne({ where: { id: req.params.id, ownerId }, transaction, lock: transaction.LOCK.UPDATE });
+      if (!house) fail('Boarding house not found.', 404);
+      if (house.isPrimary) fail('Cannot delete the primary boarding house.');
+      if (await OwnerRoom.count({ where: { ownerId, boardingHouseId: house.id }, transaction }) || await TenantApplication.count({ where: { ownerId, boardingHouseId: house.id }, transaction })) fail('This property has room or application history and cannot be deleted.', 409);
+      await OwnerGallery.destroy({ where: { ownerId, boardingHouseId: house.id }, transaction });
+      await house.destroy({ transaction });
+    });
     await audit(req, 'delete_boarding_house', 'BoardingHouse', req.params.id, {});
     res.json({ message: 'Boarding house deleted.' });
-  } catch (err) { next(err); }
+  } catch (error) { next(error); }
 };
 
 // ─── Rooms ────────────────────────────────────────────────────────────────────
@@ -246,84 +225,23 @@ export const getRooms = async (req, res, next) => {
     if (req.query.status) where.status = req.query.status;
     if (req.query.boardingHouseId) where.boardingHouseId = Number(req.query.boardingHouseId);
     const data = await OwnerRoom.findAll({ where, order: [['roomNumber', 'ASC']] });
-    res.json({ data });
+    const tenants = await OwnerTenant.findAll({ where: { ownerId: oid(req), status: 'active' }, attributes: ['id','roomId','fullName'] });
+    const houses = await BoardingHouse.findAll({ where: { ownerId: oid(req) }, attributes: ['id','name'] });
+    res.json({ data: data.map(room => ({ ...room.toJSON(), boardingHouseName: houses.find(house => house.id === room.boardingHouseId)?.name || '', occupants: tenants.filter(tenant => tenant.roomId === room.id) })) });
   } catch (err) { next(err); }
 };
 
 export const createRoom = async (req, res, next) => {
-  try {
-    const ownerId = oid(req);
-    // Whitelist only known OwnerRoom fields; never pass `id` or unknown keys
-    const { id: _id, roomNumber, roomType, floor, capacity, availableSlots, rentalPrice,
-            dimensions, genderPref, furnished, aircon, status, amenities, photos,
-            description, boardingHouseId } = req.body;
-
-    if (!roomNumber || !rentalPrice || !capacity) {
-      return res.status(400).json({ error: 'Room Number, Rental Price, and Capacity are required.' });
-    }
-
-    let bhId = boardingHouseId ? Number(boardingHouseId) : null;
-    if (!bhId) {
-      const primaryBh = await BoardingHouse.findOne({ where: { ownerId, isPrimary: true } });
-      if (primaryBh) bhId = primaryBh.id;
-    }
-
-    const data = await OwnerRoom.create({
-      ownerId,
-      boardingHouseId: bhId,
-      roomNumber,
-      roomType: roomType || 'Solo Room',
-      floor: floor || '1st Floor',
-      capacity: Number(capacity),
-      availableSlots: availableSlots !== undefined ? Number(availableSlots) : Number(capacity),
-      rentalPrice: Number(rentalPrice),
-      dimensions: dimensions || null,
-      genderPref: genderPref || 'Any',
-      furnished: furnished === 'true' || furnished === true,
-      aircon: aircon === 'true' || aircon === true,
-      status: status || 'available',
-      amenities: amenities || null,
-      photos: photos || null,
-      description: description || null,
-    });
-
-    await audit(req, 'create_room', 'OwnerRoom', data.id, { roomNumber: data.roomNumber });
-    const avail = await OwnerRoom.count({ where: { ownerId, status: 'available' } });
-    await User.update({ roomsAvailable: avail }, { where: { id: ownerId } });
-    res.status(201).json({ data, message: 'Room created.' });
-  } catch (err) { next(err); }
+  try { const data = await saveRoom(oid(req), null, req.body); await audit(req, 'createRoom', 'Inventory', data?.id || req.params.id, {}); res.status(201).json({ data, message: 'Room created.' }); } catch (error) { next(error); }
 };
 
-
 export const updateRoom = async (req, res, next) => {
-  try {
-    const room = await OwnerRoom.findOne({ where: { id: req.params.id, ownerId: oid(req) } });
-    if (!room) return res.status(404).json({ error: 'Room not found.' });
-    // Strip id and unknown keys from update payload
-    const { id: _id, ownerId: _ownerId, ...safeBody } = req.body;
-    // Coerce numeric fields
-    if (safeBody.capacity)       safeBody.capacity       = Number(safeBody.capacity);
-    if (safeBody.availableSlots) safeBody.availableSlots = Number(safeBody.availableSlots);
-    if (safeBody.rentalPrice)    safeBody.rentalPrice    = Number(safeBody.rentalPrice);
-    await room.update(safeBody);
-    const avail = await OwnerRoom.count({ where: { ownerId: oid(req), status: 'available' } });
-    await User.update({ roomsAvailable: avail }, { where: { id: oid(req) } });
-    await audit(req, 'update_room', 'OwnerRoom', room.id, safeBody);
-    res.json({ data: room, message: 'Room updated.' });
-  } catch (err) { next(err); }
+  try { const data = await saveRoom(oid(req), req.params.id, req.body); await audit(req, 'updateRoom', 'Inventory', data?.id || req.params.id, {}); res.status(200).json({ data, message: 'Room updated.' }); } catch (error) { next(error); }
 };
 
 export const deleteRoom = async (req, res, next) => {
-  try {
-    const room = await OwnerRoom.findOne({ where: { id: req.params.id, ownerId: oid(req) } });
-    if (!room) return res.status(404).json({ error: 'Room not found.' });
-    await room.destroy();
-    await audit(req, 'delete_room', 'OwnerRoom', req.params.id, {});
-    res.json({ message: 'Room deleted.' });
-  } catch (err) { next(err); }
+  try { const data = await removeRoom(oid(req), req.params.id); await audit(req, 'deleteRoom', 'Inventory', data?.id || req.params.id, {}); res.status(200).json({ data, message: 'Room removed.' }); } catch (error) { next(error); }
 };
-
-// ─── Tenants ─────────────────────────────────────────────────────────────────
 
 export const getTenants = async (req, res, next) => {
   try {
@@ -333,100 +251,26 @@ export const getTenants = async (req, res, next) => {
       where[Op.or] = ['fullName', 'email', 'contactNumber'].map(f => ({ [f]: { [Op.like]: `%${req.query.search}%` } }));
     }
     const data = await OwnerTenant.findAll({ where, order: [['createdAt', 'DESC']] });
-    res.json({ data });
+    const rooms = await OwnerRoom.findAll({ where: { ownerId: oid(req) } });
+    const houses = await BoardingHouse.findAll({ where: { ownerId: oid(req) } });
+    res.json({ data: data.map(tenant => {
+      const room = rooms.find(room => room.id === tenant.roomId);
+      return { ...tenant.toJSON(), roomNumber: room?.roomNumber || null, boardingHouseName: houses.find(house => house.id === room?.boardingHouseId)?.name || null };
+    }) });
   } catch (err) { next(err); }
 };
 
 export const createTenant = async (req, res, next) => {
-  try {
-    const ownerId = oid(req);
-    const data = await OwnerTenant.create({ ...req.body, ownerId });
-    if (data.roomId) {
-      await OwnerRoom.update({ status: 'occupied' }, { where: { id: data.roomId, ownerId } });
-    }
-
-    // Check if there is a matching tenant User account to approve & unlock dashboard
-    if (data.email || data.fullName) {
-      const matchCriteria = [];
-      if (data.email) matchCriteria.push({ email: data.email });
-      if (data.contactNumber) matchCriteria.push({ contactNumber: data.contactNumber });
-      if (data.fullName) matchCriteria.push({ fullName: data.fullName });
-
-      const tenantUser = await User.findOne({
-        where: {
-          accountType: 'tenant',
-          [Op.or]: matchCriteria
-        }
-      });
-
-      if (tenantUser) {
-        const ownerUser = await User.findByPk(ownerId, { attributes: ['boardingHouseName'] });
-        tenantUser.applicationStatus = 'approved';
-        if (ownerUser?.boardingHouseName) {
-          tenantUser.selectedBoardingHouse = ownerUser.boardingHouseName;
-        }
-        await tenantUser.save();
-
-        await TenantApplication.findOrCreate({
-          where: { tenantId: tenantUser.id, ownerId },
-          defaults: {
-            boardingHouseName: ownerUser?.boardingHouseName || 'Boarding House',
-            status: 'confirmed',
-            roomId: data.roomId || null,
-            monthlyRent: data.monthlyRent || 0,
-            moveInDate: data.moveInDate || new Date(),
-            confirmedAt: new Date()
-          }
-        }).then(async ([appRec, created]) => {
-          if (!created && appRec.status !== 'confirmed') {
-            appRec.status = 'confirmed';
-            appRec.confirmedAt = new Date();
-            if (data.roomId) appRec.roomId = data.roomId;
-            if (data.monthlyRent) appRec.monthlyRent = data.monthlyRent;
-            await appRec.save();
-          }
-        }).catch(() => {});
-
-        const { BarangayNotification } = await import('../models/adminModels.js');
-        await BarangayNotification.create({
-          userId: tenantUser.id,
-          title: '🎉 Rental Application Accepted!',
-          body: `Congratulations! Your rental application for ${ownerUser?.boardingHouseName || 'the boarding house'} has been accepted by the owner. Your full tenant portal features are now unlocked!`,
-          type: 'application_approved',
-          isRead: false
-        }).catch(() => {});
-      }
-    }
-
-    await audit(req, 'create_tenant', 'OwnerTenant', data.id, { fullName: data.fullName });
-    res.status(201).json({ data, message: 'Tenant registered & account activated.' });
-  } catch (err) { next(err); }
+  try { const data = await saveTenant(oid(req), null, req.body); await audit(req, 'createTenant', 'Inventory', data?.id || req.params.id, {}); res.status(201).json({ data, message: 'Tenant registered.' }); } catch (error) { next(error); }
 };
 
 export const updateTenant = async (req, res, next) => {
-  try {
-    const tenant = await OwnerTenant.findOne({ where: { id: req.params.id, ownerId: oid(req) } });
-    if (!tenant) return res.status(404).json({ error: 'Tenant not found.' });
-    await tenant.update(req.body);
-    if (req.body.status === 'moved_out' && tenant.roomId) {
-      await OwnerRoom.update({ status: 'available' }, { where: { id: tenant.roomId, ownerId: oid(req) } });
-    }
-    await audit(req, 'update_tenant', 'OwnerTenant', tenant.id, req.body);
-    res.json({ data: tenant, message: 'Tenant updated.' });
-  } catch (err) { next(err); }
+  try { const data = await saveTenant(oid(req), req.params.id, req.body); await audit(req, 'updateTenant', 'Inventory', data?.id || req.params.id, {}); res.status(200).json({ data, message: 'Tenant updated.' }); } catch (error) { next(error); }
 };
 
 export const deleteTenant = async (req, res, next) => {
-  try {
-    const tenant = await OwnerTenant.findOne({ where: { id: req.params.id, ownerId: oid(req) } });
-    if (!tenant) return res.status(404).json({ error: 'Tenant not found.' });
-    await tenant.destroy();
-    await audit(req, 'delete_tenant', 'OwnerTenant', req.params.id, {});
-    res.json({ message: 'Tenant removed.' });
-  } catch (err) { next(err); }
+  try { const data = await removeTenant(oid(req), req.params.id); await audit(req, 'deleteTenant', 'Inventory', data?.id || req.params.id, {}); res.status(200).json({ data, message: 'Tenant removed.' }); } catch (error) { next(error); }
 };
-
-// ─── Payments ─────────────────────────────────────────────────────────────────
 
 export const getPayments = async (req, res, next) => {
   try {
@@ -441,6 +285,7 @@ export const getPayments = async (req, res, next) => {
 
     const data = payments.map(p => {
       const plain = p.toJSON();
+      plain.totalAmount = Number(p.amount) + Number(p.penalty || 0);
       plain.tenantName = tenantMap[p.tenantId] || `Tenant #${p.tenantId}`;
       return plain;
     });
@@ -451,34 +296,61 @@ export const getPayments = async (req, res, next) => {
 
 export const createPayment = async (req, res, next) => {
   try {
-    const data = await OwnerPayment.create({ ...req.body, ownerId: oid(req) });
-    await audit(req, 'create_payment', 'OwnerPayment', data.id, { amount: data.amount });
-    res.status(201).json({ data, message: 'Payment record created.' });
-  } catch (err) { next(err); }
+    const data = await sequelize.transaction(async transaction => {
+      const ownerId = oid(req); await ownerLock(ownerId, transaction);
+      const tenant = await OwnerTenant.findOne({ where: { id: req.body.tenantId, ownerId, status: 'active' }, transaction, lock: transaction.LOCK.UPDATE });
+      if (!tenant) fail('Select an active tenant belonging to this owner.');
+      const amount = Number(req.body.amount), penalty = Number(req.body.penalty || 0);
+      if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(penalty) || penalty < 0) fail('Enter a valid positive amount and non-negative penalty.');
+      const dueDate = req.body.dueDate;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate || '') || (!Number.isFinite(Date.parse(dueDate)) || new Date(dueDate).toISOString().slice(0,10) !== dueDate)) fail('A valid due date is required.');
+      const month = req.body.month || dueDate.slice(0,7);
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) fail('Invalid billing month.');
+      if (await OwnerPayment.findOne({ where: { ownerId, tenantId: tenant.id, month }, transaction })) fail('A bill already exists for this tenant and month.', 409);
+      const bill = await OwnerPayment.create({ ownerId, tenantId: tenant.id, roomId: tenant.roomId, amount, penalty, dueDate, month, status: 'pending', notes: String(req.body.notes || '').slice(0,2000) }, { transaction });
+      await tenant.update({ balance: Number(tenant.balance) + amount + penalty }, { transaction });
+      return bill;
+    });
+    res.status(201).json({ data, message: 'Rent bill created and tenant balance updated.' });
+  } catch (error) { next(error); }
 };
-
 export const markPaid = async (req, res, next) => {
   try {
-    const payment = await OwnerPayment.findOne({ where: { id: req.params.id, ownerId: oid(req) } });
-    if (!payment) return res.status(404).json({ error: 'Payment record not found.' });
-    await payment.update({ status: 'paid', paidDate: new Date(), method: req.body.method || 'Cash', reference: req.body.reference || null });
-    // Update tenant balance
-    await OwnerTenant.decrement('balance', { by: Number(payment.amount), where: { id: payment.tenantId } });
-    await audit(req, 'mark_paid', 'OwnerPayment', payment.id, { amount: payment.amount });
-    res.json({ data: payment, message: 'Payment marked as paid.' });
-  } catch (err) { next(err); }
+    const data = await sequelize.transaction(async transaction => {
+      const ownerId = oid(req); await ownerLock(ownerId, transaction);
+      const bill = await OwnerPayment.findOne({ where: { id: req.params.id, ownerId }, transaction, lock: transaction.LOCK.UPDATE });
+      if (!bill) fail('Bill not found.', 404);
+      if (bill.status === 'paid') return bill;
+      const { Payment } = await import('../models/paymentModels.js');
+      if (await Payment.count({ where: { tenantPaymentId: bill.id, status: { [Op.in]: ['PENDING','PROCESSING'] } }, transaction })) fail('A checkout is in progress for this bill. Reconcile it before recording another payment.', 409);
+      const tenant = await OwnerTenant.findOne({ where: { id: bill.tenantId, ownerId }, transaction, lock: transaction.LOCK.UPDATE });
+      if (!tenant) fail('The linked tenancy is missing.');
+      const method = req.body.method || 'Cash';
+      if (!['Cash','GCash','Bank Transfer','Other'].includes(method)) fail('Invalid payment method.');
+      if (method === 'GCash' && !String(req.body.reference || '').trim()) fail('A GCash reference number is required for an owner-verified direct payment.');
+      await bill.update({ status: 'paid', paidDate: new Date(), method, reference: req.body.reference || null }, { transaction });
+      await tenant.update({ balance: Math.max(0, Number(tenant.balance)-Number(bill.amount)-Number(bill.penalty)) }, { transaction });
+      return bill;
+    });
+    res.json({ data, message: 'Payment recorded.' });
+  } catch (error) { next(error); }
 };
 
 export const deletePayment = async (req, res, next) => {
   try {
-    const payment = await OwnerPayment.findOne({ where: { id: req.params.id, ownerId: oid(req) } });
-    if (!payment) return res.status(404).json({ error: 'Payment not found.' });
-    await payment.destroy();
-    res.json({ message: 'Payment deleted.' });
-  } catch (err) { next(err); }
+    await sequelize.transaction(async transaction => {
+      await ownerLock(oid(req), transaction);
+      const bill = await OwnerPayment.findOne({ where: { id: req.params.id, ownerId: oid(req) }, transaction, lock: transaction.LOCK.UPDATE });
+      if (!bill) fail('Bill not found.', 404);
+      const { Payment } = await import('../models/paymentModels.js');
+      if (bill.status === 'paid' || await Payment.count({ where: { tenantPaymentId: bill.id }, transaction })) fail('Bills with payment history cannot be deleted.', 409);
+      const tenant = await OwnerTenant.findOne({ where: { id: bill.tenantId, ownerId: oid(req) }, transaction, lock: transaction.LOCK.UPDATE });
+      if (tenant) await tenant.update({ balance: Math.max(0, Number(tenant.balance)-Number(bill.amount)-Number(bill.penalty)) }, { transaction });
+      await bill.destroy({ transaction });
+    });
+    res.json({ message: 'Unpaid bill removed and balance updated.' });
+  } catch (error) { next(error); }
 };
-
-// ─── Inquiries ────────────────────────────────────────────────────────────────
 
 export const getInquiries = async (req, res, next) => {
   try {
@@ -907,7 +779,9 @@ export const addGalleryImage = async (req, res, next) => {
     if (!req.file) return res.status(400).json({ error: 'No image uploaded.' });
     const imageUrl = `/uploads/${req.file.filename}`;
     const maxOrder = await OwnerGallery.max('sortOrder', { where: { ownerId: oid(req) } }) || 5;
-    const data = await OwnerGallery.create({ ownerId: oid(req), imageUrl, caption: req.body.caption || '', sortOrder: maxOrder + 1, imageType: req.body.imageType || 'gallery' });
+    const house = req.body.boardingHouseId ? await BoardingHouse.findOne({ where: { id: req.body.boardingHouseId, ownerId: oid(req) } }) : await BoardingHouse.findOne({ where: { ownerId: oid(req), isPrimary: true } });
+    if (req.body.boardingHouseId && !house) fail('Boarding house not found.', 404);
+    const data = await OwnerGallery.create({ ownerId: oid(req), boardingHouseId: house?.id || null, imageUrl, caption: req.body.caption || '', sortOrder: maxOrder + 1, imageType: req.body.imageType || 'gallery' });
     await audit(req, 'add_gallery', 'OwnerGallery', data.id, { imageUrl });
     res.status(201).json({ data, message: 'Image uploaded.' });
   } catch (err) { next(err); }
@@ -926,7 +800,9 @@ export const deleteGalleryImage = async (req, res, next) => {
 
 export const updateAmenities = async (req, res, next) => {
   try {
-    await User.update({ amenities: JSON.stringify(req.body.amenities || []) }, { where: { id: oid(req) } });
+    const amenities = JSON.stringify(req.body.amenities || []);
+    await User.update({ amenities }, { where: { id: oid(req) } });
+    await syncPrimaryHouse(oid(req), { amenities });
     await audit(req, 'update_amenities', 'User', oid(req), {});
     res.json({ message: 'Amenities updated.' });
   } catch (err) { next(err); }
@@ -936,7 +812,9 @@ export const updateAmenities = async (req, res, next) => {
 
 export const updateHouseRules = async (req, res, next) => {
   try {
-    await User.update({ houseRules: JSON.stringify(req.body.rules || []) }, { where: { id: oid(req) } });
+    const houseRules = JSON.stringify(req.body.rules || []);
+    await User.update({ houseRules }, { where: { id: oid(req) } });
+    await syncPrimaryHouse(oid(req), { houseRules });
     await audit(req, 'update_rules', 'User', oid(req), {});
     res.json({ message: 'House rules updated.' });
   } catch (err) { next(err); }
@@ -947,7 +825,10 @@ export const updateHouseRules = async (req, res, next) => {
 export const updateLocation = async (req, res, next) => {
   try {
     const { latitude, longitude, mapPin } = req.body;
-    await User.update({ boardingHouseLatitude: latitude, boardingHouseLongitude: longitude, mapPin }, { where: { id: oid(req) } });
+    if (latitude === '' || longitude === '' || !Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude)) || Math.abs(Number(latitude)) > 90 || Math.abs(Number(longitude)) > 180) fail('Choose valid map coordinates.');
+    const coordinates = { boardingHouseLatitude: latitude, boardingHouseLongitude: longitude, mapPin: `Lat ${latitude}, Lon ${longitude}` };
+    await User.update(coordinates, { where: { id: oid(req) } });
+    await syncPrimaryHouse(oid(req), coordinates);
     await audit(req, 'update_location', 'User', oid(req), { latitude, longitude });
     res.json({ message: 'Location updated.' });
   } catch (err) { next(err); }
@@ -1177,6 +1058,7 @@ export const updateMyProfile = async (req, res, next) => {
     if (gcashQrFile) updates.gcashQrCode = `/uploads/${gcashQrFile.filename}`;
 
     await user.update(updates);
+    await syncPrimaryHouse(user.id, updates);
     await audit(req, 'update_my_profile', 'User', user.id, { fields: Object.keys(updates) });
     res.json({ message: 'Profile updated.', data: user.get({ plain: true }) });
   } catch (err) { next(err); }
@@ -1205,6 +1087,7 @@ export const updateMyDocuments = async (req, res, next) => {
     }
 
     await user.update(updates);
+    await syncPrimaryHouse(user.id, updates);
     await audit(req, 'update_documents', 'User', user.id, { updatedDocs: Object.keys(updates) });
     res.json({ message: 'Documents updated successfully.', updated: Object.keys(updates) });
   } catch (err) { next(err); }
@@ -1298,121 +1181,10 @@ export const getPendingApplications = async (req, res, next) => {
 
 export const acceptTenantApplication = async (req, res, next) => {
   try {
-    const { userId } = req.params;
-    const ownerId = oid(req);
-    const { roomId, monthlyRent, moveInDate, notes, applicationId } = req.body;
-
-    const tenantUser = await User.findOne({
-      where: { id: userId, accountType: 'tenant' },
-    });
-    if (!tenantUser) return res.status(404).json({ error: 'Tenant user not found.' });
-
-    const owner = await User.findByPk(ownerId, { attributes: ['id', 'fullName', 'boardingHouseName'] });
-
-    // Find or create the TenantApplication record
-    let app = null;
-    if (applicationId) {
-      app = await TenantApplication.findOne({ where: { id: applicationId, ownerId } });
-    }
-    if (!app) {
-      app = await TenantApplication.findOne({
-        where: {
-          tenantId: userId,
-          ownerId,
-          status: { [Op.in]: ['pending_owner', 'accepted_by_owner'] }
-        },
-        order: [['createdAt', 'DESC']]
-      });
-    }
-    if (!app) {
-      app = await TenantApplication.create({
-        tenantId: userId,
-        ownerId,
-        boardingHouseName: owner?.boardingHouseName || `${owner?.fullName}'s Boarding House`,
-        status: 'pending_owner'
-      });
-    }
-
-    // Update the application status to 'accepted_by_owner' (Awaiting tenant confirmation back!)
-    app.status = 'accepted_by_owner';
-    app.roomId = roomId ? parseInt(roomId, 10) : null;
-    app.monthlyRent = monthlyRent ? Number(monthlyRent) : 0;
-    app.moveInDate = moveInDate || new Date();
-    app.ownerNotes = notes || null;
-    app.acceptedAt = new Date();
-    await app.save();
-
-    // Approve tenant account immediately so features unlock upon owner acceptance
-    tenantUser.applicationStatus = 'approved';
-    if (owner?.boardingHouseName) {
-      tenantUser.selectedBoardingHouse = owner.boardingHouseName;
-    }
-    await tenantUser.save();
-
-    // Create or activate OwnerTenant record
-    let ot = await OwnerTenant.findOne({
-      where: {
-        ownerId,
-        [Op.or]: [
-          ...(tenantUser.email ? [{ email: tenantUser.email }] : []),
-          ...(tenantUser.contactNumber ? [{ contactNumber: tenantUser.contactNumber }] : []),
-          ...(tenantUser.fullName ? [{ fullName: tenantUser.fullName }] : [])
-        ]
-      }
-    });
-
-    if (ot) {
-      ot.status = 'active';
-      if (roomId) ot.roomId = parseInt(roomId, 10);
-      if (monthlyRent) ot.monthlyRent = Number(monthlyRent);
-      if (moveInDate) ot.moveInDate = moveInDate;
-      await ot.save();
-    } else {
-      ot = await OwnerTenant.create({
-        ownerId,
-        roomId: roomId ? parseInt(roomId, 10) : null,
-        fullName: tenantUser.fullName,
-        email: tenantUser.email,
-        contactNumber: tenantUser.contactNumber,
-        monthlyRent: monthlyRent ? Number(monthlyRent) : 0,
-        moveInDate: moveInDate || new Date(),
-        status: 'active'
-      });
-    }
-
-    if (roomId) {
-      await OwnerRoom.update({ status: 'occupied' }, { where: { id: roomId, ownerId } });
-    }
-
-    // Send notification to tenant to review and accept back
-    await BarangayNotification.create({
-      userId: tenantUser.id,
-      title: '🎉 Boarding House Landlord Accepted Your Application!',
-      body: `Congratulations! ${owner?.boardingHouseName || owner?.fullName || 'The Landlord'} has accepted your application! Please open your Tenant Portal and click "Accept & Confirm" to finalize your room tenancy.`,
-      type: 'application_offered',
-      isRead: false,
-    }).catch(() => {});
-
-    // Notify owner
-    await OwnerNotification.create({
-      ownerId,
-      title: '✅ Rental Offer Sent to Tenant',
-      body: `You accepted ${tenantUser.fullName}'s application for ${app.boardingHouseName}. Waiting for the tenant to confirm back on their portal.`,
-      type: 'tenant_offer_sent',
-    }).catch(() => {});
-
-    await audit(req, 'accept_tenant_application', 'TenantApplication', app.id, {
-      tenantUserId: userId,
-      monthlyRent,
-      roomId
-    });
-
-    res.status(200).json({
-      success: true,
-      data: app,
-      message: `Rental offer sent to ${tenantUser.fullName}! The tenant must now accept back on their dashboard to complete confirmation.`
-    });
-  } catch (err) { next(err); }
+    const data = await offerApplication(oid(req), req.params.userId, req.body);
+    await BarangayNotification.create({ userId: data.tenantId, title: 'Room offer received', body: `Review the offer for ${data.boardingHouseName} and confirm on your tenant dashboard. A slot is assigned only after confirmation.`, type: 'application_offered' });
+    res.json({ success: true, data, message: 'Offer sent. The tenant must confirm; vacancy is checked again at confirmation.' });
+  } catch (error) { next(error); }
 };
 
 export const declineTenantApplication = async (req, res, next) => {

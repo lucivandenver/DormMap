@@ -1,324 +1,109 @@
+import { findActiveRental } from './rentalIdentityService.js';
 import { sequelize } from '../models/db.js';
 import { User } from '../models/userModel.js';
 import { OwnerTenant, OwnerRoom, OwnerPayment } from '../models/ownerModels.js';
 import { Payment, PaymentWebhook, PaymentAuditLog } from '../models/paymentModels.js';
 import { generatePaymentReference } from '../utils/paymentReference.js';
 import { PAYMENT_STATUS } from '../utils/paymentStatus.js';
-import { createPaymongoCheckoutSession, getPaymongoCheckoutStatus } from './paymongoService.js';
+import { createPaymongoCheckoutSession } from './paymongoService.js';
 import { createPaymentReceipt } from './receiptService.js';
 import { sendPaymentNotification } from './notificationService.js';
 import { emitToUser } from './websocketService.js';
 
-const APP_BASE_URL = process.env.APP_BASE_URL || 'http://localhost:3000';
 
 /**
  * Initiates a GCash payment for tenant rent via PayMongo Checkout Session
  */
-export const initiateRentPayment = async ({ user, billingMonth, tenantPaymentId }) => {
-  // 1. Get Tenant Record from MySQL to ensure authentic rent calculation (case-insensitive email match)
-  const tenantRec = await OwnerTenant.findOne({
-    where: {
-      [sequelize.Sequelize.Op.or]: [
-        sequelize.where(
-          sequelize.fn('LOWER', sequelize.col('email')),
-          user.email.toLowerCase().trim()
-        ),
-        ...(user.contactNumber ? [{ contactNumber: user.contactNumber }] : [])
-      ],
-      status: 'active'
-    }
-  });
-
-  if (!tenantRec) {
-    throw new Error('No active rental record found for your tenant account.');
-  }
-
-  // 2. Fetch room & owner details
-  const room = tenantRec.roomId ? await OwnerRoom.findByPk(tenantRec.roomId) : null;
-  const ownerId = tenantRec.ownerId;
-  const owner = await User.findByPk(ownerId);
-
-  if (!owner) {
-    throw new Error('Boarding house owner record is missing.');
-  }
-
-  // 3. Find or compute payment obligation
-  let baseAmount = Number(tenantRec.monthlyRent || room?.rentalPrice || 0);
-  let penaltyAmount = 0;
-  let targetTenantPayment = null;
-
+export const initiateRentPayment = async ({ user, billingMonth, tenantPaymentId }) => sequelize.transaction(async transaction => {
+  await User.findByPk(user.id, { transaction, lock: transaction.LOCK.UPDATE });
+  const tenantRec = await findActiveRental(user, { transaction });
+  if (!tenantRec) throw new Error('No active rental record is linked to your account.');
+  const owner = await User.findByPk(tenantRec.ownerId, { transaction });
+  if (!owner || owner.isSuspended || owner.isArchived || owner.publicMapUnregistered || !['approved','approved_barangay'].includes(owner.applicationStatus)) throw new Error('This owner is not currently eligible for online rent collection.');
+  const room = tenantRec.roomId ? await OwnerRoom.findOne({ where: { id: tenantRec.roomId, ownerId: owner.id }, transaction }) : null;
+  if (tenantRec.roomId && !room) throw new Error('Your room assignment needs correction by the owner.');
+  const month = billingMonth || new Date().toISOString().slice(0,7);
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error('Choose a valid billing month (YYYY-MM).');
+  let bill = null;
   if (tenantPaymentId) {
-    targetTenantPayment = await OwnerPayment.findByPk(tenantPaymentId);
-    if (targetTenantPayment) {
-      baseAmount = Number(targetTenantPayment.amount);
-      penaltyAmount = Number(targetTenantPayment.penalty || 0);
-    }
+    bill = await OwnerPayment.findOne({ where: { id: tenantPaymentId, ownerId: owner.id, tenantId: tenantRec.id }, transaction, lock: transaction.LOCK.UPDATE });
+    if (!bill) throw new Error('This billing record does not belong to your tenancy.');
+    if (bill.status === 'paid') throw new Error('This billing record is already paid.');
+    if (bill.month && bill.month !== month) throw new Error('The selected month does not match this bill.');
   }
-
-  const totalAmount = baseAmount + penaltyAmount;
-  if (totalAmount <= 0) {
-    throw new Error('Invalid payment amount calculated.');
-  }
-
-  const currentMonth = billingMonth || new Date().toISOString().slice(0, 7);
-  const currentYear = new Date().getFullYear();
-
-  // 4. Idempotency Check: Check existing active payment
-  const existingActivePayment = await Payment.findOne({
-    where: {
-      tenantId: user.id,
-      billingMonth: currentMonth,
-      status: [PAYMENT_STATUS.PENDING, PAYMENT_STATUS.PROCESSING, PAYMENT_STATUS.SUCCEEDED]
-    }
-  });
-
-  if (existingActivePayment) {
-    if (existingActivePayment.status === PAYMENT_STATUS.SUCCEEDED) {
-      throw new Error(`Rent for ${currentMonth} has already been paid successfully!`);
-    }
-
-    // Only reuse existing URL if it is a genuine external PayMongo checkout session or GCash portal
-    if (
-      existingActivePayment.checkoutUrl &&
-      existingActivePayment.checkoutUrl.startsWith('http') &&
-      (existingActivePayment.checkoutUrl.includes('paymongo.com') || existingActivePayment.checkoutUrl.includes('gcash-portal'))
-    ) {
-      return {
-        payment: existingActivePayment,
-        checkoutUrl: existingActivePayment.checkoutUrl,
-        isExisting: true
-      };
-    }
-  }
-
-  // 5. Generate internal payment reference
-  const internalReference = existingActivePayment?.internalReference || generatePaymentReference(currentMonth);
-
-  // 6. Define return URLs
-  const successReturnUrl = `${APP_BASE_URL}/payments/processing?ref=${internalReference}`;
-  const failureReturnUrl = `${APP_BASE_URL}/payments/failure?ref=${internalReference}`;
-
-  // 7. Call PayMongo API service for fresh Checkout Session
-  const paymongoSession = await createPaymongoCheckoutSession({
-    reference: internalReference,
-    amount: totalAmount,
-    description: `Rent payment for ${owner.boardingHouseName || 'Boarding House'} (Owner: ${owner.fullName}${owner.gcashNumber ? ` - GCash: ${owner.gcashNumber}` : ''}) - Month: ${currentMonth}`,
-    billing: {
-      name: user.fullName || '',
-      email: user.email || '',
-      phone: user.contactNumber || ''
-    },
-    successReturnUrl,
-    failureReturnUrl,
-    metadata: {
-      owner_id: owner.id,
-      owner_name: owner.fullName || '',
-      owner_gcash_number: owner.gcashNumber || '',
-      owner_gcash_name: owner.gcashName || '',
-      boarding_house: owner.boardingHouseName || '',
-      tenant_id: user.id,
-      tenant_name: user.fullName || ''
-    }
-  });
-
-  const checkoutUrl = paymongoSession.checkout_url || successReturnUrl;
-
-  // 8. If updating existing pending payment without URL
-  if (existingActivePayment) {
-    existingActivePayment.checkoutUrl = checkoutUrl;
-    existingActivePayment.paymongoCheckoutId = paymongoSession.id || null;
-    await existingActivePayment.save();
-    return { payment: existingActivePayment, checkoutUrl, isExisting: true };
-  }
-
-  // Save new Payment Record to MySQL
-  const payment = await Payment.create({
-    tenantId: user.id,
-    ownerId: owner.id,
-    roomId: tenantRec.roomId || null,
-    tenantPaymentId: targetTenantPayment ? targetTenantPayment.id : null,
-    billingMonth: currentMonth,
-    billingYear: currentYear,
-    internalReference,
-    paymongoCheckoutId: paymongoSession.id || null,
-    paymentMethod: 'GCASH',
-    paymentChannel: 'GCASH',
-    currency: 'PHP',
-    amount: totalAmount,
-    baseAmount,
-    penaltyAmount,
-    status: PAYMENT_STATUS.PENDING,
-    checkoutUrl,
-    successReturnUrl,
-    failureReturnUrl,
-    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 Hours expiry
-  });
-
-  // Audit Log
-  await PaymentAuditLog.create({
-    paymentId: payment.id,
-    userId: user.id,
-    action: 'PAYMENT_CREATED',
-    metadata: { internalReference, totalAmount, checkoutUrl, paymongoCheckoutId: paymongoSession.id }
-  }).catch(() => {});
-
-  return { payment, checkoutUrl, isExisting: false };
-};
+  const baseAmount = Number(bill ? bill.amount : tenantRec.monthlyRent ?? room?.rentalPrice ?? 0);
+  const penaltyAmount = Number(bill?.penalty || 0);
+  const amount = Math.round((baseAmount + penaltyAmount) * 100) / 100;
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error('A positive rent amount must be set by the owner.');
+  const checkoutKey = bill ? `bill-${bill.id}` : `rent-${user.id}-${owner.id}-${month}`;
+  let payment = await Payment.findOne({ where: { checkoutKey }, transaction, lock: transaction.LOCK.UPDATE });
+  // Include pre-upgrade records so deployment cannot restart a settled charge.
+  if (!payment) payment = await Payment.findOne({ where: { tenantId: user.id, ownerId: owner.id, billingMonth: month, ...(bill ? { tenantPaymentId: bill.id } : { tenantPaymentId: null }), status: ['PENDING','PROCESSING','SUCCEEDED'] }, transaction, lock: transaction.LOCK.UPDATE });
+  if (payment?.status === 'SUCCEEDED') throw new Error('This rent charge has already been paid.');
+  if (payment?.checkoutUrl && ['PENDING','PROCESSING'].includes(payment.status) ) return { payment, checkoutUrl: payment.checkoutUrl, isExisting: true };
+  const reference = payment?.internalReference || generatePaymentReference(month);
+  const baseUrl = (process.env.APP_BASE_URL || process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
+  const successReturnUrl = `${baseUrl}/payments/processing?ref=${reference}`;
+  const failureReturnUrl = `${baseUrl}/payments/failure?ref=${reference}`;
+  const session = await createPaymongoCheckoutSession({ reference, amount, description: `Rent for ${owner.boardingHouseName || 'Boarding House'} — ${month}`, billing: { name: user.fullName, email: user.email, phone: user.contactNumber || '' }, successReturnUrl, failureReturnUrl, metadata: { owner_id: owner.id, tenant_id: user.id, owner_tenant_id: tenantRec.id, billing_month: month } });
+  if (!session.checkout_url || !session.id) throw new Error('Payment provider did not return a checkout session.');
+  const values = { checkoutKey, ownerTenantId: tenantRec.id, tenantId: user.id, ownerId: owner.id, roomId: tenantRec.roomId, tenantPaymentId: bill?.id || null, billingMonth: month, billingYear: Number(month.slice(0,4)), internalReference: reference, paymongoCheckoutId: session.id, paymentMethod: 'GCASH', paymentChannel: 'GCASH', currency: 'PHP', amount, baseAmount, penaltyAmount, status: 'PENDING', checkoutUrl: session.checkout_url, successReturnUrl, failureReturnUrl, expiresAt: null };
+  payment = payment ? await payment.update(values, { transaction }) : await Payment.create(values, { transaction });
+  await PaymentAuditLog.create({ paymentId: payment.id, userId: user.id, action: 'PAYMENT_CREATED', metadata: { reference, amount } }, { transaction });
+  return { payment, checkoutUrl: payment.checkoutUrl, isExisting: false };
+});
 
 /**
  * Handles Webhooks from PayMongo with Idempotency Protection & Transactions
  */
-export const handlePaymongoWebhookPayload = async (payload) => {
-  const eventAttributes = payload?.data?.attributes || {};
-  const eventType = eventAttributes.type || payload.event || payload.type || 'checkout_session.payment.paid';
-  const innerData = eventAttributes.data || payload.data || payload;
-  const innerAttributes = innerData.attributes || {};
-
-  const referenceId = innerAttributes.reference_number || innerAttributes.reference_id || innerAttributes.external_id;
-  const paymongoCheckoutId = innerData.id;
-  const paymongoPaymentId = innerAttributes.payments?.[0]?.id || innerData.id;
-
-  // Log raw webhook
-  const webhookRecord = await PaymentWebhook.create({
-    eventType,
-    paymongoEventId: payload.data?.id || null,
-    paymongoPaymentId,
-    payload,
-    processed: false
-  });
-
-  if (!referenceId && !paymongoCheckoutId) {
-    return { success: false, reason: 'Missing reference_number or checkout session ID in webhook payload' };
-  }
-
-  // Find DormMap payment
-  const payment = await Payment.findOne({
-    where: {
-      [sequelize.Sequelize.Op.or]: [
-        ...(referenceId ? [{ internalReference: referenceId }] : []),
-        ...(paymongoCheckoutId ? [{ paymongoCheckoutId }] : []),
-        ...(paymongoPaymentId ? [{ paymongoPaymentId }] : [])
-      ]
+export const handlePaymongoWebhookPayload = async payload => {
+  const event = payload?.data?.attributes;
+  const eventType = event?.type;
+  const session = event?.data;
+  if (!['checkout_session.payment.paid','checkout_session.expired','checkout_session.payment.failed'].includes(eventType)) return { success: true, ignored: true };
+  if (!session?.id) throw new Error('Missing checkout session identifier.');
+  const attributes = session.attributes || {};
+  const outcome = await sequelize.transaction(async transaction => {
+    const payment = await Payment.findOne({ where: { paymongoCheckoutId: session.id }, transaction, lock: transaction.LOCK.UPDATE });
+    if (!payment) throw new Error('Checkout session is not yet linked. Retry the webhook.');
+    if (attributes.reference_number && attributes.reference_number !== payment.internalReference) throw new Error('Checkout reference mismatch.');
+    const webhook = await PaymentWebhook.create({ eventType, paymongoEventId: payload.data.id || null, paymentId: payment.id, payload, processed: false }, { transaction });
+    if (payment.status === 'SUCCEEDED') {
+      await webhook.update({ processed: true, processedAt: new Date() }, { transaction });
+      return { payment, duplicate: true };
     }
-  });
-
-  if (!payment) {
-    return { success: false, reason: `No matching payment record for reference: ${referenceId || paymongoCheckoutId}` };
-  }
-
-  // Idempotency Check: Don't process already succeeded payments twice
-  if (payment.status === PAYMENT_STATUS.SUCCEEDED && (eventType.includes('paid') || eventType.includes('succeeded') || eventType.includes('capture'))) {
-    await webhookRecord.update({ processed: true, processedAt: new Date(), paymentId: payment.id });
-    return { success: true, message: 'Payment already processed cleanly.' };
-  }
-
-  const transaction = await sequelize.transaction();
-
-  try {
-    const isSuccess = eventType.includes('paid') || eventType.includes('succeeded') || eventType.includes('capture') || innerAttributes.status === 'paid';
-    const isFailure = eventType.includes('failed') || eventType.includes('failure') || innerAttributes.status === 'failed';
-    const isExpired = eventType.includes('expired') || innerAttributes.status === 'expired';
-
-    if (isSuccess) {
-      payment.status = PAYMENT_STATUS.SUCCEEDED;
-      payment.paidAt = new Date();
-      payment.paymongoPaymentId = paymongoPaymentId;
-      await payment.save({ transaction });
-
-      // Update linked OwnerPayment record
-      if (payment.tenantPaymentId) {
-        await OwnerPayment.update(
-          { status: 'paid', paidDate: new Date(), method: 'GCash Online', reference: payment.internalReference },
-          { where: { id: payment.tenantPaymentId }, transaction }
-        );
-      } else {
-        // Create new OwnerPayment entry if missing
-        await OwnerPayment.create({
-          ownerId: payment.ownerId,
-          tenantId: payment.tenantId,
-          roomId: payment.roomId,
-          amount: payment.amount,
-          dueDate: new Date(),
-          paidDate: new Date(),
-          status: 'paid',
-          penalty: payment.penaltyAmount,
-          method: 'GCash Online',
-          reference: payment.internalReference,
-          month: payment.billingMonth
-        }, { transaction });
+    if (eventType === 'checkout_session.payment.paid') {
+      const paid = attributes.payments?.find(item => item.attributes?.status === 'paid') || attributes.payments?.[0];
+      const paidAmount = Number(paid?.attributes?.amount);
+      if (!paid?.id || paid?.attributes?.status !== 'paid' || !Number.isInteger(paidAmount) || paidAmount !== Math.round(Number(payment.amount)*100) || paid.attributes.currency !== 'PHP') throw new Error('Paid amount, currency, or status does not match this charge.');
+      const tenantUser = await User.findByPk(payment.tenantId, { transaction });
+      const tenant = payment.ownerTenantId ? await OwnerTenant.findOne({ where: { id: payment.ownerTenantId, ownerId: payment.ownerId }, transaction, lock: transaction.LOCK.UPDATE }) : await findActiveRental(tenantUser, { transaction, lock: transaction.LOCK.UPDATE });
+      if (!tenant || tenant.ownerId !== payment.ownerId) throw new Error('The payment tenancy cannot be reconciled.');
+      let bill = payment.tenantPaymentId ? await OwnerPayment.findOne({ where: { id: payment.tenantPaymentId, ownerId: payment.ownerId, tenantId: tenant.id }, transaction, lock: transaction.LOCK.UPDATE }) : null;
+      if (payment.tenantPaymentId && !bill) throw new Error('The linked bill is missing.');
+      const paidAt = new Date();
+      if (bill && bill.status === 'paid' && bill.reference !== payment.internalReference) throw new Error('This bill was settled through another payment; manual reconciliation is required.');
+      if (bill) await bill.update({ status: 'paid', paidDate: paidAt, method: 'GCash Online', reference: payment.internalReference }, { transaction });
+      else {
+        bill = await OwnerPayment.create({ ownerId: payment.ownerId, tenantId: tenant.id, roomId: payment.roomId, amount: payment.baseAmount, penalty: payment.penaltyAmount, dueDate: paidAt, paidDate: paidAt, status: 'paid', method: 'GCash Online', reference: payment.internalReference, month: payment.billingMonth }, { transaction });
+        payment.tenantPaymentId = bill.id;
       }
-
-      // Deduct balance from OwnerTenant
-      const tenantRec = await OwnerTenant.findOne({ where: { ownerId: payment.ownerId } });
-      if (tenantRec && tenantRec.balance > 0) {
-        const newBalance = Math.max(0, Number(tenantRec.balance) - Number(payment.amount));
-        await tenantRec.update({ balance: newBalance }, { transaction });
-      }
-
-      // Commit DB Transaction
-      await transaction.commit();
-
-      // Generate Receipt
-      const tenant = await User.findByPk(payment.tenantId);
-      const owner = await User.findByPk(payment.ownerId);
-      const room = payment.roomId ? await OwnerRoom.findByPk(payment.roomId) : null;
-      await createPaymentReceipt({ payment, tenant, owner, room });
-
-      // Real-time Notifications
-      await sendPaymentNotification({
-        tenantId: payment.tenantId,
-        ownerId: payment.ownerId,
-        title: '✅ Rent Payment Successful',
-        body: `${tenant?.fullName || 'Tenant'} successfully paid ₱${Number(payment.amount).toLocaleString('en-US', {minimumFractionDigits: 2})} via GCash for ${payment.billingMonth}.`,
-        type: 'payment_success',
-        link: '#payments'
-      });
-
-      // Emit Live WebSocket Events
-      emitToUser(payment.tenantId, 'payment_completed', {
-        paymentId: payment.id,
-        amount: payment.amount,
-        billingMonth: payment.billingMonth,
-        reference: payment.internalReference,
-        status: 'SUCCEEDED'
-      });
-      emitToUser(payment.ownerId, 'payment_completed', {
-        paymentId: payment.id,
-        tenantName: tenant?.fullName || 'Tenant',
-        amount: payment.amount,
-        billingMonth: payment.billingMonth,
-        reference: payment.internalReference,
-        status: 'SUCCEEDED'
-      });
-
-    } else if (isFailure || isExpired) {
-      payment.status = isExpired ? PAYMENT_STATUS.EXPIRED : PAYMENT_STATUS.FAILED;
-      payment.failureCode = innerAttributes.failure_code || 'PAYMENT_FAILED';
-      payment.failureReason = innerAttributes.failure_reason || 'Payment could not be completed via GCash.';
-      await payment.save({ transaction });
-
-      await transaction.commit();
-
-      const tenant = await User.findByPk(payment.tenantId);
-      await sendPaymentNotification({
-        tenantId: payment.tenantId,
-        ownerId: payment.ownerId,
-        title: '❌ Payment Unsuccessful',
-        body: `Your GCash payment request (${payment.internalReference}) for ${payment.billingMonth} was ${isExpired ? 'expired' : 'unsuccessful'}. Please try again.`,
-        type: 'payment_failed',
-        link: '#payments'
-      });
+      await tenant.update({ balance: Math.max(0, Number(tenant.balance)-Number(payment.amount)) }, { transaction });
+      await payment.update({ status: 'SUCCEEDED', paidAt, paymongoPaymentId: paid.id, tenantPaymentId: bill.id, ownerTenantId: tenant.id }, { transaction });
+      await createPaymentReceipt({ payment, transaction });
     } else {
-      await transaction.rollback();
+      await payment.update({ status: eventType.endsWith('expired') ? 'EXPIRED' : 'FAILED', failureReason: 'Payment provider reported an unsuccessful checkout.' }, { transaction });
     }
-
-    await webhookRecord.update({ processed: true, processedAt: new Date(), paymentId: payment.id });
-    return { success: true, status: payment.status };
-  } catch (err) {
-    await transaction.rollback();
-    console.error('[Webhook Transaction Error]', err);
-    throw err;
+    await webhook.update({ processed: true, processedAt: new Date() }, { transaction });
+    return { payment, duplicate: false };
+  });
+  if (!outcome.duplicate && outcome.payment.status === 'SUCCEEDED') {
+    const payment = outcome.payment;
+    emitToUser(payment.tenantId, 'payment_completed', { paymentId: payment.id, amount: payment.amount, status: payment.status });
+    emitToUser(payment.ownerId, 'payment_completed', { paymentId: payment.id, amount: payment.amount, status: payment.status });
+    await sendPaymentNotification({ tenantId: payment.tenantId, ownerId: payment.ownerId, title: 'Rent payment received', body: `GCash payment ${payment.internalReference} for ${payment.billingMonth} has been reconciled.`, type: 'payment_success', link: '#payments' }).catch(error => console.error('Payment notification failed:', error.message));
   }
+  return { success: true, status: outcome.payment.status, duplicate: outcome.duplicate };
 };
 
 // Export alias for backward compatibility if imported elsewhere
@@ -329,19 +114,7 @@ export const handleXenditWebhookPayload = handlePaymongoWebhookPayload;
  * Uses the tenant's OwnerTenant record to find their specific owner.
  */
 export const getLandlordGcashDetails = async (user) => {
-  const tenantRec = await OwnerTenant.findOne({
-    where: {
-      [sequelize.Sequelize.Op.or]: [
-        // Case-insensitive email match
-        sequelize.where(
-          sequelize.fn('LOWER', sequelize.col('email')),
-          user.email.toLowerCase().trim()
-        ),
-        ...(user.contactNumber ? [{ contactNumber: user.contactNumber }] : [])
-      ],
-      status: 'active'
-    }
-  });
+  const tenantRec = await findActiveRental(user);
 
   if (!tenantRec) {
     throw new Error('No active rental record found for your tenant account.');
@@ -364,22 +137,5 @@ export const getLandlordGcashDetails = async (user) => {
     gcashName: owner.gcashName || '',
     gcashQrCode: owner.gcashQrCode || null
   };
-};
-
-/**
- * Processes a direct GCash Portal payment completion
- */
-export const processDirectGcashPayment = async ({ reference, gcashNumber }) => {
-  return await handlePaymongoWebhookPayload({
-    data: {
-      id: `cs_gcash_${Date.now()}`,
-      attributes: {
-        type: 'checkout_session.payment.paid',
-        status: 'paid',
-        reference_number: reference,
-        payments: [{ id: `pay_gcash_${Date.now()}` }]
-      }
-    }
-  });
 };
 

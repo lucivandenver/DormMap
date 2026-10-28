@@ -1,3 +1,5 @@
+import { inventorySummary } from '../services/inventorySummaryService.js';
+import { setPublicMapStatus } from '../services/publicMapStatusService.js';
 import { uploadDir } from '../config/storage.js';
 import { Op, fn, col } from 'sequelize';
 import { User } from '../models/userModel.js';
@@ -25,6 +27,7 @@ export const overview = async (req, res, next) => {
     const today = new Date();
     const soon = new Date(); soon.setDate(today.getDate() + 30);
     const ownerWhere = { accountType: 'boarding_house_owner', isArchived: false };
+    const inventory = await inventorySummary(await User.findAll({ where: ownerWhere, attributes: ['id','boardingHouseName','applicationStatus','isSuspended','publicMapUnregistered'] }));
 
     const [
       barangays, institutions, owners, tenants, clients, houses, activeHouses, 
@@ -35,12 +38,12 @@ export const overview = async (req, res, next) => {
       Barangay.count({ where: { isActive: true } }),
       EducationalInstitution.count({ where: { isActive: true } }),
       User.count({ where: ownerWhere }),
-      User.count({ where: { accountType: 'tenant', isArchived: false } }),
+      Promise.resolve(inventory.tenants),
       User.count({ where: { accountType: { [Op.in]: ['tenant', 'boarding_house_owner'] }, isArchived: false } }),
-      User.count({ where: { ...ownerWhere, boardingHouseName: { [Op.ne]: null } } }),
-      User.count({ where: { ...ownerWhere, boardingHouseName: { [Op.ne]: null }, applicationStatus: 'approved', emailVerified: true, isSuspended: false } }),
+      Promise.resolve(inventory.houses),
+      Promise.resolve(inventory.activeHouses),
       User.count({ where: { ...ownerWhere, applicationStatus: { [Op.in]: ['pending', 'revision_requested', 'forwarded_to_bplo'] } } }),
-      User.sum('roomsAvailable', { where: { ...ownerWhere, applicationStatus: 'approved' } }),
+      Promise.resolve(inventory.availableRooms),
       BusinessPermit.count(),
       BusinessPermit.count({ where: { expirationDate: { [Op.lt]: today } } }),
       BusinessPermit.count({ where: { expirationDate: { [Op.between]: [today, soon] } } }),
@@ -52,7 +55,7 @@ export const overview = async (req, res, next) => {
     ]);
 
     const availableRooms = Number(availableResult || 0);
-    const occupiedRooms = 0;
+    const occupiedRooms = inventory.occupiedRooms;
 
     const monthly = await User.findAll({
       attributes: [[fn('DATE_FORMAT', col('createdAt'), '%Y-%m'), 'month'], [fn('COUNT', col('id')), 'count']],
@@ -69,7 +72,7 @@ export const overview = async (req, res, next) => {
     res.json({
       cards: { 
         barangays, houses, activeHouses, pendingOwners, expiredPermits, expiringPermits, 
-        owners, tenants, clients, institutions, availableRooms, occupiedRooms, occupancy: 0, 
+        owners, tenants, clients, institutions, availableRooms, occupiedRooms, occupancy: inventory.occupancy,
         permits, activeRequests, pendingSubmissions, approvedSubmissions, pendingRenewals 
       },
       charts: { 
@@ -1065,5 +1068,16 @@ export const reviewBarangayAccount = async (req, res, next) => {
     await user.update({ applicationStatus: status, applicationReviewedAt: new Date(), applicationReviewNote: note || null, isSuspended: req.body.action === 'suspend' });
     await audit(req, `barangay_account_${req.body.action}`, 'User', user.id, { barangay: user.barangay, note });
     res.json({ message: `Barangay account ${status}.` });
+  } catch (error) { next(error); }
+};
+
+export const updatePublicMapStatus = async (req, res, next) => {
+  try {
+    const where = { id: req.params.id, accountType: 'boarding_house_owner' };
+    const owner = await User.findOne({ where });
+    if (!owner) return res.status(404).json({ error: 'Establishment not found in your jurisdiction.' });
+    const data = await setPublicMapStatus(owner, req.body.action);
+    await audit(req, 'public_map_status', 'User', owner.id, { action: req.body.action, ...data });
+    res.json({ data, message: 'Public map status updated.' });
   } catch (error) { next(error); }
 };

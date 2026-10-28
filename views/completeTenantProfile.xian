@@ -154,7 +154,7 @@
     async function fetchBoardingHouses() {
       try {
         const res = await fetch('/api/boarding-houses');
-        houseData = await res.json();
+        houseData = (await res.json()).filter(h => h.registrationStatus !== 'unregistered');
         populateSelect(houseData);
         renderMapMarkers(houseData);
       } catch (err) {

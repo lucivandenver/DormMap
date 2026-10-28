@@ -2,11 +2,15 @@
 
 Prepared: 29 October 2026, Manila
 
-**Current review branch:** `codex/live-landing-approvals`, based on main commit `c0f5080a02f98ca7dbede6d462fab25871f37f30`.
+**Current review branch:** `codex/admin-owner-gcash`, based on main commit `4b3e8d6a6b09f28bfde76e108ce5d234a1e234a2`.
+
+The live landing/approval changes from PR #1 have already been merged. This branch contains the subsequent admin, owner, tenant/room, unregistered-map and payment fixes.
 
 The original shortlist/Render/Aiven changes described below and the upload fallback fix were already pushed to main. This new branch adds live public statistics, geographic search with no invented pins/prices, and BPLO approval of barangay accounts. Owner registration now requires an approved active barangay official. See the final section of `docs/DEPLOY_RENDER_AIVEN.md` for definitions and setup. No live Render deployment is performed by this change.
 
-Validation for this update: 19 unit checks; MySQL-compatible integration scenarios covering counts, public coordinates, BPLO review and account blocking; desktop/mobile browser checks for search, zoom with empty results, price filters, stable detail IDs, real-time Socket.io updates and the BPLO approval UI. External map tile availability is not part of the browser checks; provider requests are isolated. A live Photon lookup separately verified MinSU's OSM location. Unknown/unavailable place lookups show an explanation and can be configured through BPLO coordinates.
+This branch also fixes Google admin provisioning through an explicit verified-email operator allowlist, property/profile synchronization, room/tenant occupancy transactions, owner offers and tenant confirmation, rent bills and PayMongo reconciliation, and scoped red unregistered map notices. It adds real inventory-based BPLO/barangay counts and owner pagination. See `docs/DEPLOY_RENDER_AIVEN.md` for the required `ADMIN_GOOGLE_EMAILS` configuration and merchant settlement limitations.
+
+Validation: 23 unit tests; 13 database scenarios plus the parent runner, including concurrent occupancy/checkout requests and a signed HTTP webhook; desktop/mobile browser checks and owner property registration, room/tenant/move-out, red-pin publication/details, BPLO review and live landing updates. No live Google session, real-money charge, or Render deployment is claimed. The configured PayMongo merchant receives hosted checkout funds; owner GCash metadata is not automatic per-owner settlement.
 
 ## Existing system, based on the repository
 
