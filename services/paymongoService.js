@@ -33,6 +33,9 @@ export const createPaymongoCheckoutSession = async ({
   const defaultCancelUrl = failureReturnUrl || `${getAppBaseUrl()}/payments/failure?ref=${reference}`;
 
   if (isDummyKey()) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Online payments are not configured. Please contact the administrator.');
+    }
     console.log('[PayMongo Service] Using Sandbox Simulation Mode (set real PAYMONGO_SECRET_KEY in .env for live API calls)');
     return {
       id: `cs_sim_${Date.now()}`,
@@ -106,7 +109,7 @@ export const createPaymongoCheckoutSession = async ({
 
       // If the API key is unauthorized or rejected by PayMongo gateway (e.g. 401 Received non-200: 404):
       // Seamlessly route to the GCash Payment Portal so tenant can sign in with GCash and pay
-      if (response.status === 401 || response.status === 403 || (detailError && detailError.includes('404'))) {
+      if (process.env.NODE_ENV !== 'production' && (response.status === 401 || response.status === 403 || (detailError && detailError.includes('404')))) {
         console.warn(`[PayMongo Warning] Key in .env is unverified (${detailError}). Opening GCash Payment Portal for tenant.`);
         return {
           id: `cs_gcash_${Date.now()}`,
@@ -127,6 +130,9 @@ export const createPaymongoCheckoutSession = async ({
       payments: sessionData.attributes.payments || []
     };
   } catch (err) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Payment provider unavailable. Please try again later.');
+    }
     console.warn('[PayMongo Notice] Routing to GCash Payment Portal:', err.message);
     return {
       id: `cs_gcash_${Date.now()}`,
@@ -186,14 +192,12 @@ export const getPaymongoCheckoutStatus = async (checkoutSessionId) => {
  * Verifies PayMongo Webhook HMAC SHA256 Signature
  */
 export const verifyPaymongoWebhookSignature = (req) => {
+  const secret = getPaymongoWebhookSecretKey();
   const signatureHeader = req.headers['paymongo-signature'];
   
-  if (!PAYMONGO_WEBHOOK_SECRET_KEY || PAYMONGO_WEBHOOK_SECRET_KEY.includes('your_paymongo_webhook_secret_key')) {
-    // Development fallback if webhook secret is not configured
-    return true;
-  }
+  if (!secret || secret.includes('your_paymongo_webhook_secret_key')) return false;
 
-  if (!signatureHeader) {
+  if (!signatureHeader || !Buffer.isBuffer(req.rawBody)) {
     return false;
   }
 
@@ -204,21 +208,25 @@ export const verifyPaymongoWebhookSignature = (req) => {
     let liveSignature = '';
 
     parts.forEach(part => {
-      const [key, value] = part.split('=');
+      const [key, value] = part.trim().split('=');
       if (key === 't') timestamp = value;
       if (key === 'te') testSignature = value;
       if (key === 'li') liveSignature = value;
     });
 
-    const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
-    const payloadToSign = `${timestamp}.${rawBody}`;
+    if (!/^\d+$/.test(timestamp) || Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) return false;
+    const isLive = req.body?.data?.attributes?.livemode === true;
+    if (isLive !== getPaymongoSecretKey().startsWith('sk_live_')) return false;
+    const receivedSignature = isLive ? liveSignature : testSignature;
+    if (!/^[a-f0-9]{64}$/i.test(receivedSignature)) return false;
+    const payloadToSign = `${timestamp}.${req.rawBody.toString('utf8')}`;
     
     const computedSignature = crypto
-      .createHmac('sha256', PAYMONGO_WEBHOOK_SECRET_KEY)
+      .createHmac('sha256', secret)
       .update(payloadToSign)
       .digest('hex');
 
-    return computedSignature === testSignature || computedSignature === liveSignature;
+    return crypto.timingSafeEqual(Buffer.from(computedSignature, 'hex'), Buffer.from(receivedSignature, 'hex'));
   } catch (err) {
     console.error('[PayMongo Signature Verification Error]', err.message);
     return false;

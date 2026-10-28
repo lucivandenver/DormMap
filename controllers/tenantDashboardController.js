@@ -1,3 +1,4 @@
+import { listTenantDorms } from '../services/dormListingService.js';
 import { Op, fn, col } from 'sequelize';
 import bcrypt from 'bcrypt';
 import { User } from '../models/userModel.js';
@@ -707,111 +708,9 @@ export const getApplications = async (req, res, next) => {
 
 export const browseBoardingHouses = async (req, res, next) => {
   try {
-    const user = req.currentUser;
-    const { search = '', barangay = '' } = req.query;
-
-    const ownerWhere = {
-      accountType: 'boarding_house_owner',
-      isSuspended: false
-    };
-    if (barangay && barangay !== 'all') {
-      ownerWhere.barangay = barangay;
-    }
-
-    const owners = await User.findAll({
-      where: ownerWhere,
-      attributes: [
-        'id', 'fullName', 'email', 'contactNumber', 'profilePicture',
-        'boardingHouseName', 'boardingHouseAddress', 'boardingHousePicture',
-        'barangay', 'boardingHouseLatitude', 'boardingHouseLongitude',
-        'roomsAvailable', 'occupiedRooms', 'rentalPriceMin', 'rentalPriceMax',
-        'amenities', 'houseRules', 'operatingHours', 'galleryImages'
-      ]
-    });
-
-    const establishments = await BoardingHouse.findAll();
-    const userApps = await TenantApplication.findAll({ where: { tenantId: user.id } });
-
-    const results = [];
-
-    for (const owner of owners) {
-      const ownerEstablishments = establishments.filter(e => e.ownerId === owner.id);
-
-      if (ownerEstablishments.length > 0) {
-        for (const est of ownerEstablishments) {
-          const app = userApps.find(a => a.ownerId === owner.id && (a.boardingHouseName.toLowerCase() === est.name.toLowerCase() || a.boardingHouseId === est.id));
-          const rooms = await OwnerRoom.findAll({ where: { ownerId: owner.id, boardingHouseId: est.id, status: 'available' } });
-          const availCount = rooms.length;
-          const minPrice = rooms.length > 0 ? Math.min(...rooms.map(r => Number(r.rentalPrice))) : (owner.rentalPriceMin || 1000);
-          const maxPrice = rooms.length > 0 ? Math.max(...rooms.map(r => Number(r.rentalPrice))) : (owner.rentalPriceMax || 3500);
-
-          results.push({
-            id: `bh-${est.id}`,
-            establishmentId: est.id,
-            ownerId: owner.id,
-            ownerName: owner.fullName,
-            ownerContact: owner.contactNumber,
-            name: est.name,
-            address: est.address || owner.boardingHouseAddress || `${est.barangay || owner.barangay || 'Bongabong'}, Oriental Mindoro`,
-            barangay: est.barangay || owner.barangay || 'Poblacion',
-            latitude: est.latitude || owner.boardingHouseLatitude || '12.7192',
-            longitude: est.longitude || owner.boardingHouseLongitude || '121.4719',
-            picture: est.picture || owner.boardingHousePicture || '/images/default-dorm.jpg',
-            description: est.description || '',
-            amenities: est.amenities || owner.amenities || '',
-            houseRules: est.houseRules || owner.houseRules || '',
-            roomsAvailable: availCount,
-            rentalPriceMin: minPrice,
-            rentalPriceMax: maxPrice,
-            availableRooms: rooms.map(r => ({ id: r.id, roomNumber: r.roomNumber, roomType: r.roomType, rentalPrice: r.rentalPrice })),
-            application: app ? { id: app.id, status: app.status, requestedRoomType: app.requestedRoomType } : null
-          });
-        }
-      } else {
-        const bhName = owner.boardingHouseName || `${owner.fullName}'s Boarding House`;
-        const app = userApps.find(a => a.ownerId === owner.id || a.boardingHouseName.toLowerCase() === bhName.toLowerCase());
-        const rooms = await OwnerRoom.findAll({ where: { ownerId: owner.id, status: 'available' } });
-        const availCount = rooms.length > 0 ? rooms.length : (owner.roomsAvailable || 0);
-        const minPrice = rooms.length > 0 ? Math.min(...rooms.map(r => Number(r.rentalPrice))) : (owner.rentalPriceMin || 1200);
-        const maxPrice = rooms.length > 0 ? Math.max(...rooms.map(r => Number(r.rentalPrice))) : (owner.rentalPriceMax || 3500);
-
-        results.push({
-          id: `owner-${owner.id}`,
-          establishmentId: null,
-          ownerId: owner.id,
-          ownerName: owner.fullName,
-          ownerContact: owner.contactNumber,
-          name: bhName,
-          address: owner.boardingHouseAddress || `${owner.barangay || 'Bongabong'}, Oriental Mindoro`,
-          barangay: owner.barangay || 'Poblacion',
-          latitude: owner.boardingHouseLatitude || '12.7192',
-          longitude: owner.boardingHouseLongitude || '121.4719',
-          picture: owner.boardingHousePicture || '/images/default-dorm.jpg',
-          description: '',
-          amenities: owner.amenities || '',
-          houseRules: owner.houseRules || '',
-          roomsAvailable: availCount,
-          rentalPriceMin: minPrice,
-          rentalPriceMax: maxPrice,
-          availableRooms: rooms.map(r => ({ id: r.id, roomNumber: r.roomNumber, roomType: r.roomType, rentalPrice: r.rentalPrice })),
-          application: app ? { id: app.id, status: app.status, requestedRoomType: app.requestedRoomType } : null
-        });
-      }
-    }
-
-    let filtered = results;
-    if (search && search.trim()) {
-      const q = search.trim().toLowerCase();
-      filtered = filtered.filter(item =>
-        item.name.toLowerCase().includes(q) ||
-        item.ownerName.toLowerCase().includes(q) ||
-        item.address.toLowerCase().includes(q) ||
-        item.barangay.toLowerCase().includes(q)
-      );
-    }
-
-    res.json({ boardingHouses: filtered });
-  } catch (err) { next(err); }
+    const boardingHouses = await listTenantDorms(req.currentUser.id, req.query);
+    res.json({ boardingHouses });
+  } catch (error) { next(error); }
 };
 
 export const applyBoardingHouse = async (req, res, next) => {

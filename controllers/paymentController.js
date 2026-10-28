@@ -183,6 +183,7 @@ export const renderFailurePage = async (req, res) => {
 };
 
 export const renderGcashPortal = async (req, res) => {
+  if (process.env.NODE_ENV === 'production') return res.status(404).send('Page not found.');
   try {
     const { ref } = req.query;
     let payment = null;
@@ -215,11 +216,15 @@ export const renderGcashPortal = async (req, res) => {
 };
 
 export const authorizePortalPayment = async (req, res) => {
+  if (process.env.NODE_ENV === 'production') return res.status(404).json({ error: 'Demo payment authorization is disabled.' });
   try {
     const { ref, gcashNumber } = req.body;
     if (!ref) {
       return res.status(400).json({ error: 'Missing payment reference.' });
     }
+
+    const payment = await Payment.findOne({ where: { internalReference: ref, tenantId: req.currentUser.id } });
+    if (!payment) return res.status(404).json({ error: 'Payment not found.' });
 
     const { processDirectGcashPayment } = await import('../services/paymentService.js');
     const result = await processDirectGcashPayment({ reference: ref, gcashNumber });

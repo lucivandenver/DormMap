@@ -1,3 +1,4 @@
+import { uploadDir } from '../config/storage.js';
 import { Op, fn, col } from 'sequelize';
 import { User } from '../models/userModel.js';
 import { 
@@ -722,7 +723,7 @@ export const getMaintenanceStatus = async (req, res, next) => {
     // Calculate uploads folder size
     let uploadsSizeMb = 0;
     try {
-      const uploadPath = path.join(process.cwd(), 'public', 'uploads');
+      const uploadPath = uploadDir;
       if (fs.existsSync(uploadPath)) {
         const files = fs.readdirSync(uploadPath);
         let totalBytes = 0;

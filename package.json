@@ -4,6 +4,12 @@
   "main": "electron/main.js",
   "type": "module",
   "scripts": {
+    "start": "node index.js",
+    "start:render": "npm run migrate && npm start",
+    "admin:create": "node scripts/create-admin.js",
+    "check": "node scripts/check-syntax.js",
+    "test": "node --test tests/*.test.js",
+    "test:integration": "node --test tests/integration/*.test.js",
     "xian-start": "node index.js",
     "xian": "nodemon index.js",
     "migrate": "node migrate.js",
@@ -15,13 +21,14 @@
     "xian-build": "electron-builder",
     "xian-run": "concurrently \"nodemon index.js\" \"electron .\"",
     "build": "npm run xian-build",
-    "dist": "npm run xian-build -- --publish=never",
-    "push": "git add . && git commit -m \"Update DorMap system\" && git push origin main"
+    "dist": "npm run xian-build -- --publish=never"
   },
+  "engines": { "node": "24.x" },
   "dependencies": {
     "@google/genai": "^2.23.0",
     "bcrypt": "^5.1.0",
     "connect-flash": "^0.1.1",
+    "connect-session-sequelize": "^8.0.6",
     "dotenv": "^16.4.5",
     "exceljs": "^4.4.0",
     "express": "^4.19.2",

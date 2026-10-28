@@ -1,0 +1,44 @@
+# This blueprint uses a paid service because persistent uploads require a disk.
+# It is a template only; creating it can incur Render charges.
+services:
+  - type: web
+    name: dormmap
+    runtime: node
+    plan: 0.5c-512mb
+    region: singapore
+    branch: main
+    autoDeployTrigger: "off"
+    buildCommand: npm ci --omit=dev
+    startCommand: npm run start:render
+    healthCheckPath: /healthz
+    disk:
+      name: dormmap-uploads
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 24
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
+      - key: DB_SSL
+        value: "true"
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_SSL_CA
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: APP_BASE_URL
+        sync: false

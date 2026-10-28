@@ -34,12 +34,13 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import bcrypt from "bcrypt";
 import { User } from "./models/userModel.js";
 import { sequelize } from "./models/db.js";
-import { ensureAdminSchema } from "./models/adminModels.js";
 import router from "./routes/index.js";
 import fs from 'fs';
 import hbs from "hbs";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
+import { sessionOptions, sessionStore } from './config/session.js';
+import { publicDir, uploadDir, prepareUploads } from './config/storage.js';
 
 hbs.registerHelper('eq', (a, b) => a === b);
 
@@ -50,21 +51,42 @@ import { initWebSocket } from "./services/websocketService.js";
 
 const app = express();
 const httpServer = http.createServer(app);
-const io = initWebSocket(httpServer);
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT || 3000);
+const production = process.env.NODE_ENV === 'production';
+if (production) app.set('trust proxy', 1);
+app.disable('x-powered-by');
+prepareUploads();
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(process.cwd(), "public")));
+// Render probes this route without creating a login session.
+app.get('/healthz', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    await sequelize.query('SELECT 1', { retry: { max: 0 } });
+    res.json({ status: 'ok' });
+  } catch {
+    res.status(503).json({ status: 'unavailable' });
+  }
+});
 
-app.use(session({
-  secret: "xianfire-secret-key",
-  resave: false,
-  saveUninitialized: false
+app.use(express.json({
+  limit: '1mb',
+  verify: (req, res, buffer) => { req.rawBody = buffer; },
 }));
+app.use(express.urlencoded({ extended: true }));
+app.use('/uploads', express.static(uploadDir));
+app.use(express.static(publicDir));
+
+const sessionMiddleware = session(sessionOptions());
+app.use(sessionMiddleware);
+const io = initWebSocket(httpServer, sessionMiddleware);
 app.use(passport.initialize());
 app.use(passport.session());
 app.use(flash());
+app.use((req, res, next) => {
+  // Account pages and API responses must not survive logout in a shared browser.
+  res.set('Cache-Control', 'no-store');
+  next();
+});
 
 const normalizeAccountType = (type) => {
   if (!type) return "tenant";
@@ -213,7 +235,9 @@ app.use((error, req, res, next) => {
 
   if (isApi) {
     return res.status(error.status || error.statusCode || 500).json({
-      error: error.message || 'An internal server error occurred.'
+      error: production && (!error.status || error.status >= 500)
+        ? 'An internal server error occurred.'
+        : error.message || 'An internal server error occurred.'
     });
   }
 
@@ -235,24 +259,15 @@ app.use((error, req, res, next) => {
 
 export default app;
 
-import { Payment, PaymentWebhook, PaymentReceipt, PaymentAuditLog, ensurePaymentSchema } from './models/paymentModels.js';
-
 const startServer = async () => {
   try {
-    // Apply the declared model safely. Run an explicit migration for schema changes.
-    await ensureAdminSchema();
-    await ensurePaymentSchema();
-    console.log('✅ Payment tables synced with MySQL.');
+    await sequelize.authenticate();
+    // Migrations run explicitly before starting. Startup never alters tables.
+    await sessionStore.sessionModel.findOne({ attributes: ['sid'] });
 
     if (!process.env.ELECTRON) {
-      httpServer.listen(PORT, () => console.log(`🔥 XianFire with WebSockets running at http://localhost:${PORT}`));
+      httpServer.listen(PORT, '0.0.0.0', () => console.log(`🔥 XianFire running on port ${PORT}`));
       httpServer.on('error', (err) => {
-        if (err.code === 'EADDRINUSE') {
-          const fallbackPort = PORT + 1;
-          console.warn(`⚠️ Port ${PORT} is already in use. Trying ${fallbackPort} instead.`);
-          httpServer.listen(fallbackPort, () => console.log(`🔥 XianFire with WebSockets running at http://localhost:${fallbackPort}`));
-          return;
-        }
         console.error('❌ Server failed to start:', err);
         process.exit(1);
       });
@@ -263,4 +278,21 @@ const startServer = async () => {
   }
 };
 
-startServer();
+let shuttingDown = false;
+async function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  const deadline = setTimeout(() => process.exit(1), 15000);
+  deadline.unref();
+  sessionStore.stopExpiringSessions();
+  io.close(async () => {
+    await sequelize.close();
+    clearTimeout(deadline);
+    process.exit(0);
+  });
+}
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
+
+if (process.env.NODE_ENV !== 'test') startServer();
+export { httpServer, io };

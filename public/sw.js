@@ -4,13 +4,11 @@
    Scope: /
    ======================================================== */
 
-const CACHE_NAME = 'dormmap-pwa-v1';
+const CACHE_NAME = 'dormmap-pwa-v2';
 const OFFLINE_URL = '/offline.html';
 
 // Static assets to precache on install
 const PRECACHE_ASSETS = [
-  '/',
-  '/about',
   '/offline.html',
   '/manifest.json',
   '/icons/icon-192.png',
@@ -62,6 +60,8 @@ self.addEventListener('fetch', (event) => {
     url.pathname.startsWith('/api/') ||
     url.pathname.startsWith('/socket.io/') ||
     url.pathname.startsWith('/auth/') ||
+    url.pathname.startsWith('/uploads/') ||
+    url.pathname === '/healthz' ||
     url.pathname.includes('/api') ||
     url.pathname.endsWith('/pay')
   ) {
@@ -73,16 +73,11 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // If valid response, clone into cache for offline viewing
-          if (response && response.status === 200) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-          }
           return response;
         })
         .catch(async () => {
-          const cachedResponse = await caches.match(request);
-          if (cachedResponse) return cachedResponse;
+          // Account pages can contain names, payments, or private documents.
+          // Always show the generic offline page instead of a cached dashboard.
           const offlinePage = await caches.match(OFFLINE_URL);
           return offlinePage || new Response('Offline', { status: 503, statusText: 'Offline' });
         })

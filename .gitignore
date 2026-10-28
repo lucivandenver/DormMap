@@ -7,6 +7,13 @@ yarn-error.log*
 # Environment Variables (Keep secrets safe!)
 .env
 .env.local
+.env.*
+!.env.example
+certs/
+*.sql
+coverage/
+public/uploads/*
+!public/uploads/.gitkeep
 
 # Build output
 dist/

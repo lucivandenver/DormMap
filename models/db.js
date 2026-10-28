@@ -26,16 +26,16 @@
     
 import "dotenv/config";
 import { Sequelize } from "sequelize";
+import { databaseConfig } from '../config/database.js';
 
-const database = process.env.DB_NAME || "DorMap";
-const username = process.env.DB_USER || "root";
-const password = process.env.DB_PASSWORD || "";
-const host = process.env.DB_HOST || "localhost";
-const dialect = process.env.DB_DIALECT || "mysql";
+const { database, username, password, host, port, ssl } = databaseConfig();
 
 export const sequelize = new Sequelize(database, username, password, {
   host,
-  dialect,
+  port,
+  dialect: 'mysql',
+  dialectOptions: { connectTimeout: 10000, ...(ssl ? { ssl } : {}) },
+  pool: { max: 5, min: 0, acquire: 30000, idle: 10000 },
   // Set DB_LOGGING=true only when debugging SQL. Keeping this off prevents
   // normal page requests from flooding the terminal with SELECT statements.
   logging: process.env.DB_LOGGING === "true" ? console.log : false,

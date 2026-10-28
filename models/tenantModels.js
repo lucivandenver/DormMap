@@ -53,6 +53,6 @@ export const TenantApplication = sequelize.define('TenantApplication', {
 export const ensureTenantSchema = async () => {
   await MaintenanceRequest.sync();
   await TenantDocument.sync();
-  await TenantApplication.sync({ alter: true });
+  await TenantApplication.sync();
 };
 

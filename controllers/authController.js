@@ -565,19 +565,6 @@ export const loginUser = async (req, res) => {
     // 3. Verify Password — handle Google OAuth accounts gracefully
     const match = await bcrypt.compare(password, user.password).catch(() => false);
     if (!match) {
-      // Check if this is a Google-registered account that hasn't set a local password yet
-      if (user.oauthProvider === 'google') {
-        const token = Math.random().toString(36).substring(2, 18) + Date.now().toString(36);
-        user.resetPasswordToken = token;
-        user.resetPasswordExpires = new Date(Date.now() + 3600000);
-        await user.save().catch(() => {});
-
-        return renderLoginPage(res, {
-          authAccountType: requestedAccountType || normalizeAccountType(user.accountType),
-          authError: `Ang account na ito ay ginawa gamit ang <strong>Google Sign-In</strong> kaya wala pa itong sariling password sa DorMap.<br><br>Gusto mo bang maglagay ng password para makapag-log in ka gamit ang email at password?<br><a href="/reset-password?token=${token}" class="mt-2 inline-flex items-center gap-1 font-bold underline text-emerald-800 hover:text-emerald-950">🔑 I-click ito para mag-set ng sarili mong password ngayon →</a><br><span class="text-xs text-slate-500 mt-1 block">O kaya ay i-click ang <strong>Continue with Google</strong> sa ibaba para mag-login gamit ang Google account.</span>`,
-          authValues: { email, accountType: requestedAccountType },
-        });
-      }
       return renderLoginPage(res, {
         authAccountType: requestedAccountType || normalizeAccountType(user.accountType),
         authError: "Maling password. Pakisubukang muli o i-click ang 'Forgot password?'.",
@@ -592,11 +579,13 @@ export const loginUser = async (req, res) => {
       await user.save().catch(() => {});
     }
 
-    // 5. Establish User Session cleanly
+    // Rotate the login session and persist it before redirecting to a dashboard.
     const actualRole = normalizeAccountType(user.accountType);
+    await new Promise((resolve, reject) => req.session.regenerate(error => error ? reject(error) : resolve()));
     req.session.userId = user.id;
     req.session.accountType = actualRole;
     req.session.userName = user.fullName;
+    await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
 
     // 6. Direct user to their respective dashboard
     if (actualRole === 'super_admin') return res.redirect('/admin');

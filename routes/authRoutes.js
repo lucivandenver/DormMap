@@ -1,3 +1,4 @@
+import { uploadDir } from '../config/storage.js';
 import express from "express";
 import passport from "passport";
 import { Op as SequelizeOp } from "sequelize";
@@ -16,7 +17,7 @@ import path from "path";
 import multer from "multer";
 
 const router = express.Router();
-const uploadDir = path.join(process.cwd(), "public", "uploads");
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     fs.mkdirSync(uploadDir, { recursive: true });

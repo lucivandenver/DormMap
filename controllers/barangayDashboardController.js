@@ -1,3 +1,4 @@
+import { uploadDir } from '../config/storage.js';
 import path from 'path';
 import { Op, fn, col } from 'sequelize';
 import { User } from '../models/userModel.js';
@@ -239,7 +240,7 @@ export const submitBarangayData = async (req, res, next) => {
         const dateStr = new Date().toISOString().slice(0, 10);
         const autoFileName = `brgy_${safeBarangay}_masterlist_${dateStr}.xlsx`;
         const diskFileName = `barangay-${Date.now()}-${autoFileName}`;
-        const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+
         const fullFilePath = path.join(uploadDir, diskFileName);
 
         const compiledForExcel = owners.map((h, i) => {

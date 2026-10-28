@@ -1,8 +1,10 @@
+import { uploadDir } from '../config/storage.js';
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { requireTenantUser } from '../middleware/tenantAuth.js';
+import { saveDorm, removeSavedDorm } from '../controllers/savedDormController.js';
 import {
   tenantDashboardPage,
   overview,
@@ -30,7 +32,7 @@ import {
 
 const router = express.Router();
 
-const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     fs.mkdirSync(uploadDir, { recursive: true });
@@ -60,6 +62,8 @@ router.get('/api/rental-info', getRentalInformation);
 
 // Browse Boarding Houses & Location Map
 router.get('/api/browse-boarding-houses', browseBoardingHouses);
+router.put('/api/saved-dorms/:listingKey', saveDorm);
+router.delete('/api/saved-dorms/:listingKey', removeSavedDorm);
 
 // Applications & Inquiries
 router.get('/api/applications', getApplications);

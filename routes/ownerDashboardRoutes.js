@@ -1,3 +1,4 @@
+import { uploadDir } from '../config/storage.js';
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
@@ -8,7 +9,7 @@ import * as controller from '../controllers/ownerDashboardController.js';
 const router = express.Router();
 
 // Setup Multer for drag and drop gallery uploads
-const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     fs.mkdirSync(uploadDir, { recursive: true });

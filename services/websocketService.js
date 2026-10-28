@@ -1,56 +1,53 @@
 import { Server } from 'socket.io';
+import { User } from '../models/userModel.js';
 
 let io = null;
 
 /**
  * Initialize Socket.io with HTTP Server and configure real-time channels
  */
-export function initWebSocket(httpServer) {
+export function initWebSocket(httpServer, sessionMiddleware) {
   io = new Server(httpServer, {
-    cors: {
-      origin: '*',
-      methods: ['GET', 'POST']
-    },
     transports: ['websocket', 'polling']
+  });
+  io.engine.use(sessionMiddleware);
+  io.use(async (socket, next) => {
+    try {
+      const userId = socket.request.session?.userId;
+      if (userId) {
+        const user = await User.findByPk(userId);
+        if (!user || user.isSuspended || user.isArchived) return next(new Error('Account unavailable.'));
+        socket.data.userId = user.id;
+        socket.data.role = user.accountType === 'bplo_admin' ? 'super_admin' : user.accountType;
+      }
+      next();
+    } catch (error) { next(error); }
   });
 
   io.on('connection', (socket) => {
-    // Client joins user-specific room
+    // Room identity comes from the signed session, never a client-supplied ID.
     socket.on('join_user', (userId) => {
-      if (userId) {
-        socket.join(`user_${userId}`);
+      if (socket.data.userId && String(userId) === String(socket.data.userId)) {
+        socket.join(`user_${socket.data.userId}`);
       }
     });
 
     // Client joins role-specific room (e.g., 'super_admin', 'barangay', 'boarding_house_owner', 'tenant')
     socket.on('join_role', (role) => {
-      if (role) {
-        socket.join(`role_${role}`);
+      if (socket.data.role && role === socket.data.role) {
+        socket.join(`role_${socket.data.role}`);
       }
     });
 
     // Client joins boarding house channel for live inquiries/room slot updates
     socket.on('join_house', (houseId) => {
-      if (houseId) {
+      if (/^[1-9]\d*$/.test(String(houseId))) {
         socket.join(`house_${houseId}`);
       }
     });
 
-    // Live chat typing / messaging relay between tenant and owner
-    socket.on('chat_message', (payload) => {
-      if (payload && payload.recipientId) {
-        io.to(`user_${payload.recipientId}`).emit('new_chat_message', {
-          ...payload,
-          timestamp: new Date().toISOString()
-        });
-      }
-    });
-
-    socket.on('typing', (payload) => {
-      if (payload && payload.recipientId) {
-        io.to(`user_${payload.recipientId}`).emit('user_typing', payload);
-      }
-    });
+    // Messages are persisted and broadcast by the authenticated HTTP controllers.
+    // No arbitrary client-to-user event relay is exposed here.
 
     // Client ping/pong for liveness check
     socket.on('ping_server', () => {

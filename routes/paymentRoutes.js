@@ -1,5 +1,6 @@
 import express from 'express';
 import { requireTenantUser } from '../middleware/tenantAuth.js';
+import { requireSuperAdmin } from '../middleware/adminAuth.js';
 import { requirePaymentOwnerOrTenant } from '../middleware/paymentAuth.js';
 import { validatePaymentCreation } from '../validators/paymentValidator.js';
 import {
@@ -21,7 +22,9 @@ import { handlePaymongoWebhook } from '../controllers/paymongoWebhookController.
 const router = express.Router();
 
 // ─── Demo Seeding Endpoint ───────────────────────────────────────────────────
-router.get('/seed-demo', seedDemoAccounts);
+if (process.env.NODE_ENV !== 'production' && process.env.ENABLE_DEMO_SEED === 'true') {
+  router.post('/seed-demo', requireSuperAdmin, seedDemoAccounts);
+}
 
 // ─── Public PayMongo Webhook Endpoint ─────────────────────────────────────────
 router.post('/paymongo/webhook', handlePaymongoWebhook);
@@ -36,7 +39,7 @@ router.get('/page/gcash-portal', renderGcashPortal);
 // ─── Authenticated Tenant Routes ──────────────────────────────────────────────
 router.get('/landlord-gcash', requireTenantUser, getLandlordGcashInfo);
 router.post('/gcash/create', requireTenantUser, validatePaymentCreation, createGcashPayment);
-router.post('/gcash/authorize-portal', authorizePortalPayment);
+router.post('/gcash/authorize-portal', requireTenantUser, authorizePortalPayment);
 router.get('/tenant/list', requireTenantUser, getTenantPayments);
 
 // ─── Authenticated Owner Routes ───────────────────────────────────────────────

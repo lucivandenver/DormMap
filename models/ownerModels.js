@@ -118,15 +118,15 @@ export const OwnerGallery = sequelize.define('OwnerGallery', {
 
 
 export const ensureOwnerSchema = async () => {
-  await BoardingHouse.sync({ alter: true });
-  await OwnerRoom.sync({ alter: true });
-  await OwnerTenant.sync({ alter: true });
+  await BoardingHouse.sync();
+  await OwnerRoom.sync();
+  await OwnerTenant.sync();
   await OwnerPayment.sync();
   await OwnerInquiry.sync();
   await OwnerMessage.sync();
   await OwnerNotification.sync();
   await OwnerActivityLog.sync();
-  await OwnerGallery.sync({ alter: true });
+  await OwnerGallery.sync();
 
   // Add extra columns to OwnerGallery if needed
   const queryInterface = sequelize.getQueryInterface();

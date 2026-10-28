@@ -25,47 +25,15 @@ SOFTWARE.
 */
 
 import "dotenv/config";
-import { Sequelize } from "sequelize";
-import { sequelize } from "./models/db.js";
-import { User } from "./models/userModel.js";
-import inquirer from "inquirer";
-
-const dbName = process.env.DB_NAME || "DorMap";
-const dbUser = process.env.DB_USER || "root";
-const dbPassword = process.env.DB_PASSWORD || "";
-const dbHost = process.env.DB_HOST || "localhost";
-const dbDialect = process.env.DB_DIALECT || "mysql";
-
-// Server-level connection (no database selected)
-const rootSequelize = new Sequelize({
-  username: dbUser,
-  password: dbPassword,
-  host: dbHost,
-  dialect: dbDialect,
-});
-
-const { createDb } = await inquirer.prompt([
-  {
-    type: "confirm",
-    name: "createDb",
-    message: `Database '${dbName}' may not exist. Create it?`,
-    default: true,
-  },
-]);
-
-if (createDb) {
-  await rootSequelize.query(`CREATE DATABASE IF NOT EXISTS ${dbName};`);
-  console.log("✅ Database created (if it did not exist)");
-}
+import { migrateSchema, closeDatabase } from './services/schemaService.js';
 
 try {
-  await sequelize.authenticate();
-  console.log("✅ Connected to MySQL database!");
-  await sequelize.sync({ force: true }); // Drops and recreates tables
-  console.log("✅ Tables created for all models!");
+  await migrateSchema({ createDatabase: process.argv.includes('--create-database') });
+  console.log('✅ Database schema is ready. Existing records were preserved.');
 } catch (err) {
-  console.error("❌ Migration failed:", err);
+  console.error('❌ Migration failed:', err.message);
+  process.exitCode = 1;
 } finally {
-  process.exit();
+  await closeDatabase();
 }
 
