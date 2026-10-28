@@ -53,19 +53,20 @@ export async function listTenantDorms(tenantId, query = {}) {
     where: approvedOwnerWhere,
     attributes: ['id', 'fullName', 'contactNumber', 'boardingHouseName', 'boardingHouseAddress',
       'boardingHousePicture', 'barangay', 'boardingHouseLatitude', 'boardingHouseLongitude',
-      'rentalPriceMin', 'rentalPriceMax', 'amenities', 'houseRules'],
+      'rentalPriceMin', 'rentalPriceMax', 'amenities', 'houseRules', 'roomTypes', 'paymentMethods', 'galleryImages', 'createdAt'],
   });
   const ownerIds = owners.map(owner => owner.id);
   const [houses, rooms, applications, saved] = await Promise.all([
     BoardingHouse.findAll({ where: { ownerId: { [Op.in]: ownerIds } } }),
     OwnerRoom.findAll({ where: { ownerId: { [Op.in]: ownerIds } } }),
-    TenantApplication.findAll({ where: { tenantId }, order: [['createdAt', 'DESC'], ['id', 'DESC']] }),
-    SavedDorm.findAll({ where: { tenantId } }),
+    tenantId ? TenantApplication.findAll({ where: { tenantId }, order: [['createdAt', 'DESC'], ['id', 'DESC']] }) : [],
+    tenantId ? SavedDorm.findAll({ where: { tenantId } }) : [],
   ]);
   const savedKeys = new Set(saved.map(item => item.listingKey));
   const listings = [];
   for (const owner of owners) {
     const ownedHouses = houses.filter(house => house.ownerId === owner.id);
+    if (!ownedHouses.length && !owner.boardingHouseName) continue;
     for (const house of ownedHouses.length ? ownedHouses : [null]) {
       const key = house ? `bh-${house.id}` : `owner-${owner.id}`;
       const name = house?.name || owner.boardingHouseName || `${owner.fullName}'s Boarding House`;
@@ -77,6 +78,11 @@ export async function listTenantDorms(tenantId, query = {}) {
         (house ? item.boardingHouseId === house.id || (!item.boardingHouseId && item.boardingHouseName === name) : item.boardingHouseName === name));
       listings.push({
         id: key,
+        createdAt: house?.createdAt || owner.createdAt,
+        roomTypes: [...new Set(houseRooms.map(room => room.roomType))],
+        legacyRoomTypes: owner.roomTypes,
+        paymentMethods: owner.paymentMethods,
+        legacyGalleryImages: (!house || house.isPrimary) ? owner.galleryImages : null,
         establishmentId: house?.id || null,
         ownerId: owner.id,
         ownerName: owner.fullName,

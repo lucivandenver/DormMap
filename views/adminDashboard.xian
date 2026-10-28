@@ -401,6 +401,10 @@
 
       <!-- VIEW 6: BARANGAYS -->
       <section data-view="barangays" class="hidden space-y-6">
+        <div class="rounded-2xl border border-emerald-100 bg-white p-5 space-y-4">
+          <div class="flex flex-wrap justify-between gap-3"><div><h2 class="text-lg font-bold">Barangay account approvals</h2><p class="text-sm text-slate-500">Review officials before they access their dashboard or receive owner applications.</p></div><button class="button secondary" onclick="loadBarangayAccounts()">Refresh applications</button></div>
+          <div class="table-wrap"><table><thead><tr><th>Official</th><th>Barangay / Position</th><th>Status / Note</th><th>Review</th></tr></thead><tbody id="barangayAccountsTable"></tbody></table></div>
+        </div>
         <div class="toolbar bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
           <input id="barangaysSearch" class="field" placeholder="Search barangay">
           <button class="button flex items-center gap-1.5" onclick="openRecordForm('barangays')"><svg class="icon-bw-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add Barangay</button>
@@ -798,6 +802,7 @@ function setPanel(panel) {
   if (panel === 'owners') loadOwners();
   if (panel === 'renewals') loadPermitRenewals();
   if (['barangays', 'institutions', 'permits'].includes(panel)) loadCollection(panel);
+  if (panel === 'barangays') loadBarangayAccounts();
   if (panel === 'settings') loadSettings();
   if (panel === 'maintenance') loadMaintenance();
   if (panel === 'audit') loadAudit();
@@ -1566,6 +1571,26 @@ async function exportSubmissionExcel(id) {
   } catch (e) { toast(e.message, true); }
 }
 
+async function loadBarangayAccounts() {
+  try {
+    const d = await request(api + '/barangay-accounts');
+    document.getElementById('barangayAccountsTable').innerHTML = d.data.length ? d.data.map(x => `<tr>
+      <td><b>${esc(x.fullName)}</b><br>${esc(x.email)}</td>
+      <td>${esc(x.barangay || 'Profile incomplete')}<br>${esc(x.positionTitle || '')}</td>
+      <td><span class="badge">${esc(x.applicationStatus)}</span><p>${esc(x.applicationReviewNote || '')}</p></td>
+      <td class="space-x-2"><button class="text-emerald-700 font-bold" onclick="reviewBarangayAccount(${x.id}, 'approve')">Approve</button><button class="text-amber-700 font-bold" onclick="reviewBarangayAccount(${x.id}, 'revision')">Revision</button><button class="text-rose-700 font-bold" onclick="reviewBarangayAccount(${x.id}, 'reject')">Reject</button><button class="text-rose-700" onclick="reviewBarangayAccount(${x.id}, 'suspend')">Suspend</button></td>
+    </tr>`).join('') : '<tr><td colspan="4">No barangay account applications yet.</td></tr>';
+  } catch (e) { toast(e.message, true); }
+}
+async function reviewBarangayAccount(id, action) {
+  const note = action === 'approve' ? 'Approved by BPLO.' : prompt('Review note (required):');
+  if (note === null) return;
+  try {
+    await request(`${api}/barangay-accounts/${id}/review`, { method: 'PATCH', body: JSON.stringify({ action, note }) });
+    toast('Barangay account updated.'); loadBarangayAccounts(); loadOverview();
+  } catch (e) { toast(e.message, true); }
+}
+
 // 4. OWNERS
 async function loadOwners() {
   try {
@@ -1695,7 +1720,7 @@ function downloadDatabaseBackup() {
 
 // 8. CRUD COLLECTIONS & ANNOUNCEMENTS
 const config = {
-  barangays: { title: 'Barangay', fields: [['name','Barangay name','text'],['officialName','Assigned official','text'],['officialEmail','Official email','email'],['isActive','Active','checkbox']] },
+  barangays: { title: 'Barangay', fields: [['name','Barangay name','text'],['officialName','Assigned official','text'],['officialEmail','Official email','email'],['latitude','Map latitude','number'],['longitude','Map longitude','number'],['isActive','Active','checkbox']] },
   institutions: { title: 'Educational Institution', fields: [['name','Institution name','text'],['schoolType','School type','text'],['address','Address','text'],['barangay','Barangay','text'],['latitude','Latitude','number'],['longitude','Longitude','number'],['isActive','Active','checkbox']] },
   permits: { title: 'Business Permit', fields: [['ownerId','Owner user ID','number'],['permitNumber','Permit number','text'],['issueDate','Issue date','date'],['expirationDate','Expiration date','date'],['status','Status','text'],['documentUrl','Document URL','url'],['notes','Notes','text']] }
 };
@@ -1710,7 +1735,7 @@ async function loadCollection(type) {
         <td>${esc(x.officialName || '—')}</td>
         <td>${esc(x.officialEmail || '—')}</td>
         <td><span class="badge status-${x.isActive ? 'active' : 'suspended'}">${x.isActive ? 'Active' : 'Inactive'}</span></td>
-        <td><button class="text-emerald-700 font-bold" onclick='openRecordForm("${type}",${JSON.stringify(x)})'>Edit</button> <button class="text-rose-700 font-bold" onclick="deleteRecord('${type}',${x.id})">Delete</button></td>
+        <td><button class="text-emerald-700 font-bold" onclick='openRecordForm("${type}",${esc(JSON.stringify(x))})'>Edit</button> <button class="text-rose-700 font-bold" onclick="deleteRecord('${type}',${x.id})">Delete</button></td>
       </tr>
     ` : type === 'institutions' ? `
       <tr>
@@ -1718,7 +1743,7 @@ async function loadCollection(type) {
         <td>${esc(x.schoolType)}</td>
         <td>${esc(x.barangay || '—')}</td>
         <td>${esc(x.latitude || '—')}, ${esc(x.longitude || '—')}</td>
-        <td><button class="text-emerald-700 font-bold" onclick='openRecordForm("${type}",${JSON.stringify(x)})'>Edit</button> <button class="text-rose-700 font-bold" onclick="deleteRecord('${type}',${x.id})">Delete</button></td>
+        <td><button class="text-emerald-700 font-bold" onclick='openRecordForm("${type}",${esc(JSON.stringify(x))})'>Edit</button> <button class="text-rose-700 font-bold" onclick="deleteRecord('${type}',${x.id})">Delete</button></td>
       </tr>
     ` : `
       <tr>
@@ -1726,7 +1751,7 @@ async function loadCollection(type) {
         <td>${x.ownerId}</td>
         <td>${esc(x.expirationDate)}</td>
         <td><span class="badge status-${esc(x.status)}">${esc(x.status)}</span></td>
-        <td><button class="text-emerald-700 font-bold" onclick='openRecordForm("${type}",${JSON.stringify(x)})'>Edit</button> <button class="text-rose-700 font-bold" onclick="deleteRecord('${type}',${x.id})">Delete</button></td>
+        <td><button class="text-emerald-700 font-bold" onclick='openRecordForm("${type}",${esc(JSON.stringify(x))})'>Edit</button> <button class="text-rose-700 font-bold" onclick="deleteRecord('${type}',${x.id})">Delete</button></td>
       </tr>
     `).join('') : `<tr><td colspan="5" class="text-center text-slate-500 py-6">No ${type} records yet.</td></tr>`;
   } catch (e) { toast(e.message, true); }
@@ -1737,7 +1762,7 @@ function openRecordForm(type, record = {}) {
   document.getElementById('modalTitle').textContent = (record.id ? 'Edit ' : 'Add ') + c.title;
   const form = document.getElementById('recordForm');
   form.innerHTML = c.fields.map(([name, label, kind]) => `
-    <label class="block text-sm font-medium text-slate-700">${label}${kind === 'checkbox' ? ` <input class="ml-2" type="checkbox" name="${name}" ${record[name] !== false ? 'checked' : ''}>` : `<input class="field mt-1" type="${kind}" name="${name}" value="${esc(record[name] || '')}" required>`}</label>
+    <label class="block text-sm font-medium text-slate-700">${label}${kind === 'checkbox' ? ` <input class="ml-2" type="checkbox" name="${name}" ${record[name] !== false ? 'checked' : ''}>` : `<input class="field mt-1" type="${kind}" ${kind === 'number' ? 'step="any"' : ''} name="${name}" value="${esc(record[name] ?? '')}" ${['latitude', 'longitude'].includes(name) ? '' : 'required'}>`}</label>
   `).join('') + '<div class="flex justify-end gap-2 pt-2"><button type="button" class="button secondary" onclick="closeModal(\'modal\')">Cancel</button><button class="button !bg-emerald-700 !text-white">Save</button></div>';
   
   form.onsubmit = async (e) => {

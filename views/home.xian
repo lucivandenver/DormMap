@@ -1,4 +1,5 @@
 {{> head }}
+<script src="/js/landing-search.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
@@ -360,6 +361,7 @@
           </button>
         </div>
 
+<p id="quickSearchStatus" role="status" aria-live="polite" class="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Loading live listings…</p>
         <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
           <label class="xl:col-span-2">
             <span class="mb-2 block text-sm font-semibold text-slate-700">Search Boarding House or School</span>
@@ -453,7 +455,7 @@
         </div>
 
         <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p class="text-sm text-slate-500">Tip: allow GPS to sort boarding houses by nearest distance.</p>
+          <p class="text-sm text-slate-500">School searches show boarding houses within 3 km. Price-only searches cover all of Bongabong.</p>
           <button type="button" id="quickSearchBtn" onclick="performQuickSearch()" class="inline-flex items-center justify-center gap-2 rounded-full px-6 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 cursor-pointer active:scale-95" style="background: var(--dormmap-primary);">
             <i data-lucide="search" class="h-4 w-4"></i>
             Search Now
@@ -467,29 +469,29 @@
         <div class="rounded-[24px] p-6 text-white shadow-[0_18px_50px_rgba(2,48,32,0.22)]" style="background: linear-gradient(135deg, #023020 0%, #084d34 100%);">
           <p class="text-sm font-semibold text-emerald-100/80">Registered Boarding Houses</p>
           <div class="mt-3 flex items-end gap-2">
-            <span class="counter text-4xl font-extrabold text-white" data-target="128">0</span>
-            <span class="mb-1 text-sm font-semibold text-emerald-100/90">+12 this month</span>
+            <span class="text-4xl font-extrabold text-white" data-live-stat="registeredHouses">—</span>
+            <span class="mb-1 text-sm font-semibold text-emerald-100/90" data-live-stat="newHousesThisMonth">— this month</span>
           </div>
         </div>
         <div class="rounded-[24px] p-6 text-white shadow-[0_18px_50px_rgba(2,48,32,0.22)]" style="background: linear-gradient(135deg, #023020 0%, #084d34 100%);">
           <p class="text-sm font-semibold text-emerald-100/80">Active Tenants</p>
           <div class="mt-3 flex items-end gap-2">
-            <span class="counter text-4xl font-extrabold text-white" data-target="842">0</span>
-            <span class="mb-1 text-sm font-semibold text-emerald-100/90">Occupancy rising</span>
+            <span class="text-4xl font-extrabold text-white" data-live-stat="activeTenants">—</span>
+            <span class="mb-1 text-sm font-semibold text-emerald-100/90">Current active residents</span>
           </div>
         </div>
         <div class="rounded-[24px] p-6 text-white shadow-[0_18px_50px_rgba(2,48,32,0.22)]" style="background: linear-gradient(135deg, #023020 0%, #084d34 100%);">
           <p class="text-sm font-semibold text-emerald-100/80">Educational Institutions</p>
           <div class="mt-3 flex items-end gap-2">
-            <span class="counter text-4xl font-extrabold text-white" data-target="18">0</span>
+            <span class="text-4xl font-extrabold text-white" data-live-stat="institutions">—</span>
             <span class="mb-1 text-sm font-semibold text-emerald-100/90">Schools covered</span>
           </div>
         </div>
         <div class="rounded-[24px] p-6 text-white shadow-[0_18px_50px_rgba(2,48,32,0.22)]" style="background: linear-gradient(135deg, #023020 0%, #084d34 100%);">
           <p class="text-sm font-semibold text-emerald-100/80">Barangays Covered</p>
           <div class="mt-3 flex items-end gap-2">
-            <span class="counter text-4xl font-extrabold text-white" data-target="28">0</span>
-            <span class="mb-1 text-sm font-semibold text-emerald-100/90">Municipality-wide</span>
+            <span class="text-4xl font-extrabold text-white" data-live-stat="barangays">—</span>
+            <span class="mb-1 text-sm font-semibold text-emerald-100/90">Approved barangay accounts</span>
           </div>
         </div>
       </div>
@@ -909,12 +911,7 @@
 
     window.openPropertyDetailModal = function(houseId) {
       const houses = window.allBoardingHousesCache || [];
-      const house = houses.find((h, idx) =>
-        (h.bhId && String(h.bhId) === String(houseId)) ||
-        h.id == houseId ||
-        idx == houseId ||
-        String(h.boardingHouseName).trim() === String(houseId).trim()
-      );
+      const house = houses.find(h => String(h.id) === String(houseId));
       if (!house) return;
 
       window.currentSelectedHouse = house;
@@ -1028,7 +1025,7 @@
           let imgMarkup = '';
           if (pic) {
             imgMarkup = `
-              <img src="${pic}" alt="${bhName}" class="h-56 w-full object-cover select-none" onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">
+              <img src="${escapeHtml(pic)}" alt="${escapeHtml(bhName)}" class="h-56 w-full object-cover select-none" onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">
               <div class="h-56 w-full bg-slate-100 flex-col items-center justify-center text-slate-400 gap-2" style="display:none;">
                 <svg class="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
                 <span class="text-xs font-semibold text-slate-400">Photo Unavailable</span>
@@ -1055,8 +1052,8 @@
                 <div class="p-5">
                   <div class="flex items-start justify-between gap-4">
                     <div class="min-w-0">
-                      <h3 class="text-lg font-bold text-slate-950 truncate">${bhName}</h3>
-                      <p class="mt-1 text-sm text-slate-500 truncate">${address}</p>
+                      <h3 class="text-lg font-bold text-slate-950 truncate">${escapeHtml(bhName)}</h3>
+                      <p class="mt-1 text-sm text-slate-500 truncate">${escapeHtml(address)}</p>
                     </div>
                     <div class="text-right flex-shrink-0">
                       <p class="text-xs font-semibold text-slate-500">Monthly</p>
@@ -1070,7 +1067,7 @@
                 </div>
               </div>
               <div class="p-5 pt-0">
-                <button type="button" onclick="openPropertyDetailModal('${house.bhId || house.id}')" class="inline-flex w-full items-center justify-center rounded-full px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90 cursor-pointer shadow-sm" style="background: var(--dormmap-primary);">View Details</button>
+                <button type="button" onclick="openPropertyDetailModal('${house.id}')" class="inline-flex w-full items-center justify-center rounded-full px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90 cursor-pointer shadow-sm" style="background: var(--dormmap-primary);">View Details</button>
               </div>
             </article>
           `;
@@ -1216,8 +1213,9 @@
       const house = window.currentSelectedHouse;
       if (!house) return;
 
-      const houseLat = Number(house.latitude) || 12.7192;
-      const houseLng = Number(house.longitude) || 121.4719;
+      if (!DormMapSearch.hasCoordinates(house)) { Swal.fire('Location unavailable', 'This owner has not provided a map pin yet.', 'info'); return; }
+      const houseLat = Number(house.latitude);
+      const houseLng = Number(house.longitude);
 
       if (!navigator.geolocation) {
         Swal.fire('GPS Error', 'Geolocation is not supported by your browser.', 'error');
@@ -1379,36 +1377,6 @@
       mobileMenu.classList.toggle('hidden');
     });
 
-    const counters = document.querySelectorAll('.counter');
-    const animateCounter = (element) => {
-      const target = Number(element.getAttribute('data-target') || '0');
-      const duration = 1200;
-      const startTime = performance.now();
-
-      const tick = (time) => {
-        const progress = Math.min((time - startTime) / duration, 1);
-        element.textContent = Math.floor(progress * target).toLocaleString();
-        if (progress < 1) {
-          requestAnimationFrame(tick);
-        } else {
-          element.textContent = target.toLocaleString();
-        }
-      };
-
-      requestAnimationFrame(tick);
-    };
-
-    const counterObserver = new IntersectionObserver((entries, observer) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          animateCounter(entry.target);
-          observer.unobserve(entry.target);
-        }
-      });
-    }, { threshold: 0.35 });
-
-    counters.forEach((counter) => counterObserver.observe(counter));
-
     const map = L.map('landingMap', { scrollWheelZoom: false }).setView([12.7192, 121.4719], 14);
     window.map = map;
 
@@ -1450,21 +1418,15 @@
       'zone 4': 'Zone IV'
     };
 
-    // Preset coordinates for schools & educational institutions in Bongabong/Mindoro
-    const schoolLocations = {
-      'mindoro state university': { lat: 12.7485, lng: 121.4820, name: 'Mindoro State University (MinSU - Bongabong)' },
-      'bongabong national high school': { lat: 12.7210, lng: 121.4740, name: 'Bongabong National High School' },
-      'eastern mindoro college': { lat: 12.7150, lng: 121.4720, name: 'Eastern Mindoro College (EMC)' },
-      'tesda center': { lat: 12.7300, lng: 121.4780, name: 'TESDA Training Center' },
-      'tesda training center': { lat: 12.7300, lng: 121.4780, name: 'TESDA Training Center' },
-      'st. joseph academy': { lat: 12.7180, lng: 121.4710, name: 'St. Joseph Academy' },
-      'formon national high school': { lat: 12.7600, lng: 121.4600, name: 'Formon National High School' },
-      'cawayan national high school': { lat: 12.6800, lng: 121.4900, name: 'Cawayan National High School' },
-      'labasan national high school': { lat: 12.7100, lng: 121.4650, name: 'Labasan National High School' },
-      'masaguisi national high school': { lat: 12.7350, lng: 121.4880, name: 'Masaguisi National High School' },
-      'kaligtasan national high school': { lat: 12.7420, lng: 121.4700, name: 'Kaligtasan National High School' },
-      'dayhagan national high school': { lat: 12.6950, lng: 121.4850, name: 'Dayhagan National High School' }
-    };
+    const schoolLocations = {};
+    let activeCriteria = null;
+    let activePlace = null;
+    let searchRadiusLayer = null;
+    let searchVersion = 0;
+    let searchScope = '';
+    let searchWarning = '';
+    const municipalityBounds = [[12.48, 121.05], [12.91, 121.58]];
+    const searchStatus = document.getElementById('quickSearchStatus');
 
     const formatPrice = (minVal, maxVal) => {
       const min = Number(minVal);
@@ -1501,7 +1463,7 @@
               <h4 class="text-base font-semibold text-slate-950">${name}</h4>
               <p class="mt-1 text-sm text-slate-600">${address}</p>
             </div>
-            <span class="rounded-full bg-emerald-100 px-3 py-2 text-sm font-semibold text-emerald-900">${house.roomsAvailable ?? 'N/A'} rooms</span>
+            <span class="rounded-full bg-emerald-100 px-3 py-2 text-sm font-semibold text-emerald-900">${house.roomsAvailable ?? 'N/A'} available room(s)</span>
           </div>
           <div class="mt-4 grid gap-3 sm:grid-cols-2">
             <div>
@@ -1514,13 +1476,13 @@
             </div>
           </div>
           <div class="mt-4 grid gap-2 sm:grid-cols-2">
-            <span class="rounded-full bg-white px-3 py-2 text-xs font-semibold text-slate-700">${roomTypes}</span>
-            <span class="rounded-full bg-white px-3 py-2 text-xs font-semibold text-slate-700">${paymentMethods}</span>
+            <span class="rounded-full bg-white px-3 py-2 text-xs font-semibold text-slate-700">${escapeHtml(roomTypes)}</span>
+            <span class="rounded-full bg-white px-3 py-2 text-xs font-semibold text-slate-700">${escapeHtml(paymentMethods)}</span>
           </div>
           <div class="mt-4 flex items-center justify-between gap-3">
             <p class="text-sm font-semibold text-slate-900">${formatPrice(minP, maxP)}</p>
-            <button type="button" class="focus-listing rounded-full border border-emerald-950/15 px-4 py-2 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-950 hover:text-white" data-lat="${house.latitude}" data-lng="${house.longitude}">Show on map</button>
-            <button type="button" onclick="window.openPropertyDetailModal('${house.bhId || house.id}')" class="rounded-full bg-emerald-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-800">View Details</button>
+            <button type="button" class="focus-listing rounded-full border border-emerald-950/15 px-4 py-2 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-950 hover:text-white" data-lat="${house.latitude ?? ''}" data-lng="${house.longitude ?? ''}" ${DormMapSearch.hasCoordinates(house) ? '' : 'disabled title="Location not provided"'}>Show on map</button>
+            <button type="button" onclick="window.openPropertyDetailModal('${house.id}')" class="rounded-full bg-emerald-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-800">View Details</button>
           </div>
         </article>
       `;
@@ -1542,8 +1504,8 @@
           <div class="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-[#007a64] mb-3">
             <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
           </div>
-          <h4 class="text-sm font-bold text-slate-900">Map Centered to Your Location</h4>
-          <p class="text-xs text-slate-500 mt-1">Select a marker on the map or use the quick search above to view verified boarding house details.</p>
+          <h4 class="text-sm font-bold text-slate-900">Find your next boarding house</h4>
+          <p class="text-xs text-slate-500 mt-1">Choose a barangay or school to explore verified listings, or select a boarding house pin.</p>
         </div>
       `;
       setListingCount(0);
@@ -1581,9 +1543,9 @@
         const longitude = Number(house.longitude);
         const name = escapeHtml(house.boardingHouseName || house.fullName || 'Boarding House');
         const address = escapeHtml(house.boardingHouseAddress || house.barangay || 'Address not available');
-        const targetId = house.bhId || house.id || idx;
+        const targetId = house.id || idx;
 
-        if (!Number.isNaN(latitude) && !Number.isNaN(longitude)) {
+        if (DormMapSearch.hasCoordinates(house)) {
           const customPin = L.divIcon({
             className: 'custom-bh-pin',
             html: `<div class="bg-emerald-950 text-white p-2 rounded-2xl shadow-xl border-2 border-white flex items-center justify-center hover:scale-110 transition cursor-pointer" style="width:36px;height:36px;">
@@ -1606,7 +1568,7 @@
                   </button>
                 </div>
                 <button type="button"
-                  onclick="window._getDirectionsToCoords(${latitude}, ${longitude}, '${name.replace(/'/g, "\\'")}')"
+                  data-direction-name="${name}" onclick="window._getDirectionsToCoords(${latitude}, ${longitude}, this.dataset.directionName)"
                   class="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold px-3 py-1.5 rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5">
                   Get Directions
                 </button>
@@ -1646,101 +1608,76 @@
       }
     };
 
-    // Zoom to educational institution on map
-    window.zoomToInstitution = function(schoolName) {
-      if (!schoolName) return;
-      let key = schoolName.trim().toLowerCase();
-      if (BONGABONG_ALIASES[key]) key = BONGABONG_ALIASES[key].toLowerCase();
+    async function resolvePlace(name, kind) {
+      const local = kind === 'institution' && schoolLocations[name.toLowerCase()];
+      if (local) return local;
+      const response = await fetch('/api/map-place?' + new URLSearchParams({ name, kind }), { cache: 'no-store' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Location unavailable.');
+      return data;
+    }
 
-      if (window.institutionMarker) {
-        map.removeLayer(window.institutionMarker);
-        window.institutionMarker = null;
-      }
+    function displaySearch(focusMap = true) {
+      const houses = DormMapSearch.filter(window.allBoardingHousesCache || [], activeCriteria || {});
+      renderBoardingHouseMarkers(houses, true, false);
+      if (!focusMap) return houses;
+      map.stop();
+      if (window.institutionMarker) { map.removeLayer(window.institutionMarker); window.institutionMarker = null; }
+      if (searchRadiusLayer) { map.removeLayer(searchRadiusLayer); searchRadiusLayer = null; }
+      if (activePlace) {
+        const point = [activePlace.latitude, activePlace.longitude];
+        window.institutionMarker = L.marker(point).addTo(map).bindPopup(escapeHtml(activePlace.name)).openPopup();
+        if (activeCriteria?.place) {
+          searchRadiusLayer = L.circle(point, { radius: 3000, color: '#047857', fillColor: '#10b981', fillOpacity: 0.06, weight: 1, interactive: false }).addTo(map);
+          const area = searchRadiusLayer.getBounds();
+          map.fitBounds(area, { padding: [35, 35], maxZoom: 15, animate: false });
+        } else map.setView(point, 14, { animate: false });
+      } else if (activeCriteria?.barangay && houses.some(DormMapSearch.hasCoordinates)) {
+        map.fitBounds(L.latLngBounds(houses.filter(DormMapSearch.hasCoordinates).map(h => [Number(h.latitude), Number(h.longitude)])), { padding: [40, 40], maxZoom: 15, animate: false });
+      } else map.fitBounds(municipalityBounds, { padding: [20, 20], animate: false });
+      return houses;
+    }
 
-      let school = schoolLocations[key];
-      if (!school) {
-        const matchKey = Object.keys(schoolLocations).find(k => k.includes(key) || key.includes(k));
-        if (matchKey) school = schoolLocations[matchKey];
-      }
-
-      if (school) {
-        map.flyTo([school.lat, school.lng], 16, { duration: 1.2 });
-        const icon = L.divIcon({
-          className: 'school-map-marker',
-          html: `<div class="bg-blue-600 text-white px-3 py-1.5 rounded-full text-xs font-black shadow-lg border-2 border-white flex items-center gap-1 shrink-0 animate-bounce">🏫 ${school.name}</div>`,
-          iconSize: [160, 36],
-          iconAnchor: [80, 18]
-        });
-        window.institutionMarker = L.marker([school.lat, school.lng], { icon }).addTo(map)
-          .bindPopup(`
-            <div class="p-1 max-w-[220px]">
-              <strong class="text-sm font-bold text-slate-900 block leading-tight mb-0.5">🏫 ${school.name}</strong>
-              <p class="text-xs text-slate-500 mb-2">Educational Institution in Bongabong</p>
-              <button type="button"
-                onclick="window._getDirectionsToCoords(${school.lat}, ${school.lng}, '${school.name.replace(/'/g, "\\'")}')"
-                class="w-full bg-emerald-950 hover:bg-emerald-800 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-sm cursor-pointer flex items-center justify-center gap-1.5">
-                Get Directions
-              </button>
-            </div>
-          `)
-          .openPopup();
-      }
-    };
-
-    window.performQuickSearch = function() {
-      const houses = window.allBoardingHousesCache || [];
-      let query = document.getElementById('quickSearchQuery')?.value.trim().toLowerCase() || '';
+    window.performQuickSearch = async function() {
+      const version = ++searchVersion;
+      let query = document.getElementById('quickSearchQuery')?.value.trim() || '';
       const barangay = document.getElementById('quickBarangaySelect')?.value || '';
-      const institution = document.getElementById('quickInstitutionSelect')?.value || '';
-      const priceRange = document.getElementById('quickPriceSelect')?.value || '';
-      const type = document.getElementById('quickTypeSelect')?.value || '';
-
-      if (query && BONGABONG_ALIASES[query]) {
-        query = BONGABONG_ALIASES[query].toLowerCase();
+      let institution = document.getElementById('quickInstitutionSelect')?.value || '';
+      if (!institution && query) {
+        const alias = BONGABONG_ALIASES[query.toLowerCase()] || query;
+        institution = [...document.getElementById('quickInstitutionSelect').options].find(option => option.value && option.value.toLowerCase() === alias.toLowerCase())?.value || '';
+        if (institution) query = '';
       }
-
-      const schoolSearchTerm = institution || query;
-      if (schoolSearchTerm) {
-        window.zoomToInstitution(schoolSearchTerm);
+      activeCriteria = { query, barangay, type: document.getElementById('quickTypeSelect')?.value || '', priceRange: document.getElementById('quickPriceSelect')?.value || '', radius: 3 };
+      activePlace = null;
+      searchStatus.textContent = 'Searching places and live listings…';
+      let warning = '';
+      try {
+        if (institution || barangay) {
+          const place = await resolvePlace(institution || barangay, institution ? 'institution' : 'barangay');
+          if (version !== searchVersion) return;
+          activePlace = place;
+          if (institution) activeCriteria.place = place;
+        }
+      } catch (error) {
+        if (version !== searchVersion) return;
+        warning = error.message;
+        // Never silently present municipality-wide results as nearby-school matches.
+        if (institution) activeCriteria.query = '__unresolved_institution__';
       }
-
-      const filtered = houses.filter((h) => {
-        const bhName = (h.boardingHouseName || '').toLowerCase();
-        const ownerName = (h.fullName || '').toLowerCase();
-        const bhAddress = (h.boardingHouseAddress || '').toLowerCase();
-        const bhBarangay = (h.barangay || '').toLowerCase();
-
-        const nameMatch = !query || 
-          bhName.includes(query) ||
-          ownerName.includes(query) ||
-          bhAddress.includes(query) ||
-          bhBarangay.includes(query) ||
-          (institution && institution.toLowerCase().includes(query));
-
-        const barangayMatch = !barangay || 
-          bhBarangay === barangay.toLowerCase() ||
-          bhAddress.includes(barangay.toLowerCase());
-
-        const typeMatch = !type || (Array.isArray(h.roomTypes) && h.roomTypes.some(t => t.toLowerCase().includes(type.toLowerCase())));
-
-        let priceMatch = true;
-        const estPrice = h.rentalPriceMin || h.rentalPriceMax || (h.roomsAvailable ? h.roomsAvailable * 1500 : 2500);
-        if (priceRange === 'under_1000') priceMatch = estPrice < 1000;
-        else if (priceRange === '1000_2000') priceMatch = estPrice >= 1000 && estPrice <= 2000;
-        else if (priceRange === '2000_3000') priceMatch = estPrice >= 2000 && estPrice <= 3000;
-        else if (priceRange === '3000_4000') priceMatch = estPrice >= 3000 && estPrice <= 4000;
-        else if (priceRange === '4000_5000') priceMatch = estPrice >= 4000 && estPrice <= 5000;
-        else if (priceRange === 'above_5000') priceMatch = estPrice > 5000;
-
-        return nameMatch && barangayMatch && typeMatch && priceMatch;
-      });
-
-      renderBoardingHouseMarkers(filtered, true, !schoolSearchTerm);
+      if (version !== searchVersion) return;
+      const houses = displaySearch();
+      searchScope = institution ? ' within 3 km of ' + institution : barangay ? ' in ' + barangay : ' across Bongabong';
+      searchWarning = warning;
+      searchStatus.textContent = `${houses.length} verified listing(s)${searchScope}. ${searchWarning}`;
       document.getElementById('map')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
     // Refresh Map & Filters: Auto center to user's current GPS location & reset listings panel
     window.resetMapAndFilters = function() {
+      ++searchVersion; activeCriteria = null; activePlace = null;
+      if (searchRadiusLayer) { map.removeLayer(searchRadiusLayer); searchRadiusLayer = null; }
+      searchStatus.textContent = 'Filters cleared. Showing all verified boarding house pins.';
       const qInput = document.getElementById('quickSearchQuery');
       const bSelect = document.getElementById('quickBarangaySelect');
       const iSelect = document.getElementById('quickInstitutionSelect');
@@ -1758,26 +1695,7 @@
         window.institutionMarker = null;
       }
 
-      // 1. Direct map to user's current GPS location
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            const lat = pos.coords.latitude;
-            const lng = pos.coords.longitude;
-            map.flyTo([lat, lng], 15, { duration: 1.2 });
-            if (window.userGpsMarker) map.removeLayer(window.userGpsMarker);
-            window.userGpsMarker = L.circleMarker([lat, lng], {
-              radius: 10, color: '#047857', fillColor: '#10b981', fillOpacity: 0.9, weight: 3
-            }).addTo(map).bindPopup('<strong class="text-sm">📍 Your Current GPS Location</strong>').openPopup();
-          },
-          () => {
-            map.setView([12.7192, 121.4719], 14);
-          },
-          { enableHighAccuracy: true, timeout: 8000 }
-        );
-      } else {
-        map.setView([12.7192, 121.4719], 14);
-      }
+      map.fitBounds(municipalityBounds);
 
       // 2. Restore all pins on map and default empty state in live listings panel
       if (window.allBoardingHousesCache) {
@@ -1786,84 +1704,64 @@
       renderDefaultListingsPlaceholder();
     };
 
-    // Listen to institution dropdown change to auto-zoom immediately
-    document.getElementById('quickInstitutionSelect')?.addEventListener('change', (e) => {
-      const val = e.target.value;
-      if (val) {
-        window.zoomToInstitution(val);
-        window.performQuickSearch();
-      }
+    document.getElementById('quickSearchQuery')?.addEventListener('keydown', event => {
+      if (event.key === 'Enter') { event.preventDefault(); window.performQuickSearch(); }
     });
-
-    // Dynamically fetch registered institutions to populate institution select
-    fetch('/api/institutions')
-      .then(res => res.json())
-      .then(insts => {
-        if (Array.isArray(insts) && insts.length > 0) {
-          const select = document.getElementById('quickInstitutionSelect');
-          if (!select) return;
-          const existingOptions = new Set(Array.from(select.options).map(o => o.value.toLowerCase()));
-          
-          insts.forEach(inst => {
-            if (inst.name && !existingOptions.has(inst.name.toLowerCase())) {
-              const opt = document.createElement('option');
-              opt.value = inst.name;
-              opt.textContent = inst.name;
-              select.appendChild(opt);
-
-              if (inst.latitude && inst.longitude) {
-                schoolLocations[inst.name.toLowerCase()] = {
-                  lat: Number(inst.latitude),
-                  lng: Number(inst.longitude),
-                  name: inst.name
-                };
-              }
-            }
-          });
-        }
-      })
-      .catch(err => console.log('Institutions fetch note:', err));
-
-    // 1. Automatically center map on user's current GPS location on page load
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          map.setView([lat, lng], 15);
-          if (window.userGpsMarker) map.removeLayer(window.userGpsMarker);
-          window.userGpsMarker = L.circleMarker([lat, lng], {
-            radius: 10, color: '#047857', fillColor: '#10b981', fillOpacity: 0.9, weight: 3
-          }).addTo(map).bindPopup('<strong class="text-sm">📍 Your Current Location</strong>').openPopup();
-        },
-        () => {
-          map.setView([12.7192, 121.4719], 14);
-        },
-        { enableHighAccuracy: true, timeout: 8000 }
-      );
+    for (const id of ['quickInstitutionSelect', 'quickBarangaySelect', 'quickPriceSelect', 'quickTypeSelect']) {
+      document.getElementById(id)?.addEventListener('change', () => window.performQuickSearch());
     }
 
-    // 2. Fetch verified boarding houses, place pins on map, keep listings panel in default state
-    fetch('/api/boarding-houses')
-      .then((response) => response.json())
-      .then((houses) => {
-        if (!Array.isArray(houses) || houses.length === 0) {
-          renderDefaultListingsPlaceholder();
-          renderTopVerifiedListings([]);
-          return;
+    fetch('/api/institutions').then(response => response.json()).then(institutions => {
+      if (!Array.isArray(institutions)) return;
+      const select = document.getElementById('quickInstitutionSelect');
+      for (const institution of institutions) {
+        if (!institution.name) continue;
+        if (![...select.options].some(option => option.value.toLowerCase() === institution.name.toLowerCase())) {
+          select.add(new Option(institution.name, institution.name));
         }
+        if (DormMapSearch.hasCoordinates(institution)) {
+          schoolLocations[institution.name.toLowerCase()] = { name: institution.name, latitude: Number(institution.latitude), longitude: Number(institution.longitude) };
+        }
+      }
+    }).catch(() => {});
 
-        window.allBoardingHousesCache = houses;
-        // Place markers on the map, do NOT populate the side panel by default
-        renderBoardingHouseMarkers(houses, false, false);
-        renderDefaultListingsPlaceholder();
-        renderTopVerifiedListings(houses);
-      })
-      .catch((error) => {
-        console.error('Failed to load boarding houses:', error);
-        renderDefaultListingsPlaceholder();
-        renderTopVerifiedListings([]);
-      });
+    let loadingLanding = false;
+    let reloadLanding = false;
+    async function refreshLanding() {
+      if (loadingLanding) { reloadLanding = true; return; }
+      loadingLanding = true;
+      try {
+        const response = await fetch('/api/landing-data', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Live data unavailable');
+        const data = await response.json();
+        window.allBoardingHousesCache = data.listings;
+        for (const element of document.querySelectorAll('[data-live-stat]')) {
+          const key = element.dataset.liveStat;
+          element.textContent = key === 'newHousesThisMonth' ? `+${data.stats[key]} added this month` : Number(data.stats[key]).toLocaleString();
+        }
+        if (activeCriteria) {
+          const matches = displaySearch(false);
+          searchStatus.textContent = `${matches.length} verified listing(s)${searchScope}. ${searchWarning}`;
+        } else {
+          renderBoardingHouseMarkers(data.listings, false, false);
+          renderDefaultListingsPlaceholder();
+          searchStatus.textContent = `${data.listings.length} verified boarding house(s). Select a school or barangay to explore.`;
+        }
+        renderTopVerifiedListings(data.listings);
+      } catch {
+        searchStatus.textContent = 'Live data is temporarily unavailable. Retrying automatically; displayed values may be out of date.';
+      } finally {
+        loadingLanding = false;
+        if (reloadLanding) { reloadLanding = false; refreshLanding(); }
+      }
+    }
+    refreshLanding();
+    document.addEventListener('DOMContentLoaded', () => {
+      window.DormMapSocket?.on('landing_updated', refreshLanding);
+      window.DormMapSocket?.on('connect', refreshLanding);
+    });
+    setInterval(() => { if (!document.hidden) refreshLanding(); }, 15000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshLanding(); });
 
     setTimeout(() => map.invalidateSize(), 250);
     window.addEventListener('resize', () => map.invalidateSize());

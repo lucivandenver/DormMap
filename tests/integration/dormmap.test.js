@@ -17,7 +17,8 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
   const { sequelize } = await import('../../models/db.js');
   const { migrateSchema, closeDatabase } = await import('../../services/schemaService.js');
   const { User } = await import('../../models/userModel.js');
-  const { BoardingHouse, OwnerRoom } = await import('../../models/ownerModels.js');
+  const { BoardingHouse, OwnerRoom, OwnerTenant } = await import('../../models/ownerModels.js');
+  const { Barangay, EducationalInstitution } = await import('../../models/adminModels.js');
   const { SavedDorm } = await import('../../models/savedDormModel.js');
   const { TenantDocument } = await import('../../models/tenantModels.js');
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'dormmap-integration-'));
@@ -84,6 +85,11 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
     ]);
     ids = users.map(user => user.id);
     const [tenant, second, owner, pending] = users;
+    const official = await User.create({ fullName: 'Pending Official', email: `official-${suffix}@example.test`, password, accountType: 'barangay', barangay: 'Review Barangay', applicationStatus: 'pending', emailVerified: true });
+    const admin = await User.create({ fullName: 'Review BPLO', email: `admin-${suffix}@example.test`, password, accountType: 'super_admin', emailVerified: true });
+    ids.push(official.id, admin.id);
+    await Barangay.create({ name: `Review Barangay ${suffix}`, latitude: 12.72, longitude: 121.47 });
+    await EducationalInstitution.create({ name: `Review School ${suffix}`, schoolType: 'University', latitude: 12.72, longitude: 121.47 });
     const house = await BoardingHouse.create({ ownerId: owner.id, name: `Review Dorm ${suffix}`, barangay: 'Orconuma', isPrimary: true });
     const room = await OwnerRoom.create({ ownerId: owner.id, boardingHouseId: null, roomNumber: 'R1', rentalPrice: 1800, status: 'available', availableSlots: 1 });
     await OwnerRoom.create({ ownerId: owner.id, boardingHouseId: house.id, roomNumber: 'FULL', rentalPrice: 900, status: 'available', availableSlots: 0 });
@@ -109,6 +115,43 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const response = await request('/tenant-dashboard', cookie);
       assert.equal(response.status, 200);
       assert.match(await response.text(), /browseCompareButton/);
+    });
+    await t.test('landing data uses real public inventory, resident records and valid map coordinates', async () => {
+      const before = await (await request('/api/landing-data')).json();
+      const item = before.listings.find(item => item.ownerId === owner.id);
+      assert.equal(item.roomsAvailable, 1);
+      assert.equal(item.latitude, null);
+      assert.equal(item.rentalPriceMin, 1800);
+      assert.equal(item.password, undefined);
+      assert.equal(item.email, undefined);
+      await OwnerTenant.create({ ownerId: owner.id, fullName: 'Active Resident', status: 'active' });
+      await OwnerTenant.create({ ownerId: owner.id, fullName: 'Former Resident', status: 'moved_out' });
+      const after = await (await request('/api/landing-data')).json();
+      assert.equal(after.stats.activeTenants, before.stats.activeTenants + 1);
+      assert.equal(after.stats.registeredHouses, after.listings.length);
+      const place = await (await request('/api/map-place?' + new URLSearchParams({ kind: 'institution', name: `Review School ${suffix}` }))).json();
+      assert.equal(place.latitude, 12.72);
+      const page = await (await request('/')).text();
+      assert.match(page, /<title>DormMap<\/title>/);
+      assert.ok(!page.includes('data-target="128"'));
+    });
+    await t.test('BPLO review gates barangay pages/APIs and owner registration eligibility', async () => {
+      const officialCookie = await login(official.email);
+      const adminCookie = await login(admin.email);
+      assert.equal((await request('/barangay-dashboard', officialCookie)).status, 403);
+      assert.equal((await request('/barangay-dashboard/api/overview', officialCookie)).status, 403);
+      const body = { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'approve' }) };
+      assert.equal((await request(`/admin/api/barangay-accounts/${official.id}/review`, cookie, body)).status, 403);
+      assert.equal((await request(`/admin/api/barangay-accounts/${official.id}/review`, adminCookie, body)).status, 200);
+      assert.equal((await request('/barangay-dashboard', officialCookie)).status, 200);
+      assert.ok((await (await request('/api/eligible-barangays')).json()).includes('Review Barangay'));
+      const suspended = { ...body, body: JSON.stringify({ action: 'suspend', note: 'Review test' }) };
+      assert.equal((await request(`/admin/api/barangay-accounts/${official.id}/review`, adminCookie, suspended)).status, 200);
+      assert.equal((await request('/barangay-dashboard/api/overview', officialCookie)).status, 403);
+      assert.ok(!(await (await request('/api/eligible-barangays')).json()).includes('Review Barangay'));
+      const rejected = await request('/register', null, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ accountType: 'boarding_house_owner', fullName: 'Blocked Owner', email: `blocked-${suffix}@example.test`, password: 'test-password-123', confirmPassword: 'test-password-123', acceptTerms: 'on', boardingHouseAddress: 'Review Barangay' }) });
+      assert.match(await rejected.text(), /does not have an approved, active official/);
+      assert.equal(await User.count({ where: { email: `blocked-${suffix}@example.test` } }), 0);
     });
     const key = `bh-${house.id}`;
     await t.test('browse respects approvals, establishment barangay and vacancy', async () => {
@@ -171,6 +214,9 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const { Op } = await import('sequelize');
       await SavedDorm.destroy({ where: { tenantId: { [Op.in]: ids } } });
       await TenantDocument.destroy({ where: { tenantId: { [Op.in]: ids } } });
+      await OwnerTenant.destroy({ where: { ownerId: { [Op.in]: ids } } });
+      await Barangay.destroy({ where: { name: { [Op.like]: 'Review Barangay %' } } });
+      await EducationalInstitution.destroy({ where: { name: { [Op.like]: 'Review School %' } } });
       await OwnerRoom.destroy({ where: { ownerId: { [Op.in]: ids } } });
       await BoardingHouse.destroy({ where: { ownerId: { [Op.in]: ids } } });
       await User.destroy({ where: { id: { [Op.in]: ids } } });

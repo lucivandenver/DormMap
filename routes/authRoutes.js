@@ -1,3 +1,4 @@
+import { hasApprovedBarangay, ownerBarangayError } from '../services/registrationPolicy.js';
 import { uploadDir } from '../config/storage.js';
 import express from "express";
 import passport from "passport";
@@ -77,6 +78,9 @@ router.get("/auth/google", (req, res, next) => {
   if (!getGoogleStrategy()) {
     return res.redirect("/login?error=google_oauth_not_configured");
   }
+  if (req.query.accountType && !['login_only', 'tenant', 'barangay', 'boarding_house_owner'].includes(req.query.accountType)) {
+    return res.status(403).send('Administrator accounts cannot be created through public registration.');
+  }
   // If no accountType is given, treat as a login-only flow (no role enforcement)
   req.session.oauthAccountType = req.query.accountType ? req.query.accountType : "login_only";
   passport.authenticate("google", { scope: ["profile", "email"] })(req, res, next);
@@ -98,7 +102,7 @@ router.get("/auth/google/callback", (req, res, next) => {
     if (!user && info && info.message === "role_conflict") {
       const existingRole = info.existingRole || "tenant";
       return res.render("home", {
-        title: "DormMap | Official BPLO Dormitory Finder",
+        title: "DormMap",
         authMode: "login",
         authOpen: true,
         authAccountType: existingRole,
@@ -114,7 +118,7 @@ router.get("/auth/google/callback", (req, res, next) => {
     if (!user && info && info.message === "no_account") {
       const googleEmail = info.email || "";
       return res.render("home", {
-        title: "DormMap | Official BPLO Dormitory Finder",
+        title: "DormMap",
         authMode: "login",
         authOpen: true,
         authAccountType: "tenant",
@@ -215,6 +219,9 @@ router.post("/complete-owner-profile", registerUpload, async (req, res) => {
       delete req.session.pendingOwnerUserId;
       return res.redirect("/login");
     }
+
+    if (user.accountType !== 'boarding_house_owner') return res.status(403).send('Owner account required.');
+    if (!await hasApprovedBarangay(boardingHouseAddress)) return renderError(ownerBarangayError);
 
     const getUploadUrl = (field) => req.files?.[field]?.[0] ? `/uploads/${req.files[field][0].filename}` : null;
 

@@ -10,6 +10,9 @@ router.get('/', controller.adminDashboardPage);
 router.get('/api/overview', controller.overview);
 router.get('/api/map-data', controller.adminMapData);
 
+router.get('/api/barangay-accounts', controller.listBarangayAccounts);
+router.patch('/api/barangay-accounts/:id/review', controller.reviewBarangayAccount);
+
 // Owner Applications & Review
 router.get('/api/owners', controller.listOwners);
 router.patch('/api/owners/:id/review', controller.reviewOwner);

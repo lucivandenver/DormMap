@@ -886,8 +886,8 @@
         authMapHouseData = houses.map(h => ({
           name: h.boardingHouseName || h.fullName || 'Boarding House',
           type: Array.isArray(h.roomTypes) ? h.roomTypes[0] : 'N/A',
-          lat: Number(h.latitude) || 12.7192,
-          lng: Number(h.longitude) || 121.4719,
+          lat: h.latitude === null ? null : Number(h.latitude),
+          lng: h.longitude === null ? null : Number(h.longitude),
           address: h.boardingHouseAddress || h.barangay || '',
           rooms: h.roomsAvailable ?? 0
         })).filter(h => h.name);
@@ -905,6 +905,7 @@
       if (typeof L === 'undefined') return;
 
       const createMarkerOnMap = (map, house) => {
+        if (house.lat === null || house.lng === null || !Number.isFinite(house.lat) || !Number.isFinite(house.lng)) return;
         const lat = Number(house.lat) || 12.7192;
         const lng = Number(house.lng) || 121.4719;
         const marker = L.marker([lat, lng]).addTo(map).bindPopup(`
@@ -955,9 +956,9 @@
           if (!houses || houses.length === 0) return;
           houses.forEach(house => {
             const marker = createMarkerOnMap(tenantMap, house);
-            tenantMarkers.push(marker);
+            if (marker) tenantMarkers.push(marker);
           });
-          if (houses.length === 1) {
+          if (houses.length === 1 && houses[0].lat !== null && houses[0].lng !== null) {
             const h = houses[0];
             tenantMap.setView([h.lat || 12.7192, h.lng || 121.4719], 16);
           }
@@ -1267,3 +1268,4 @@
     }
   })();
 </script>
+<script src="/js/eligible-barangays.js" defer></script>

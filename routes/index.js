@@ -25,7 +25,7 @@
     */
     
 import express from "express";
-import { homePage, aboutPage, boardingHousesApi, institutionsApi } from "../controllers/homeController.js";
+import { homePage, aboutPage, boardingHousesApi, institutionsApi, landingDataApi, eligibleBarangaysApi, mapPlaceApi } from "../controllers/homeController.js";
 import authRoutes from "./authRoutes.js";
 import adminRoutes from './adminRoutes.js';
 import barangayDashboardRoutes from './barangayDashboardRoutes.js';
@@ -40,6 +40,9 @@ router.get("/", homePage);
 router.get("/about", aboutPage);
 router.get("/api/boarding-houses", boardingHousesApi);
 router.get("/api/institutions", institutionsApi);
+router.get('/api/landing-data', landingDataApi);
+router.get('/api/eligible-barangays', eligibleBarangaysApi);
+router.get('/api/map-place', mapPlaceApi);
 router.use('/api/dormigo', dormigoRoutes);
 router.use('/admin', adminRoutes);
 router.use('/barangay-dashboard', barangayDashboardRoutes);

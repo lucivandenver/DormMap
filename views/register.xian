@@ -473,3 +473,4 @@
   </script>
 
   {{> footer }}
+<script src="/js/eligible-barangays.js" defer></script>

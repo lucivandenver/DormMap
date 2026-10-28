@@ -866,14 +866,26 @@ export const reviewOwner = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+function recordValues(body, fields) {
+  const values = Object.fromEntries(Object.entries(body).filter(([key]) => fields.includes(key)));
+  for (const [key, max] of [['latitude', 90], ['longitude', 180]]) {
+    if (!(key in values)) continue;
+    if (values[key] === '' || values[key] === null) values[key] = null;
+    else if (!Number.isFinite(Number(values[key])) || Math.abs(Number(values[key])) > max) {
+      throw Object.assign(new Error('Invalid map coordinates.'), { status: 422 });
+    } else values[key] = Number(values[key]);
+  }
+  return values;
+}
+
 const crud = (Model, entityType, fields) => ({
   list: async (req, res, next) => { try { const where = req.query.search ? { name: { [Op.like]: `%${req.query.search}%` } } : {}; res.json({ data: await Model.findAll({ where, order: [['createdAt', 'DESC']] }) }); } catch (e) { next(e); } },
-  create: async (req, res, next) => { try { const record = await Model.create(Object.fromEntries(Object.entries(req.body).filter(([k]) => fields.includes(k)))); await audit(req, 'create', entityType, record.id); res.status(201).json({ data: record }); } catch (e) { next(e); } },
-  update: async (req, res, next) => { try { const record = await Model.findByPk(req.params.id); if (!record) return res.status(404).json({ error: `${entityType} not found.` }); await record.update(Object.fromEntries(Object.entries(req.body).filter(([k]) => fields.includes(k)))); await audit(req, 'update', entityType, record.id); res.json({ data: record }); } catch (e) { next(e); } },
+  create: async (req, res, next) => { try { const record = await Model.create(recordValues(req.body, fields)); await audit(req, 'create', entityType, record.id); res.status(201).json({ data: record }); } catch (e) { next(e); } },
+  update: async (req, res, next) => { try { const record = await Model.findByPk(req.params.id); if (!record) return res.status(404).json({ error: `${entityType} not found.` }); await record.update(recordValues(req.body, fields)); await audit(req, 'update', entityType, record.id); res.json({ data: record }); } catch (e) { next(e); } },
   remove: async (req, res, next) => { try { const record = await Model.findByPk(req.params.id); if (!record) return res.status(404).json({ error: `${entityType} not found.` }); await record.destroy(); await audit(req, 'delete', entityType, record.id); res.json({ message: 'Record deleted.' }); } catch (e) { next(e); } },
 });
 
-export const barangays = crud(Barangay, 'Barangay', ['name', 'officialName', 'officialEmail', 'isActive']);
+export const barangays = crud(Barangay, 'Barangay', ['name', 'officialName', 'officialEmail', 'latitude', 'longitude', 'isActive']);
 export const institutions = crud(EducationalInstitution, 'EducationalInstitution', ['name', 'schoolType', 'address', 'latitude', 'longitude', 'barangay', 'isActive']);
 export const permits = crud(BusinessPermit, 'BusinessPermit', ['ownerId', 'permitNumber', 'issueDate', 'expirationDate', 'status', 'documentUrl', 'notes']);
 export const listAudit = async (req, res, next) => { try { res.json({ data: await AdminAuditLog.findAll({ order: [['createdAt', 'DESC']], limit: 100 }) }); } catch (e) { next(e); } };
@@ -1030,3 +1042,28 @@ export const adminMapData = async (req, res, next) => {
   }
 };
 
+
+export const listBarangayAccounts = async (req, res, next) => {
+  try {
+    const where = { accountType: 'barangay', isArchived: false };
+    if (req.query.status) where.applicationStatus = req.query.status;
+    const users = await User.findAll({ where, attributes: ['id', 'fullName', 'email', 'barangay', 'positionTitle', 'contactNumber', 'applicationStatus', 'applicationReviewNote', 'isSuspended', 'createdAt'], order: [['createdAt', 'DESC']] });
+    res.json({ data: users });
+  } catch (error) { next(error); }
+};
+
+export const reviewBarangayAccount = async (req, res, next) => {
+  try {
+    const user = await User.findOne({ where: { id: req.params.id, accountType: 'barangay', isArchived: false } });
+    if (!user) return res.status(404).json({ error: 'Barangay account not found.' });
+    const states = { approve: 'approved', reject: 'rejected', revision: 'revision_requested', suspend: 'suspended' };
+    const status = states[req.body.action];
+    if (!status) return res.status(422).json({ error: 'Invalid review action.' });
+    if (req.body.action === 'approve' && !user.barangay) return res.status(422).json({ error: 'The official must complete their barangay profile first.' });
+    const note = String(req.body.note || '').trim().slice(0, 2000);
+    if (req.body.action !== 'approve' && !note) return res.status(422).json({ error: 'Please provide a review note.' });
+    await user.update({ applicationStatus: status, applicationReviewedAt: new Date(), applicationReviewNote: note || null, isSuspended: req.body.action === 'suspend' });
+    await audit(req, `barangay_account_${req.body.action}`, 'User', user.id, { barangay: user.barangay, note });
+    res.json({ message: `Barangay account ${status}.` });
+  } catch (error) { next(error); }
+};

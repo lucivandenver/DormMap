@@ -1,26 +1,32 @@
 import { User } from '../models/userModel.js';
 
 export const requireBarangayOfficial = async (req, res, next) => {
+  const isApi = req.path.startsWith('/api/');
   if (req.session?.accountType !== 'barangay' || !req.session?.userId) {
-    // For API routes, return JSON; for page routes, redirect
-    const isApi = req.path.startsWith('/api/');
     if (isApi) return res.status(403).json({ error: 'Barangay Official access is required.' });
     return res.redirect('/login');
   }
-
-  // Check if this barangay account has no assigned barangay yet
-  // (e.g. old Google OAuth accounts created before this flow was added)
   try {
-    const user = await User.findByPk(req.session.userId, { attributes: ['barangay'] });
-    if (!user?.barangay) {
-      // Store pending user id so the completion page can update the record
-      req.session.pendingBarangayUserId = req.session.userId;
+    const user = await User.findByPk(req.session.userId);
+    if (!user || user.accountType !== 'barangay' || user.isArchived) {
+      if (isApi) return res.status(403).json({ error: 'Account unavailable.' });
+      return res.redirect('/login');
+    }
+    if (!user.barangay) {
+      if (isApi) return res.status(403).json({ error: 'Complete your barangay profile first.' });
+      req.session.pendingBarangayUserId = user.id;
       return res.redirect('/complete-barangay-profile');
     }
-  } catch (err) {
-    // On DB error, let the request proceed — the controller will handle it
-    console.error('requireBarangayOfficial barangay check error:', err);
+    if (user.applicationStatus !== 'approved' || user.isSuspended) {
+      if (isApi) return res.status(403).json({ error: 'BPLO approval is required before accessing the barangay dashboard.' });
+      return res.status(403).render('accountApproval', {
+        title: 'DormMap', status: user.isSuspended ? 'suspended' : user.applicationStatus,
+        reviewNote: user.applicationReviewNote, barangay: user.barangay,
+      });
+    }
+    next();
+  } catch (error) {
+    console.error('Barangay authorization check failed:', error);
+    return res.status(503).send('Unable to verify account approval. Please try again.');
   }
-
-  next();
 };

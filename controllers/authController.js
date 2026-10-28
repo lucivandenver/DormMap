@@ -24,6 +24,7 @@
     SOFTWARE.
     */
     
+import { hasApprovedBarangay, ownerBarangayError } from "../services/registrationPolicy.js";
 import bcrypt from "bcrypt";
 import { Op } from "sequelize";
 import { User, sequelize } from "../models/userModel.js";
@@ -79,7 +80,7 @@ const renderAuthHome = (res, options = {}) => {
   } = options;
 
   return res.render("home", {
-    title: "DormMap | Official BPLO Dormitory Finder",
+    title: "DormMap",
     authMode,
     authOpen,
     authAccountType,
@@ -204,7 +205,7 @@ export const loginPage = (req, res) => {
     authOpen: true,
     authAccountType: normalizeAccountType(req.query.accountType),
     authError: queryError || flashErrStr,
-    authSuccess: req.query.verified === "1"
+    authSuccess: req.query.pendingApproval === "1" ? "Application submitted. Please wait for the responsible office to approve your account." : req.query.verified === "1"
       ? "Your email has been verified. You can login now."
       : req.query.registered === "1"
         ? "Registration complete. Check your email for the verification link."
@@ -679,6 +680,13 @@ export const registerUser = async (req, res) => {
       });
     }
 
+    if (normalizedAccountType === 'barangay' && barangay && await User.findOne({ where: { accountType: 'barangay', barangay, isArchived: false } })) {
+      return renderRegisterPage(res, { authAccountType: normalizedAccountType, authError: 'An official account already exists for this barangay. Please contact BPLO.', authValues: req.body });
+    }
+    if (normalizedAccountType === 'boarding_house_owner' && !await hasApprovedBarangay(boardingHouseAddress)) {
+      return renderRegisterPage(res, { authAccountType: normalizedAccountType, authError: ownerBarangayError, authValues: req.body });
+    }
+
     const profilePicture = getUploadedPath(req.files, "profilePicture");
     const galleryOutdoor = getUploadedPath(req.files, "galleryOutdoor");
     const galleryLivingArea = getUploadedPath(req.files, "galleryLivingArea");
@@ -747,7 +755,7 @@ export const registerUser = async (req, res) => {
 
     const user = await User.create({
       accountType: normalizedAccountType,
-      applicationStatus: normalizedAccountType === 'boarding_house_owner' ? 'pending' : 'approved',
+      applicationStatus: ['boarding_house_owner', 'barangay'].includes(normalizedAccountType) ? 'pending' : 'approved',
       fullName,
       email,
       password: hashed,
@@ -806,7 +814,7 @@ export const registerUser = async (req, res) => {
       } catch (mailError) {
         console.error("Verification email failed:", mailError);
       }
-      return res.redirect("/login?registered=1");
+      return res.redirect(['barangay', 'boarding_house_owner'].includes(normalizedAccountType) ? "/login?pendingApproval=1" : "/login?registered=1");
     }
 
     req.session.userId = user.id;
@@ -881,6 +889,8 @@ export const completeBarangayProfile = async (req, res) => {
       return renderError(`A barangay official account for "${barangay}" already exists. Please contact the administrator.`);
     }
 
+    if (user.accountType !== "barangay") return res.status(403).send("Barangay account required.");
+    user.applicationStatus = 'pending';
     user.barangay = barangay;
     user.positionTitle = positionTitle.trim();
     user.contactNumber = contactNumber.trim();

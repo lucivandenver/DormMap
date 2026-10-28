@@ -26,11 +26,14 @@
 import { Op } from "sequelize";
 import { User } from "../models/userModel.js";
 import { EducationalInstitution } from "../models/adminModels.js";
-import { BoardingHouse, OwnerGallery, OwnerRoom } from "../models/ownerModels.js";
+import { Barangay } from '../models/adminModels.js';
+import { publicDormListings, landingSnapshot } from '../services/landingService.js';
+import { activeBarangayWhere } from '../services/registrationPolicy.js';
+import { lookupPlace, storedPlace } from '../services/mapPlaceService.js';
 
 export const homePage = (req, res) => {
   res.render("home", {
-    title: "DormMap | Official BPLO Dormitory Finder",
+    title: "DormMap",
     authMode: "login",
     authOpen: false,
     authAccountType: "tenant",
@@ -51,164 +54,33 @@ export const aboutPage = (req, res) => {
 };
 
 export const boardingHousesApi = async (req, res) => {
+  try { res.json(await publicDormListings()); }
+  catch (error) { console.error(error); res.status(503).json({ error: 'Unable to load boarding houses. Please retry.' }); }
+};
+
+export const landingDataApi = async (req, res) => {
+  try { res.set('Cache-Control', 'no-store').json(await landingSnapshot()); }
+  catch (error) { console.error(error); res.status(503).json({ error: 'Live data is temporarily unavailable.' }); }
+};
+
+export const eligibleBarangaysApi = async (req, res) => {
   try {
-    const owners = await User.findAll({
-      where: {
-        accountType: "boarding_house_owner",
-        applicationStatus: { [Op.in]: ["approved", "approved_barangay"] },
-        isSuspended: false,
-        isArchived: false,
-      },
-      attributes: [
-        "id", "fullName", "email", "boardingHouseName", "boardingHouseAddress",
-        "boardingHousePicture", "profilePicture", "boardingHouseLatitude",
-        "boardingHouseLongitude", "mapPin", "roomsAvailable", "roomTypes",
-        "paymentMethods", "contactNumber", "barangay", "houseRules", "amenities",
-        "notes", "rentalPriceMin", "rentalPriceMax", "galleryImages",
-      ],
-    });
+    const users = await User.findAll({ where: activeBarangayWhere, attributes: ['barangay'] });
+    res.json([...new Set(users.map(user => user.barangay).filter(Boolean))].sort());
+  } catch (error) { res.status(503).json({ error: 'Unable to check available barangays.' }); }
+};
 
-    const ownerIds = owners.map((o) => o.id);
-
-    const [allBhRecords, galleryItems, rooms] = await Promise.all([
-      BoardingHouse.findAll({ where: { ownerId: { [Op.in]: ownerIds } } }),
-      OwnerGallery.findAll({ where: { ownerId: { [Op.in]: ownerIds } }, order: [["sortOrder", "ASC"]] }),
-      OwnerRoom.findAll({ where: { ownerId: { [Op.in]: ownerIds } } }),
-    ]);
-
-    // Separate photos strictly by boardingHouseId; keep legacy photos (boardingHouseId is null) mapped to ownerId
-    const bhGalleryMap = {};
-    const legacyOwnerGallery = {};
-    for (const g of galleryItems) {
-      if (g.imageUrl) {
-        if (g.boardingHouseId) {
-          if (!bhGalleryMap[g.boardingHouseId]) bhGalleryMap[g.boardingHouseId] = [];
-          if (!bhGalleryMap[g.boardingHouseId].includes(g.imageUrl)) {
-            bhGalleryMap[g.boardingHouseId].push(g.imageUrl);
-          }
-        } else {
-          if (!legacyOwnerGallery[g.ownerId]) legacyOwnerGallery[g.ownerId] = [];
-          if (!legacyOwnerGallery[g.ownerId].includes(g.imageUrl)) {
-            legacyOwnerGallery[g.ownerId].push(g.imageUrl);
-          }
-        }
-      }
-    }
-
-    const parseList = (value) => {
-      if (!value) return [];
-      try {
-        const list = JSON.parse(value);
-        return Array.isArray(list) ? list : [];
-      } catch {
-        return [String(value)];
-      }
-    };
-
-    const listings = [];
-
-    for (const owner of owners) {
-      const ownerPlain = owner.get({ plain: true });
-      const ownerBhList = allBhRecords.filter(b => b.ownerId === owner.id);
-
-      // If owner has explicitly defined BoardingHouse records, build a listing for each one
-      if (ownerBhList.length > 0) {
-        for (const bh of ownerBhList) {
-          const bhRooms = rooms.filter(r => r.ownerId === owner.id && (r.boardingHouseId === bh.id || (!r.boardingHouseId && bh.isPrimary)));
-          const availableRoomsCount = bhRooms.filter(r => r.status === 'available').length;
-
-          let latitude = Number(String(bh.latitude ?? '').trim());
-          let longitude = Number(String(bh.longitude ?? '').trim());
-
-          if ((!Number.isFinite(latitude) || !Number.isFinite(longitude)) && bh.mapPin) {
-            const match = bh.mapPin.match(/Lat\s*([0-9.-]+),\s*Lon\s*([0-9.-]+)/i);
-            if (match) { latitude = Number(match[1]); longitude = Number(match[2]); }
-          }
-          if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-            latitude = 12.7192; longitude = 121.4719;
-          }
-
-          // Build photos STRICTLY for this boarding house
-          const bhPhotos = bhGalleryMap[bh.id] || [];
-          const images = [];
-
-          if (bh.picture) {
-            images.push(bh.picture);
-          }
-
-          bhPhotos.forEach(img => {
-            if (!images.includes(img)) images.push(img);
-          });
-
-          // Fallback ONLY for the primary house if it has no photos of its own
-          if (images.length === 0 && bh.isPrimary) {
-            if (ownerPlain.boardingHousePicture) images.push(ownerPlain.boardingHousePicture);
-            if (legacyOwnerGallery[owner.id]) {
-              legacyOwnerGallery[owner.id].forEach(img => {
-                if (!images.includes(img)) images.push(img);
-              });
-            }
-          }
-
-          // Determine the cover picture for this specific boarding house
-          const bhPicture = bh.picture || (bhPhotos[0] || (bh.isPrimary ? (ownerPlain.boardingHousePicture || '') : ''));
-
-          listings.push({
-            ...ownerPlain,
-            id: owner.id,
-            bhId: bh.id,
-            boardingHouseName: bh.name,
-            boardingHouseAddress: bh.address || ownerPlain.boardingHouseAddress,
-            barangay: bh.barangay || ownerPlain.barangay,
-            boardingHousePicture: bhPicture,
-            description: bh.description || ownerPlain.description || '',
-            amenities: bh.amenities || ownerPlain.amenities || '',
-            houseRules: bh.houseRules || ownerPlain.houseRules || '',
-            boardingHouseLatitude: String(latitude),
-            boardingHouseLongitude: String(longitude),
-            latitude,
-            longitude,
-            roomsAvailable: availableRoomsCount || bhRooms.length || ownerPlain.roomsAvailable || 0,
-            galleryImages: images,
-            roomTypes: parseList(ownerPlain.roomTypes),
-            paymentMethods: parseList(ownerPlain.paymentMethods),
-          });
-        }
-      } else {
-        // Fallback to primary User listing
-        let latitude = Number(String(ownerPlain.boardingHouseLatitude ?? '').trim());
-        let longitude = Number(String(ownerPlain.boardingHouseLongitude ?? '').trim());
-        if ((!Number.isFinite(latitude) || !Number.isFinite(longitude)) && ownerPlain.mapPin) {
-          const match = ownerPlain.mapPin.match(/Lat\s*([0-9.-]+),\s*Lon\s*([0-9.-]+)/i);
-          if (match) { latitude = Number(match[1]); longitude = Number(match[2]); }
-        }
-        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-          latitude = 12.7192; longitude = 121.4719;
-        }
-
-        const images = [];
-        if (ownerPlain.boardingHousePicture) images.push(ownerPlain.boardingHousePicture);
-        if (legacyOwnerGallery[owner.id]) {
-          legacyOwnerGallery[owner.id].forEach(img => { if (!images.includes(img)) images.push(img); });
-        }
-
-        listings.push({
-          ...ownerPlain,
-          latitude,
-          longitude,
-          boardingHousePicture: ownerPlain.boardingHousePicture || (images[0] || ''),
-          galleryImages: images,
-          roomTypes: parseList(ownerPlain.roomTypes),
-          paymentMethods: parseList(ownerPlain.paymentMethods),
-        });
-      }
-    }
-
-    res.json(listings);
-  } catch (error) {
-    console.error("Boarding houses API error:", error);
-    res.status(500).json({ error: "Unable to load boarding houses" });
-  }
+export const mapPlaceApi = async (req, res) => {
+  try {
+    const kind = req.query.kind;
+    const name = typeof req.query.name === 'string' ? req.query.name.trim() : '';
+    if (!['institution', 'barangay'].includes(kind) || !name || name.length > 150) return res.status(400).json({ error: 'Choose a barangay or institution.' });
+    const Model = kind === 'institution' ? EducationalInstitution : Barangay;
+    const record = await Model.findOne({ where: { name, isActive: true } });
+    const place = storedPlace(record) || await lookupPlace(name, kind);
+    if (!place) return res.status(404).json({ error: 'No verified map location found. BPLO can add the correct coordinates in Settings.' });
+    res.json(place);
+  } catch (error) { console.error('Place search failed:', error.message); res.status(503).json({ error: 'Location search is temporarily unavailable. Try again later.' }); }
 };
 
 export const institutionsApi = async (req, res) => {

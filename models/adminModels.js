@@ -8,6 +8,8 @@ export const Barangay = sequelize.define('Barangay', {
   name: { type: DataTypes.STRING, allowNull: false, unique: true },
   officialName: { type: DataTypes.STRING, allowNull: true },
   officialEmail: { type: DataTypes.STRING, allowNull: true },
+  latitude: { type: DataTypes.DECIMAL(10, 7), allowNull: true },
+  longitude: { type: DataTypes.DECIMAL(10, 7), allowNull: true },
   isActive: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
 }, { tableName: 'BploBarangays' });
 
