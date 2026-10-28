@@ -183,8 +183,10 @@
       if (!miniMap) return;
 
       houses.forEach(h => {
-        const lat = Number(h.latitude) || 12.7192;
-        const lng = Number(h.longitude) || 121.4719;
+        if (h.latitude === null || h.longitude === null || h.latitude === '' || h.longitude === '') return;
+        const lat = Number(h.latitude);
+        const lng = Number(h.longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
         const marker = L.marker([lat, lng]).addTo(miniMap)
           .bindPopup(`

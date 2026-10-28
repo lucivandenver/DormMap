@@ -2,13 +2,11 @@
 
 Prepared: 29 October 2026, Manila
 
-**Status: local changes only. No GitHub push, remote branch, pull request, merge,
-Render deployment, or Aiven service creation was performed.**
+**Current review branch:** `codex/live-landing-approvals`, based on main commit `c0f5080a02f98ca7dbede6d462fab25871f37f30`.
 
-- Repository: `lucivandenver/DormMap`
-- Local review branch: `codex/render-aiven-shortlist`
-- Base commit: `5d3aa1ac81330ec08dcdac0d52fc2d841a867906`
-- GitHub `main` was read again and still points to that base commit.
+The original shortlist/Render/Aiven changes described below and the upload fallback fix were already pushed to main. This new branch adds live public statistics, geographic search with no invented pins/prices, and BPLO approval of barangay accounts. Owner registration now requires an approved active barangay official. See the final section of `docs/DEPLOY_RENDER_AIVEN.md` for definitions and setup. No live Render deployment is performed by this change.
+
+Validation for this update: 19 unit checks; MySQL-compatible integration scenarios covering counts, public coordinates, BPLO review and account blocking; desktop/mobile browser checks for search, zoom with empty results, price filters, stable detail IDs, real-time Socket.io updates and the BPLO approval UI. External map tile availability is not part of the browser checks; provider requests are isolated. A live Photon lookup separately verified MinSU's OSM location. Unknown/unavailable place lookups show an explanation and can be configured through BPLO coordinates.
 
 ## Existing system, based on the repository
 

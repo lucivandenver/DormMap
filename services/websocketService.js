@@ -18,7 +18,8 @@ export function initWebSocket(httpServer, sessionMiddleware) {
         const user = await User.findByPk(userId);
         if (!user || user.isSuspended || user.isArchived) return next(new Error('Account unavailable.'));
         socket.data.userId = user.id;
-        socket.data.role = user.accountType === 'bplo_admin' ? 'super_admin' : user.accountType;
+        socket.data.role = user.accountType === 'barangay' && user.applicationStatus !== 'approved'
+          ? null : user.accountType === 'bplo_admin' ? 'super_admin' : user.accountType;
       }
       next();
     } catch (error) { next(error); }

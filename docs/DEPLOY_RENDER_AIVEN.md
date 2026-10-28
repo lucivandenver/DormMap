@@ -1,7 +1,7 @@
 # DormMap: Render + Aiven MySQL + VS Code
 
-Ang guide na ito ay para sa changes sa review branch `codex/render-aiven-shortlist`.
-Hindi pa ito nasa GitHub `main` hangga't hindi mo ina-approve ang push.
+Render/Aiven deployment support and the upload-storage fix are already on `main`.
+The live landing-page and approval changes are prepared separately in `codex/live-landing-approvals` for review.
 
 ## 1. Ano talaga ang ide-deploy?
 
@@ -360,3 +360,19 @@ Remove-Item Env:DB_NAME
 - https://aiven.io/docs/platform/concepts/tls-ssl-certificates
 - https://aiven.io/docs/products/mysql/howto/migrate-database-mysqldump
 - https://sidorares.github.io/node-mysql2/docs/documentation/ssl
+
+## Live landing page and account approvals
+
+- Browser tabs show the DormMap icon and `DormMap` only.
+- The landing totals use approved, active owners' individual houses (or one legacy property per owner), active `OwnerTenants`, active institutions, and distinct approved barangay official jurisdictions. Tenant user accounts alone do not mean someone has moved in. “Added this month” uses property creation dates in Philippine time.
+- Public updates use a Socket.io invalidation event with no private account fields, then fetch a fresh snapshot. A 15-second visible-tab refresh also catches changes made outside the running server.
+- School searches use BPLO institution coordinates first, then a cached Photon/OpenStreetMap lookup; nearby means within 3 km straight-line distance. They still focus the map when no boarding houses exist. Barangay searches focus the selected place and match that barangay; price-only searches cover Bongabong. Unknown prices and map pins are never invented.
+- BPLO can set precise school coordinates under **Institutions**, and barangay coordinates under **Barangay Management → Edit**. If a place cannot be resolved, the page explains it; no arbitrary school coordinate is substituted. Missing pins are listed where applicable but cannot be shown as markers or used for nearby-school searches.
+- `MAP_GEOCODING_URL` is optional and defaults to `https://photon.komoot.io/api/`. This public demo allows reasonable use but has no availability guarantee. DormMap caches lookups for 24 hours, serializes requests, and only looks up a selected place. Use a dedicated Photon-compatible endpoint for larger traffic. Existing BPLO coordinates work without the external provider. Attribution remains OpenStreetMap. No Google key is needed for the current map.
+- New barangay signups (password and Google) start **pending**. BPLO reviews them under **Barangay Management → Barangay account approvals**. Pending/rejected/revision/suspended officials cannot access either dashboard pages or APIs. Existing approved accounts retain their status; review/suspend them individually if needed.
+- Owner signup and Google profile completion require an **approved, active, nonarchived barangay official account** for the selected barangay. The form disables unavailable barangays; the server repeats the check. A barangay master record alone does not qualify. Owners still require their own barangay review after applying.
+- Additive migration adds optional latitude/longitude to `BploBarangays`; it does not delete existing records. Run `npm run migrate` before starting locally; Render's `start:render` already does this.
+
+Mapping alternatives: keep Leaflet/OpenStreetMap for the current implementation; MapTiler supports Leaflet if a different tile style is wanted. Google Maps JavaScript API supports custom markers and Places, but requires a separate integration and Google project/API setup. Review provider billing/quotas before switching. Changing a provider should preserve the DormMap database search and approval logic.
+
+References: https://github.com/komoot/photon · https://docs.maptiler.com/leaflet/ · https://developers.google.com/maps/documentation/javascript/overview

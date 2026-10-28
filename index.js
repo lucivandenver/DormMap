@@ -47,6 +47,7 @@ hbs.registerHelper('eq', (a, b) => a === b);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+import { installLandingUpdates } from "./services/landingService.js";
 import { initWebSocket } from "./services/websocketService.js";
 
 const app = express();
@@ -79,6 +80,7 @@ app.use(express.static(publicDir));
 const sessionMiddleware = session(sessionOptions());
 app.use(sessionMiddleware);
 const io = initWebSocket(httpServer, sessionMiddleware);
+installLandingUpdates();
 app.use(passport.initialize());
 app.use(passport.session());
 app.use(flash());
@@ -152,9 +154,11 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET &&
       return done(null, false, { message: "no_account", email });
     }
 
+    if (!['tenant', 'barangay', 'boarding_house_owner'].includes(oauthAccountType)) return done(null, false, { message: 'invalid_registration_role' });
     const name = profile.displayName || profile.name?.givenName || "Google User";
     const newUser = await User.create({
       accountType: oauthAccountType,
+      applicationStatus: ['barangay', 'boarding_house_owner'].includes(oauthAccountType) ? 'pending' : 'approved',
       fullName: name,
       email,
       password: await bcrypt.hash(Math.random().toString(36).slice(2), 10),
@@ -243,7 +247,7 @@ app.use((error, req, res, next) => {
 
   if (error instanceof Error && /Only JPG|File too large|Unexpected field/.test(error.message)) {
     return res.status(400).render('home', {
-      title: 'DormMap | Official BPLO Dormitory Finder',
+      title: 'DormMap',
       authMode: 'register', authOpen: true,
       authAccountType: req.body?.accountType || 'tenant',
       authError: error.message, authSuccess: '', authValues: req.body || {},
@@ -251,7 +255,7 @@ app.use((error, req, res, next) => {
   }
 
   return res.status(500).render('home', {
-    title: 'DormMap | Official BPLO Dormitory Finder',
+    title: 'DormMap',
     authMode: 'login', authOpen: false, authAccountType: 'tenant',
     authError: 'Something went wrong. Please try again.', authSuccess: '', authValues: {},
   });

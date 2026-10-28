@@ -1,0 +1,12 @@
+{{> head }}
+</head>
+<body class="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+  <main class="max-w-lg rounded-3xl border border-emerald-100 bg-white p-8 shadow-lg">
+    <img src="/icons/icon-192.png" alt="DormMap" class="h-14 w-14 mb-5">
+    <p class="text-xs uppercase tracking-widest text-emerald-700 font-bold">Barangay account · {{barangay}}</p>
+    <h1 class="text-2xl font-bold text-slate-900 mt-3">BPLO approval required</h1>
+    <p class="mt-4 text-slate-600">Your account status is <strong>{{status}}</strong>. The BPLO administrator must approve your account before you can access the dashboard or receive owner applications.</p>
+    {{#if reviewNote}}<p class="mt-4 rounded-xl bg-slate-50 p-4 text-slate-700">Review note: {{reviewNote}}</p>{{/if}}
+    <div class="mt-6 flex gap-4"><a class="rounded-full bg-emerald-950 text-white px-5 py-3" href="/barangay-dashboard">Check status</a><a class="px-4 py-3 text-slate-600" href="/logout">Sign out</a></div>
+  </main>
+</body></html>
