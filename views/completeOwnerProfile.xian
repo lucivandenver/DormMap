@@ -1,0 +1,698 @@
+{{> head }}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+
+  <style>
+    :root {
+      --dormmap-primary: #023020;
+      --dormmap-primary-soft: #084d34;
+      --dormmap-accent: #f4b400;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        radial-gradient(circle at top left, rgba(2, 48, 32, 0.12), transparent 38%),
+        radial-gradient(circle at bottom right, rgba(2, 48, 32, 0.08), transparent 30%),
+        #f0fdf4;
+      padding: 2rem 1rem;
+    }
+
+    .font-display { font-family: 'Poppins', sans-serif; }
+
+    .card {
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(2, 48, 32, 0.08);
+      border-radius: 28px;
+      box-shadow: 0 32px 80px rgba(15, 23, 42, 0.12);
+      width: 100%;
+      max-width: 580px;
+      overflow: hidden;
+      animation: slideUp 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(28px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .card-header {
+      background: linear-gradient(135deg, #023020 0%, #084d34 60%, #0a6644 100%);
+      padding: 2rem 2rem 1.6rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card-header::before {
+      content: '';
+      position: absolute;
+      top: -40px; right: -40px;
+      width: 160px; height: 160px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 50%;
+    }
+
+    .card-body { padding: 1.8rem 2rem 2rem; }
+
+    label > span {
+      display: block;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 0.35rem;
+    }
+
+    label > span .req { color: #dc2626; margin-left: 2px; }
+
+    select, input[type="text"], input[type="number"], input[type="tel"], textarea {
+      width: 100%;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 14px;
+      background: #fff;
+      padding: 0.7rem 1rem;
+      font-size: 0.875rem;
+      font-family: 'Inter', sans-serif;
+      color: #1e293b;
+      transition: border-color 160ms, box-shadow 160ms;
+      outline: none;
+      box-sizing: border-box;
+    }
+
+    select:focus, input:focus, textarea:focus {
+      border-color: var(--dormmap-primary);
+      box-shadow: 0 0 0 4px rgba(2, 48, 32, 0.08);
+    }
+
+    input[type="file"] {
+      width: 100%;
+      border: 1.5px dashed #cbd5e1;
+      border-radius: 14px;
+      background: #f8fafc;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.8rem;
+      font-family: 'Inter', sans-serif;
+      color: #64748b;
+      cursor: pointer;
+      box-sizing: border-box;
+      transition: border-color 160ms;
+    }
+
+    input[type="file"]:hover { border-color: var(--dormmap-primary); }
+    input[type="file"]::file-selector-button {
+      background: var(--dormmap-primary);
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      padding: 0.3rem 0.85rem;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-right: 0.6rem;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .doc-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+
+    .doc-item {
+      background: #f8fafc;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 0.85rem 0.9rem;
+      transition: border-color 160ms;
+    }
+
+    .doc-item:hover { border-color: #a7f3d0; }
+
+    .doc-item .doc-icon {
+      font-size: 1.4rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .doc-item .doc-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #334155;
+      margin-bottom: 0.2rem;
+    }
+
+    .doc-item .doc-hint {
+      font-size: 0.72rem;
+      color: #94a3b8;
+      margin-bottom: 0.6rem;
+    }
+
+    .terms-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 1rem 1.1rem;
+      font-size: 0.8rem;
+      color: #475569;
+      line-height: 1.7;
+    }
+
+    .terms-box label {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.65rem;
+      cursor: pointer;
+    }
+
+    .terms-box input[type="checkbox"] {
+      margin-top: 3px;
+      accent-color: var(--dormmap-primary);
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    .terms-box a {
+      font-weight: 700;
+      color: #065f46;
+      text-decoration: underline;
+    }
+
+    .terms-content {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+      max-height: 140px;
+      overflow-y: auto;
+      font-size: 0.78rem;
+      line-height: 1.7;
+      color: #475569;
+      margin-bottom: 0.85rem;
+    }
+
+    .terms-content h4 {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #1e293b;
+      margin: 0.65rem 0 0.3rem;
+    }
+
+    .terms-content h4:first-child { margin-top: 0; }
+
+    .btn-primary {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      width: 100%;
+      background: var(--dormmap-primary);
+      color: #fff;
+      font-size: 0.875rem;
+      font-weight: 700;
+      padding: 0.85rem 1.5rem;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(2, 48, 32, 0.28);
+      transition: background 160ms, transform 100ms, box-shadow 160ms;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .btn-primary:hover { background: var(--dormmap-primary-soft); box-shadow: 0 12px 30px rgba(2, 48, 32, 0.34); }
+    .btn-primary:active { transform: scale(0.98); }
+
+    .btn-secondary {
+      border: 1.5px solid #e2e8f0;
+      background: #fff;
+      border-radius: 999px;
+      padding: 0.8rem 1.4rem;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      color: #374151;
+      transition: border-color 160ms, background 160ms;
+      flex-shrink: 0;
+    }
+
+    .btn-secondary:hover { border-color: #cbd5e1; background: #f8fafc; }
+
+    .error-box {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 14px;
+      padding: 0.85rem 1rem;
+      font-size: 0.8125rem;
+      color: #b91c1c;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .step-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 999px;
+      padding: 0.3rem 0.8rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #a7f3d0;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 0.8rem;
+    }
+
+    .step-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      margin-bottom: 1.4rem;
+    }
+
+    .step-dot {
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      background: #e2e8f0;
+      color: #94a3b8;
+      transition: background 240ms, color 240ms;
+      flex-shrink: 0;
+    }
+
+    .step-dot.active {
+      background: var(--dormmap-primary);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(2, 48, 32, 0.25);
+    }
+
+    .step-dot.done {
+      background: #10b981;
+      color: #fff;
+    }
+
+    .step-connector {
+      flex: 1;
+      height: 2px;
+      background: #e2e8f0;
+      border-radius: 1px;
+    }
+
+    .step-label-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      margin-bottom: 1.5rem;
+      gap: 0.25rem;
+    }
+
+    .step-label {
+      text-align: center;
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: #94a3b8;
+      padding: 0 0.25rem;
+    }
+
+    .step-label.active { color: var(--dormmap-primary); }
+    .step-label.done { color: #10b981; }
+
+    .info-banner {
+      background: linear-gradient(135deg, #ecfdf5, #f0fdf4);
+      border: 1px solid #a7f3d0;
+      border-radius: 14px;
+      padding: 0.9rem 1rem;
+      font-size: 0.8rem;
+      color: #065f46;
+      margin-bottom: 1.2rem;
+      display: flex;
+      gap: 0.6rem;
+      align-items: flex-start;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="step-badge">
+        ✦ Owner Verification Wizard
+      </div>
+      <div style="display:flex;align-items:center;gap:0.9rem;">
+        <div style="flex-shrink:0;width:48px;height:48px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:16px;display:flex;align-items:center;justify-content:center;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="#a7f3d0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="font-display" style="color:#fff;font-size:1.25rem;font-weight:800;margin:0;line-height:1.2;">Complete Property Registration</h1>
+          <p style="color:#a7f3d0;font-size:0.8rem;margin:0.3rem 0 0;line-height:1.4;">Fill in property details, upload required documents, & accept the terms to submit.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-body">
+      {{#if error}}
+      <div class="error-box">
+        <span>⚠️</span>
+        <span>{{error}}</span>
+      </div>
+      {{/if}}
+
+      <!-- Step Progress Indicator -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.4rem;">
+        <div class="step-indicator">
+          <span class="step-dot active" id="dot1">1</span>
+          <div class="step-connector" id="conn1"></div>
+          <span class="step-dot" id="dot2">2</span>
+          <div class="step-connector" id="conn2"></div>
+          <span class="step-dot" id="dot3">3</span>
+        </div>
+        <span style="font-size:0.75rem;font-weight:700;color:#047857;background:#ecfdf5;padding:0.25rem 0.75rem;border-radius:999px;white-space:nowrap;margin-left:0.75rem;">Google Account ✓</span>
+      </div>
+      <div class="step-label-row">
+        <span class="step-label active" id="lbl1">Property Info</span>
+        <span class="step-label" id="lbl2">Documents</span>
+        <span class="step-label" id="lbl3">Terms & Submit</span>
+      </div>
+
+      <form method="POST" action="/complete-owner-profile" enctype="multipart/form-data" id="ownerWizardForm">
+
+        <!-- =========== STEP 1: Property Info =========== -->
+        <div id="step1" class="space-y-3.5">
+          <label>
+            <span>Boarding House Name <span class="req">*</span></span>
+            <input type="text" name="boardingHouseName" required placeholder="e.g. Green Haven Residence">
+          </label>
+
+          <label>
+            <span>Location Barangay — Bongabong, Oriental Mindoro <span class="req">*</span></span>
+            <select name="boardingHouseAddress" required>
+              <option value="">— Select Barangay —</option>
+              <option>Anilao</option>
+              <option>Aplaya</option>
+              <option>Bagong Bayan I</option>
+              <option>Bagong Bayan II</option>
+              <option>Batangan</option>
+              <option>Bukal</option>
+              <option>Camantigue</option>
+              <option>Carmundo</option>
+              <option>Cawayan</option>
+              <option>Dayhagan</option>
+              <option>Formon</option>
+              <option>Hagan</option>
+              <option>Hagupit</option>
+              <option>Ipil</option>
+              <option>Kaligtasan</option>
+              <option>Labasan</option>
+              <option>Labonan</option>
+              <option>Libertad</option>
+              <option>Lisap</option>
+              <option>Luna</option>
+              <option>Malitbog</option>
+              <option>Mapang</option>
+              <option>Masaguisi</option>
+              <option>Mina de Oro</option>
+              <option>Morente</option>
+              <option>Ogbot</option>
+              <option>Orconuma</option>
+              <option>Poblacion</option>
+              <option>Pulosahi</option>
+              <option>Sagana</option>
+              <option>San Isidro</option>
+              <option>San Jose</option>
+              <option>San Juan</option>
+              <option>Sta. Cruz</option>
+              <option>Sigange</option>
+              <option>Tawas</option>
+            </select>
+          </label>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+            <label>
+              <span>Rooms Available <span class="req">*</span></span>
+              <input type="number" name="roomsAvailable" min="1" required placeholder="e.g. 5">
+            </label>
+            <label>
+              <span>Contact Number <span class="req">*</span></span>
+              <input type="tel" name="contactNumber" required placeholder="09XXXXXXXXX">
+            </label>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+            <label>
+              <span>Owner GCash Number</span>
+              <input type="tel" name="gcashNumber" placeholder="e.g. 09171234567">
+            </label>
+            <label>
+              <span>Owner GCash Account Name</span>
+              <input type="text" name="gcashName" placeholder="e.g. Juan Dela Cruz">
+            </label>
+          </div>
+
+          <!-- Gallery Photos (5 Required) -->
+          <div style="background:#f0fdf4;border:1.5px solid #a7f3d0;border-radius:16px;padding:1rem 1.1rem;">
+            <p style="font-size:0.82rem;font-weight:700;color:#065f46;margin:0 0 0.3rem;">📷 Property Gallery — 5 Photo Categories Required</p>
+            <p style="font-size:0.75rem;color:#047857;margin:0 0 0.9rem;line-height:1.6;">Upload at least <strong>1 clear photo</strong> for each of the 5 required categories below. These will appear in the carousel when tenants browse your listing.</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;">
+              <label>
+                <span>1. Outdoor Spaces <span class="req">*</span></span>
+                <div style="font-size:0.72rem;color:#94a3b8;margin-bottom:0.35rem;">Front view, gate, compound exterior</div>
+                <input type="file" name="galleryOutdoor" accept="image/*" required>
+              </label>
+              <label>
+                <span>2. Living Area <span class="req">*</span></span>
+                <div style="font-size:0.72rem;color:#94a3b8;margin-bottom:0.35rem;">Common room, sala, lounge area</div>
+                <input type="file" name="galleryLivingArea" accept="image/*" required>
+              </label>
+              <label>
+                <span>3. Bedroom(s) <span class="req">*</span></span>
+                <div style="font-size:0.72rem;color:#94a3b8;margin-bottom:0.35rem;">Typical room offered to tenants</div>
+                <input type="file" name="galleryBedroom" accept="image/*" required>
+              </label>
+              <label>
+                <span>4. Dining / Kitchenette <span class="req">*</span></span>
+                <div style="font-size:0.72rem;color:#94a3b8;margin-bottom:0.35rem;">Kitchen, dining area, cooking space</div>
+                <input type="file" name="galleryDining" accept="image/*" required>
+              </label>
+              <label style="grid-column:span 2;">
+                <span>5. Bathroom <span class="req">*</span></span>
+                <div style="font-size:0.72rem;color:#94a3b8;margin-bottom:0.35rem;">CR, comfort room, shower area</div>
+                <input type="file" name="galleryBathroom" accept="image/*" required>
+              </label>
+            </div>
+            <p style="font-size:0.72rem;color:#94a3b8;margin-top:0.6rem;">✓ JPG, PNG, or WEBP accepted. Max 5MB per photo. These replace the old single photo requirement.</p>
+          </div>
+
+          <!-- Map Pin -->
+          <div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.35rem;">
+              <span style="display:block;font-size:0.8125rem;font-weight:600;color:#374151;">Streetmap Pin (Location) <span class="req" style="color:#dc2626;margin-left:2px;">*</span></span>
+              <button type="button" id="openFullMapBtn" style="font-size:0.75rem;font-weight:700;color:#047857;background:#ecfdf5;border:1px solid #a7f3d0;padding:0.2rem 0.6rem;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:0.3rem;">
+                <svg class="icon-bw-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> Open Full Map
+              </button>
+            </div>
+            <input type="text" name="mapPin" id="mapPinInput" readonly placeholder="Click the map below to set pin" required style="background:#f8fafc;">
+            <input type="hidden" name="boardingHouseLatitude" id="latInput">
+            <input type="hidden" name="boardingHouseLongitude" id="lngInput">
+            <div id="wizardMap" style="height:160px;border-radius:14px;border:1px solid #cbd5e1;overflow:hidden;margin-top:0.5rem;"></div>
+          </div>
+
+          <div style="margin-top:1.2rem;">
+            <button type="button" class="btn-primary" onclick="goToStep(2)">Next: Upload Documents →</button>
+          </div>
+        </div>
+
+        <!-- =========== STEP 2: Required Documents =========== -->
+        <div id="step2" class="space-y-3.5" style="display:none;">
+          <div class="info-banner">
+            <svg class="icon-bw" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+            <span>Upload all <strong>6 required documents</strong> below. Files must be JPG, PNG, WEBP, or PDF (max 5MB each). These documents will be reviewed by your Barangay and BPLO.</span>
+          </div>
+
+          <div class="doc-grid">
+            <div class="doc-item">
+              <div class="doc-icon"><svg class="icon-bw" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+              <div class="doc-label">Government-Issued ID <span class="req" style="color:#dc2626;">*</span></div>
+              <div class="doc-hint">e.g. PhilSys, UMID, Driver's License</div>
+              <input type="file" name="validIdPicture" accept="image/*,.pdf" required>
+            </div>
+            <div class="doc-item">
+              <div class="doc-icon"><svg class="icon-bw" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></div>
+              <div class="doc-label">Business Permit <span class="req" style="color:#dc2626;">*</span></div>
+              <div class="doc-hint">Current year municipal permit</div>
+              <input type="file" name="businessPermit" accept="image/*,.pdf" required>
+            </div>
+            <div class="doc-item">
+              <div class="doc-icon"><svg class="icon-bw" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></div>
+              <div class="doc-label">Barangay Clearance <span class="req" style="color:#dc2626;">*</span></div>
+              <div class="doc-hint">Issued by your local barangay</div>
+              <input type="file" name="barangayClearance" accept="image/*,.pdf" required>
+            </div>
+            <div class="doc-item">
+              <div class="doc-icon"><svg class="icon-bw" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8l2 2h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2z"/></svg></div>
+              <div class="doc-label">Proof of Ownership <span class="req" style="color:#dc2626;">*</span></div>
+              <div class="doc-hint">Title, deed, or lease agreement</div>
+              <input type="file" name="proofOfOwnership" accept="image/*,.pdf" required>
+            </div>
+            <div class="doc-item">
+              <div class="doc-icon"><svg class="icon-bw" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3.5"/></svg></div>
+              <div class="doc-label">Rental Permit <span class="req" style="color:#dc2626;">*</span></div>
+              <div class="doc-hint">BPLO / HLURB rental accreditation</div>
+              <input type="file" name="rentalPermit" accept="image/*,.pdf" required>
+            </div>
+            <div class="doc-item">
+              <div class="doc-icon"><svg class="icon-bw" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></div>
+              <div class="doc-label">Owner Profile Photo <span class="req" style="color:#dc2626;">*</span></div>
+              <div class="doc-hint">Recent 2x2 or portrait photo</div>
+              <input type="file" name="profilePicture" accept="image/*" required>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:0.75rem;margin-top:1.2rem;">
+            <button type="button" class="btn-secondary" onclick="goToStep(1)">← Back</button>
+            <button type="button" class="btn-primary" onclick="goToStep(3)">Next: Review Terms →</button>
+          </div>
+        </div>
+
+        <!-- =========== STEP 3: Terms & Submit =========== -->
+        <div id="step3" class="space-y-3.5" style="display:none;">
+          <div class="info-banner">
+            <svg class="icon-bw" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Almost done! Please read and accept the Terms of Service and Privacy Policy before submitting your registration.</span>
+          </div>
+
+          <div>
+            <p style="font-size:0.82rem;font-weight:700;color:#334155;margin-bottom:0.5rem;">Terms of Service</p>
+            <div class="terms-content">
+              <h4>1. Eligibility</h4>
+              By registering as a Boarding House Owner on DorMap, you confirm that you are the legal owner or authorized representative of the registered property and are 18 years of age or older.
+
+              <h4>2. Accurate Information</h4>
+              You agree to provide complete, truthful, and up-to-date information about your boarding house. Misrepresentation may result in immediate account suspension or removal.
+
+              <h4>3. Document Authenticity</h4>
+              All uploaded documents (permits, clearances, IDs) must be authentic and valid. Submission of falsified documents is a violation of municipal regulations and may result in legal action.
+
+              <h4>4. Compliance</h4>
+              You agree to comply with all applicable laws, ordinances, and regulations of Bongabong Municipality, Oriental Mindoro, including BPLO and barangay-level regulations on boarding houses.
+
+              <h4>5. Approval Process</h4>
+              Registration is subject to review and approval by your assigned Barangay and the BPLO. You will not be able to access the dashboard until both have approved your application.
+
+              <h4>6. Account Conduct</h4>
+              You agree not to engage in fraudulent activities or violate the rights of tenants registered through DorMap.
+            </div>
+
+            <p style="font-size:0.82rem;font-weight:700;color:#334155;margin-bottom:0.5rem;">Privacy Policy</p>
+            <div class="terms-content">
+              <h4>Data Collection</h4>
+              We collect personal information (name, contact, address), property details, and uploaded documents to facilitate registration and permit verification.
+
+              <h4>Data Usage</h4>
+              Your data is used solely for the DorMap boarding house management system, including sharing with authorized Barangay officials and BPLO for permit processing.
+
+              <h4>Data Storage</h4>
+              All data is stored securely on DorMap servers managed by Mindoro State University. We do not sell or share your data with third parties outside the system.
+
+              <h4>Your Rights</h4>
+              You may request correction or deletion of your personal data by contacting the system administrator. Deletion may affect your access to the DorMap platform.
+
+              <h4>Cookies & Sessions</h4>
+              DorMap uses session cookies for authentication purposes only. No tracking or analytics cookies are used.
+            </div>
+          </div>
+
+          <div class="terms-box">
+            <label>
+              <input type="checkbox" name="acceptTerms" value="on" required>
+              <span>
+                I have read and I agree to the <a href="#" onclick="return false;">Terms of Service</a> and <a href="#" onclick="return false;">Privacy Policy</a> of the DorMap Boarding House Management System. I understand that submitting false documents may lead to account suspension.
+              </span>
+            </label>
+          </div>
+
+          <div style="display:flex;gap:0.75rem;margin-top:1.2rem;">
+            <button type="button" class="btn-secondary" onclick="goToStep(2)">← Back</button>
+            <button type="submit" class="btn-primary flex items-center gap-1.5"><svg class="icon-bw-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> Submit Registration</button>
+          </div>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script>
+    let mapInitialized = false;
+    let map, marker;
+
+    function goToStep(step) {
+      ['step1','step2','step3'].forEach((id, i) => {
+        document.getElementById(id).style.display = (i + 1 === step) ? 'block' : 'none';
+      });
+
+      ['dot1','dot2','dot3'].forEach((id, i) => {
+        const dot = document.getElementById(id);
+        dot.classList.remove('active', 'done');
+        if (i + 1 < step) dot.classList.add('done');
+        else if (i + 1 === step) dot.classList.add('active');
+      });
+
+      ['lbl1','lbl2','lbl3'].forEach((id, i) => {
+        const lbl = document.getElementById(id);
+        lbl.classList.remove('active', 'done');
+        if (i + 1 < step) lbl.classList.add('done');
+        else if (i + 1 === step) lbl.classList.add('active');
+      });
+
+      if (step === 1 && !mapInitialized) {
+        setTimeout(initMap, 200);
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function initMap() {
+      if (mapInitialized) return;
+      mapInitialized = true;
+      map = L.map('wizardMap').setView([12.7192, 121.4719], 14);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+      map.on('click', (e) => {
+        const { lat, lng } = e.latlng;
+        if (marker) map.removeLayer(marker);
+        marker = L.marker([lat, lng]).addTo(map);
+        document.getElementById('mapPinInput').value = `Lat ${lat.toFixed(6)}, Lon ${lng.toFixed(6)}`;
+        document.getElementById('latInput').value = lat.toFixed(6);
+        document.getElementById('lngInput').value = lng.toFixed(6);
+      });
+    }
+
+    // Initialize map on page load for step 1
+    window.addEventListener('load', () => {
+      setTimeout(initMap, 400);
+    });
+
+    document.getElementById('openFullMapBtn')?.addEventListener('click', () => {
+      const lat = document.getElementById('latInput')?.value || 12.7192;
+      const lng = document.getElementById('lngInput')?.value || 121.4719;
+      window.open(`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=16/${lat}/${lng}`, '_blank');
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+{{> head}}
+
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex items-center justify-center p-4">
+  <div class="max-w-md w-full bg-white rounded-3xl p-8 border border-slate-200 shadow-2xl text-center space-y-6">
+    <div class="inline-flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-50 text-emerald-600 text-4xl animate-pulse ring-8 ring-emerald-50/50">
+      ⏳
+    </div>
+    
+    <div class="space-y-2">
+      <h1 class="text-2xl font-black text-slate-900 tracking-tight">Processing Payment</h1>
+      <p class="text-xs text-slate-500 leading-relaxed">
+        We are waiting for verified payment confirmation from GCash & PayMongo. Please do not close this window.
+      </p>
+    </div>
+
+    <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2 text-xs text-left">
+      <div class="flex justify-between"><span class="text-slate-400 font-medium">Reference ID:</span><span class="font-bold text-slate-800" id="dispRef">{{reference}}</span></div>
+      <div class="flex justify-between"><span class="text-slate-400 font-medium">Status:</span><span class="font-bold text-amber-600 animate-pulse" id="dispStatus">VERIFYING WITH GCASH...</span></div>
+    </div>
+
+    <div class="pt-2">
+      <a href="/tenant-dashboard" class="inline-block text-xs font-bold text-slate-500 hover:text-slate-800 underline">
+        Return to Dashboard
+      </a>
+    </div>
+  </div>
+
+  <script>
+    const ref = "{{reference}}";
+
+    async function checkStatus() {
+      if (!ref) return;
+      try {
+        const res = await fetch(`/api/payments/status/by-ref?ref=${ref}`);
+        if (res.ok) {
+          const data = await res.json();
+          document.getElementById('dispStatus').innerText = data.status;
+
+          if (data.status === 'SUCCEEDED') {
+            window.location.href = `/payments/success?ref=${ref}`;
+          } else if (data.status === 'FAILED' || data.status === 'EXPIRED') {
+            window.location.href = `/payments/failure?ref=${ref}`;
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // Poll every 3 seconds
+    setInterval(checkStatus, 3000);
+    checkStatus();
+  </script>
+</body>

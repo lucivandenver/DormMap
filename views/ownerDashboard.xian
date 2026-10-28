@@ -1,0 +1,3009 @@
+{{> head}}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+  :root {
+    --dormmap-primary: #334155;
+    --dormmap-primary-soft: #475569;
+    --dormmap-accent: #64748b;
+  }
+  
+  /* Sidebar active button styling */
+  nav#nav button.nav {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.65rem 0.85rem;
+    border: 1px solid transparent;
+    border-radius: 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #475569;
+    background: transparent;
+    transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  nav#nav button.nav:hover {
+    border-color: #e2e8f0;
+    background-color: #f8fafc;
+    color: #0f172a;
+  }
+  nav#nav button.nav.active {
+    border-color: #cbd5e1;
+    background: #f1f5f9;
+    color: #0f172a;
+    font-weight: 600;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.02);
+  }
+  nav#nav button.nav.active span:first-child {
+    filter: none;
+  }
+
+  /* Metric cards border style */
+  .stat-card {
+    border: 1px solid #e2e8f0;
+    transition: all 150ms ease;
+  }
+  .stat-card:hover {
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.03);
+  }
+
+  /* Smooth scrollbar for sidebar */
+  aside::-webkit-scrollbar {
+    width: 5px;
+  }
+  aside::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  aside::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+  }
+  /* Icon sizing rules to prevent giant SVG scaling */
+  .icon-bw { width: 1.25rem !important; height: 1.25rem !important; flex-shrink: 0 !important; }
+  .icon-bw-sm { width: 1rem !important; height: 1rem !important; flex-shrink: 0 !important; }
+  svg { max-width: 100%; }
+</style>
+
+<body class="bg-slate-50 text-slate-800 font-sans transition-colors duration-200 antialiased">
+<div class="min-h-screen flex flex-col" id="ownerApp">
+
+  <!-- Awaiting/Pending Approval Screen (conditional) -->
+  {{#if pendingStatus}}
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/95 backdrop-blur-md p-4 text-white">
+    <div class="max-w-md text-center space-y-6 bg-slate-800/80 p-8 rounded-3xl border border-slate-700 shadow-2xl">
+      <div class="inline-flex h-20 w-20 items-center justify-center rounded-2xl bg-amber-500/20 text-amber-400 text-4xl animate-bounce border border-amber-500/30">
+        ⚠️
+      </div>
+      <h1 class="text-3xl font-black tracking-tight text-white">Access Restricted</h1>
+      <p class="text-slate-300 text-sm leading-relaxed">
+        {{#if (eq pendingStatus "suspended")}}
+          Your boarding house owner account has been suspended. Please contact the Barangay or BPLO office for resolution.
+        {{else}}
+          Your account is currently in the <strong class="text-amber-400 uppercase tracking-wide">{{pendingStatus}}</strong> stage. A complete dashboard will become available once both Barangay and BPLO approve your registration.
+        {{/if}}
+      </p>
+      <a href="/logout" class="inline-flex items-center justify-center gap-2 w-full rounded-2xl bg-rose-600 px-6 py-3.5 font-bold text-white shadow-lg hover:bg-rose-700 transition active:scale-95">
+        <span>🚪</span> Logout Account
+      </a>
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- Header Navigation -->
+  <header class="fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur-md lg:px-6 shadow-xs">
+    <div class="flex items-center gap-3">
+      <button id="menuToggle" class="rounded-xl p-2 text-slate-600 hover:bg-slate-100 lg:hidden focus:outline-none transition">
+        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <a href="/" class="flex items-center gap-2.5 font-bold text-emerald-950 text-lg group">
+        <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-800 to-emerald-950 text-white font-black text-base shadow-md group-hover:scale-105 transition-transform">D</span>
+        <div class="flex flex-col">
+          <span class="leading-none text-slate-900 font-extrabold tracking-tight">DormMap</span>
+          <span class="text-[10px] font-semibold text-emerald-700 tracking-wider uppercase mt-0.5">Owner Portal</span>
+        </div>
+      </a>
+      <span class="hidden md:inline-block text-slate-300 mx-1">|</span>
+      <div class="hidden md:flex items-center gap-2 text-xs text-slate-500">
+        <span class="font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200/60">Property Owner</span>
+        <span class="text-slate-400">/</span>
+        <span id="breadcrumbCurrent" class="font-semibold text-slate-700">Dashboard</span>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <div class="relative">
+        <button id="notifBtn" onclick="show('notifications')" class="relative rounded-xl p-2.5 text-slate-600 hover:bg-slate-100 transition" title="Notifications">
+          <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          <span id="notifBadge" class="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-600 text-[10px] font-extrabold text-white hidden ring-2 ring-white">0</span>
+        </button>
+      </div>
+
+      <div class="flex items-center gap-3 border-l border-slate-200/80 pl-3">
+        <div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-emerald-800 to-emerald-600 text-white flex items-center justify-center font-black text-sm uppercase shadow-sm">
+          {{userName.[0]}}
+        </div>
+        <div class="hidden text-left sm:block">
+          <p class="text-xs font-bold text-slate-900 leading-tight">{{userName}}</p>
+          <p class="text-[10px] font-semibold text-emerald-600">Approved Owner</p>
+        </div>
+        <a href="/logout" class="ml-1 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-700 px-3 py-2 text-xs font-bold text-slate-600 transition flex items-center gap-1.5 border border-slate-200/60">
+          <span>Logout</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Sidebar Navigation -->
+  <aside id="sidebar" class="fixed inset-y-16 left-0 z-30 w-64 -translate-x-full overflow-y-auto border-r border-slate-200/80 bg-white p-3.5 transition-transform duration-200 lg:translate-x-0">
+    <div class="px-3.5 py-3 border-b border-slate-100 mb-3 bg-gradient-to-r from-emerald-50/50 to-slate-50 rounded-2xl border border-emerald-100/60">
+      <p class="text-[9px] font-black uppercase tracking-widest text-emerald-700">Property Establishment</p>
+      <h2 id="ownerBhName" class="text-xs font-extrabold text-slate-900 truncate mt-0.5">Loading Property...</h2>
+    </div>
+
+    <nav id="nav" class="space-y-4">
+      <!-- Group 1: OVERVIEW -->
+      <div>
+        <p class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Overview</p>
+        <div class="space-y-0.5">
+          <button data-view="overview" class="nav active">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+            <span>Dashboard</span>
+          </button>
+        </div>
+      </div>
+
+      <hr class="border-slate-100 my-2" />
+
+      <!-- Group 2: PROPERTY & SETUP -->
+      <div>
+        <p class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Property & Profile</p>
+        <div class="space-y-0.5">
+          <button data-view="profile" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span>Boarding House Profile</span>
+          </button>
+          <button data-view="my-profile" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span>My Profile & Documents</span>
+          </button>
+          <button data-view="permit" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+            <span>Business Permit</span>
+          </button>
+          <button data-view="map" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            <span>OpenStreetMap Location</span>
+          </button>
+          <button data-view="gallery" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+            <span>Gallery Management</span>
+          </button>
+          <button data-view="amenities" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            <span>Amenities</span>
+          </button>
+          <button data-view="rules" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+            <span>House Rules</span>
+          </button>
+        </div>
+      </div>
+
+      <hr class="border-slate-100 my-2" />
+
+      <!-- Group 3: RENTAL MANAGEMENT -->
+      <div>
+        <p class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Rental Management</p>
+        <div class="space-y-0.5">
+          <button data-view="rooms" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3.5"/></svg>
+            <span>Room Management</span>
+          </button>
+          <button data-view="tenants" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>Tenant Management</span>
+          </button>
+          <button data-view="payments" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+            <span>Monthly Payments</span>
+          </button>
+        </div>
+      </div>
+
+      <hr class="border-slate-100 my-2" />
+
+      <!-- Group 4: COMMUNICATIONS -->
+      <div>
+        <p class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Communication</p>
+        <div class="space-y-0.5">
+          <button data-view="inquiries" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+            <span>Clients & Inquiries</span>
+          </button>
+          <button data-view="messages" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+            <span>Messaging</span>
+          </button>
+          <button data-view="notifications" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            <span>Notifications</span>
+          </button>
+        </div>
+      </div>
+
+      <hr class="border-slate-100 my-2" />
+
+      <!-- Group 5: ANALYTICS & LOGS -->
+      <div>
+        <p class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Reports & System</p>
+        <div class="space-y-0.5">
+          <button data-view="reports" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 3v18h18"/><rect width="4" height="7" x="7" y="10" rx="1"/><rect width="4" height="12" x="15" y="5" rx="1"/></svg>
+            <span>Reports & Exports</span>
+          </button>
+          <button data-view="activity" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
+            <span>Activity Logs</span>
+          </button>
+          <button data-view="settings" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+            <span>Settings</span>
+          </button>
+        </div>
+      </div>
+    </nav>
+  </aside>
+
+  <!-- Main Content Wrapper -->
+  <main class="px-3 pb-8 pt-20 lg:ml-64 lg:px-5">
+    <div class="mx-auto max-w-7xl">
+      <!-- Title Header -->
+      <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200/80 pb-3">
+        <div>
+          <span class="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-100/60 px-2.5 py-1 rounded-md">Property Owner Hub</span>
+          <h1 id="title" class="text-xl font-black text-slate-900 sm:text-2xl mt-1 tracking-tight">Dashboard</h1>
+          <p id="subtitle" class="text-xs font-medium text-slate-500 mt-1">Manage rooms, monitor occupancy, track payments, and verify permits.</p>
+        </div>
+        <div class="flex items-center gap-2 mt-2 sm:mt-0">
+          <button onclick="refreshCurrentView()" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition">
+            <svg class="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+            Refresh Data
+          </button>
+        </div>
+      </div>
+
+      <!-- PANEL 1: OVERVIEW -->
+      <section data-panel="overview" class="space-y-4">
+
+        <!-- Pending Applications Alert Banner (hidden by default) -->
+        <div id="pendingAppsAlert" class="hidden bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl p-5 shadow-lg">
+          <div class="flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 text-white shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+              </div>
+              <div>
+                <p class="font-black text-base">Pending Rental Applications</p>
+                <p class="text-sm text-amber-100 mt-0.5">
+                  <span id="pendingAppsAlertCount" class="font-black text-white">0</span>
+                  tenant(s) have applied and are waiting for your acceptance.
+                </p>
+              </div>
+            </div>
+            <button onclick="show('tenants')"
+              class="flex-shrink-0 bg-white text-amber-700 font-black text-xs px-4 py-2.5 rounded-xl hover:bg-amber-50 transition active:scale-95 shadow-sm">
+              Review Applications →
+            </button>
+          </div>
+        </div>
+
+        <!-- 10 Metric Cards -->
+        <div id="cardsGrid" class="grid gap-4 grid-cols-2 md:grid-cols-5"></div>
+
+        <!-- Charts Section -->
+        <div class="grid gap-4 md:grid-cols-2">
+          <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+            <h3 class="font-bold text-sm text-slate-800 mb-3">Monthly Rental Collections</h3>
+            <canvas id="rentalChart" class="max-h-64"></canvas>
+          </div>
+          <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+            <h3 class="font-bold text-sm text-slate-800 mb-3">Room Availability</h3>
+            <canvas id="occupancyChart" class="max-h-64"></canvas>
+          </div>
+          <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+            <h3 class="font-bold text-sm text-slate-800 mb-3">Room Type Distribution</h3>
+            <canvas id="roomTypeChart" class="max-h-64"></canvas>
+          </div>
+          <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+            <h3 class="font-bold text-sm text-slate-800 mb-3">Tenant Registrations</h3>
+            <canvas id="tenantTrendChart" class="max-h-64"></canvas>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- PANEL 2: PROPERTY PROFILE & BOARDING HOUSES -->
+      <section data-panel="profile" class="hidden space-y-6">
+        <!-- Boarding Houses Directory & Map Pinpoints Card -->
+        <div class="bg-gradient-to-br from-emerald-50/70 via-white to-slate-50 p-6 rounded-2xl border border-emerald-100/90 shadow-sm space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 class="text-lg font-extrabold text-slate-800 flex items-center gap-2">
+                <svg class="w-5 h-5 text-emerald-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                My Boarding Houses & Map Pinpoints
+              </h2>
+              <p class="text-xs text-slate-500 mt-0.5">Manage all your boarding house branches and set their GPS location on OpenStreetMap for tenants.</p>
+            </div>
+            <button onclick="openBoardingHouseModal()" class="bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-emerald-800 transition flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0">
+              <span class="text-base leading-none">＋</span> Add New Boarding House
+            </button>
+          </div>
+
+          <div id="boardingHouseListGrid" class="grid gap-4 sm:grid-cols-2">
+            <!-- Populated dynamically by loadBoardingHouses() -->
+          </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h2 class="text-base font-bold text-slate-800">Main Property Profile Settings</h2>
+            <span class="text-xs bg-emerald-50 text-emerald-700 font-bold px-3 py-1.5 rounded-full">Primary Property</span>
+          </div>
+          <form id="profileForm" class="space-y-4">
+          <div class="grid gap-4 md:grid-cols-2">
+            <div>
+              <label class="block text-xs font-bold text-slate-500 mb-1">Boarding House Name *</label>
+              <input type="text" name="boardingHouseName" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/10 outline-none" required>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-500 mb-1">Contact Number</label>
+              <input type="text" name="contactNumber" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/10 outline-none">
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-xs font-bold text-slate-500 mb-1">Barangay Location (Bongabong, Oriental Mindoro)</label>
+              <select name="boardingHouseAddress" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 outline-none">
+                <option value="">— Select Barangay —</option>
+                <option>Anilao</option><option>Aplaya</option><option>Bagong Bayan I</option><option>Bagong Bayan II</option>
+                <option>Batangan</option><option>Bukal</option><option>Camantigue</option><option>Carmundo</option>
+                <option>Cawayan</option><option>Dayhagan</option><option>Formon</option><option>Hagan</option>
+                <option>Hagupit</option><option>Ipil</option><option>Kaligtasan</option><option>Labasan</option>
+                <option>Labonan</option><option>Libertad</option><option>Lisap</option><option>Luna</option>
+                <option>Malitbog</option><option>Mapang</option><option>Masaguisi</option><option>Mina de Oro</option>
+                <option>Morente</option><option>Ogbot</option><option>Orconuma</option><option>Poblacion</option>
+                <option>Pulosahi</option><option>Sagana</option><option>San Isidro</option><option>San Jose</option>
+                <option>San Juan</option><option>Sta. Cruz</option><option>Sigange</option><option>Tawas</option>
+              </select>
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-xs font-bold text-slate-500 mb-1">Description / About</label>
+              <textarea name="description" rows="3" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 outline-none" placeholder="Describe your boarding house, nearby landmarks, etc."></textarea>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-500 mb-1">Operating Hours</label>
+              <input type="text" name="operatingHours" placeholder="e.g. 6:00 AM - 10:00 PM" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">Min Price (₱)</label>
+                <input type="number" name="rentalPriceMin" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">Max Price (₱)</label>
+                <input type="number" name="rentalPriceMax" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 outline-none">
+              </div>
+            </div>
+          </div>
+          <button type="submit" class="bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-800 transition">
+            💾 Save Property Changes
+          </button>
+        </form>
+      </section>
+
+      <!-- PANEL 2B: MY PROFILE & DOCUMENTS -->
+      <section data-panel="my-profile" class="hidden space-y-6">
+        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-5">
+          <div class="flex items-center justify-between">
+            <h2 class="text-lg font-bold text-slate-800">My Profile Information</h2>
+            <span class="text-xs bg-blue-50 text-blue-700 font-bold px-3 py-1.5 rounded-full">Personal Info</span>
+          </div>
+          <form id="myProfileForm" class="space-y-4" enctype="multipart/form-data">
+            <div class="flex items-center gap-5 p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <div id="profilePhotoPreview" class="h-20 w-20 rounded-2xl bg-emerald-700 text-white flex items-center justify-center font-black text-2xl uppercase flex-shrink-0 overflow-hidden">
+                {{userName.[0]}}
+              </div>
+              <div class="flex-1">
+                <p class="text-sm font-bold text-slate-800">{{userName}}</p>
+                <p class="text-xs text-slate-500 mb-2">Update your profile photo below</p>
+                <input type="file" name="profilePicture" accept="image/*" class="text-xs" onchange="previewPhoto(this)">
+              </div>
+            </div>
+            <div class="grid gap-4 md:grid-cols-2">
+              <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">Full Name</label>
+                <input type="text" name="fullName" value="{{userName}}" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/10 outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">Contact Number</label>
+                <input type="tel" name="contactNumber" placeholder="09XXXXXXXXX" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 outline-none">
+              </div>
+            </div>
+            <button type="submit" class="bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-800 transition">
+              💾 Save Personal Info
+            </button>
+          </form>
+        </div>
+
+        <!-- Document Upload Section -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-5">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-lg font-bold text-slate-800">My Submitted Documents</h2>
+              <p class="text-xs text-slate-500 mt-0.5">View current status and re-upload documents if needed. Barangay will be notified of updates.</p>
+            </div>
+          </div>
+
+          <div id="myDocGrid" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <!-- Populated by JS -->
+          </div>
+
+          <form id="docsUploadForm" class="border-t pt-5 space-y-4" enctype="multipart/form-data">
+            <p class="text-xs font-bold text-slate-700 uppercase tracking-wider">Re-upload / Replace a Document</p>
+            <div class="grid gap-3 md:grid-cols-2">
+              <div class="space-y-1">
+                <label class="block text-xs font-bold text-slate-500">🪪 Government-Issued ID</label>
+                <input type="file" name="validIdPicture" accept="image/*,.pdf" class="w-full text-xs border border-dashed border-slate-300 rounded-lg p-2 bg-slate-50">
+              </div>
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-500 flex items-center gap-1.5"><svg class="icon-bw-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg> Business Permit</label>
+                <input type="file" name="businessPermit" accept="image/*,.pdf" class="w-full text-xs border border-dashed border-slate-300 rounded-lg p-2 bg-slate-50">
+              </div>
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-500 flex items-center gap-1.5"><svg class="icon-bw-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 22V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v18"/><path d="M18 22V8a2 2 0 0 0-2-2h-2"/><path d="M6 12h4"/><path d="M6 16h4"/></svg> Barangay Clearance</label>
+                <input type="file" name="barangayClearance" accept="image/*,.pdf" class="w-full text-xs border border-dashed border-slate-300 rounded-lg p-2 bg-slate-50">
+              </div>
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-500 flex items-center gap-1.5"><svg class="icon-bw-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg> Proof of Ownership</label>
+                <input type="file" name="proofOfOwnership" accept="image/*,.pdf" class="w-full text-xs border border-dashed border-slate-300 rounded-lg p-2 bg-slate-50">
+              </div>
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-500 flex items-center gap-1.5"><svg class="icon-bw-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3.5"/></svg> Rental Permit</label>
+                <input type="file" name="rentalPermit" accept="image/*,.pdf" class="w-full text-xs border border-dashed border-slate-300 rounded-lg p-2 bg-slate-50">
+              </div>
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-500 flex items-center gap-1.5"><svg class="icon-bw-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.08-3.08a2 2 0 0 0-2.83 0L6 21"/></svg> Boarding House Photo</label>
+                <input type="file" name="boardingHousePicture" accept="image/*" class="w-full text-xs border border-dashed border-slate-300 rounded-lg p-2 bg-slate-50">
+              </div>
+            </div>
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 flex items-center gap-2">
+              <svg class="icon-bw-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Only upload files you want to replace. Existing documents will be kept if no new file is selected.
+            </div>
+            <button type="submit" class="bg-slate-900 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-slate-800 transition flex items-center gap-2">
+              <svg class="icon-bw-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Update Documents
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- PANEL 3: PERMIT -->
+      <section data-panel="permit" class="hidden space-y-4">
+        <!-- Header card -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+          <div class="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h2 class="text-lg font-bold text-slate-800">Business Permit Details</h2>
+              <p class="text-xs text-slate-400 mt-0.5">Monitor your permit status and submit renewal requests directly to BPLO</p>
+            </div>
+            <button id="btnRequestRenewal" onclick="openRenewalModal()" class="flex items-center gap-2 bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-800 active:scale-95 transition shadow-sm">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              <span>Request Permit Renewal</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Remaining days banner -->
+        <div id="permitDaysBanner" class="hidden bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-semibold text-slate-700">Remaining Days</span>
+            <span id="permitDaysCount" class="text-2xl font-black text-emerald-600">—</span>
+          </div>
+          <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+            <div id="permitDaysBar" class="h-2.5 rounded-full transition-all duration-700 bg-emerald-500" style="width:0%"></div>
+          </div>
+          <p id="permitDaysLabel" class="text-xs text-slate-400 mt-1.5"></p>
+        </div>
+
+        <!-- Details table -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+          <div id="permitDetails" class="divide-y divide-slate-100 text-sm">
+            <div class="py-2.5 flex justify-between items-center">
+              <span class="text-slate-500">Permit Status</span>
+              <span id="permitStatus" class="capitalize font-semibold px-2.5 py-0.5 rounded-full text-xs bg-slate-100 text-slate-500">Loading...</span>
+            </div>
+            <div class="py-2.5 flex justify-between"><span class="text-slate-500">Permit Number</span><strong id="permitNo" class="text-slate-800">-</strong></div>
+            <div class="py-2.5 flex justify-between"><span class="text-slate-500">Issue Date</span><strong id="permitIssue" class="text-slate-800">-</strong></div>
+            <div class="py-2.5 flex justify-between"><span class="text-slate-500">Expiration Date</span><strong id="permitExpiry" class="text-slate-800">-</strong></div>
+            <div class="py-2.5 flex justify-between"><span class="text-slate-500">Notes / Remarks</span><strong id="permitNotes" class="text-slate-800 text-right max-w-xs">-</strong></div>
+          </div>
+        </div>
+
+        <!-- No permit / Apply state -->
+        <div id="permitEmpty" class="hidden bg-white p-8 rounded-2xl border border-slate-100 shadow-sm text-center space-y-3">
+          <div class="text-4xl">📋</div>
+          <p class="font-extrabold text-slate-800 text-sm">No Active Business Permit Recorded</p>
+          <p class="text-xs text-slate-500 max-w-md mx-auto">Submit your Business Permit Renewal or Application request directly to BPLO Bongabong for processing and approval.</p>
+          <button onclick="openRenewalModal()" class="bg-emerald-700 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm active:scale-95 inline-flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Submit Business Permit Renewal Request
+          </button>
+        </div>
+
+        <!-- Renewal Request Modal -->
+        <div id="renewalModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 class="text-base font-extrabold text-slate-800">Submit Business Permit Renewal</h3>
+                <p class="text-xs text-slate-500 mt-0.5">Your renewal request will be sent directly to BPLO Bongabong.</p>
+              </div>
+              <button onclick="closeRenewalModal()" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
+            </div>
+            
+            <div class="space-y-3">
+              <div>
+                <label class="text-xs font-bold text-slate-600 mb-1 block">Permit Number <span class="text-slate-400 font-normal">(optional)</span></label>
+                <input id="renewalPermitNo" type="text" placeholder="e.g. BP-2026-001" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              </div>
+              <div>
+                <label class="text-xs font-bold text-slate-600 mb-1 block">Target Expiration / Renewal Date <span class="text-slate-400 font-normal">(optional)</span></label>
+                <input id="renewalDate" type="date" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              </div>
+              <div>
+                <label class="text-xs font-bold text-slate-600 mb-1 block">Notes / Remarks for BPLO <span class="text-slate-400 font-normal">(optional)</span></label>
+                <textarea id="renewalNotes" rows="3" placeholder="Additional details or remarks for BPLO Office..." class="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"></textarea>
+              </div>
+            </div>
+            
+            <div class="flex gap-3 pt-2 border-t border-slate-100">
+              <button onclick="closeRenewalModal()" class="flex-1 border border-slate-200 text-slate-600 text-xs font-bold py-2.5 rounded-xl hover:bg-slate-50 transition">Cancel</button>
+              <button onclick="submitRenewalRequest()" class="flex-1 bg-emerald-700 text-white text-xs font-bold py-2.5 rounded-xl hover:bg-emerald-800 active:scale-95 transition shadow-sm">Submit to BPLO</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- PANEL 4: ROOMS -->
+      <section data-panel="rooms" class="hidden space-y-4">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <h2 class="text-lg font-bold text-slate-800">Room Directory</h2>
+            <p class="text-xs text-slate-400 mt-0.5">Manage rooms for your specific boarding house branches by floor (1st, 2nd, 3rd Floor)</p>
+          </div>
+          <button onclick="openRoomModal()" class="bg-emerald-700 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-emerald-800 transition flex items-center gap-2 shadow-sm active:scale-95">
+            <span class="text-base leading-none">＋</span> Add New Room
+          </button>
+        </div>
+
+        <!-- Boarding House Selector Bar -->
+        <div class="bg-gradient-to-r from-emerald-50 to-slate-50 border border-emerald-200/80 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+          <div class="flex items-center gap-3 w-full sm:w-auto">
+            <div class="h-10 w-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            </div>
+            <div class="grow">
+              <label class="block text-[10px] font-black uppercase tracking-wider text-emerald-800">Select Boarding House to Manage Rooms:</label>
+              <select id="roomBhSelect" onchange="onRoomBhChange(this.value)" class="mt-1 w-full sm:w-auto min-w-[240px] rounded-xl border border-emerald-300 bg-white px-3 py-2 text-xs font-extrabold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600 shadow-2xs cursor-pointer">
+                <!-- Options populated dynamically by JS -->
+              </select>
+            </div>
+          </div>
+          <button onclick="openBoardingHouseModal()" class="bg-white hover:bg-slate-50 border border-emerald-300 text-emerald-800 px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs">
+            <span>＋ Add Another Boarding House</span>
+          </button>
+        </div>
+
+        <!-- Floor Tab Navigation -->
+        <div class="flex gap-2 p-1 bg-slate-100 rounded-xl w-fit">
+          <button id="floorTab-1" onclick="showFloor('1st Floor')"
+            class="floor-tab flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all bg-white text-slate-800 shadow-sm">
+            <span class="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-700 text-white text-[10px] font-black">1</span>
+            1st Floor
+          </button>
+          <button id="floorTab-2" onclick="showFloor('2nd Floor')"
+            class="floor-tab flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all text-slate-500 hover:text-slate-700">
+            <span class="flex h-5 w-5 items-center justify-center rounded-md bg-slate-300 text-white text-[10px] font-black">2</span>
+            2nd Floor
+          </button>
+          <button id="floorTab-3" onclick="showFloor('3rd Floor')"
+            class="floor-tab flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all text-slate-500 hover:text-slate-700">
+            <span class="flex h-5 w-5 items-center justify-center rounded-md bg-slate-300 text-white text-[10px] font-black">3</span>
+            3rd Floor
+          </button>
+        </div>
+
+        <!-- Floor Label Badge -->
+        <div class="flex items-center gap-2">
+          <span id="activeFloorLabel" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2 20h.01"/><path d="M7 20v-4"/><path d="M12 20v-8"/><path d="M17 20V8"/><path d="M22 4v16"/></svg>
+            1st Floor
+          </span>
+          <span id="floorRoomCount" class="text-xs text-slate-400 font-medium"></span>
+        </div>
+
+        <!-- Rooms Table (filtered by active floor) -->
+        <div class="overflow-x-auto bg-white rounded-2xl border border-slate-100 shadow-sm">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-slate-100 bg-slate-50/50 text-slate-500 text-xs uppercase font-bold">
+                <th class="p-4">Room No.</th>
+                <th class="p-4">Floor</th>
+                <th class="p-4">Type</th>
+                <th class="p-4">Rental Price</th>
+                <th class="p-4">Slots Available</th>
+                <th class="p-4">Status</th>
+                <th class="p-4">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="roomsTable">
+              <tr><td colspan="7" class="p-8 text-center text-slate-400 text-xs">Loading rooms...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PANEL 5: TENANTS -->
+      <section data-panel="tenants" class="hidden space-y-4">
+
+        <!-- Pending Applications Banner -->
+        <div id="pendingAppsCard" class="hidden bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <svg class="w-5 h-5 text-amber-700 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+              <div>
+                <h3 class="text-sm font-bold text-amber-900">Pending Rental Applications</h3>
+                <p class="text-xs text-amber-700">These tenants registered and selected your boarding house. Review and accept or decline.</p>
+              </div>
+            </div>
+            <span id="pendingAppsCount" class="bg-amber-500 text-white text-xs font-black px-3 py-1 rounded-full">0</span>
+          </div>
+          <div id="pendingAppsList" class="space-y-2"></div>
+        </div>
+
+        <div class="flex justify-between items-center">
+          <h2 class="text-lg font-bold text-slate-800">Registered Tenants</h2>
+          <button onclick="openTenantModal()" class="bg-emerald-700 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-emerald-800 transition flex items-center gap-2 shadow-sm active:scale-95">
+            <span class="text-base leading-none">＋</span> Register Tenant
+          </button>
+        </div>
+        <div class="overflow-x-auto bg-white rounded-2xl border border-slate-100 shadow-sm">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-slate-100 bg-slate-50/50 text-slate-500 text-xs uppercase font-bold">
+                <th class="p-4">Full Name</th>
+                <th class="p-4">Contact</th>
+                <th class="p-4">Room No.</th>
+                <th class="p-4">Monthly Rent</th>
+                <th class="p-4">Balance</th>
+                <th class="p-4">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tenantsTable"><tr><td colspan="6" class="p-8 text-center text-slate-400 text-xs">Loading tenants...</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PANEL 6: PAYMENTS -->
+      <section data-panel="payments" class="hidden space-y-4">
+        <div class="flex justify-between items-center">
+          <h2 class="text-lg font-bold text-slate-800">Monthly Payment Log</h2>
+          <button onclick="openPaymentModal()" class="bg-emerald-700 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-emerald-800 transition">
+            + Generate Invoice
+          </button>
+        </div>
+        <div class="overflow-x-auto bg-white rounded-2xl border border-slate-100 shadow-sm">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-slate-100 bg-slate-50/50 text-slate-500 text-xs uppercase font-bold">
+                <th class="p-4">Tenant Name</th>
+                <th class="p-4">Amount Due</th>
+                <th class="p-4">Due Date</th>
+                <th class="p-4">Status</th>
+                <th class="p-4">Paid Date</th>
+                <th class="p-4">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="paymentsTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PANEL 7: INQUIRIES -->
+      <section data-panel="inquiries" class="hidden space-y-4">
+        <h2 class="text-lg font-bold text-slate-800">Clients & Inquiries</h2>
+        <div class="grid gap-4" id="inquiriesList"></div>
+      </section>
+
+      <!-- PANEL 8: MESSAGES -->
+      <section data-panel="messages" class="hidden space-y-4">
+        <h2 class="text-lg font-bold text-slate-800">Messaging Hub</h2>
+        <div class="grid gap-4 md:grid-cols-3 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden h-[500px]">
+          <div class="border-r border-slate-100 p-4 overflow-y-auto space-y-2" id="inboxList"></div>
+          <div class="col-span-2 flex flex-col h-full bg-slate-50/50">
+            <div class="flex-1 p-4 overflow-y-auto space-y-3" id="messageChat"></div>
+            <form id="sendMessageForm" class="p-3 border-t border-slate-200 bg-white flex gap-2">
+              <input type="hidden" id="msgRecipientId">
+              <input type="text" id="msgInput" placeholder="Write your message..." class="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:border-emerald-700">
+              <button type="submit" class="bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-emerald-800 transition">Send</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- PANEL 9: NOTIFICATIONS -->
+      <section data-panel="notifications" class="hidden space-y-4">
+        <div class="flex justify-between items-center">
+          <h2 class="text-lg font-bold text-slate-800">Notifications</h2>
+          <button onclick="markAllNotificationsRead()" class="text-xs text-emerald-700 font-bold hover:underline">Mark All Read</button>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm divide-y divide-slate-100" id="notificationsList"></div>
+      </section>
+
+      <!-- PANEL 10: REPORTS -->
+      <section data-panel="reports" class="hidden space-y-4">
+        <h2 class="text-lg font-bold text-slate-800">Reports Generator</h2>
+        <div class="grid gap-4 md:grid-cols-4">
+          <button onclick="loadReport('payments')" class="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs hover:border-slate-200 transition text-left space-y-3">
+            <div class="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100/90 text-slate-700"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
+            <h3 class="font-bold text-sm text-slate-900">Rental Collections</h3>
+          </button>
+          <button onclick="loadReport('tenants')" class="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs hover:border-slate-200 transition text-left space-y-3">
+            <div class="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100/90 text-slate-700"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+            <h3 class="font-bold text-sm text-slate-900">Tenant List</h3>
+          </button>
+          <button onclick="loadReport('rooms')" class="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs hover:border-slate-200 transition text-left space-y-3">
+            <div class="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100/90 text-slate-700"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/></svg></div>
+            <h3 class="font-bold text-sm text-slate-900">Room Availability</h3>
+          </button>
+          <button onclick="loadReport('income')" class="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs hover:border-slate-200 transition text-left space-y-3">
+            <div class="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100/90 text-slate-700"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 3v18h18"/><rect width="4" height="7" x="7" y="10" rx="1"/><rect width="4" height="12" x="15" y="5" rx="1"/></svg></div>
+            <h3 class="font-bold text-sm text-slate-900">Income Summary</h3>
+          </button>
+        </div>
+        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm mt-6 hidden" id="reportPreviewArea">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold text-slate-800" id="reportTitle">Report</h3>
+            <button onclick="window.print()" class="text-xs bg-emerald-700 text-white px-3 py-1.5 rounded-lg">Print Report</button>
+          </div>
+          <div class="overflow-x-auto" id="reportOutput"></div>
+        </div>
+      </section>
+
+      <!-- PANEL 11: MAP -->
+      <section data-panel="map" class="hidden bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-bold text-slate-800">Pin Location on OpenStreetMap</h2>
+            <p class="text-xs text-slate-500">Drag the marker on the map to pin your boarding house's location. The changes will save automatically.</p>
+          </div>
+          <button type="button" onclick="window.open('https://www.openstreetmap.org/#map=16/12.7192/121.4719', '_blank')" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 transition">
+            <svg class="w-3.5 h-3.5 text-emerald-700 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 15 22 22 18 22 2 15 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="15" y1="6" x2="15" y2="22"/></svg> Open Full Map
+          </button>
+        </div>
+        <div id="ownerOsmMap" class="h-96 w-full rounded-xl border border-slate-200"></div>
+      </section>
+
+      <!-- PANEL 12: GALLERY (5 Dedicated Categories Matching My Profile & Documents design) -->
+      <section data-panel="gallery" class="hidden space-y-6">
+        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-5">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div class="flex items-center gap-2.5">
+                <h2 class="text-lg font-bold text-slate-800">Gallery Management</h2>
+                <span id="galleryActiveBhBadge" class="text-xs font-semibold px-2.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-full border border-emerald-200 hidden">
+                  🏠 <span id="galleryActiveBhBadgeText"></span>
+                </span>
+              </div>
+              <p class="text-xs text-slate-500 mt-0.5">
+                View current status and upload photos for each required area. These 5 photos appear in the carousel when tenants view your listing.
+              </p>
+            </div>
+            <button type="button" onclick="loadGallery()" class="text-xs bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 font-bold px-3 py-1.5 rounded-lg transition shadow-2xs self-start sm:self-auto flex items-center gap-1">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              Refresh
+            </button>
+          </div>
+
+          <!-- Boarding House Selector -->
+          <div class="bg-emerald-50/80 border border-emerald-200 rounded-xl p-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="block text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                Pumili ng Boarding House (Select Boarding House to Manage Photos):
+              </label>
+              <span class="text-[11px] text-emerald-700 font-semibold hidden sm:inline">Palitan ang boarding house para makita ang pictures nito</span>
+            </div>
+            <select id="galleryBoardingHouseSelector" onchange="onGalleryBoardingHouseChange()" class="w-full text-sm font-semibold border border-emerald-300 rounded-lg px-3 py-2.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs cursor-pointer">
+              <option value="">— Naglo-load ng mga Boarding House… —</option>
+            </select>
+            <p class="text-xs text-emerald-700 flex items-center gap-1">
+              <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              Dito pipiliin kung aling boarding house ang titingnan o lalagyan ng 5 photos (Outdoor, Living, Bedroom, Dining, Bathroom). Bawat boarding house ay may sariling gallery.
+            </p>
+          </div>
+
+          <!-- 5 Status Cards Grid -->
+          <div id="ownerGalleryGrid" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <!-- Populated dynamically by loadGallery() -->
+          </div>
+
+          <!-- Re-upload / Replace Form -->
+          <form id="galleryUploadForm" class="border-t border-slate-100 pt-5 space-y-4" enctype="multipart/form-data" onsubmit="submitGalleryForm(event)">
+            <input type="hidden" id="galleryBoardingHouseIdInput" name="boardingHouseId" value="">
+            <p class="text-xs font-bold text-slate-700 uppercase tracking-wider">Re-upload / Replace a Photo</p>
+            <div class="grid gap-3.5 md:grid-cols-2">
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                  <svg class="w-4 h-4 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.08-3.08a2 2 0 0 0-2.83 0L6 21"/></svg>
+                  1. Outdoor Spaces (Cover Photo)
+                </label>
+                <input type="file" name="galleryOutdoor" accept="image/*" class="w-full text-xs text-slate-600 border border-dashed border-slate-300 rounded-lg p-2.5 bg-slate-50/70 file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border file:border-slate-200 file:text-xs file:font-semibold file:bg-white file:text-slate-700 hover:file:bg-slate-50 cursor-pointer">
+              </div>
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                  <svg class="w-4 h-4 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20 9v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9"/><path d="M9 22V12h6v10"/><path d="M2 10.6L12 2l10 8.6"/></svg>
+                  2. Living Area
+                </label>
+                <input type="file" name="galleryLivingArea" accept="image/*" class="w-full text-xs text-slate-600 border border-dashed border-slate-300 rounded-lg p-2.5 bg-slate-50/70 file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border file:border-slate-200 file:text-xs file:font-semibold file:bg-white file:text-slate-700 hover:file:bg-slate-50 cursor-pointer">
+              </div>
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                  <svg class="w-4 h-4 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/></svg>
+                  3. Bedroom
+                </label>
+                <input type="file" name="galleryBedroom" accept="image/*" class="w-full text-xs text-slate-600 border border-dashed border-slate-300 rounded-lg p-2.5 bg-slate-50/70 file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border file:border-slate-200 file:text-xs file:font-semibold file:bg-white file:text-slate-700 hover:file:bg-slate-50 cursor-pointer">
+              </div>
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                  <svg class="w-4 h-4 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M18 2v20"/><path d="M18 8a3 3 0 0 0 0-6"/><path d="M6 2v20"/><path d="M4 2v6a2 2 0 0 0 4 0V2"/></svg>
+                  4. Dining or kitchenette
+                </label>
+                <input type="file" name="galleryDining" accept="image/*" class="w-full text-xs text-slate-600 border border-dashed border-slate-300 rounded-lg p-2.5 bg-slate-50/70 file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border file:border-slate-200 file:text-xs file:font-semibold file:bg-white file:text-slate-700 hover:file:bg-slate-50 cursor-pointer">
+              </div>
+              <div class="space-y-1 md:col-span-2">
+                <label class="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                  <svg class="w-4 h-4 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 6 6.5 3.5a1.5 1.5 0 0 0-2 0l-1 1a1.5 1.5 0 0 0 0 2L6 9"/><path d="M7 15h14"/><path d="M12 11v8"/></svg>
+                  5. Bathroom
+                </label>
+                <input type="file" name="galleryBathroom" accept="image/*" class="w-full text-xs text-slate-600 border border-dashed border-slate-300 rounded-lg p-2.5 bg-slate-50/70 file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border file:border-slate-200 file:text-xs file:font-semibold file:bg-white file:text-slate-700 hover:file:bg-slate-50 cursor-pointer">
+              </div>
+            </div>
+
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 flex items-center gap-2">
+              <svg class="w-4 h-4 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+              Only upload files you want to replace. Existing photos will be kept if no new file is selected.
+            </div>
+
+            <button type="submit" class="bg-slate-900 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-slate-800 transition flex items-center gap-2 cursor-pointer shadow-sm active:scale-95">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+              Update Photos
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- PANEL 13: AMENITIES -->
+      <section data-panel="amenities" class="hidden bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
+        <h2 class="text-lg font-bold text-slate-800">Boarding House Amenities</h2>
+        <form id="amenitiesForm">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="amenities" value="Wi-Fi"> Wi-Fi</label>
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="amenities" value="Parking"> Parking</label>
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="amenities" value="CCTV"> CCTV</label>
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="amenities" value="Kitchen"> Kitchen</label>
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="amenities" value="Laundry Area"> Laundry Area</label>
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="amenities" value="Air-conditioning"> Air-conditioning</label>
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="amenities" value="Study Area"> Study Area</label>
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="amenities" value="Hot Shower"> Hot Shower</label>
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="amenities" value="Security Guard"> Security Guard</label>
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="amenities" value="Generator"> Generator</label>
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="amenities" value="Pets Allowed"> Pets Allowed</label>
+          </div>
+          <button type="submit" class="bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-800 transition mt-6">
+            Save Amenities
+          </button>
+        </form>
+      </section>
+
+      <!-- PANEL 14: HOUSE RULES -->
+      <section data-panel="rules" class="hidden bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
+        <h2 class="text-lg font-bold text-slate-800">House Rules & Policies</h2>
+        <form id="rulesForm" class="space-y-4">
+          <div class="grid gap-4 md:grid-cols-2">
+            <div>
+              <label class="block text-xs font-bold text-slate-500 mb-1">Curfew Hours</label>
+              <input type="text" name="curfew" placeholder="e.g. No entry after 10:00 PM" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-500 mb-1">Visitor Policy</label>
+              <input type="text" name="visitors" placeholder="e.g. Allowed in common area until 8PM" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-500 mb-1">Cooking Policy</label>
+              <input type="text" name="cooking" placeholder="e.g. Allowed in common kitchen area" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-500 mb-1">Smoking & Alcohol</label>
+              <input type="text" name="smoking" placeholder="e.g. Strictly prohibited" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm">
+            </div>
+          </div>
+          <button type="submit" class="bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-800 transition">
+            Save House Rules
+          </button>
+        </form>
+      </section>
+
+      <!-- PANEL 15: ACTIVITY LOGS -->
+      <section data-panel="activity" class="hidden bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+        <h2 class="text-lg font-bold text-slate-800">Activity Logs</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-slate-100 bg-slate-50/50 text-slate-500 text-xs uppercase font-bold">
+                <th class="p-4">Action</th>
+                <th class="p-4">Entity</th>
+                <th class="p-4">Details</th>
+                <th class="p-4">IP Address</th>
+                <th class="p-4">Time</th>
+              </tr>
+            </thead>
+            <tbody id="activityTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PANEL 16: SETTINGS -->
+      <section data-panel="settings" class="hidden bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+          <div>
+            <h2 class="text-lg font-bold text-slate-800">GCash Payment Account</h2>
+            <p class="text-xs text-slate-500">Configure the official GCash account where your tenants will send their rent payments</p>
+          </div>
+          <span class="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold px-3 py-1 rounded-full">Payment Settings</span>
+        </div>
+
+        <form id="settingsForm" class="space-y-6">
+          <!-- GCash Payment Settings Card -->
+          <div class="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-5 space-y-4">
+            <div class="flex items-center gap-3">
+              <div class="h-10 w-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm shadow-emerald-600/30">
+                <i data-lucide="credit-card" class="h-5 w-5"></i>
+              </div>
+              <div>
+                <p class="text-xs font-bold text-emerald-950 uppercase tracking-widest">Official GCash Account Details</p>
+                <p class="text-xs text-emerald-700">Tenants will see this number and account name when paying their rent</p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1.5">Your GCash Mobile Number <span class="text-rose-500">*</span></label>
+                <div class="relative">
+                  <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">📱</span>
+                  <input type="tel" name="gcashNumber" placeholder="e.g. 09161475692" maxlength="11" class="w-full rounded-xl border border-emerald-200 bg-white pl-10 pr-3 py-2.5 text-sm font-mono font-bold focus:border-emerald-600 focus:ring-2 focus:ring-emerald-900/10 focus:outline-none transition shadow-2xs">
+                </div>
+                <p class="text-[11px] text-slate-500 mt-1">11-digit Philippine mobile number registered to your GCash (e.g. 09161475692)</p>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1.5">GCash Registered Account Name <span class="text-rose-500">*</span></label>
+                <input type="text" name="gcashName" placeholder="e.g. grecie macasa" class="w-full rounded-xl border border-emerald-200 bg-white px-3.5 py-2.5 text-sm font-bold focus:border-emerald-600 focus:ring-2 focus:ring-emerald-900/10 focus:outline-none transition shadow-2xs">
+                <p class="text-[11px] text-slate-500 mt-1">Full name exactly as registered in your GCash account (e.g. grecie macasa)</p>
+              </div>
+            </div>
+
+            <!-- Live Tenant Preview Box -->
+            <div id="gcashPreviewBox" class="hidden rounded-xl bg-white border border-emerald-200 p-4 text-xs space-y-2 shadow-2xs">
+              <div class="flex items-center gap-2">
+                <span class="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <p class="font-bold text-emerald-900 text-xs uppercase tracking-wider">Tenant Payment View Preview</p>
+              </div>
+              <p class="text-[11px] text-slate-500">This is how your GCash destination will appear to your tenants when they pay rent:</p>
+              <div class="p-3 bg-slate-50 rounded-xl space-y-1.5 font-medium border border-slate-100">
+                <div class="flex justify-between items-center"><span class="text-slate-500">GCash Account #:</span><span id="previewGcashNumber" class="font-bold text-emerald-700 font-mono text-sm">—</span></div>
+                <div class="flex justify-between items-center"><span class="text-slate-500">Account Name:</span><span id="previewGcashName" class="font-bold text-slate-800 text-sm">—</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3 pt-2">
+            <button type="submit" id="saveSettingsBtn" class="inline-flex items-center gap-2 bg-emerald-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-800 transition shadow-sm shadow-emerald-800/20 active:scale-95 cursor-pointer">
+              <i data-lucide="save" class="h-4 w-4"></i>
+              Save GCash Settings
+            </button>
+            <span id="settingsSaveStatus" class="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg hidden">✓ GCash settings saved successfully!</span>
+          </div>
+        </form>
+      </section>
+
+
+    </div>
+  </main>
+</div>
+
+<!-- Modal Dialogs -->
+<div id="roomModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl">
+    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+      <h3 class="text-base font-bold text-slate-800" id="roomModalTitle">Add New Room</h3>
+      <button onclick="closeRoomModal()" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
+    </div>
+    <form id="roomForm" class="space-y-3">
+      <input type="hidden" name="id">
+      
+      <div>
+        <label class="block text-xs font-bold text-emerald-800 mb-1">Target Boarding House *</label>
+        <select name="boardingHouseId" id="roomModalBhSelect" class="w-full rounded-xl border border-emerald-300 p-2 text-xs font-bold text-slate-800 focus:border-emerald-600 outline-none bg-emerald-50/50">
+          <!-- Populated by JS -->
+        </select>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">Room Number *</label>
+          <input type="text" name="roomNumber" required placeholder="e.g. 201" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">Floor</label>
+          <select name="floor" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
+            <option value="1st Floor">🏠 1st Floor</option>
+            <option value="2nd Floor">🏢 2nd Floor</option>
+            <option value="3rd Floor">🏗️ 3rd Floor</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">Room Type</label>
+          <select name="roomType" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
+            <option>Solo Room</option>
+            <option>Shared Room</option>
+            <option>Airconditioned</option>
+            <option>Studio</option>
+            <option>Family Room</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">Rental Price (₱) *</label>
+          <input type="number" name="rentalPrice" required min="0" placeholder="e.g. 3000" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">Capacity (persons) *</label>
+          <input type="number" name="capacity" required min="1" placeholder="e.g. 2" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">Available Slots</label>
+          <input type="number" name="availableSlots" min="0" placeholder="e.g. 2" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
+        </div>
+        <div class="col-span-2">
+          <label class="block text-xs font-bold text-slate-500 mb-1">Gender Preference</label>
+          <select name="genderPref" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
+            <option value="Any">Any</option>
+            <option value="Male Only">Male Only</option>
+            <option value="Female Only">Female Only</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-500 mb-1">Description (optional)</label>
+        <textarea name="description" rows="2" placeholder="Room features, inclusions..." class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none"></textarea>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeRoomModal()" class="border border-slate-200 px-4 py-2 rounded-lg text-sm hover:bg-slate-50 transition">Cancel</button>
+        <button type="submit" id="roomSaveBtn" class="bg-emerald-700 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-emerald-800 transition active:scale-95">Save Room</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL: ADD / EDIT BOARDING HOUSE WITH OSM PINPOINT -->
+<div id="boardingHouseModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-2xl w-full max-w-2xl p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[92vh]">
+    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+      <div>
+        <h3 id="bhModalTitle" class="text-base font-extrabold text-slate-800">Add Boarding House Establishment</h3>
+        <p class="text-xs text-slate-500">Specify property details and pinpoint its exact location on OpenStreetMap for tenants.</p>
+      </div>
+      <button onclick="closeBoardingHouseModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
+    </div>
+
+    <form id="boardingHouseForm" onsubmit="saveBoardingHouse(event)" class="space-y-4">
+      <input type="hidden" id="bhModalId" name="id">
+      
+      <div class="grid gap-3.5 md:grid-cols-2">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Boarding House Name *</label>
+          <input type="text" id="bhModalName" name="name" class="w-full rounded-xl border border-slate-200 p-2.5 text-xs font-semibold focus:border-emerald-600 outline-none" placeholder="e.g. Silwen BH - Extension 2" required>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Barangay Location *</label>
+          <select id="bhModalBarangay" name="barangay" class="w-full rounded-xl border border-slate-200 p-2.5 text-xs font-semibold focus:border-emerald-600 outline-none" required>
+            <option value="">— Select Barangay —</option>
+            <option>Anilao</option><option>Aplaya</option><option>Bagong Bayan I</option><option>Bagong Bayan II</option>
+            <option>Batangan</option><option>Bukal</option><option>Camantigue</option><option>Carmundo</option>
+            <option>Cawayan</option><option>Dayhagan</option><option>Formon</option><option>Hagan</option>
+            <option>Hagupit</option><option>Ipil</option><option>Kaligtasan</option><option>Labasan</option>
+            <option>Labonan</option><option>Libertad</option><option>Lisap</option><option>Luna</option>
+            <option>Malitbog</option><option>Mapang</option><option>Masaguisi</option><option>Mina de Oro</option>
+            <option>Morente</option><option>Ogbot</option><option>Orconuma</option><option>Poblacion</option>
+            <option>Pulosahi</option><option>Sagana</option><option>San Isidro</option><option>San Jose</option>
+            <option>San Juan</option><option>Sta. Cruz</option><option>Sigange</option><option>Tawas</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-600 mb-1">Specific Address / Street Landmarks</label>
+        <input type="text" id="bhModalAddress" name="address" class="w-full rounded-xl border border-slate-200 p-2.5 text-xs font-semibold focus:border-emerald-600 outline-none" placeholder="e.g. Zone 3, Near Mindoro State University Gate 1">
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-600 mb-1">Description</label>
+        <textarea id="bhModalDescription" name="description" rows="2" class="w-full rounded-xl border border-slate-200 p-2.5 text-xs font-semibold focus:border-emerald-600 outline-none" placeholder="Describe this boarding house branch, amenities, or features..."></textarea>
+      </div>
+
+      <!-- OpenStreetMap Pinpoint Map Picker -->
+      <div class="space-y-2 border-t border-slate-100 pt-3">
+        <div class="flex items-center justify-between">
+          <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            Pinpoint Location on OpenStreetMap (Required for Tenant Map)
+          </label>
+          <span class="text-[11px] text-emerald-700 font-semibold">Click map or drag marker to move pin</span>
+        </div>
+        
+        <div id="bhOsmMap" class="h-64 w-full rounded-xl border border-slate-300 shadow-inner z-10"></div>
+
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div>
+            <label class="text-[10px] font-bold text-slate-400">Latitude</label>
+            <input type="text" id="bhModalLat" name="latitude" readonly class="w-full bg-slate-50 border border-slate-200 rounded-lg p-1.5 text-xs font-mono font-bold text-slate-700">
+          </div>
+          <div>
+            <label class="text-[10px] font-bold text-slate-400">Longitude</label>
+            <input type="text" id="bhModalLng" name="longitude" readonly class="w-full bg-slate-50 border border-slate-200 rounded-lg p-1.5 text-xs font-mono font-bold text-slate-700">
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 border-t border-slate-100 pt-3">
+        <button type="button" onclick="closeBoardingHouseModal()" class="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700">Cancel</button>
+        <button type="submit" class="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white shadow-sm transition active:scale-95">💾 Save Boarding House</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="tenantModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+      <h3 class="text-base font-bold text-slate-800">Register Tenant Manually</h3>
+      <button onclick="closeTenantModal()" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
+    </div>
+    <form id="tenantForm" class="space-y-3">
+      <input type="hidden" name="id">
+      <div class="grid grid-cols-2 gap-3">
+        <div class="col-span-2">
+          <label class="block text-xs font-bold text-slate-500 mb-1">Full Name *</label>
+          <input type="text" name="fullName" required class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">Email</label>
+          <input type="email" name="email" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">Contact Number</label>
+          <input type="text" name="contactNumber" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">Assigned Room</label>
+          <select name="roomId" id="tenantRoomSelect" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none"></select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">Monthly Rent (₱) *</label>
+          <input type="number" name="monthlyRent" required class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">Move-in Date</label>
+          <input type="date" name="moveInDate" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeTenantModal()" class="border border-slate-200 px-4 py-2 rounded-lg text-sm hover:bg-slate-50 transition">Cancel</button>
+        <button type="submit" class="bg-emerald-700 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-emerald-800 transition active:scale-95">Register</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Accept Application Modal -->
+<div id="acceptAppModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+      <div>
+        <h3 class="text-base font-bold text-slate-800">Accept Tenant Application & Send Offer</h3>
+        <p id="acceptAppName" class="text-xs text-slate-500 mt-0.5"></p>
+      </div>
+      <button onclick="closeAcceptAppModal()" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
+    </div>
+    <input type="hidden" id="acceptAppUserId">
+    <input type="hidden" id="acceptAppApplicationId">
+    
+    <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 leading-relaxed space-y-1">
+      <p class="font-bold flex items-center gap-1.5">
+        <span>ℹ️</span> Two-Way Acceptance Workflow
+      </p>
+      <p>
+        Kapag in-accept mo ito, maipapadala ang alok (offer) sa dashboard ni tenant. <strong>Hindi pa siya ganap na tenant hanggang hindi niya ito ina-accept back</strong> para makaiwas sa double booking.
+      </p>
+    </div>
+
+    <div class="space-y-3">
+      <div>
+        <label class="block text-xs font-bold text-slate-500 mb-1">Assign to Room (optional)</label>
+        <select id="acceptAppRoomSelect" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none"></select>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-500 mb-1">Monthly Rent (₱) *</label>
+        <input type="number" id="acceptAppRent" placeholder="e.g. 3000" min="0" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-500 mb-1">Target Move-in Date</label>
+        <input type="date" id="acceptAppMoveIn" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
+      </div>
+    </div>
+    <div class="flex justify-end gap-2 pt-1">
+      <button onclick="closeAcceptAppModal()" class="border border-slate-200 px-4 py-2 rounded-lg text-sm hover:bg-slate-50 transition">Cancel</button>
+      <button onclick="confirmAcceptApplication()" class="bg-emerald-700 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-emerald-800 transition active:scale-95">✅ Send Rental Offer</button>
+    </div>
+  </div>
+</div>
+
+<div id="paymentModal" class="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-xl">
+    <h3 class="text-lg font-bold text-slate-800">Generate Invoice</h3>
+    <form id="paymentForm" class="space-y-3">
+      <div>
+        <label class="block text-xs font-bold text-slate-500 mb-1">Select Tenant</label>
+        <select name="tenantId" id="paymentTenantSelect" required class="w-full rounded-lg border border-slate-200 p-2.5 text-sm"></select>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-500 mb-1">Amount (₱)</label>
+        <input type="number" name="amount" required class="w-full rounded-lg border border-slate-200 p-2.5 text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-500 mb-1">Due Date</label>
+        <input type="date" name="dueDate" required class="w-full rounded-lg border border-slate-200 p-2.5 text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-500 mb-1">Month Period</label>
+        <input type="month" name="month" required class="w-full rounded-lg border border-slate-200 p-2.5 text-sm">
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closePaymentModal()" class="border border-slate-200 px-4 py-2 rounded-lg text-sm">Cancel</button>
+        <button type="submit" class="bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm">Generate</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- OpenStreetMap library script -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+<script>
+  let charts = {};
+  let currentTab = 'overview';
+  let osmMap = null;
+  let osmMarker = null;
+
+  function show(viewName) {
+    currentTab = viewName;
+    document.getElementById('breadcrumbCurrent').innerText = viewName.charAt(0).toUpperCase() + viewName.slice(1);
+    document.getElementById('title').innerText = viewName.charAt(0).toUpperCase() + viewName.slice(1);
+    
+    // Toggle active sidebar link
+    document.querySelectorAll('#nav button').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.view === viewName);
+    });
+
+    // Toggle panels
+    document.querySelectorAll('section[data-panel]').forEach(panel => {
+      panel.classList.toggle('hidden', panel.dataset.panel !== viewName);
+    });
+
+    refreshCurrentView();
+  }
+
+  // Sidebar triggers
+  document.querySelectorAll('#nav button').forEach(btn => {
+    btn.addEventListener('click', () => show(btn.dataset.view));
+  });
+
+  // Mobile menu toggle
+  document.getElementById('menuToggle').addEventListener('click', () => {
+    document.getElementById('sidebar').classList.toggle('-translate-x-full');
+  });
+
+  async function refreshCurrentView() {
+    if (currentTab === 'overview') loadOverview();
+    else if (currentTab === 'profile') loadProfile();
+    else if (currentTab === 'my-profile') loadMyProfile();
+    else if (currentTab === 'permit') loadPermit();
+    else if (currentTab === 'rooms') loadRooms();
+    else if (currentTab === 'tenants') loadTenants();
+    else if (currentTab === 'payments') loadPayments();
+    else if (currentTab === 'inquiries') loadInquiries();
+    else if (currentTab === 'messages') loadMessages();
+    else if (currentTab === 'notifications') loadNotifications();
+    else if (currentTab === 'map') initOsmMap();
+    else if (currentTab === 'gallery') loadGallery();
+    else if (currentTab === 'amenities') loadAmenities();
+    else if (currentTab === 'rules') loadHouseRules();
+    else if (currentTab === 'activity') loadActivityLogs();
+    else if (currentTab === 'settings') loadSettings();
+  }
+
+  // ─── Overview ───
+  async function loadOverview() {
+    try {
+      const res = await fetch('/owner-dashboard/api/overview');
+      const { cards, charts: chartData, owner } = await res.json();
+
+      document.getElementById('ownerBhName').innerText = owner.boardingHouseName || 'No property name';
+
+      // ── Pending Applications Alert Banner ──────────────────────
+      const alertBanner = document.getElementById('pendingAppsAlert');
+      const alertCount  = document.getElementById('pendingAppsAlertCount');
+      const pendingCount = cards.pendingApplications || 0;
+      if (pendingCount > 0) {
+        alertBanner.classList.remove('hidden');
+        alertCount.textContent = pendingCount;
+      } else {
+        alertBanner.classList.add('hidden');
+      }
+
+      // ── Cards Grid ─────────────────────────────────────────────
+      const cardsContainer = document.getElementById('cardsGrid');
+      const metrics = [
+        { label: 'Total Rooms',       value: cards.totalRooms,      icon: `<svg class="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`, bg: 'bg-white', border: 'border-slate-100', text: 'text-slate-900' },
+        { label: 'Available Rooms',   value: cards.availableRooms,  icon: `<svg class="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3.5"/></svg>`, bg: 'bg-white', border: 'border-slate-100', text: 'text-slate-900' },
+        { label: 'Occupied Rooms',    value: cards.occupiedRooms,   icon: `<svg class="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/></svg>`, bg: 'bg-white', border: 'border-slate-100', text: 'text-slate-900' },
+        { label: 'Active Tenants',    value: cards.totalTenants,    icon: `<svg class="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`, bg: 'bg-white', border: 'border-slate-100', text: 'text-slate-900' },
+        { label: 'Monthly Income',    value: `₱${(cards.monthlyIncome || 0).toLocaleString()}`, icon: `<svg class="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>`, bg: 'bg-white', border: 'border-slate-100', text: 'text-slate-900' },
+        { label: 'Overdue Bills',     value: cards.overduePayments, icon: `<svg class="w-5 h-5 text-rose-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`, bg: cards.overduePayments > 0 ? 'bg-rose-50/50' : 'bg-white', border: cards.overduePayments > 0 ? 'border-rose-200' : 'border-slate-100', text: cards.overduePayments > 0 ? 'text-rose-600' : 'text-slate-900' },
+        {
+          label: 'Pending Applications',
+          value: pendingCount,
+          icon: `<svg class="w-5 h-5 text-amber-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/></svg>`,
+          bg: pendingCount > 0 ? 'bg-amber-50/50' : 'bg-white',
+          border: pendingCount > 0 ? 'border-amber-300' : 'border-slate-100',
+          text: pendingCount > 0 ? 'text-amber-700' : 'text-slate-900',
+          onclick: `show('tenants')`,
+          badge: pendingCount > 0 ? `<span class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-amber-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">${pendingCount}</span>` : '',
+        },
+        { label: 'Pending Inquiries', value: cards.pendingInquiries, icon: `<svg class="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>`, bg: 'bg-white', border: 'border-slate-100', text: 'text-slate-900' },
+        { label: 'New Messages',      value: cards.newMessages,      icon: `<svg class="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`, bg: 'bg-white', border: 'border-slate-100', text: 'text-slate-900' },
+        {
+          label: 'Permit Days Left',
+          value: cards.permitDaysLeft !== null && cards.permitDaysLeft !== undefined ? (cards.permitDaysLeft <= 0 ? 'Expired' : `${cards.permitDaysLeft}d`) : 'N/A',
+          icon: `<svg class="w-5 h-5 ${cards.permitDaysLeft !== null && cards.permitDaysLeft <= 30 ? 'text-rose-600' : (cards.permitDaysLeft <= 60 ? 'text-amber-600' : 'text-slate-700')}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>`,
+          bg: cards.permitDaysLeft !== null && cards.permitDaysLeft <= 30 ? 'bg-rose-50/50' : (cards.permitDaysLeft !== null && cards.permitDaysLeft <= 60 ? 'bg-amber-50/50' : 'bg-white'),
+          border: cards.permitDaysLeft !== null && cards.permitDaysLeft <= 30 ? 'border-rose-200' : (cards.permitDaysLeft !== null && cards.permitDaysLeft <= 60 ? 'border-amber-200' : 'border-slate-100'),
+          text: cards.permitDaysLeft !== null && cards.permitDaysLeft <= 30 ? 'text-rose-600' : (cards.permitDaysLeft !== null && cards.permitDaysLeft <= 60 ? 'text-amber-700' : 'text-slate-900'),
+          onclick: `show('permit')`
+        },
+      ];
+
+      cardsContainer.innerHTML = metrics.map(m => `
+        <div class="stat-card ${m.bg} ${m.border} p-4 rounded-2xl border shadow-xs flex items-center gap-3.5 relative transition hover:border-slate-200 ${m.onclick ? 'cursor-pointer' : ''}"
+          ${m.onclick ? `onclick="${m.onclick}"` : ''}>
+          ${m.badge || ''}
+          <div class="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100/90 text-slate-700 shrink-0">
+            ${m.icon}
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xl font-bold tracking-tight leading-none ${m.text}">${m.value}</p>
+            <p class="text-xs font-medium text-slate-500 mt-1 truncate">${m.label}</p>
+          </div>
+        </div>
+      `).join('');
+
+      // Load/Update charts
+      renderRentalChart(chartData.rentalTrend);
+      renderOccupancyChart(chartData.occupancy);
+      renderRoomTypeChart(chartData.roomTypes);
+      renderTenantTrendChart(chartData.tenantMonthly);
+    } catch (err) {
+      console.error('Error loading overview:', err);
+    }
+  }
+
+
+  function renderRentalChart(data) {
+    if (charts.rental) charts.rental.destroy();
+    charts.rental = new Chart(document.getElementById('rentalChart'), {
+      type: 'bar',
+      data: {
+        labels: data.map(x => x.label),
+        datasets: [{ label: 'Monthly Collection (₱)', data: data.map(x => x.income), backgroundColor: '#047857' }]
+      }
+    });
+  }
+
+  function renderOccupancyChart(data) {
+    if (charts.occupancy) charts.occupancy.destroy();
+    charts.occupancy = new Chart(document.getElementById('occupancyChart'), {
+      type: 'doughnut',
+      data: {
+        labels: data.map(x => x.label),
+        datasets: [{ data: data.map(x => x.value), backgroundColor: ['#047857', '#cbd5e1'] }]
+      }
+    });
+  }
+
+  function renderRoomTypeChart(data) {
+    if (charts.roomType) charts.roomType.destroy();
+    charts.roomType = new Chart(document.getElementById('roomTypeChart'), {
+      type: 'pie',
+      data: {
+        labels: data.map(x => x.type),
+        datasets: [{ data: data.map(x => x.count), backgroundColor: ['#065f46', '#047857', '#34d399'] }]
+      }
+    });
+  }
+
+  function renderTenantTrendChart(data) {
+    if (charts.tenantTrend) charts.tenantTrend.destroy();
+    charts.tenantTrend = new Chart(document.getElementById('tenantTrendChart'), {
+      type: 'line',
+      data: {
+        labels: data.map(x => x.label),
+        datasets: [{ label: 'Tenant Signups', data: data.map(x => x.count), borderColor: '#047857', tension: 0.3 }]
+      }
+    });
+  }
+
+  // ─── Property Profile ───
+  async function loadProfile() {
+    loadBoardingHouses();
+    const res = await fetch('/owner-dashboard/api/profile');
+    const { data } = await res.json();
+    if (!data) return;
+    const form = document.getElementById('profileForm');
+    for (const key in data) {
+      const el = form.elements[key];
+      if (!el) continue;
+      if (el.tagName === 'SELECT') {
+        // Set selected option
+        [...el.options].forEach(o => { o.selected = (o.value === data[key] || o.text === data[key]); });
+      } else {
+        el.value = data[key] ?? '';
+      }
+    }
+  }
+
+  document.getElementById('profileForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const body = Object.fromEntries(formData.entries());
+    const r = await fetch('/owner-dashboard/api/profile', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (r.ok) ownerToast('Property profile saved successfully!');
+    else ownerToast('Failed to save profile.', true);
+  });
+
+  // ─── My Profile & Documents ───
+  async function loadMyProfile() {
+    const res = await fetch('/owner-dashboard/api/profile');
+    const { data } = await res.json();
+    if (!data) return;
+
+    // Fill personal info form
+    const myForm = document.getElementById('myProfileForm');
+    if (myForm.elements['contactNumber']) myForm.elements['contactNumber'].value = data.contactNumber || '';
+    if (myForm.elements['fullName']) myForm.elements['fullName'].value = data.fullName || '';
+
+    // Update profile photo preview if available
+    if (data.profilePicture) {
+      const preview = document.getElementById('profilePhotoPreview');
+      preview.innerHTML = `<img src="${data.profilePicture}" alt="Profile" class="w-full h-full object-cover">`;
+    }
+
+    // Show document status cards
+    const docs = [
+      { key: 'validIdPicture', label: 'Government ID', icon: `<svg class="w-5 h-5 text-slate-800" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 7h3v3H7z"/><path d="M14 7h3"/><path d="M14 11h3"/><path d="M7 15h10"/></svg>` },
+      { key: 'businessPermit', label: 'Business Permit', icon: `<svg class="w-5 h-5 text-slate-800" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>` },
+      { key: 'barangayClearance', label: 'Barangay Clearance', icon: `<svg class="w-5 h-5 text-slate-800" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 22V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v18"/><path d="M18 22V8a2 2 0 0 0-2-2h-2"/><path d="M6 12h4"/><path d="M6 16h4"/></svg>` },
+      { key: 'proofOfOwnership', label: 'Proof of Ownership', icon: `<svg class="w-5 h-5 text-slate-800" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>` },
+      { key: 'rentalPermit', label: 'Rental Permit', icon: `<svg class="w-5 h-5 text-slate-800" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3.5"/></svg>` },
+      { key: 'boardingHousePicture', label: 'Boarding House Photo', icon: `<svg class="w-5 h-5 text-slate-800" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.08-3.08a2 2 0 0 0-2.83 0L6 21"/></svg>` },
+    ];
+
+    document.getElementById('myDocGrid').innerHTML = docs.map(d => {
+      const url = data[d.key];
+      const isImg = url && !url.toLowerCase().endsWith('.pdf');
+      return `
+        <div class="rounded-xl border ${url ? 'border-emerald-200 bg-emerald-50/60' : 'border-slate-200 bg-slate-50'} p-4 flex flex-col gap-2">
+          <div class="flex items-center gap-2">
+            <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-slate-800 flex-shrink-0 shadow-2xs">${d.icon}</span>
+            <div>
+              <p class="text-xs font-bold text-slate-800">${d.label}</p>
+              <span class="text-[10px] font-bold ${url ? 'text-emerald-700' : 'text-slate-400'}">
+                ${url ? 'Uploaded ✓' : 'Not Attached ✗'}
+              </span>
+            </div>
+          </div>
+          ${url ? `
+            <div class="mt-1 space-y-1.5">
+              ${isImg ? `<img src="${url}" class="w-full h-20 object-cover rounded-lg border border-emerald-200">` : ''}
+              <a href="${url}" target="_blank" class="block text-center text-[11px] font-bold text-emerald-700 bg-white border border-emerald-200 py-1 rounded-lg hover:bg-emerald-50 transition">
+                View Document ↗
+              </a>
+            </div>
+          ` : `<p class="text-[10px] text-slate-400">No file uploaded</p>`}
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Personal info update
+  document.getElementById('myProfileForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const r = await fetch('/owner-dashboard/api/my-profile', {
+      method: 'PATCH',
+      body: formData
+    });
+    if (r.ok) { ownerToast('Personal info updated!'); loadMyProfile(); }
+    else ownerToast('Failed to update info.', true);
+  });
+
+  // Documents re-upload
+  document.getElementById('docsUploadForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const hasFile = [...formData.entries()].some(([, v]) => v instanceof File && v.size > 0);
+    if (!hasFile) { ownerToast('Please select at least one file to upload.', true); return; }
+    const r = await fetch('/owner-dashboard/api/my-documents', {
+      method: 'POST',
+      body: formData
+    });
+    if (r.ok) { ownerToast('Documents updated successfully!'); e.target.reset(); loadMyProfile(); }
+    else ownerToast('Upload failed. Please try again.', true);
+  });
+
+  function previewPhoto(input) {
+    if (!input.files || !input.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const preview = document.getElementById('profilePhotoPreview');
+      preview.innerHTML = `<img src="${e.target.result}" alt="Preview" class="w-full h-full object-cover">`;
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+
+  // Toast notification helper
+  function ownerToast(msg, isErr = false) {
+    const t = document.createElement('div');
+    t.className = `fixed bottom-5 right-5 z-[200] px-5 py-3 rounded-xl text-sm font-semibold text-white shadow-xl transition-all ${
+      isErr ? 'bg-rose-600' : 'bg-emerald-700'
+    }`;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3200);
+  }
+
+  // ─── Business Permit ───
+  async function loadPermit() {
+    try {
+      const res = await fetch('/owner-dashboard/api/permit');
+      const { data } = await res.json();
+      const emptyBox = document.getElementById('permitEmpty');
+      const banner = document.getElementById('permitDaysBanner');
+      const btnRenewal = document.getElementById('btnRequestRenewal');
+      const detailsBox = document.getElementById('permitDetails') ? document.getElementById('permitDetails').closest('.bg-white') : null;
+
+      if (data) {
+        if (emptyBox) emptyBox.classList.add('hidden');
+        if (detailsBox) detailsBox.classList.remove('hidden');
+
+        // Status badge
+        const statusEl = document.getElementById('permitStatus');
+        const st = (data.status || '').toLowerCase();
+        let badgeClass = 'bg-slate-100 text-slate-700';
+        let statusText = data.status || 'Active';
+
+        if (st === 'active') {
+          badgeClass = 'bg-emerald-100 text-emerald-800 font-extrabold';
+          statusText = 'Active ✓';
+        } else if (st === 'renewal_requested') {
+          badgeClass = 'bg-blue-100 text-blue-800 font-extrabold';
+          statusText = 'Renewal Requested (Pending BPLO Review)';
+        } else if (st === 'expired') {
+          badgeClass = 'bg-rose-100 text-rose-800 font-extrabold';
+          statusText = 'Expired';
+        } else if (st === 'pending') {
+          badgeClass = 'bg-amber-100 text-amber-800 font-extrabold';
+          statusText = 'Pending Approval';
+        } else if (st === 'rejected') {
+          badgeClass = 'bg-rose-100 text-rose-800 font-extrabold';
+          statusText = 'Rejected';
+        }
+        statusEl.className = `capitalize px-3 py-1 rounded-full text-xs ${badgeClass}`;
+        statusEl.innerText = statusText;
+
+        document.getElementById('permitNo').innerText = data.permitNumber || 'BP-PENDING';
+        document.getElementById('permitIssue').innerText = data.issueDate || 'Pending BPLO Issuance';
+        document.getElementById('permitExpiry').innerText = data.expirationDate || 'Pending BPLO Review';
+        if (document.getElementById('permitNotes')) {
+          document.getElementById('permitNotes').innerText = data.notes || 'None';
+        }
+
+        // Remaining Days calculation & Banner
+        if (banner) {
+          const daysLeft = data.daysLeft;
+          const countEl = document.getElementById('permitDaysCount');
+          const barEl = document.getElementById('permitDaysBar');
+          const labelEl = document.getElementById('permitDaysLabel');
+
+          if (daysLeft !== undefined && daysLeft !== null) {
+            banner.classList.remove('hidden');
+            if (daysLeft > 0) {
+              countEl.innerText = `${daysLeft} Day${daysLeft === 1 ? '' : 's'}`;
+              const pct = Math.min(100, Math.max(5, Math.round((daysLeft / 365) * 100)));
+              barEl.style.width = `${pct}%`;
+
+              if (daysLeft <= 30) {
+                countEl.className = 'text-2xl font-black text-rose-600';
+                barEl.className = 'h-2.5 rounded-full transition-all duration-700 bg-rose-500';
+                labelEl.innerText = `Warning: Your permit will expire soon on ${data.expirationDate}. Please submit a renewal request.`;
+              } else if (daysLeft <= 60) {
+                countEl.className = 'text-2xl font-black text-amber-600';
+                barEl.className = 'h-2.5 rounded-full transition-all duration-700 bg-amber-500';
+                labelEl.innerText = `Permit expires on ${data.expirationDate}. You can submit a renewal request.`;
+              } else {
+                countEl.className = 'text-2xl font-black text-emerald-600';
+                barEl.className = 'h-2.5 rounded-full transition-all duration-700 bg-emerald-500';
+                labelEl.innerText = `Permit is active. Expiration date: ${data.expirationDate}.`;
+              }
+            } else {
+              countEl.innerText = 'Expired';
+              countEl.className = 'text-2xl font-black text-rose-600';
+              barEl.style.width = '100%';
+              barEl.className = 'h-2.5 rounded-full transition-all duration-700 bg-rose-500';
+              labelEl.innerText = `Your permit expired on ${data.expirationDate}. Submit a renewal request immediately.`;
+            }
+          } else {
+            banner.classList.add('hidden');
+          }
+        }
+
+        // Renewal Button State
+        if (btnRenewal) {
+          btnRenewal.classList.remove('hidden');
+          btnRenewal.classList.add('flex');
+          if (st === 'renewal_requested') {
+            btnRenewal.disabled = true;
+            btnRenewal.innerHTML = `<svg class="w-4 h-4 animate-spin text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> <span>Renewal Pending BPLO Review</span>`;
+            btnRenewal.classList.add('opacity-70', 'cursor-not-allowed');
+          } else {
+            btnRenewal.disabled = false;
+            btnRenewal.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> <span>Request Permit Renewal</span>`;
+            btnRenewal.classList.remove('opacity-70', 'cursor-not-allowed');
+          }
+        }
+      } else {
+        if (emptyBox) emptyBox.classList.remove('hidden');
+        if (detailsBox) detailsBox.classList.add('hidden');
+        if (banner) banner.classList.add('hidden');
+        if (btnRenewal) {
+          btnRenewal.classList.remove('hidden');
+          btnRenewal.classList.add('flex');
+          btnRenewal.disabled = false;
+          btnRenewal.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> <span>Request Permit Renewal</span>`;
+        }
+        document.getElementById('permitStatus').innerText = 'No Permit Found';
+        document.getElementById('permitNo').innerText = '-';
+        document.getElementById('permitIssue').innerText = '-';
+        document.getElementById('permitExpiry').innerText = '-';
+      }
+    } catch (err) {
+      console.error('Error loading permit:', err);
+      ownerToast('Failed to load permit details.', true);
+    }
+  }
+
+  function openRenewalModal() {
+    const modal = document.getElementById('renewalModal');
+    if (modal) {
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+  }
+
+  function closeRenewalModal() {
+    const modal = document.getElementById('renewalModal');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+  }
+
+  async function submitRenewalRequest() {
+    const permitNumber = document.getElementById('renewalPermitNo')?.value;
+    const requestedRenewalDate = document.getElementById('renewalDate')?.value;
+    const notes = document.getElementById('renewalNotes')?.value;
+
+    try {
+      const res = await fetch('/owner-dashboard/api/permit/request-renewal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ permitNumber, requestedRenewalDate, notes })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        ownerToast(data.error || 'Failed to submit renewal request.', true);
+        return;
+      }
+      ownerToast(data.message || 'Permit renewal request submitted to BPLO successfully!');
+      closeRenewalModal();
+      loadPermit();
+      loadOverview();
+    } catch (err) {
+      console.error('Error submitting renewal request:', err);
+      ownerToast('An unexpected error occurred.', true);
+    }
+  }
+
+  // ─── Boarding House Management (Multiple Establishments & OSM Pinpoint) ───
+  let _allBoardingHouses = [];
+  let _selectedBhId = null;
+  let bhOsmMap = null;
+  let bhOsmMarker = null;
+
+  async function loadBoardingHouses() {
+    try {
+      const res = await fetch('/owner-dashboard/api/boarding-houses');
+      const { data } = await res.json();
+      _allBoardingHouses = data || [];
+
+      if (!_selectedBhId && _allBoardingHouses.length > 0) {
+        _selectedBhId = _allBoardingHouses[0].id;
+      }
+
+      populateBhDropdowns();
+      renderBoardingHouseCards();
+    } catch (err) {
+      console.error('Error loading boarding houses:', err);
+    }
+  }
+
+  function populateBhDropdowns() {
+    const roomBhSelect = document.getElementById('roomBhSelect');
+    const roomModalBhSelect = document.getElementById('roomModalBhSelect');
+
+    const options = _allBoardingHouses.map(bh => `
+      <option value="${bh.id}" ${Number(_selectedBhId) === Number(bh.id) ? 'selected' : ''}>
+        🏠 ${bh.name} ${bh.isPrimary ? '(Main)' : ''} — ${bh.barangay || bh.address || 'Bongabong'}
+      </option>
+    `).join('');
+
+    if (roomBhSelect) roomBhSelect.innerHTML = options || '<option value="">No Boarding House</option>';
+    if (roomModalBhSelect) roomModalBhSelect.innerHTML = options || '<option value="">No Boarding House</option>';
+
+    const currentBh = _allBoardingHouses.find(b => Number(b.id) === Number(_selectedBhId)) || _allBoardingHouses[0];
+    const sidebarBhName = document.getElementById('ownerBhName');
+    if (sidebarBhName && currentBh) {
+      sidebarBhName.textContent = currentBh.name;
+    }
+  }
+
+  function onRoomBhChange(bhId) {
+    _selectedBhId = Number(bhId);
+    populateBhDropdowns();
+    loadRooms();
+  }
+
+  function renderBoardingHouseCards() {
+    const grid = document.getElementById('boardingHouseListGrid');
+    if (!grid) return;
+
+    if (_allBoardingHouses.length === 0) {
+      grid.innerHTML = `<div class="col-span-2 p-6 text-center text-xs text-slate-400">No boarding house establishments found. Click "+ Add New Boarding House" to create one.</div>`;
+      return;
+    }
+
+    grid.innerHTML = _allBoardingHouses.map(bh => `
+      <div class="bg-white rounded-xl p-4 border ${Number(_selectedBhId) === Number(bh.id) ? 'border-emerald-500 ring-2 ring-emerald-500/10' : 'border-slate-200/80'} shadow-2xs space-y-3 flex flex-col justify-between">
+        <div>
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <h4 class="font-extrabold text-sm text-slate-900 flex items-center gap-1.5">
+                ${bh.name}
+                ${bh.isPrimary ? '<span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black">Main</span>' : ''}
+              </h4>
+              <p class="text-xs text-slate-500 font-medium mt-0.5 flex items-center gap-1">
+                <svg class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                ${bh.address || bh.barangay || 'Bongabong, Oriental Mindoro'}
+              </p>
+            </div>
+            <span class="text-[10px] font-bold px-2 py-1 rounded-md ${bh.latitude ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}">
+              ${bh.latitude ? '📍 Map Pinned' : '⚠️ No Map Pin'}
+            </span>
+          </div>
+          ${bh.description ? `<p class="text-xs text-slate-600 mt-2 line-clamp-2">${bh.description}</p>` : ''}
+        </div>
+
+        <div class="flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
+          <button onclick="onRoomBhChange(${bh.id}); switchTab('rooms');" class="text-emerald-700 font-bold hover:underline flex items-center gap-1">
+            <span>Manage Rooms →</span>
+          </button>
+          <div class="flex items-center gap-2">
+            <button onclick="openBoardingHouseModal(${bh.id})" class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition">
+              ✏️ Edit & Pin Point
+            </button>
+            ${!bh.isPrimary ? `<button onclick="deleteBoardingHouse(${bh.id})" class="px-2 py-1 rounded-lg bg-rose-50 text-rose-600 font-bold hover:bg-rose-100 transition">🗑️</button>` : ''}
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function openBoardingHouseModal(bhId = null) {
+    const modal = document.getElementById('boardingHouseModal');
+    const form = document.getElementById('boardingHouseForm');
+    form.reset();
+    document.getElementById('bhModalId').value = '';
+    
+    let targetBh = null;
+    if (bhId) {
+      targetBh = _allBoardingHouses.find(b => Number(b.id) === Number(bhId));
+    }
+
+    if (targetBh) {
+      document.getElementById('bhModalTitle').textContent = 'Edit Boarding House & Pin Point';
+      document.getElementById('bhModalId').value = targetBh.id;
+      document.getElementById('bhModalName').value = targetBh.name || '';
+      document.getElementById('bhModalBarangay').value = targetBh.barangay || '';
+      document.getElementById('bhModalAddress').value = targetBh.address || '';
+      document.getElementById('bhModalDescription').value = targetBh.description || '';
+      document.getElementById('bhModalLat').value = targetBh.latitude || '12.7192';
+      document.getElementById('bhModalLng').value = targetBh.longitude || '121.4719';
+    } else {
+      document.getElementById('bhModalTitle').textContent = 'Add Boarding House Establishment';
+      document.getElementById('bhModalLat').value = '12.7192';
+      document.getElementById('bhModalLng').value = '121.4719';
+    }
+
+    modal.classList.remove('hidden');
+
+    setTimeout(() => {
+      initBoardingHouseOsmMap(
+        parseFloat(document.getElementById('bhModalLat').value) || 12.7192,
+        parseFloat(document.getElementById('bhModalLng').value) || 121.4719
+      );
+    }, 150);
+  }
+
+  function closeBoardingHouseModal() {
+    document.getElementById('boardingHouseModal').classList.add('hidden');
+  }
+
+  function initBoardingHouseOsmMap(lat, lng) {
+    const container = document.getElementById('bhOsmMap');
+    if (!container) return;
+
+    if (bhOsmMap) {
+      bhOsmMap.remove();
+      bhOsmMap = null;
+    }
+
+    bhOsmMap = L.map('bhOsmMap').setView([lat, lng], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(bhOsmMap);
+
+    bhOsmMarker = L.marker([lat, lng], { draggable: true }).addTo(bhOsmMap);
+
+    const updateCoords = (newLat, newLng) => {
+      document.getElementById('bhModalLat').value = newLat.toFixed(6);
+      document.getElementById('bhModalLng').value = newLng.toFixed(6);
+    };
+
+    bhOsmMarker.on('dragend', () => {
+      const p = bhOsmMarker.getLatLng();
+      updateCoords(p.lat, p.lng);
+    });
+
+    bhOsmMap.on('click', (e) => {
+      bhOsmMarker.setLatLng(e.latlng);
+      updateCoords(e.latlng.lat, e.latlng.lng);
+    });
+  }
+
+  async function saveBoardingHouse(e) {
+    e.preventDefault();
+    const id = document.getElementById('bhModalId').value;
+    const name = document.getElementById('bhModalName').value;
+    const barangay = document.getElementById('bhModalBarangay').value;
+    const address = document.getElementById('bhModalAddress').value;
+    const description = document.getElementById('bhModalDescription').value;
+    const latitude = document.getElementById('bhModalLat').value;
+    const longitude = document.getElementById('bhModalLng').value;
+
+    const payload = {
+      name, barangay, address, description, latitude, longitude,
+      mapPin: `Coordinates: ${latitude}, ${longitude}`
+    };
+
+    try {
+      const url = id ? `/owner-dashboard/api/boarding-houses/${id}` : '/owner-dashboard/api/boarding-houses';
+      const method = id ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save boarding house');
+
+      closeBoardingHouseModal();
+      ownerToast(id ? 'Boarding house updated successfully!' : 'New boarding house added successfully!');
+      if (data.data && data.data.id) _selectedBhId = data.data.id;
+      await loadBoardingHouses();
+      await loadRooms();
+    } catch (err) {
+      ownerToast(err.message || 'Error saving boarding house.', true);
+    }
+  }
+
+  async function deleteBoardingHouse(id) {
+    if (!confirm('Are you sure you want to delete this boarding house branch?')) return;
+    try {
+      const res = await fetch(`/owner-dashboard/api/boarding-houses/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete boarding house');
+      
+      ownerToast('Boarding house deleted.');
+      _selectedBhId = null;
+      await loadBoardingHouses();
+      await loadRooms();
+    } catch (err) {
+      ownerToast(err.message || 'Error deleting boarding house.', true);
+    }
+  }
+
+  // ─── Rooms ───
+  let _allRooms = [];
+  let _activeFloor = '1st Floor';
+
+  async function loadRooms() {
+    try {
+      if (_allBoardingHouses.length === 0) {
+        await loadBoardingHouses();
+      }
+      const query = _selectedBhId ? `?boardingHouseId=${_selectedBhId}` : '';
+      const res = await fetch(`/owner-dashboard/api/rooms${query}`);
+      const { data } = await res.json();
+      _allRooms = data || [];
+      renderRoomsByFloor(_activeFloor);
+    } catch (err) {
+      console.error('Error loading rooms:', err);
+      document.getElementById('roomsTable').innerHTML = `<tr><td colspan="7" class="p-6 text-center text-rose-500 text-xs">Failed to load rooms. Please refresh.</td></tr>`;
+    }
+  }
+
+  function showFloor(floor) {
+    _activeFloor = floor;
+    // Update tab styles
+    const floorMap = { '1st Floor': '1', '2nd Floor': '2', '3rd Floor': '3' };
+    document.querySelectorAll('.floor-tab').forEach(btn => {
+      const isActive = btn.id === `floorTab-${floorMap[floor]}`;
+      btn.classList.toggle('bg-white', isActive);
+      btn.classList.toggle('text-slate-800', isActive);
+      btn.classList.toggle('shadow-sm', isActive);
+      btn.classList.toggle('text-slate-500', !isActive);
+      btn.classList.toggle('hover:text-slate-700', !isActive);
+      const badge = btn.querySelector('span');
+      if (badge) {
+        badge.classList.toggle('bg-emerald-700', isActive);
+        badge.classList.toggle('bg-slate-300', !isActive);
+      }
+    });
+    renderRoomsByFloor(floor);
+  }
+
+  function renderRoomsByFloor(floor) {
+    const tbody = document.getElementById('roomsTable');
+    const floorRooms = _allRooms.filter(r => (r.floor || '1st Floor') === floor);
+
+    // Update label badge
+    const labelEl = document.getElementById('activeFloorLabel');
+    const countEl = document.getElementById('floorRoomCount');
+    const floorEmoji = { '1st Floor': '🏠', '2nd Floor': '🏢', '3rd Floor': '🏗️' };
+    if (labelEl) labelEl.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2 20h.01"/><path d="M7 20v-4"/><path d="M12 20v-8"/><path d="M17 20V8"/><path d="M22 4v16"/></svg> ${floorEmoji[floor] || ''} ${floor}`;
+    if (countEl) countEl.textContent = `${floorRooms.length} room${floorRooms.length !== 1 ? 's' : ''} on this floor`;
+
+    if (floorRooms.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" class="p-10 text-center">
+        <div class="flex flex-col items-center gap-3">
+          <span class="text-4xl">${floorEmoji[floor] || '🏠'}</span>
+          <p class="text-sm font-bold text-slate-500">No rooms on ${floor} yet</p>
+          <p class="text-xs text-slate-400">Click "+ Add New Room" and select ${floor} to add rooms here.</p>
+        </div>
+      </td></tr>`;
+      return;
+    }
+
+    const floorBadge = {
+      '1st Floor': 'bg-emerald-100 text-emerald-700',
+      '2nd Floor': 'bg-blue-100 text-blue-700',
+      '3rd Floor': 'bg-violet-100 text-violet-700',
+    };
+
+    tbody.innerHTML = floorRooms.map(r => `
+      <tr class="border-b border-slate-100 hover:bg-slate-50/50 transition">
+        <td class="p-4 font-bold text-slate-800">${r.roomNumber}</td>
+        <td class="p-4"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${floorBadge[r.floor] || 'bg-slate-100 text-slate-600'}">${r.floor || '1st Floor'}</span></td>
+        <td class="p-4 text-xs">${r.roomType}</td>
+        <td class="p-4 font-semibold text-emerald-700">₱${Number(r.rentalPrice).toLocaleString()}</td>
+        <td class="p-4">${r.availableSlots} / ${r.capacity}</td>
+        <td class="p-4"><span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${
+          r.status === 'available' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
+        }">${r.status}</span></td>
+        <td class="p-4">
+          <div class="flex gap-2">
+            <button onclick='editRoom(${JSON.stringify(r)})' class="text-xs text-slate-700 font-semibold hover:text-emerald-700 transition flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Edit</button>
+            <button onclick="deleteRoom(${r.id})" class="text-xs text-slate-500 font-semibold hover:text-rose-600 transition flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function openRoomModal() {
+    document.getElementById('roomForm').reset();
+    document.getElementById('roomForm').elements['id'].value = '';
+    document.getElementById('roomModalTitle').innerText = 'Add New Room';
+    // Pre-select current active floor and current boarding house
+    const floorSel = document.getElementById('roomForm').elements['floor'];
+    if (floorSel) floorSel.value = _activeFloor;
+    const bhSel = document.getElementById('roomModalBhSelect');
+    if (bhSel && _selectedBhId) bhSel.value = _selectedBhId;
+    document.getElementById('roomModal').classList.remove('hidden');
+  }
+
+  function closeRoomModal() {
+    document.getElementById('roomModal').classList.add('hidden');
+  }
+
+  function editRoom(room) {
+    openRoomModal();
+    document.getElementById('roomModalTitle').innerText = 'Edit Room';
+    const form = document.getElementById('roomForm');
+    for (const key in room) {
+      if (form.elements[key]) form.elements[key].value = room[key] ?? '';
+    }
+  }
+
+  document.getElementById('roomForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('roomSaveBtn');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    try {
+      const formData = new FormData(e.target);
+      const body = Object.fromEntries(formData.entries());
+      if (!body.availableSlots) body.availableSlots = body.capacity;
+      const id = body.id;
+      const url = id ? `/owner-dashboard/api/rooms/${id}` : '/owner-dashboard/api/rooms';
+      const res = await fetch(url, {
+        method: id ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) {
+        closeRoomModal();
+        ownerToast(id ? 'Room updated successfully!' : 'New room added successfully!');
+        await loadRooms();
+        showFloor(body.floor || _activeFloor);
+      } else {
+        const err = await res.json();
+        ownerToast(err.error || 'Failed to save room.', true);
+      }
+    } catch (err) {
+      ownerToast('Network error saving room.', true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save Room';
+    }
+  });
+
+  async function deleteRoom(id) {
+    if (!confirm('Delete this room? This action cannot be undone.')) return;
+    try {
+      const res = await fetch(`/owner-dashboard/api/rooms/${id}`, { method: 'DELETE' });
+      if (res.ok) { ownerToast('Room deleted.'); loadRooms(); }
+      else ownerToast('Failed to delete room.', true);
+    } catch (err) { ownerToast('Network error.', true); }
+  }
+
+
+  async function loadTenants() {
+    try {
+      const res = await fetch('/owner-dashboard/api/tenants');
+      const { data } = await res.json();
+      const tbody = document.getElementById('tenantsTable');
+
+      if (!data || data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-10 text-center">
+          <div class="flex flex-col items-center gap-3">
+            <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <p class="text-sm font-bold text-slate-500">No registered tenants yet</p>
+            <p class="text-xs text-slate-400">Accept pending applications or register a tenant manually.</p>
+          </div>
+        </td></tr>`;
+      } else {
+        tbody.innerHTML = data.map(t => `
+          <tr class="border-b border-slate-100 hover:bg-slate-50/50 transition">
+            <td class="p-4 font-bold text-slate-800">${t.fullName}</td>
+            <td class="p-4 text-xs text-slate-500">${t.contactNumber || t.email || '—'}</td>
+            <td class="p-4">${t.roomId ? 'Room ' + t.roomId : '<span class="text-slate-400 text-xs">Unassigned</span>'}</td>
+            <td class="p-4 font-semibold text-emerald-700">₱${Number(t.monthlyRent || 0).toLocaleString()}</td>
+            <td class="p-4">
+              <span class="font-bold ${Number(t.balance) > 0 ? 'text-rose-600' : 'text-slate-700'}">₱${Number(t.balance).toLocaleString()}</span>
+            </td>
+            <td class="p-4">
+              <div class="flex gap-2">
+                <button onclick='editTenant(${JSON.stringify(t)})' class="text-xs text-slate-700 font-semibold hover:text-emerald-700 transition flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Edit</button>
+                <button onclick="deleteTenant(${t.id})" class="text-xs text-slate-500 font-semibold hover:text-rose-600 transition flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2 2v2"/></svg> Remove</button>
+              </div>
+            </td>
+          </tr>
+        `).join('');
+      }
+
+      // Populate room selects
+      const roomsRes = await fetch('/owner-dashboard/api/rooms');
+      const roomsData = await roomsRes.json();
+      const roomOptions = '<option value="">No Room Assigned</option>' + (roomsData.data || []).map(r =>
+        `<option value="${r.id}">Room ${r.roomNumber} (${r.roomType}) - ₱${Number(r.rentalPrice).toLocaleString()}</option>`
+      ).join('');
+      document.getElementById('tenantRoomSelect').innerHTML = roomOptions;
+      document.getElementById('acceptAppRoomSelect').innerHTML = roomOptions;
+    } catch (err) {
+      console.error('Error loading tenants:', err);
+    }
+
+    // Always load pending applications alongside tenants
+    loadPendingApplications();
+  }
+
+  async function loadPendingApplications() {
+    try {
+      const res = await fetch('/owner-dashboard/api/pending-applications');
+      const { data } = await res.json();
+      const card = document.getElementById('pendingAppsCard');
+      const list = document.getElementById('pendingAppsList');
+      const count = document.getElementById('pendingAppsCount');
+
+      if (!data || data.length === 0) {
+        card.classList.add('hidden');
+        return;
+      }
+
+      card.classList.remove('hidden');
+      count.textContent = data.length;
+
+      list.innerHTML = data.map(u => {
+        let actionHtml = '';
+        if (u.status === 'accepted_by_owner') {
+          actionHtml = `
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs">
+                <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                Offer Sent (Awaiting Tenant Acceptance Back)
+              </span>
+              <button onclick="declineApplication('${u.userId || u.id}', '${(u.fullName || '').replace(/'/g, "\\'")}')" class="px-2 py-1 text-slate-400 hover:text-rose-600 text-xs font-semibold" title="Cancel Offer">Cancel Offer</button>
+            </div>
+          `;
+        } else if (u.status === 'confirmed') {
+          actionHtml = `
+            <span class="px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold flex items-center gap-1.5">
+              ✅ Confirmed Active Tenant
+            </span>
+          `;
+        } else if (u.status === 'cancelled_by_tenant') {
+          actionHtml = `
+            <span class="px-2.5 py-1 bg-slate-100 text-slate-500 rounded-lg text-xs font-bold">
+              ❌ Cancelled by Tenant
+            </span>
+          `;
+        } else {
+          // pending_owner or initial
+          actionHtml = `
+            <button onclick="openAcceptAppModal('${u.userId || u.id}', '${(u.fullName || '').replace(/'/g, "\\'")}', '${u.applicationId || u.id || ''}')"
+              class="px-3 py-1.5 bg-emerald-700 text-white text-xs font-bold rounded-lg hover:bg-emerald-800 transition active:scale-95 flex items-center gap-1">
+              ✔ Accept & Send Offer
+            </button>
+            <button onclick="declineApplication('${u.userId || u.id}', '${(u.fullName || '').replace(/'/g, "\\'")}')"
+              class="px-3 py-1.5 border border-rose-200 text-rose-600 text-xs font-bold rounded-lg hover:bg-rose-50 transition active:scale-95">
+              ✕ Decline
+            </button>
+          `;
+        }
+
+        return `
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between bg-white rounded-xl border border-amber-100 px-4 py-3.5 gap-3 shadow-xs">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl flex-shrink-0 overflow-hidden bg-amber-200 flex items-center justify-center font-black text-amber-800 text-sm">
+              ${u.profilePicture ? `<img src="${u.profilePicture}" class="w-full h-full object-cover">` : (u.fullName ? u.fullName[0] : 'T')}
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <p class="text-sm font-bold text-slate-900">${u.fullName}</p>
+                ${u.requestedRoomType && u.requestedRoomType !== 'Any' ? `<span class="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-semibold">${u.requestedRoomType}</span>` : ''}
+              </div>
+              <p class="text-[11px] text-slate-500">${u.email || u.contactNumber || 'No contact info'} &bull; Applied ${new Date(u.createdAt).toLocaleDateString('en-PH', {month:'short', day:'numeric'})}</p>
+              ${u.message ? `<p class="text-[11px] text-slate-600 italic mt-0.5 bg-slate-50 px-2 py-1 rounded border border-slate-100">"${u.message}"</p>` : ''}
+            </div>
+          </div>
+          <div class="flex gap-2 flex-shrink-0 items-center">
+            ${actionHtml}
+          </div>
+        </div>
+        `;
+      }).join('');
+    } catch (err) {
+      console.error('Error loading pending applications:', err);
+    }
+  }
+
+  function openAcceptAppModal(userId, fullName, applicationId) {
+    document.getElementById('acceptAppUserId').value = userId;
+    document.getElementById('acceptAppApplicationId').value = applicationId || '';
+    document.getElementById('acceptAppName').textContent = `Target: ${fullName}`;
+    document.getElementById('acceptAppRent').value = '';
+    document.getElementById('acceptAppMoveIn').value = new Date().toISOString().split('T')[0];
+    document.getElementById('acceptAppModal').classList.remove('hidden');
+  }
+
+  function closeAcceptAppModal() {
+    document.getElementById('acceptAppModal').classList.add('hidden');
+  }
+
+  async function confirmAcceptApplication() {
+    const userId = document.getElementById('acceptAppUserId').value;
+    const applicationId = document.getElementById('acceptAppApplicationId').value;
+    const roomId = document.getElementById('acceptAppRoomSelect').value;
+    const monthlyRent = document.getElementById('acceptAppRent').value;
+    const moveInDate = document.getElementById('acceptAppMoveIn').value;
+
+    if (!monthlyRent || Number(monthlyRent) <= 0) {
+      ownerToast('Please enter a valid monthly rent amount.', true);
+      return;
+    }
+
+    try {
+      const res = await fetch(`/owner-dashboard/api/pending-applications/${userId}/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ applicationId: applicationId || null, roomId: roomId || null, monthlyRent, moveInDate })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        closeAcceptAppModal();
+        ownerToast('🎉 Offer sent! Waiting for tenant to accept back on their portal.');
+        loadPendingApplications();
+        loadTenants();
+        loadOverview();
+      } else {
+        ownerToast(data.error || 'Failed to accept application.', true);
+      }
+    } catch (err) {
+      ownerToast('Network error. Please try again.', true);
+    }
+  }
+
+  async function declineApplication(userId, fullName) {
+    if (!confirm(`Decline ${fullName}'s rental application? They will need to re-apply.`)) return;
+    try {
+      const res = await fetch(`/owner-dashboard/api/pending-applications/${userId}/decline`, { method: 'DELETE' });
+      if (res.ok) {
+        ownerToast(`${fullName}'s application declined.`);
+        loadPendingApplications();
+      } else ownerToast('Failed to decline application.', true);
+    } catch (err) { ownerToast('Network error.', true); }
+  }
+
+  function openTenantModal() {
+    document.getElementById('tenantForm').reset();
+    document.getElementById('tenantForm').elements['id'].value = '';
+    document.getElementById('tenantModal').classList.remove('hidden');
+  }
+
+  function closeTenantModal() {
+    document.getElementById('tenantModal').classList.add('hidden');
+  }
+
+  function editTenant(tenant) {
+    openTenantModal();
+    const form = document.getElementById('tenantForm');
+    for (const key in tenant) {
+      if (form.elements[key]) form.elements[key].value = tenant[key];
+    }
+  }
+
+  document.getElementById('tenantForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const body = Object.fromEntries(formData.entries());
+    const id = body.id;
+    const url = id ? `/owner-dashboard/api/tenants/${id}` : '/owner-dashboard/api/tenants';
+    await fetch(url, {
+      method: id ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    closeTenantModal();
+    loadTenants();
+  });
+
+  async function deleteTenant(id) {
+    if (confirm('Remove tenant from registration?')) {
+      await fetch(`/owner-dashboard/api/tenants/${id}`, { method: 'DELETE' });
+      loadTenants();
+    }
+  }
+
+  // ─── Payments ───
+  async function loadPayments() {
+    const res = await fetch('/owner-dashboard/api/payments');
+    const { data } = await res.json();
+    const tbody = document.getElementById('paymentsTable');
+    tbody.innerHTML = data.map(p => `
+      <tr class="border-b border-slate-100 hover:bg-slate-50/50">
+        <td class="p-4 font-bold text-slate-800">${p.tenantName || 'Tenant #' + p.tenantId}</td>
+        <td class="p-4">₱${p.amount}</td>
+        <td class="p-4 text-xs">${p.dueDate}</td>
+        <td class="p-4"><span class="px-2 py-1 rounded-full text-xs font-semibold ${p.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}">${p.status}</span></td>
+        <td class="p-4 text-xs">${p.paidDate || '-'}</td>
+        <td class="p-4 flex gap-2">
+          ${p.status !== 'paid' ? `<button onclick="markPaymentPaid(${p.id})" class="text-xs text-emerald-700 font-bold hover:underline">Mark Paid</button>` : ''}
+          <button onclick="deletePayment(${p.id})" class="text-xs text-rose-600 font-bold hover:underline">Delete</button>
+        </td>
+      </tr>
+    `).join('');
+
+    // Prepopulate tenant select in invoice modal
+    const tenantRes = await fetch('/owner-dashboard/api/tenants?status=active');
+    const tenantData = await tenantRes.json();
+    const select = document.getElementById('paymentTenantSelect');
+    select.innerHTML = tenantData.data.map(t => `<option value="${t.id}">${t.fullName}</option>`).join('');
+  }
+
+  function openPaymentModal() {
+    document.getElementById('paymentForm').reset();
+    document.getElementById('paymentModal').classList.remove('hidden');
+  }
+
+  function closePaymentModal() {
+    document.getElementById('paymentModal').classList.add('hidden');
+  }
+
+  document.getElementById('paymentForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const body = Object.fromEntries(formData.entries());
+    await fetch('/owner-dashboard/api/payments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    closePaymentModal();
+    loadPayments();
+  });
+
+  async function markPaymentPaid(id) {
+    if (confirm('Mark invoice as fully paid?')) {
+      await fetch(`/owner-dashboard/api/payments/${id}/pay`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ method: 'Cash' })
+      });
+      loadPayments();
+    }
+  }
+
+  async function deletePayment(id) {
+    if (confirm('Delete invoice record?')) {
+      await fetch(`/owner-dashboard/api/payments/${id}`, { method: 'DELETE' });
+      loadPayments();
+    }
+  }
+
+  // ─── Inquiries ───
+  async function loadInquiries() {
+    const res = await fetch('/owner-dashboard/api/inquiries');
+    const { data } = await res.json();
+    const list = document.getElementById('inquiriesList');
+    list.innerHTML = data.map(i => `
+      <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+        <div class="flex justify-between items-start">
+          <div>
+            <h3 class="font-bold text-slate-800">${i.clientName}</h3>
+            <p class="text-xs text-slate-500">${i.clientPhone || i.clientEmail || ''}</p>
+          </div>
+          <span class="px-2 py-1 rounded-full text-xs font-bold ${i.status === 'replied' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}">${i.status}</span>
+        </div>
+        <p class="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg">${i.message}</p>
+        ${i.reply ? `<p class="text-sm text-slate-700 border-l-2 border-emerald-700 pl-3"><strong>Reply:</strong> ${i.reply}</p>` : ''}
+        <div class="flex gap-2 justify-end">
+          <button onclick="replyInquiryModal(${i.id})" class="bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs">Reply / Set Visit</button>
+          <button onclick="archiveInquiry(${i.id})" class="border border-slate-200 px-3 py-1.5 rounded-lg text-xs">Archive</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function replyInquiryModal(id) {
+    const reply = prompt('Enter your reply message:');
+    if (reply) {
+      await fetch(`/owner-dashboard/api/inquiries/${id}/reply`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reply })
+      });
+      loadInquiries();
+    }
+  }
+
+  async function archiveInquiry(id) {
+    await fetch(`/owner-dashboard/api/inquiries/${id}/archive`, { method: 'PATCH' });
+    loadInquiries();
+  }
+
+  // ─── Messaging ───
+  async function loadMessages() {
+    const res = await fetch('/owner-dashboard/api/messages');
+    const { data } = await res.json();
+    const inbox = document.getElementById('inboxList');
+    const inboxUsers = {};
+    
+    data.forEach(m => {
+      const peer = m.senderId;
+      if (!inboxUsers[peer]) {
+        inboxUsers[peer] = m;
+      }
+    });
+
+    inbox.innerHTML = Object.entries(inboxUsers).map(([peer, m]) => `
+      <button onclick="openChat(${peer})" class="w-full text-left p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition">
+        <h4 class="font-bold text-slate-800 text-sm">User ID: ${peer}</h4>
+        <p class="text-xs text-slate-500 truncate mt-1">${m.message}</p>
+      </button>
+    `).join('');
+  }
+
+  async function openChat(peerId) {
+    document.getElementById('msgRecipientId').value = peerId;
+    const res = await fetch('/owner-dashboard/api/messages');
+    const { data } = await res.json();
+    const filtered = data.filter(m => m.senderId === peerId || m.recipientId === peerId).reverse();
+    const chat = document.getElementById('messageChat');
+    chat.innerHTML = filtered.map(m => `
+      <div class="flex ${m.senderId === peerId ? 'justify-start' : 'justify-end'}">
+        <div class="rounded-2xl px-4 py-2 text-sm max-w-xs ${m.senderId === peerId ? 'bg-slate-200 text-slate-800' : 'bg-emerald-700 text-white'}">
+          ${m.message}
+        </div>
+      </div>
+    `).join('');
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  document.getElementById('sendMessageForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const recipientId = document.getElementById('msgRecipientId').value;
+    const message = document.getElementById('msgInput').value;
+    if (!recipientId || !message.trim()) return;
+
+    await fetch('/owner-dashboard/api/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipientId, message })
+    });
+    document.getElementById('msgInput').value = '';
+    openChat(recipientId);
+  });
+
+  // ─── Notifications ───
+  async function loadNotifications() {
+    const res = await fetch('/owner-dashboard/api/notifications');
+    const { data } = await res.json();
+    const list = document.getElementById('notificationsList');
+    list.innerHTML = data.map(n => `
+      <div class="p-4 flex justify-between items-start ${n.isRead ? '' : 'bg-emerald-50/30'}">
+        <div>
+          <h4 class="font-bold text-slate-800 text-sm">${n.title}</h4>
+          <p class="text-xs text-slate-500 mt-1">${n.body}</p>
+        </div>
+        ${!n.isRead ? `<button onclick="readNotification(${n.id})" class="text-xs text-emerald-700 font-bold hover:underline">Mark read</button>` : ''}
+      </div>
+    `).join('');
+  }
+
+  async function readNotification(id) {
+    await fetch(`/owner-dashboard/api/notifications/${id}/read`, { method: 'PATCH' });
+    loadNotifications();
+  }
+
+  async function markAllNotificationsRead() {
+    await fetch('/owner-dashboard/api/notifications/read-all', { method: 'PATCH' });
+    loadNotifications();
+  }
+
+  // ─── OpenStreetMap ───
+  function initOsmMap() {
+    if (osmMap) return;
+    osmMap = L.map('ownerOsmMap').setView([12.7192, 121.4719], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(osmMap);
+    
+    // Set marker if coords already exist
+    fetch('/owner-dashboard/api/profile')
+      .then(res => res.json())
+      .then(payload => {
+        const user = payload.data;
+        const lat = parseFloat(user.boardingHouseLatitude) || 12.7192;
+        const lng = parseFloat(user.boardingHouseLongitude) || 121.4719;
+        
+        osmMarker = L.marker([lat, lng], { draggable: true }).addTo(osmMap);
+        osmMap.setView([lat, lng], 15);
+
+        osmMarker.on('dragend', async () => {
+          const latLng = osmMarker.getLatLng();
+          await fetch('/owner-dashboard/api/location', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              latitude: latLng.lat.toFixed(6),
+              longitude: latLng.lng.toFixed(6),
+              mapPin: `Coordinates: ${latLng.lat.toFixed(6)}, ${latLng.lng.toFixed(6)}`
+            })
+          });
+        });
+      });
+  }
+
+  // ─── Gallery (5 Categorized Photo Slots) ───
+  // ─── Gallery (5 Categorized Photo Slots - Matching Documents Design) ───
+  const GALLERY_CATEGORIES_CONFIG = [
+    {
+      slot: 1,
+      key: 'outdoor',
+      label: 'Outdoor Spaces',
+      sublabel: '(Cover Photo)',
+      icon: `<svg class="w-4 h-4 text-slate-800" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.08-3.08a2 2 0 0 0-2.83 0L6 21"/></svg>`
+    },
+    {
+      slot: 2,
+      key: 'living_area',
+      label: 'Living Area',
+      sublabel: '',
+      icon: `<svg class="w-4 h-4 text-slate-800" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 9v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9"/><path d="M9 22V12h6v10"/><path d="M2 10.6L12 2l10 8.6"/></svg>`
+    },
+    {
+      slot: 3,
+      key: 'bedroom',
+      label: 'Bedroom',
+      sublabel: '',
+      icon: `<svg class="w-4 h-4 text-slate-800" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/></svg>`
+    },
+    {
+      slot: 4,
+      key: 'dining',
+      label: 'Dining or kitchenette',
+      sublabel: '',
+      icon: `<svg class="w-4 h-4 text-slate-800" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 2v20"/><path d="M18 8a3 3 0 0 0 0-6"/><path d="M6 2v20"/><path d="M4 2v6a2 2 0 0 0 4 0V2"/></svg>`
+    },
+    {
+      slot: 5,
+      key: 'bathroom',
+      label: 'Bathroom',
+      sublabel: '',
+      icon: `<svg class="w-4 h-4 text-slate-800" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 6 6.5 3.5a1.5 1.5 0 0 0-2 0l-1 1a1.5 1.5 0 0 0 0 2L6 9"/><path d="M7 15h14"/><path d="M12 11v8"/></svg>`
+    }
+  ];
+
+  async function loadGallery(boardingHouseId) {
+    const grid = document.getElementById('ownerGalleryGrid');
+    if (!grid) return;
+
+    try {
+      const selector = document.getElementById('galleryBoardingHouseSelector');
+      const bhId = (boardingHouseId !== undefined && boardingHouseId !== null && boardingHouseId !== '')
+        ? boardingHouseId
+        : (selector?.value || '');
+      const url = bhId ? `/owner-dashboard/api/gallery?boardingHouseId=${bhId}` : '/owner-dashboard/api/gallery';
+
+      const res = await fetch(url);
+      const json = await res.json();
+      const slots = json.slots || [];
+      const boardingHouses = json.boardingHouses || [];
+      const activeId = json.selectedBoardingHouseId || bhId || (boardingHouses[0]?.id || '');
+
+      // Populate boarding house selector
+      if (selector) {
+        if (boardingHouses.length === 0) {
+          selector.innerHTML = `<option value="">— Walang Boarding House na nahanap. Magdagdag muna sa Boarding House Profile. —</option>`;
+        } else {
+          selector.innerHTML = boardingHouses.map(bh =>
+            `<option value="${bh.id}" ${String(bh.id) === String(activeId) ? 'selected' : ''}>🏠 ${bh.name}${bh.isPrimary ? ' ⭐ (Primary)' : ''} — ${bh.address || ''}</option>`
+          ).join('');
+        }
+        // Sync hidden input
+        const hiddenInput = document.getElementById('galleryBoardingHouseIdInput');
+        if (hiddenInput) hiddenInput.value = selector.value || '';
+
+        // Update active badge and text
+        const badgeEl = document.getElementById('galleryActiveBhBadge');
+        const badgeText = document.getElementById('galleryActiveBhBadgeText');
+        const activeHouse = boardingHouses.find(b => String(b.id) === String(selector.value)) || boardingHouses[0];
+        if (badgeEl && badgeText && activeHouse) {
+          badgeText.textContent = activeHouse.name;
+          badgeEl.classList.remove('hidden');
+        }
+      }
+
+      grid.innerHTML = GALLERY_CATEGORIES_CONFIG.map(cat => {
+        const slotData = slots.find(s => s.index === cat.slot) || {};
+        const photoUrl = slotData.imageUrl;
+        return `
+          <div class="rounded-xl border ${photoUrl ? 'border-emerald-300 bg-white' : 'border-slate-200 bg-white'} p-4 flex flex-col justify-between min-h-[175px] shadow-2xs transition">
+            <div>
+              <div class="flex items-start gap-2.5">
+                <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-slate-700 flex-shrink-0 border border-slate-200 shadow-2xs">${cat.icon}</span>
+                <div class="min-w-0">
+                  <p class="text-xs font-bold text-slate-800 leading-tight">${cat.label} ${cat.sublabel ? `<span class="text-[10px] text-emerald-700 font-semibold block sm:inline">${cat.sublabel}</span>` : ''}</p>
+                  <span class="text-[11px] font-semibold ${photoUrl ? 'text-emerald-600' : 'text-slate-400'}">
+                    ${photoUrl ? 'Uploaded ✓' : 'Not Attached ✕'}
+                  </span>
+                </div>
+              </div>
+              ${!photoUrl ? `<p class="text-xs text-slate-400 mt-6 pl-0.5">No file uploaded</p>` : ''}
+            </div>
+
+            ${photoUrl ? `
+              <div class="mt-2 space-y-2">
+                <div class="w-full h-20 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 flex items-center justify-center">
+                  <img src="${photoUrl}" alt="${cat.label}" class="w-full h-full object-cover">
+                </div>
+                <a href="${photoUrl}" target="_blank" class="block text-center text-xs font-semibold text-emerald-700 bg-white border border-emerald-300 py-1 rounded-lg hover:bg-emerald-50 transition shadow-2xs flex items-center justify-center gap-1">
+                  View Photo ↗
+                </a>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    } catch (err) {
+      console.error('Error loading gallery:', err);
+    }
+  }
+
+  function onGalleryBoardingHouseChange() {
+    const selector = document.getElementById('galleryBoardingHouseSelector');
+    const hiddenInput = document.getElementById('galleryBoardingHouseIdInput');
+    const selectedId = selector?.value || '';
+    if (hiddenInput) hiddenInput.value = selectedId;
+
+    const badgeText = document.getElementById('galleryActiveBhBadgeText');
+    if (badgeText && selector?.selectedOptions?.[0]) {
+      badgeText.textContent = selector.selectedOptions[0].text.replace(/^🏠\s*/, '').split(' — ')[0];
+    }
+
+    loadGallery(selectedId);
+  }
+
+  async function submitGalleryForm(e) {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+
+    // Ensure selected boardingHouseId is attached
+    const selector = document.getElementById('galleryBoardingHouseSelector');
+    const currentBhId = selector?.value || document.getElementById('galleryBoardingHouseIdInput')?.value || '';
+    if (currentBhId) {
+      formData.set('boardingHouseId', currentBhId);
+    } else {
+      formData.delete('boardingHouseId');
+    }
+
+    let hasFile = false;
+    for (const [key, val] of formData.entries()) {
+      if (key !== 'boardingHouseId' && val && val.size > 0) hasFile = true;
+    }
+    if (!hasFile) {
+      if (typeof Swal !== 'undefined') {
+        Swal.fire({
+          icon: 'info',
+          title: 'Walang piniling larawan',
+          text: 'Pumili ng kahit isang photo category na nais mong i-upload o palitan.',
+        });
+      } else {
+        alert('Pumili ng kahit isang photo category na nais mong i-upload o palitan.');
+      }
+      return;
+    }
+
+    if (typeof Swal !== 'undefined') {
+      Swal.fire({
+        title: 'Ina-update ang mga larawan...',
+        text: 'Sandali lamang, ina-upload ang mga larawan para sa napiling boarding house.',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+      });
+    }
+
+    try {
+      const res = await fetch('/owner-dashboard/api/gallery/five-slots', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update photos.');
+
+      if (typeof Swal !== 'undefined') {
+        Swal.fire({
+          icon: 'success',
+          title: 'Na-update na ang Gallery!',
+          text: data.message || 'Matagumpay na na-update ang mga larawan.',
+          timer: 2000,
+          showConfirmButton: false
+        });
+      }
+      e.target.reset();
+      if (currentBhId) {
+        const hiddenInput = document.getElementById('galleryBoardingHouseIdInput');
+        if (hiddenInput) hiddenInput.value = currentBhId;
+      }
+      loadGallery(currentBhId);
+    } catch (err) {
+      if (typeof Swal !== 'undefined') {
+        Swal.fire({ icon: 'error', title: 'Upload Failed', text: err.message });
+      } else {
+        alert(err.message);
+      }
+    }
+  }
+
+  // ─── Amenities ───
+  async function loadAmenities() {
+    const res = await fetch('/owner-dashboard/api/profile');
+    const { data } = await res.json();
+    let currentAmenities = [];
+    try {
+      currentAmenities = JSON.parse(data.amenities || '[]');
+    } catch(e) {}
+    
+    document.querySelectorAll('#amenitiesForm input[type="checkbox"]').forEach(cb => {
+      cb.checked = currentAmenities.includes(cb.value);
+    });
+  }
+
+  document.getElementById('amenitiesForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const checked = Array.from(document.querySelectorAll('#amenitiesForm input[type="checkbox"]:checked')).map(cb => cb.value);
+    await fetch('/owner-dashboard/api/amenities', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amenities: checked })
+    });
+    alert('Amenities saved.');
+  });
+
+  // ─── House Rules ───
+  async function loadHouseRules() {
+    const res = await fetch('/owner-dashboard/api/profile');
+    const { data } = await res.json();
+    let currentRules = {};
+    try {
+      currentRules = JSON.parse(data.houseRules || '{}');
+    } catch(e) {}
+
+    const form = document.getElementById('rulesForm');
+    for (const key in currentRules) {
+      if (form.elements[key]) form.elements[key].value = currentRules[key];
+    }
+  }
+
+  document.getElementById('rulesForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const rules = Object.fromEntries(formData.entries());
+    await fetch('/owner-dashboard/api/house-rules', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rules })
+    });
+    alert('House rules saved.');
+  });
+
+  // ─── Activity Logs ───
+  async function loadActivityLogs() {
+    const res = await fetch('/owner-dashboard/api/activity-logs');
+    const { data } = await res.json();
+    const tbody = document.getElementById('activityTable');
+    tbody.innerHTML = data.map(l => `
+      <tr class="border-b border-slate-100 text-xs">
+        <td class="p-4 font-bold text-slate-800">${l.action}</td>
+        <td class="p-4">${l.entityType || '-'}</td>
+        <td class="p-4 truncate max-w-xs">${JSON.stringify(l.details)}</td>
+        <td class="p-4">${l.ipAddress || '-'}</td>
+        <td class="p-4">${new Date(l.createdAt).toLocaleString()}</td>
+      </tr>
+    `).join('');
+  }
+
+  // ─── Reports ───
+  async function loadReport(type) {
+    const res = await fetch(`/owner-dashboard/api/reports?type=${type}`);
+    const { data } = await res.json();
+    
+    document.getElementById('reportPreviewArea').classList.remove('hidden');
+    const title = document.getElementById('reportTitle');
+    const output = document.getElementById('reportOutput');
+
+    if (type === 'payments') {
+      title.innerText = 'Rental Collections Report';
+      output.innerHTML = `
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-200">
+              <th class="p-3">Tenant ID</th><th class="p-3">Amount</th><th class="p-3">Due Date</th><th class="p-3">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.map(d => `<tr class="border-b border-slate-100"><td class="p-3">${d.tenantId}</td><td class="p-3">₱${d.amount}</td><td class="p-3">${d.dueDate}</td><td class="p-3">${d.status}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      `;
+    } else if (type === 'tenants') {
+      title.innerText = 'Tenant Roster';
+      output.innerHTML = `
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-200">
+              <th class="p-3">Tenant Name</th><th class="p-3">Contact</th><th class="p-3">Monthly Rent</th><th class="p-3">Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.map(d => `<tr class="border-b border-slate-100"><td class="p-3 font-bold">${d.fullName}</td><td class="p-3">${d.contactNumber || '-'}</td><td class="p-3">₱${d.monthlyRent}</td><td class="p-3">₱${d.balance}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      `;
+    } else if (type === 'rooms') {
+      title.innerText = 'Room Occupancy Status';
+      output.innerHTML = `
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-200">
+              <th class="p-3">Room No.</th><th class="p-3">Type</th><th class="p-3">Price</th><th class="p-3">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.map(d => `<tr class="border-b border-slate-100"><td class="p-3 font-bold">${d.roomNumber}</td><td class="p-3">${d.roomType}</td><td class="p-3">₱${d.rentalPrice}</td><td class="p-3">${d.status}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      `;
+    } else if (type === 'income') {
+      title.innerText = 'Monthly Collections Summary';
+      output.innerHTML = `
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-200">
+              <th class="p-3">Month Period</th><th class="p-3">Total Collections</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.map(d => `<tr class="border-b border-slate-100"><td class="p-3 font-bold">${d.month}</td><td class="p-3">₱${d.total.toLocaleString()}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+  }
+
+  // ─── Settings ───
+  function updateGcashPreview() {
+    const num = document.getElementById('settingsForm')?.elements['gcashNumber']?.value?.trim();
+    const name = document.getElementById('settingsForm')?.elements['gcashName']?.value?.trim();
+    const previewBox = document.getElementById('gcashPreviewBox');
+    const previewNum = document.getElementById('previewGcashNumber');
+    const previewName = document.getElementById('previewGcashName');
+    if (num || name) {
+      if (previewBox) previewBox.classList.remove('hidden');
+      if (previewNum) previewNum.textContent = num || '—';
+      if (previewName) previewName.textContent = name || '—';
+    } else {
+      if (previewBox) previewBox.classList.add('hidden');
+    }
+  }
+
+  async function loadSettings() {
+    try {
+      const res = await fetch('/owner-dashboard/api/settings');
+      const json = await res.json();
+      const data = json.data;
+      const form = document.getElementById('settingsForm');
+      if (!form || !data) return;
+      const fields = ['gcashNumber', 'gcashName'];
+      fields.forEach(key => {
+        if (form.elements[key] && data[key] != null) form.elements[key].value = data[key];
+      });
+      updateGcashPreview();
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+    } catch (err) {
+      console.error('Failed to load settings:', err);
+    }
+  }
+
+  // Live preview listeners
+  document.getElementById('settingsForm')?.elements['gcashNumber']?.addEventListener('input', updateGcashPreview);
+  document.getElementById('settingsForm')?.elements['gcashName']?.addEventListener('input', updateGcashPreview);
+
+  document.getElementById('settingsForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const body = Object.fromEntries(formData.entries());
+    const statusEl = document.getElementById('settingsSaveStatus');
+    const submitBtn = document.getElementById('saveSettingsBtn');
+    
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span>Saving...</span>';
+    }
+
+    try {
+      const res = await fetch('/owner-dashboard/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        updateGcashPreview();
+        if (statusEl) {
+          statusEl.classList.remove('hidden');
+          statusEl.textContent = '✓ GCash settings saved successfully!';
+          setTimeout(() => statusEl.classList.add('hidden'), 4000);
+        }
+      } else {
+        alert(data.error || 'Failed to save settings. Please try again.');
+      }
+    } catch (err) {
+      console.error('Save settings error:', err);
+      alert('Network error while saving settings.');
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i data-lucide="save" class="h-4 w-4"></i> Save GCash Settings';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+      }
+    }
+  });
+
+  // Run initialization
+  show('overview');
+</script>
+</body>
+</html>

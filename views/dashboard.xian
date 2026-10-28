@@ -1,0 +1,70 @@
+{{> head}}
+<body class="bg-gray-50">
+  <div class="min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
+    <header class="mx-auto max-w-6xl rounded-3xl bg-white p-6 shadow-sm">
+      <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p class="text-sm uppercase tracking-[0.24em] text-slate-500">Welcome back</p>
+          <h1 class="mt-2 text-3xl font-bold text-slate-900">{{ userName }}</h1>
+          <p class="mt-1 text-sm text-slate-600">Role: <strong>{{ roleLabel }}</strong></p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <a href="/logout" class="rounded-full border border-red-100 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700">Logout</a>
+        </div>
+      </div>
+    </header>
+
+    <section class="mx-auto mt-8 grid max-w-6xl gap-6 lg:grid-cols-[280px_1fr]">
+      <aside class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="mb-6 border-b border-slate-200 pb-4">
+          <p class="text-xs uppercase tracking-[0.24em] text-slate-500">Navigation</p>
+        </div>
+        <nav class="space-y-2">
+          {{#if navItems}}
+            {{#each navItems}}
+              <a href="{{ this.path }}" class="block rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100">{{ this.label }}</a>
+            {{/each}}
+          {{else}}
+            <p class="text-sm text-slate-500">No menu items available.</p>
+          {{/if}}
+        </nav>
+      </aside>
+
+      <main class="rounded-3xl bg-white p-6 shadow-sm">
+        <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 class="text-xl font-semibold text-slate-900">Overview</h2>
+            <p class="mt-1 text-sm text-slate-600">Your portal sections are shown based on your current account type.</p>
+          </div>
+          <span class="rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-900">{{ roleLabel }}</span>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-2">
+          <section class="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+            <h3 class="text-base font-semibold text-slate-900">Quick Links</h3>
+            <p class="mt-2 text-sm text-slate-600">Jump to the section you need most.</p>
+          </section>
+          <section class="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+            <h3 class="text-base font-semibold text-slate-900">Help & Support</h3>
+            <p class="mt-2 text-sm text-slate-600">Use the menu to reach your role-specific actions.</p>
+          </section>
+        </div>
+
+        <div class="mt-6 grid gap-4 md:grid-cols-3">
+          {{#each dashboardStats}}
+            <section class="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+              <p class="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">{{ this.label }}</p>
+              <p class="mt-3 text-3xl font-bold text-emerald-950">{{ this.value }}</p>
+              <p class="mt-2 text-sm text-slate-600">{{ this.description }}</p>
+            </section>
+          {{/each}}
+        </div>
+        <section class="mt-6 rounded-3xl border border-emerald-900/10 bg-emerald-50 p-5">
+          <h3 class="text-base font-semibold text-slate-900">Next step</h3>
+          <p class="mt-2 text-sm text-slate-700">{{ dashboardMessage }}</p>
+          <a href="/" class="mt-4 inline-flex rounded-full bg-emerald-950 px-4 py-2 text-sm font-semibold text-white no-underline transition hover:bg-emerald-800">Open DormMap</a>
+        </section>
+      </main>
+    </section>
+  </div>
+{{> footer }}

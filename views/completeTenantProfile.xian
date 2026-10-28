@@ -1,0 +1,281 @@
+{{> head}}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col justify-between">
+  <!-- Top Navigation Header -->
+  <header class="border-b border-slate-200/80 bg-white/95 px-6 py-4 backdrop-blur-md shadow-xs">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <a href="/" class="flex items-center gap-3 font-bold text-emerald-950 text-lg">
+        <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-800 to-emerald-950 text-white font-black text-lg shadow-md">D</span>
+        <div class="flex flex-col">
+          <span class="leading-none text-slate-900 font-extrabold tracking-tight">DormMap</span>
+          <span class="text-[10px] font-semibold text-emerald-700 tracking-wider uppercase mt-0.5">Tenant Registration Setup</span>
+        </div>
+      </a>
+      <a href="/logout" class="text-xs font-bold text-slate-500 hover:text-slate-800 transition">Cancel & Logout</a>
+    </div>
+  </header>
+
+  <!-- Main Profile Completion Shell -->
+  <main class="flex-1 py-10 px-4 max-w-3xl mx-auto w-full">
+    <div class="bg-white rounded-3xl border border-slate-200/80 shadow-xl overflow-hidden">
+      <!-- Header Banner -->
+      <div class="bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 p-6 sm:p-8 text-white space-y-2">
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-bold text-emerald-300 border border-emerald-500/30 uppercase tracking-wider">
+          Step 2 of 2 — Tenant Profile Details
+        </span>
+        <h1 class="text-2xl sm:text-3xl font-black text-white tracking-tight">Complete Your Tenant Profile</h1>
+        <p class="text-slate-300 text-xs sm:text-sm leading-relaxed">
+          Select your target boarding house, enter your contact details, and upload your ID so the boarding house owner can confirm your rental application.
+        </p>
+      </div>
+
+      {{#if error}}
+      <div class="m-6 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+        <svg class="icon-bw-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> {{error}}
+      </div>
+      {{/if}}
+
+      <form method="POST" action="/complete-tenant-profile" enctype="multipart/form-data" class="p-6 sm:p-8 space-y-6">
+        
+        <!-- Search & Boarding House Selection with Interactive Mini-Map -->
+        <div class="space-y-4 p-5 rounded-2xl bg-slate-50 border border-slate-200/80">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <svg class="icon-bw" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> Select Boarding House
+            </h3>
+            <span class="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full">Interactive Map & Search</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Search Boarding House</label>
+              <div class="flex gap-2">
+                <input type="text" id="bhSearchInput" placeholder="Type boarding house name..." class="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:ring-2 focus:ring-emerald-950/10 focus:outline-none">
+                <button type="button" onclick="filterBoardingHouses()" class="shrink-0 px-4 py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition active:scale-95 flex items-center gap-1.5">
+                  <svg class="icon-bw-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Search
+                </button>
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Target Boarding House <span class="text-rose-500">*</span></label>
+              <select name="selectedBoardingHouse" id="bhSelect" required onchange="highlightSelectedHouseOnMap()" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:ring-2 focus:ring-emerald-950/10 focus:outline-none">
+                <option value="">Loading boarding houses...</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Interactive Leaflet Mini-Map -->
+          <div class="space-y-1">
+            <div class="flex items-center justify-between text-[11px] text-slate-500 font-medium">
+              <span>Click a map pin to select your target boarding house:</span>
+              <span id="mapSelectionBadge" class="text-emerald-800 font-bold"></span>
+            </div>
+            <div id="tenantMiniMap" class="h-56 w-full rounded-2xl border border-slate-200 overflow-hidden shadow-inner z-0"></div>
+          </div>
+        </div>
+
+        <!-- Contact, Gender & Room Type -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Contact Phone Number <span class="text-rose-500">*</span></label>
+            <input type="text" name="contactNumber" required placeholder="09123456789" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-emerald-950/10 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Gender <span class="text-rose-500">*</span></label>
+            <select name="gender" required class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:ring-2 focus:ring-emerald-950/10 focus:outline-none">
+              <option value="">Select gender...</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="prefer_not_to_say">Prefer not to say</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Preferred Room Type <span class="text-rose-500">*</span></label>
+            <select name="requestedRoomType" id="roomTypeSelect" required class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:ring-2 focus:ring-emerald-950/10 focus:outline-none">
+              <option value="">Select boarding house first...</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- File Uploads -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Valid ID Picture (Student ID / Gov ID) <span class="text-rose-500">*</span></label>
+            <input type="file" name="validIdPicture" accept="image/*,.pdf" required class="w-full text-xs text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-950 file:text-white hover:file:bg-emerald-900">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Profile Picture (Optional)</label>
+            <input type="file" name="profilePicture" accept="image/*" class="w-full text-xs text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-200 file:text-slate-800 hover:file:bg-slate-300">
+          </div>
+        </div>
+
+        <!-- Terms Agreement -->
+        <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 text-xs text-slate-700">
+          <label class="flex items-start gap-2.5 cursor-pointer">
+            <input type="checkbox" name="acceptTerms" value="on" required class="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-900 focus:ring-emerald-800">
+            <span>I agree to the <a href="#" onclick="Swal.fire('Terms of Service', 'By registering, you agree to follow DorMap guidelines and submit accurate rental application info.', 'info'); return false;" class="font-bold underline text-emerald-900">Terms of Service</a> and <a href="#" onclick="Swal.fire('Privacy Policy', 'Your personal data is protected and used strictly for tenant verification.', 'info'); return false;" class="font-bold underline text-emerald-900">Privacy Policy</a>.</span>
+          </label>
+        </div>
+
+        <!-- Action Button -->
+        <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
+          <button type="submit" class="px-8 py-3 bg-slate-900 text-white rounded-2xl font-extrabold text-sm shadow-lg hover:bg-slate-800 transition active:scale-95 flex items-center gap-2">
+            <svg class="icon-bw-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Complete Setup & Proceed to Portal
+          </button>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <footer class="border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-400">
+    © 2026 DorMap — Municipality of Bongabong Dormitory Information System
+  </footer>
+
+  <script>
+    let miniMap = null;
+    let houseData = [];
+    let mapMarkers = {};
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initMiniMap();
+      fetchBoardingHouses();
+    });
+
+    function initMiniMap() {
+      const el = document.getElementById('tenantMiniMap');
+      if (!el) return;
+      miniMap = L.map(el, { scrollWheelZoom: false }).setView([12.7192, 121.4719], 14);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(miniMap);
+    }
+
+    async function fetchBoardingHouses() {
+      try {
+        const res = await fetch('/api/boarding-houses');
+        houseData = await res.json();
+        populateSelect(houseData);
+        renderMapMarkers(houseData);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function populateSelect(houses) {
+      const select = document.getElementById('bhSelect');
+      select.innerHTML = '<option value="">-- Choose Boarding House --</option>';
+
+      if (houses.length === 0) {
+        select.innerHTML = '<option value="">No registered boarding houses found</option>';
+        return;
+      }
+
+      houses.forEach(h => {
+        const opt = document.createElement('option');
+        opt.value = h.boardingHouseName || h.fullName;
+        opt.textContent = `${h.boardingHouseName || 'Boarding House'} (${h.barangay || 'Bongabong'})`;
+        select.appendChild(opt);
+      });
+    }
+
+    function renderMapMarkers(houses) {
+      if (!miniMap) return;
+
+      houses.forEach(h => {
+        const lat = Number(h.latitude) || 12.7192;
+        const lng = Number(h.longitude) || 121.4719;
+
+        const marker = L.marker([lat, lng]).addTo(miniMap)
+          .bindPopup(`
+            <div class="text-xs space-y-1">
+              <strong class="text-slate-900 font-bold block">${h.boardingHouseName || 'Boarding House'}</strong>
+              <p class="text-slate-600">${h.barangay || 'Bongabong'}</p>
+              <button onclick="selectHouseFromMapPin('${h.boardingHouseName || h.fullName}')" class="mt-1 px-2.5 py-1 bg-emerald-900 text-white font-bold rounded-lg text-[10px]">Select This House</button>
+            </div>
+          `);
+
+        mapMarkers[h.boardingHouseName || h.fullName] = { marker, lat, lng };
+      });
+    }
+
+    function filterBoardingHouses() {
+      const q = document.getElementById('bhSearchInput').value.toLowerCase().trim();
+      const filtered = q
+        ? houseData.filter(h =>
+            (h.boardingHouseName && h.boardingHouseName.toLowerCase().includes(q)) ||
+            (h.fullName && h.fullName.toLowerCase().includes(q)) ||
+            (h.barangay && h.barangay.toLowerCase().includes(q))
+          )
+        : houseData;
+      populateSelect(filtered);
+
+      // Also update visible map markers
+      Object.values(mapMarkers).forEach(item => {
+        if (item.marker._map) miniMap.removeLayer(item.marker);
+      });
+      filtered.forEach(h => {
+        const key = h.boardingHouseName || h.fullName;
+        if (mapMarkers[key]) mapMarkers[key].marker.addTo(miniMap);
+      });
+
+      // If exactly one result, zoom in
+      if (filtered.length === 1) {
+        const key = filtered[0].boardingHouseName || filtered[0].fullName;
+        const item = mapMarkers[key];
+        if (item) {
+          miniMap.setView([item.lat, item.lng], 16, { animate: true });
+          item.marker.openPopup();
+          document.getElementById('bhSelect').value = key;
+          document.getElementById('mapSelectionBadge').innerText = `Selected: ${key}`;
+        }
+      }
+    }
+
+    window.selectHouseFromMapPin = function(houseName) {
+      const select = document.getElementById('bhSelect');
+      select.value = houseName;
+      highlightSelectedHouseOnMap();
+    };
+
+    function updateRoomTypesDropdown(houseName) {
+      const roomSelect = document.getElementById('roomTypeSelect');
+      if (!roomSelect) return;
+
+      const house = houseData.find(h => (h.boardingHouseName || h.fullName) === houseName);
+      if (!house || !house.roomTypes || house.roomTypes.length === 0) {
+        roomSelect.innerHTML = '<option value="Standard Room">Standard Room (Default)</option>';
+        return;
+      }
+
+      let types = house.roomTypes;
+      if (typeof types === 'string') {
+        try { types = JSON.parse(types); } catch(e) { types = [types]; }
+      }
+      if (!Array.isArray(types) || types.length === 0) {
+        types = ['Standard Room'];
+      }
+
+      roomSelect.innerHTML = '<option value="">Select Room Type...</option>' + 
+        types.map(t => `<option value="${t}">${t}</option>`).join('');
+    }
+
+    function highlightSelectedHouseOnMap() {
+      const select = document.getElementById('bhSelect');
+      const val = select.value;
+      const badge = document.getElementById('mapSelectionBadge');
+
+      if (val && mapMarkers[val]) {
+        const item = mapMarkers[val];
+        miniMap.setView([item.lat, item.lng], 16, { animate: true });
+        item.marker.openPopup();
+        badge.innerText = `Selected: ${val}`;
+        updateRoomTypesDropdown(val);
+      } else {
+        badge.innerText = '';
+        const roomSelect = document.getElementById('roomTypeSelect');
+        if (roomSelect) roomSelect.innerHTML = '<option value="">Select boarding house first...</option>';
+      }
+    }
+  </script>
+</body>

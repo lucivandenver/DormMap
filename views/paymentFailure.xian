@@ -1,0 +1,26 @@
+{{> head}}
+
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex items-center justify-center p-4">
+  <div class="max-w-md w-full bg-white rounded-3xl p-8 border border-slate-200 shadow-2xl text-center space-y-6 animate-in fade-in duration-300">
+    <div class="inline-flex h-20 w-20 items-center justify-center rounded-3xl bg-rose-50 text-rose-600 text-4xl ring-8 ring-rose-50/50">
+      ✕
+    </div>
+
+    <div class="space-y-1">
+      <span class="inline-block px-3 py-1 bg-rose-50 text-rose-700 rounded-full text-[10px] font-bold uppercase tracking-wider">Transaction Cancelled</span>
+      <h1 class="text-2xl font-black text-slate-900 tracking-tight">Payment Unsuccessful</h1>
+      <p class="text-xs text-slate-500">Your GCash transaction could not be completed or was cancelled.</p>
+    </div>
+
+    <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2 text-xs text-left">
+      <div class="flex justify-between"><span class="text-slate-400 font-medium">Reference:</span><span class="font-bold text-slate-900">{{reference}}</span></div>
+      <div class="flex justify-between"><span class="text-slate-400 font-medium">Status:</span><span class="font-bold text-rose-600">FAILED / EXPIRED</span></div>
+    </div>
+
+    <div class="space-y-3 pt-2">
+      <a href="/tenant-dashboard" class="block w-full py-3 bg-emerald-950 text-white font-bold rounded-2xl text-xs hover:bg-emerald-900 transition shadow-md">
+        🔄 Try Again in Dashboard
+      </a>
+    </div>
+  </div>
+</body>

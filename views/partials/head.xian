@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }}</title>
+
+  <!-- PWA Manifest & App Icons -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#007a64">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="DormMap">
+  <link rel="shortcut icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/dormmap-sockets.js"></script>
+  <script src="/js/pwa-register.js" defer></script>
+  <script src="/js/global-language-sync.js" defer></script>
+  <style>
+    /* Suppress default Google Translate banners and tooltips globally */
+    .goog-te-banner-frame.skiptranslate,
+    .goog-te-banner-frame,
+    #goog-gt-tt,
+    .goog-te-balloon-frame {
+      display: none !important;
+    }
+    body {
+      top: 0px !important;
+    }
+    .goog-tooltip,
+    .goog-tooltip:hover {
+      display: none !important;
+    }
+    .goog-text-highlight {
+      background-color: transparent !important;
+      box-shadow: none !important;
+    }
+    #google_translate_element,
+    #google_translate_global_element,
+    .goog-te-gadget {
+      display: none !important;
+    }
+
+    :root {
+      font-family: Inter, system-ui, sans-serif;
+      font-family: Inter, system-ui, sans-serif;
+      color: #0f172a;
+      background: #f8fafc;
+    }
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      background: #f8fafc;
+    }
+    body {
+      color: #0f172a;
+      line-height: 1.6;
+    }
+    a {
+      color: #047857;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .container {
+      width: min(100%, 1100px);
+      margin: 0 auto;
+      padding: 0 16px;
+    }
+    .page-shell {
+      padding: 32px 0;
+    }
+    .card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 24px;
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+      padding: 24px;
+    }
+    .card-alt {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 24px;
+      padding: 24px;
+    }
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+    .grid-2 {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .flex {
+      display: flex;
+    }
+    .flex-col {
+      flex-direction: column;
+    }
+    .flex-row {
+      flex-direction: row;
+    }
+    .justify-between {
+      justify-content: space-between;
+    }
+    .justify-center {
+      justify-content: center;
+    }
+    .items-center {
+      align-items: center;
+    }
+    .gap-3 {
+      gap: 12px;
+    }
+    .gap-4 {
+      gap: 16px;
+    }
+    .gap-6 {
+      gap: 24px;
+    }
+    .mb-2 { margin-bottom: 8px; }
+    .mb-3 { margin-bottom: 12px; }
+    .mb-4 { margin-bottom: 16px; }
+    .mb-6 { margin-bottom: 24px; }
+    .mt-2 { margin-top: 8px; }
+    .mt-4 { margin-top: 16px; }
+    .mt-6 { margin-top: 24px; }
+    .rounded { border-radius: 12px; }
+    .rounded-full { border-radius: 9999px; }
+    .text-center { text-align: center; }
+    .text-sm { font-size: .95rem; }
+    .text-base { font-size: 1rem; }
+    .text-lg { font-size: 1.125rem; }
+    .text-xl { font-size: 1.25rem; }
+    .text-2xl { font-size: 1.5rem; }
+    .text-3xl { font-size: 1.875rem; }
+    .font-bold { font-weight: 700; }
+    .font-semibold { font-weight: 600; }
+    .bg-white { background: #ffffff; }
+    .bg-slate-50 { background: #f8fafc; }
+    .bg-gray-50 { background: #f9fafb; }
+    .bg-emerald-50 { background: #ecfdf5; }
+    .bg-red-50 { background: #fef2f2; }
+    .text-slate-900 { color: #0f172a; }
+    .text-slate-700 { color: #334155; }
+    .text-slate-600 { color: #475569; }
+    .text-slate-500 { color: #64748b; }
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 24px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+      padding: 24px;
+    }
+    .hero-title {
+      font-size: clamp(2rem, 4vw, 3.25rem);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+
+      color: #0f172a;
+    }
+    .hero-copy {
+      font-size: 1.125rem;
+      color: #475569;
+      max-width: 640px;
+    }
+    .button-primary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 9999px;
+      background: #023020;
+      color: #ffffff;
+      padding: 12px 24px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+    .button-primary:hover {
+      background: #044e34;
+      text-decoration: none;
+    }
+    .button-secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 9999px;
+      background: #ffffff;
+      color: #0f172a;
+      border: 1px solid #cbd5e1;
+      padding: 12px 24px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+    .button-secondary:hover {
+      background: #f1f5f9;
+      text-decoration: none;
+    }
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+    }
+    .metric-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 18px;
+      padding: 16px 20px;
+    }
+    .metric-value {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: #0f172a;
+
+      line-height: 1.2;
+    }
+    .metric-label {
+      font-size: 0.875rem;
+      color: #64748b;
+      margin-top: 4px;
+    }
+    .badge-status {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 9999px;
+      padding: 4px 12px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .badge-success {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    .badge-warning {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    .badge-info {
+      background: #e0f2fe;
+      color: #075985;
+    }
+    .header-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 0;
+    }
+    .header-brand {
+      font-weight: 800;
+      font-size: 1.25rem;
+      color: #0f172a;
+      text-decoration: none;
+    }
+    .dashboard-nav {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .dashboard-nav a {
+      display: block;
+      margin-bottom: 12px;
+      padding: 14px 18px;
+      border: 1px solid #e2e8f0;
+      border-radius: 18px;
+      background: #f8fafc;
+      color: #0f172a;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .dashboard-nav a:hover {
+      background: #ecfdf5;
+    }
+
+    /* FontAwesome 6 & SVG Icon System */
+    .fa-icon-bw, .fa-solid, .fa-regular, .fas, .far, [data-lucide], .icon-bw {
+      display: inline-block;
+      vertical-align: middle;
+      flex-shrink: 0 !important;
+    }
+    nav#nav button.nav, nav#nav-account button.nav, .nav-item, #adminNav .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      width: 100%;
+      padding: 0.55rem 0.85rem;
+      border: 1px solid transparent;
+      border-radius: 0.75rem;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: #334155;
+      background: transparent;
+      transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+      line-height: 1.25;
+    }
+    nav#nav button.nav i, nav#nav-account button.nav i, .nav-item i, #adminNav .nav-item i {
+      width: 1.125rem !important;
+      text-align: center;
+      font-size: 0.95rem !important;
+      flex-shrink: 0 !important;
+      color: currentColor;
+    }
+    nav#nav button.nav svg, nav#nav-account button.nav svg, .nav-item svg, #adminNav .nav-item svg {
+      width: 18px !important;
+      height: 18px !important;
+      min-width: 18px !important;
+      min-height: 18px !important;
+      max-width: 18px !important;
+      max-height: 18px !important;
+      flex-shrink: 0 !important;
+      stroke: currentColor;
+      stroke-linejoin: round;
+      fill: none;
+    }
+    .icon-bw-sm,
+    svg.icon-bw-sm {
+      width: 16px !important;
+      height: 16px !important;
+      min-width: 16px !important;
+      min-height: 16px !important;
+      max-width: 16px !important;
+      max-height: 16px !important;
+      display: inline-block !important;
+      flex-shrink: 0 !important;
+      stroke-width: 2 !important;
+    }
+    /* Mint Green Hover & Active Pill Effects (Screenshot 2 Match) */
+    nav#nav button.nav:hover, nav#nav-account button.nav:hover, .nav-item:hover, #adminNav .nav-item:hover {
+      border-color: #d1fae5;
+      background-color: #ecfdf5;
+      color: #047857;
+    }
+    nav#nav button.nav:hover svg, nav#nav-account button.nav:hover svg, .nav-item:hover svg, #adminNav .nav-item:hover svg {
+      stroke: #047857 !important;
+    }
+    nav#nav button.nav.active, nav#nav-account button.nav.active, .nav-item.active, #adminNav .nav-item.active {
+      border-color: #a7f3d0;
+      background-color: #ecfdf5 !important;
+      color: #047857 !important;
+      font-weight: 700;
+      box-shadow: 0 1px 2px 0 rgba(4, 120, 87, 0.05);
+    }
+    nav#nav button.nav.active i, nav#nav-account button.nav.active i, .nav-item.active i, #adminNav .nav-item.active i {
+      color: #047857 !important;
+    }
+    nav#nav button.nav.active svg, nav#nav-account button.nav.active svg, .nav-item.active svg, #adminNav .nav-item.active svg {
+      stroke: #047857 !important;
+    }
+  </style>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.lucide) {
+        lucide.createIcons();
+      }
+    });
+  </script>
+</head>

@@ -1,0 +1,475 @@
+{{> head}}
+<body class="bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-950 min-h-screen font-sans text-slate-800 antialiased flex flex-col justify-between">
+  <div class="py-8 sm:py-12 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto w-full">
+
+    <!-- Municipality of Bongabong Official Branding Header -->
+    <div class="flex items-center justify-between mb-8 pb-4 border-b border-white/10">
+      <a href="/" class="flex items-center gap-3 group">
+        <div class="h-12 w-12 rounded-full overflow-hidden shadow-lg border-2 border-emerald-400/30 bg-white shrink-0 transition group-hover:scale-105">
+          <img src="/images/dormmap-logo.png" alt="DormMap Logo" class="h-full w-full object-contain p-0.5">
+        </div>
+        <div>
+          <p class="text-[10px] font-extrabold uppercase tracking-[0.25em] text-emerald-400 leading-none">Municipality of Bongabong</p>
+          <p class="text-lg font-black text-white leading-tight tracking-tight">DorMap Registration Portal</p>
+        </div>
+      </a>
+      <a href="/login" class="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/15 bg-white/5 text-xs font-bold text-slate-200 hover:bg-white/10 hover:text-white transition">
+        <span>Already registered?</span>
+        <span class="text-emerald-400">Sign In →</span>
+      </a>
+    </div>
+
+    <div class="grid gap-8 lg:grid-cols-12 items-start">
+      
+      <!-- Left Column: Platform Banner & Features -->
+      <div class="lg:col-span-5 space-y-6 text-white">
+        <div class="inline-flex items-center gap-2 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-3.5 py-1.5 text-xs font-extrabold text-emerald-300 uppercase tracking-widest backdrop-blur-md">
+          <span class="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span> Official Municipal Platform
+        </div>
+        
+        <h1 class="text-3xl sm:text-4xl font-black text-white tracking-tight leading-tight">
+          Join Bongabong's Official Boarding House & Dorm Finder
+        </h1>
+        
+        <p class="text-slate-300 text-sm leading-relaxed">
+          Create your verified account to access BPLO-registered boarding house listings, manage rental properties, or monitor barangay compliance.
+        </p>
+
+        <!-- Role Badges & Feature Cards -->
+        <div class="grid gap-3 pt-2">
+          <div class="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm flex items-start gap-3">
+            <div class="h-10 w-10 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0 border border-emerald-500/30 font-bold">
+              🎓
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-white">Tenants & Students</h3>
+              <p class="text-xs text-slate-300 mt-0.5">Explore verified dormitories, search room availability, and submit rental applications directly to owners.</p>
+            </div>
+          </div>
+
+          <div class="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm flex items-start gap-3">
+            <div class="h-10 w-10 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center shrink-0 border border-amber-500/30 font-bold">
+              🏠
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-white">Boarding House Owners</h3>
+              <p class="text-xs text-slate-300 mt-0.5">Publish property details, upload photos, link business permits, and receive online tenant bookings.</p>
+            </div>
+          </div>
+
+          <div class="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm flex items-start gap-3">
+            <div class="h-10 w-10 rounded-xl bg-blue-500/20 text-blue-300 flex items-center justify-center shrink-0 border border-blue-500/30 font-bold">
+              🏛️
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-white">Barangay Officials</h3>
+              <p class="text-xs text-slate-300 mt-0.5">Oversee barangay dorm listings, track occupant counts, and manage local safety clearances.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Registration Card -->
+      <div class="lg:col-span-7 bg-white rounded-3xl border border-slate-200/80 shadow-2xl overflow-hidden">
+        
+        <!-- Header Title Banner -->
+        <div class="bg-slate-900 px-6 sm:px-8 py-5 text-white flex items-center justify-between border-b border-slate-800">
+          <div>
+            <span class="text-[10px] font-extrabold uppercase tracking-widest text-emerald-400">Step 1 of Registration</span>
+            <h2 class="text-xl font-black text-white tracking-tight">Create Account</h2>
+          </div>
+          <div class="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-black">
+            📋
+          </div>
+        </div>
+
+        <div class="p-6 sm:p-8 space-y-6">
+
+          {{#if authError}}
+          <div class="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+            <svg class="w-4 h-4 text-rose-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>{{ authError }}</span>
+          </div>
+          {{/if}}
+
+          {{#if authSuccess}}
+          <div class="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold flex items-center gap-2">
+            <svg class="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <span>{{ authSuccess }}</span>
+          </div>
+          {{/if}}
+
+          <!-- Interactive Role Selector Cards -->
+          <div>
+            <label class="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-2">
+              Select Registration Account Type <span class="text-rose-500">*</span>
+            </label>
+            <div class="grid grid-cols-3 gap-2.5 sm:gap-3" id="roleSelectorGrid">
+              
+              <!-- Tenant Card -->
+              <button type="button" class="role-btn rounded-2xl border-2 p-3 text-left transition hover:border-emerald-600 focus:outline-none flex flex-col justify-between gap-2 border-emerald-600 bg-emerald-50/70 shadow-sm" data-role="tenant">
+                <div class="flex items-center justify-between w-full">
+                  <span class="text-xl">🎓</span>
+                  <span class="role-check text-emerald-700 font-extrabold text-xs">✓</span>
+                </div>
+                <div>
+                  <p class="text-xs font-extrabold text-slate-900 leading-tight">Tenant</p>
+                  <p class="text-[10px] text-slate-500 leading-tight mt-0.5">Seeker / Student</p>
+                </div>
+              </button>
+
+              <!-- Owner Card -->
+              <button type="button" class="role-btn rounded-2xl border-2 p-3 text-left transition hover:border-emerald-600 focus:outline-none flex flex-col justify-between gap-2 border-slate-200 bg-slate-50/50" data-role="boarding_house_owner">
+                <div class="flex items-center justify-between w-full">
+                  <span class="text-xl">🏠</span>
+                  <span class="role-check hidden text-emerald-700 font-extrabold text-xs">✓</span>
+                </div>
+                <div>
+                  <p class="text-xs font-extrabold text-slate-900 leading-tight">Owner</p>
+                  <p class="text-[10px] text-slate-500 leading-tight mt-0.5">Boarding House</p>
+                </div>
+              </button>
+
+              <!-- Barangay Card -->
+              <button type="button" class="role-btn rounded-2xl border-2 p-3 text-left transition hover:border-emerald-600 focus:outline-none flex flex-col justify-between gap-2 border-slate-200 bg-slate-50/50" data-role="barangay">
+                <div class="flex items-center justify-between w-full">
+                  <span class="text-xl">🏛️</span>
+                  <span class="role-check hidden text-emerald-700 font-extrabold text-xs">✓</span>
+                </div>
+                <div>
+                  <p class="text-xs font-extrabold text-slate-900 leading-tight">Barangay</p>
+                  <p class="text-[10px] text-slate-500 leading-tight mt-0.5">Local Official</p>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Main Registration Form -->
+          <form method="POST" action="/register" enctype="multipart/form-data" id="mainRegisterForm" class="space-y-4">
+            <input type="hidden" name="accountType" id="selectedAccountTypeInput" value="{{#if authAccountType}}{{authAccountType}}{{else}}tenant{{/if}}">
+
+            <!-- Common Basic Fields -->
+            <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+              <p class="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Account Credentials</p>
+              
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label class="block">
+                  <span class="block text-xs font-bold text-slate-700 mb-1">Full Name <span class="text-rose-500">*</span></span>
+                  <input type="text" name="fullName" value="{{ authValues.fullName }}" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:ring-2 focus:ring-emerald-950/10 focus:border-emerald-700 focus:outline-none" placeholder="Juan Dela Cruz" required />
+                </label>
+
+                <label class="block">
+                  <span class="block text-xs font-bold text-slate-700 mb-1">Email Address <span class="text-rose-500">*</span></span>
+                  <input type="email" name="email" value="{{ authValues.email }}" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:ring-2 focus:ring-emerald-950/10 focus:border-emerald-700 focus:outline-none" placeholder="juan@example.com" required />
+                </label>
+
+                <label class="block">
+                  <span class="block text-xs font-bold text-slate-700 mb-1">Password <span class="text-rose-500">*</span></span>
+                  <input type="password" name="password" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:ring-2 focus:ring-emerald-950/10 focus:border-emerald-700 focus:outline-none" placeholder="••••••••" required />
+                </label>
+
+                <label class="block">
+                  <span class="block text-xs font-bold text-slate-700 mb-1">Confirm Password <span class="text-rose-500">*</span></span>
+                  <input type="password" name="confirmPassword" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:ring-2 focus:ring-emerald-950/10 focus:border-emerald-700 focus:outline-none" placeholder="••••••••" required />
+                </label>
+              </div>
+            </div>
+
+            <!-- Dynamic Section: Tenant Registration Fields -->
+            <div id="sectionTenant" class="space-y-3 p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200/80">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-extrabold text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>🎓 Tenant Profile Details</span>
+                </span>
+                <span class="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Seeker</span>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label class="block">
+                  <span class="block text-xs font-bold text-slate-700 mb-1">Contact Number</span>
+                  <input type="text" name="contactNumber" value="{{ authValues.contactNumber }}" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:ring-2 focus:ring-emerald-950/10 focus:outline-none" placeholder="09171234567" />
+                </label>
+
+                <label class="block">
+                  <span class="block text-xs font-bold text-slate-700 mb-1">Gender</span>
+                  <select name="gender" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:ring-2 focus:ring-emerald-950/10 focus:outline-none">
+                    <option value="">Select Gender...</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="prefer_not_to_say">Prefer not to say</option>
+                  </select>
+                </label>
+
+                <label class="block sm:col-span-2">
+                  <span class="block text-xs font-bold text-slate-700 mb-1">Upload Valid ID Picture <span class="text-slate-400 font-normal">(Optional)</span></span>
+                  <input type="file" name="validIdPicture" accept="image/*" class="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-800 file:text-white hover:file:bg-emerald-900 border border-slate-200 rounded-xl bg-white p-1" />
+                </label>
+              </div>
+            </div>
+
+            <!-- Dynamic Section: Barangay Official Registration Fields -->
+            <div id="sectionBarangay" class="hidden space-y-3 p-4 rounded-2xl bg-blue-50/50 border border-blue-200/80">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-extrabold text-blue-950 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>🏛️ Barangay Official Details</span>
+                </span>
+                <span class="text-[10px] font-semibold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-full">Bongabong Official</span>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label class="block sm:col-span-2">
+                  <span class="block text-xs font-bold text-slate-700 mb-1">Assigned Barangay <span class="text-rose-500">*</span></span>
+                  <select name="barangay" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:ring-2 focus:ring-emerald-950/10 focus:outline-none">
+                    <option value="">Select Barangay...</option>
+                    <option>Anilao</option>
+                    <option>Aplaya</option>
+                    <option>Bagong Bayan I</option>
+                    <option>Bagong Bayan II</option>
+                    <option>Batangan</option>
+                    <option>Bukal</option>
+                    <option>Camantigue</option>
+                    <option>Carmundo</option>
+                    <option>Cawayan</option>
+                    <option>Dayhagan</option>
+                    <option>Formon</option>
+                    <option>Hagan</option>
+                    <option>Hagupit</option>
+                    <option>Ipil</option>
+                    <option>Kaligtasan</option>
+                    <option>Labasan</option>
+                    <option>Labonan</option>
+                    <option>Libertad</option>
+                    <option>Lisap</option>
+                    <option>Luna</option>
+                    <option>Malitbog</option>
+                    <option>Mapang</option>
+                    <option>Masaguisi</option>
+                    <option>Mina de Oro</option>
+                    <option>Morente</option>
+                    <option>Ogbot</option>
+                    <option>Orconuma</option>
+                    <option>Poblacion</option>
+                    <option>Pulosahi</option>
+                    <option>Sagana</option>
+                    <option>San Isidro</option>
+                    <option>San Jose</option>
+                    <option>San Juan</option>
+                    <option>Sta. Cruz</option>
+                    <option>Sigange</option>
+                    <option>Tawas</option>
+                  </select>
+                </label>
+
+                <label class="block">
+                  <span class="block text-xs font-bold text-slate-700 mb-1">Official Position / Title</span>
+                  <input type="text" name="positionTitle" placeholder="Barangay Secretary / Official" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:ring-2 focus:ring-emerald-950/10 focus:outline-none" />
+                </label>
+
+                <label class="block">
+                  <span class="block text-xs font-bold text-slate-700 mb-1">Contact Number</span>
+                  <input type="text" name="contactNumber" placeholder="09171234567" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:ring-2 focus:ring-emerald-950/10 focus:outline-none" />
+                </label>
+              </div>
+            </div>
+
+            <!-- Dynamic Section: Boarding House Owner Registration Fields -->
+            <div id="sectionOwner" class="hidden space-y-3 p-4 rounded-2xl bg-amber-50/50 border border-amber-200/80">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-extrabold text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>🏠 Boarding House Details</span>
+                </span>
+                <span class="text-[10px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">Property Owner</span>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label class="block sm:col-span-2">
+                  <span class="block text-xs font-bold text-slate-700 mb-1">Boarding House Name</span>
+                  <input type="text" name="boardingHouseName" placeholder="e.g. Santos Dormitory" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:ring-2 focus:ring-emerald-950/10 focus:outline-none" />
+                </label>
+
+                <label class="block sm:col-span-2">
+                  <span class="block text-xs font-bold text-slate-700 mb-1">Location Address (Barangay)</span>
+                  <select name="boardingHouseAddress" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:ring-2 focus:ring-emerald-950/10 focus:outline-none">
+                    <option value="">Select Barangay...</option>
+                    <option>Anilao</option>
+                    <option>Aplaya</option>
+                    <option>Bagong Bayan I</option>
+                    <option>Bagong Bayan II</option>
+                    <option>Batangan</option>
+                    <option>Bukal</option>
+                    <option>Camantigue</option>
+                    <option>Carmundo</option>
+                    <option>Cawayan</option>
+                    <option>Dayhagan</option>
+                    <option>Formon</option>
+                    <option>Hagan</option>
+                    <option>Hagupit</option>
+                    <option>Ipil</option>
+                    <option>Kaligtasan</option>
+                    <option>Labasan</option>
+                    <option>Labonan</option>
+                    <option>Libertad</option>
+                    <option>Lisap</option>
+                    <option>Luna</option>
+                    <option>Malitbog</option>
+                    <option>Mapang</option>
+                    <option>Masaguisi</option>
+                    <option>Mina de Oro</option>
+                    <option>Morente</option>
+                    <option>Ogbot</option>
+                    <option>Orconuma</option>
+                    <option>Poblacion</option>
+                    <option>Pulosahi</option>
+                    <option>Sagana</option>
+                    <option>San Isidro</option>
+                    <option>San Jose</option>
+                    <option>San Juan</option>
+                    <option>Sta. Cruz</option>
+                    <option>Sigange</option>
+                    <option>Tawas</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <!-- Terms & Conditions Checkbox -->
+            <div class="pt-2">
+              <label class="flex items-start gap-2.5 text-xs text-slate-600 cursor-pointer">
+                <input type="checkbox" name="acceptTerms" class="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600" required />
+                <span>I agree to the <a href="/terms" class="font-bold text-emerald-800 underline">Terms of Service</a> and <a href="/privacy" class="font-bold text-emerald-800 underline">Privacy Policy</a>.</span>
+              </label>
+            </div>
+
+            <!-- Action Submit Button -->
+            <div class="pt-2">
+              <button type="submit" id="submitRegBtn" class="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-emerald-800 to-emerald-950 hover:from-emerald-700 hover:to-emerald-900 text-white font-extrabold text-sm shadow-xl shadow-emerald-950/20 hover:shadow-2xl hover:scale-[1.01] active:scale-[0.99] transition flex items-center justify-center gap-2">
+                <span>Create Account</span>
+                <svg class="w-4 h-4 text-emerald-300" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </button>
+            </div>
+          </form>
+
+          <div class="relative flex py-2 items-center">
+            <div class="flex-grow border-t border-slate-200"></div>
+            <span class="flex-shrink mx-3 text-[11px] font-bold text-slate-400 uppercase tracking-widest">or</span>
+            <div class="flex-grow border-t border-slate-200"></div>
+          </div>
+
+          <!-- Google OAuth Button -->
+          <div>
+            <a id="registerGoogleBtn" href="/auth/google?accountType={{#if authAccountType}}{{authAccountType}}{{else}}tenant{{/if}}" class="w-full py-3 px-4 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-xs transition flex items-center justify-center gap-2.5">
+              <img src="https://www.google.com/favicon.ico" alt="Google" class="h-4 w-4 shrink-0" />
+              <span>Continue with Google</span>
+            </a>
+          </div>
+
+          <p class="text-center text-xs text-slate-500 pt-2">
+            Already registered? <a href="/login" class="font-extrabold text-emerald-800 hover:underline">Sign in to your account</a>
+          </p>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const roleBtns = document.querySelectorAll('.role-btn');
+      const accountTypeInput = document.getElementById('selectedAccountTypeInput');
+      const googleBtn = document.getElementById('registerGoogleBtn');
+      const submitRegBtn = document.getElementById('submitRegBtn');
+      const sectionTenant = document.getElementById('sectionTenant');
+      const sectionBarangay = document.getElementById('sectionBarangay');
+      const sectionOwner = document.getElementById('sectionOwner');
+
+      const roleConfigs = {
+        tenant: {
+          label: 'Register as Tenant',
+          btnClass: 'border-emerald-600 bg-emerald-50/70',
+          submitText: 'Create Tenant Account',
+          showSection: sectionTenant,
+        },
+        boarding_house_owner: {
+          label: 'Register as Boarding House Owner',
+          btnClass: 'border-amber-600 bg-amber-50/70',
+          submitText: 'Create Owner Account',
+          showSection: sectionOwner,
+        },
+        barangay: {
+          label: 'Register as Barangay Official',
+          btnClass: 'border-blue-600 bg-blue-50/70',
+          submitText: 'Create Barangay Account',
+          showSection: sectionBarangay,
+        },
+      };
+
+      const selectRole = (role) => {
+        if (!roleConfigs[role]) role = 'tenant';
+        accountTypeInput.value = role;
+
+        // Update card styles
+        roleBtns.forEach(btn => {
+          const isSelected = btn.dataset.role === role;
+          const check = btn.querySelector('.role-check');
+          
+          btn.className = `role-btn rounded-2xl border-2 p-3 text-left transition focus:outline-none flex flex-col justify-between gap-2 ${isSelected ? roleConfigs[role].btnClass + ' shadow-sm' : 'border-slate-200 bg-slate-50/50'}`;
+          if (check) check.classList.toggle('hidden', !isSelected);
+        });
+
+        // Show relevant form section
+        [sectionTenant, sectionBarangay, sectionOwner].forEach(sec => sec.classList.add('hidden'));
+        if (roleConfigs[role].showSection) {
+          roleConfigs[role].showSection.classList.remove('hidden');
+        }
+
+        // Update submit button text
+        if (submitRegBtn) {
+          const span = submitRegBtn.querySelector('span');
+          if (span) span.textContent = roleConfigs[role].submitText;
+        }
+
+        // Update Google link URL
+        if (googleBtn) {
+          googleBtn.href = '/auth/google?accountType=' + encodeURIComponent(role);
+        }
+      };
+
+      roleBtns.forEach(btn => {
+        btn.addEventListener('click', () => selectRole(btn.dataset.role));
+      });
+
+      // Initial role selection
+      const initialRole = accountTypeInput.value || 'tenant';
+      selectRole(initialRole);
+    })();
+
+    {{#if googleRoleConflict}}
+    if (typeof Swal !== 'undefined') {
+      const roleMap = {
+        super_admin: 'BPLO/Admin',
+        barangay: 'Barangay Official',
+        boarding_house_owner: 'Boarding House Owner',
+        tenant: 'Tenant',
+      };
+      const existing = '{{googleRoleConflictExisting}}';
+      const existingLabel = roleMap[existing] || existing || 'another role';
+      Swal.fire({
+        icon: 'error',
+        title: 'Google Account Already Registered',
+        html: `This Gmail account is already registered as a <strong>${existingLabel}</strong>.<br><br>Multiple roles per Gmail account are not allowed. Please sign in using your existing role.`,
+        confirmButtonText: 'Go to Login',
+        confirmButtonColor: '#047857',
+        customClass: {
+          popup: 'rounded-2xl',
+          title: 'text-slate-900',
+        }
+      }).then((result) => {
+        if (result.isConfirmed) {
+          window.location.href = '/login';
+        }
+      });
+    }
+    {{/if}}
+  </script>
+
+  {{> footer }}

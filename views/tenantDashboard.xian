@@ -1,0 +1,2261 @@
+{{> head}}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<style>
+  :root {
+    --dormmap-primary: #334155;
+    --dormmap-primary-soft: #475569;
+    --dormmap-accent: #64748b;
+  }
+
+  nav#nav button.nav, nav#nav-account button.nav {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid transparent;
+    border-radius: 0.85rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #475569;
+    background: transparent;
+    transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  nav#nav button.nav:hover, nav#nav-account button.nav:hover {
+    border-color: #e2e8f0;
+    background-color: #f8fafc;
+    color: #0f172a;
+  }
+  nav#nav button.nav.active, nav#nav-account button.nav.active {
+    border-color: #cbd5e1;
+    background: #f1f5f9;
+    color: #0f172a;
+    font-weight: 600;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.02);
+  }
+
+  .stat-card {
+    border: 1px solid #e2e8f0;
+    transition: all 150ms ease;
+  }
+  .stat-card:hover {
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.03);
+  }
+
+  aside::-webkit-scrollbar, main::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  aside::-webkit-scrollbar-thumb, main::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+  }
+  aside::-webkit-scrollbar-thumb:hover, main::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+
+  .glass-card {
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid #e2e8f0;
+  }
+  .icon-bw { width: 1.125rem; height: 1.125rem; flex-shrink: 0; }
+  .icon-bw-sm { width: 1rem; height: 1rem; flex-shrink: 0; }
+  svg { max-width: 100%; }
+</style>
+
+<body class="bg-slate-50 text-slate-800 font-sans transition-colors duration-200 antialiased">
+<div class="min-h-screen flex flex-col" id="tenantApp">
+
+  <!-- Suspended Overlay -->
+  {{#if isSuspended}}
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/95 backdrop-blur-md p-4 text-white">
+    <div class="max-w-md text-center space-y-6 bg-slate-800/90 p-8 rounded-3xl border border-slate-700 shadow-2xl">
+      <div class="inline-flex h-20 w-20 items-center justify-center rounded-2xl bg-rose-500/20 text-rose-400 text-4xl animate-bounce border border-rose-500/30">
+        🚫
+      </div>
+      <h1 class="text-3xl font-black tracking-tight text-white">Account Suspended</h1>
+      <p class="text-slate-300 text-sm leading-relaxed">
+        Your tenant account has been temporarily suspended. Please reach out to your boarding house owner or administrator for resolution.
+      </p>
+      <a href="/logout" class="inline-flex items-center justify-center gap-2 w-full rounded-2xl bg-rose-600 px-6 py-3.5 font-bold text-white shadow-lg hover:bg-rose-700 transition active:scale-95">
+        <span>🚪</span> Logout Account
+      </a>
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- Header Navigation -->
+  <header class="fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur-md lg:px-6 shadow-xs">
+    <div class="flex items-center gap-3">
+      <button id="menuToggle" aria-label="Toggle Navigation Menu" class="rounded-xl p-2 text-slate-600 hover:bg-slate-100 lg:hidden focus:outline-none transition active:scale-95">
+        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <a href="/" class="flex items-center gap-2.5 font-bold text-emerald-950 text-lg group">
+        <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-800 to-emerald-950 text-white font-black text-base shadow-md group-hover:scale-105 transition-transform">D</span>
+        <div class="flex flex-col">
+          <span class="leading-none text-slate-900 font-extrabold tracking-tight">DormMap</span>
+          <span class="text-[10px] font-semibold text-emerald-700 tracking-wider uppercase mt-0.5">Tenant Portal</span>
+        </div>
+      </a>
+      <span class="hidden md:inline-block text-slate-300 mx-1">|</span>
+      <span class="hidden md:inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-900 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span>My Rental Space</span>
+      </span>
+    </div>
+
+    <!-- Header Actions -->
+    <div class="flex items-center gap-3">
+      <!-- Quick Notification Toggle -->
+      <button id="quickNotifBtn" onclick="switchTab('notifications')" title="Notifications" class="relative p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+        <span id="notifBadge" class="hidden absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full ring-2 ring-white"></span>
+      </button>
+
+      <!-- Profile Menu Dropdown -->
+      <div class="relative" id="profileDropdownContainer">
+        <button id="profileDropdownBtn" onclick="toggleProfileMenu(event)" class="flex items-center gap-3 p-1.5 rounded-2xl hover:bg-slate-100 transition border border-transparent hover:border-slate-200 focus:outline-none">
+          <img id="headerAvatar" src="{{profilePicture}}" onerror="this.src='https://ui-avatars.com/api/?name={{userName}}&background=023020&color=fff'" class="w-9 h-9 rounded-xl object-cover ring-2 ring-emerald-600/30">
+          <div class="hidden sm:flex flex-col text-left">
+            <span class="text-xs font-bold text-slate-900 leading-tight">{{userName}}</span>
+            <span class="text-[11px] text-slate-500 font-medium">Verified Tenant</span>
+          </div>
+          <svg class="w-4 h-4 text-slate-400 hidden sm:block transition-transform duration-200" id="profileArrow" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+
+        <div id="profileMenu" class="hidden absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+          <div class="px-4 py-2.5 border-b border-slate-100">
+            <p class="text-xs font-bold text-slate-900">{{userName}}</p>
+            <p class="text-[11px] text-slate-500 truncate">{{userEmail}}</p>
+          </div>
+          <button onclick="switchTab('profile'); closeProfileMenu();" class="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition">
+            <i class="fa-solid fa-user-pen text-slate-500 w-4 text-center"></i> Edit Profile
+          </button>
+          <button onclick="switchTab('settings'); closeProfileMenu();" class="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition">
+            <i class="fa-solid fa-gear text-slate-500 w-4 text-center"></i> Account Settings
+          </button>
+          <div class="border-t border-slate-100 my-1"></div>
+          <a href="/logout" class="block w-full text-left px-4 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 transition">
+            <i class="fa-solid fa-right-from-bracket text-rose-600 w-4 text-center"></i> Sign Out
+          </a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mobile Backdrop Overlay -->
+  <div id="mobileOverlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-30 hidden lg:hidden transition-opacity duration-200"></div>
+
+  <!-- Sidebar Navigation Drawer -->
+  <aside id="sidebar" class="fixed inset-y-16 left-0 z-30 w-64 -translate-x-full overflow-y-auto border-r border-slate-200/80 bg-white p-3.5 transition-transform duration-200 lg:translate-x-0 flex flex-col justify-between">
+    <div class="space-y-6">
+        <nav id="nav" class="space-y-4">
+          <!-- Group 1: OVERVIEW -->
+          <div>
+            <p class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Overview</p>
+            <div class="space-y-0.5">
+              <button onclick="switchTab('dashboard')" class="nav active" id="btn-dashboard">
+                <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+                <span>Dashboard</span>
+              </button>
+              <button onclick="switchTab('browse-dorms')" class="nav" id="btn-browse-dorms">
+                <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 15 22 22 18 22 2 15 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="15" y1="6" x2="15" y2="22"/></svg>
+                <span>Browse Boarding Houses</span>
+              </button>
+            </div>
+          </div>
+
+          <hr class="border-slate-100 my-2" />
+
+          <!-- Group 2: MY TENANCY -->
+          <div>
+            <p class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">My Tenancy</p>
+            <div class="space-y-0.5">
+              <button onclick="switchTab('my-room')" class="nav" id="btn-my-room">
+                <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                <span>My Room</span>
+              </button>
+              <button onclick="switchTab('payments')" class="nav" id="btn-payments">
+                <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                <span>Payment History</span>
+              </button>
+              <button onclick="switchTab('rental-info')" class="nav" id="btn-rental-info">
+                <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+                <span>Rental Info</span>
+              </button>
+              <button onclick="switchTab('documents')" class="nav" id="btn-documents">
+                <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></svg>
+                <span>Documents</span>
+              </button>
+            </div>
+          </div>
+
+          <hr class="border-slate-100 my-2" />
+
+          <!-- Group 3: SUPPORT & MESSAGES -->
+          <div>
+            <p class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Support & Messages</p>
+            <div class="space-y-0.5">
+              <button onclick="switchTab('maintenance')" class="nav" id="btn-maintenance">
+                <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                <span>Maintenance Requests</span>
+              </button>
+              <button onclick="switchTab('messaging')" class="nav" id="btn-messaging">
+                <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                <span>Messages</span>
+                <span id="unreadBadgeNav" class="hidden ml-auto bg-rose-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">0</span>
+              </button>
+              <button onclick="switchTab('announcements')" class="nav" id="btn-announcements">
+                <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8 a3 3 0 1 1-5.8-1.6"/></svg>
+                <span>Announcements</span>
+              </button>
+              <button onclick="switchTab('notifications')" class="nav" id="btn-notifications">
+                <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+                <span>Notifications</span>
+              </button>
+            </div>
+          </div>
+        </nav>
+      </div>
+
+      <div>
+        <p class="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Account</p>
+        <nav id="nav-account" class="space-y-1">
+          <button onclick="switchTab('profile')" class="nav" id="btn-profile">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span>Profile</span>
+          </button>
+          <button onclick="switchTab('settings')" class="nav" id="btn-settings">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+            <span>Settings</span>
+          </button>
+        </nav>
+      </div>
+
+      <!-- Footer Info -->
+      <div class="pt-4 border-t border-slate-100">
+        <div class="flex items-center gap-3">
+          <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
+          <span class="text-xs text-slate-500 font-medium">Tenant Portal Connected</span>
+        </div>
+      </div>
+  </aside>
+
+  <!-- Main Content View Area -->
+  <main class="lg:pl-64 pt-16 min-h-screen transition-all duration-200">
+    <div class="w-full max-w-[1560px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 py-6 space-y-6">
+      
+      <!-- Breadcrumb Bar -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white px-5 py-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div class="flex items-center gap-2 text-xs font-semibold text-slate-500">
+          <span class="hover:text-emerald-800 transition">Tenant Portal</span>
+          <span>/</span>
+          <span id="breadcrumbCurrent" class="text-emerald-950 font-bold capitalize">Dashboard</span>
+        </div>
+        <div class="text-xs text-slate-500 font-medium flex items-center gap-1.5" id="currentDateDisplay"></div>
+      </div>
+
+      <!-- TAB 1: DASHBOARD OVERVIEW -->
+      <div id="tab-dashboard" class="tab-content space-y-6">
+        <!-- Overview Banner -->
+        <div class="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 p-6 md:p-8 text-white shadow-lg">
+          <div class="relative z-10 max-w-2xl space-y-3">
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-3.5 py-1 text-xs font-bold text-emerald-300 border border-emerald-500/30 backdrop-blur-md">
+              👋 Welcome back, {{userName}}
+            </span>
+            <h1 class="text-xl md:text-2xl font-black tracking-tight text-white">Your Rental Space Overview</h1>
+            <p class="text-slate-300 text-xs sm:text-sm leading-relaxed">
+              Track your room status, monthly payments, outstanding balance, maintenance concerns, and landlord announcements in real-time.
+            </p>
+          </div>
+        </div>
+
+        <!-- Applications & Pending Status Hub -->
+        <div id="pendingNoticeBanner" class="hidden p-6 rounded-3xl bg-gradient-to-br from-amber-50/90 to-amber-100/50 border border-amber-300/80 text-amber-950 shadow-sm animate-in fade-in duration-200 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-amber-200/80">
+            <div class="flex items-start gap-3.5">
+              <div class="p-2.5 bg-amber-500/20 rounded-2xl text-amber-800 flex items-center justify-center shrink-0 border border-amber-300">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h4 class="font-black text-sm text-amber-950">Boarding House Inquiries & Application Status</h4>
+                  <span id="pendingApplicationsCountBadge" class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">0 Pending</span>
+                </div>
+                <p class="text-xs text-amber-900/90 leading-relaxed mt-0.5">
+                  Maaari kang mag-browse at mag-inquire sa iba't ibang boarding houses. Kapag in-accept ka ng may-ari, <strong>i-click ang "Accept Back"</strong> para pormal na maging tenant ka at ma-unlock ang iyong buong features!
+                </p>
+              </div>
+            </div>
+            <button onclick="switchTab('browse-dorms')" class="px-4 py-2.5 bg-emerald-900 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm shrink-0 active:scale-95">
+              <svg class="w-4 h-4 text-emerald-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 15 22 22 18 22 2 15 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="15" y1="6" x2="15" y2="22"/></svg>
+              <span>📍 Browse More Boarding Houses & Map</span>
+            </button>
+          </div>
+
+          <!-- Pending Applications List Items -->
+          <div class="space-y-2">
+            <h5 class="text-xs font-bold uppercase tracking-wider text-amber-900/80">My Submitted Applications & Offers:</h5>
+            <div id="pendingApplicationsList" class="space-y-3">
+              <p class="text-xs text-amber-800/80 italic p-3 bg-white/60 rounded-xl">Loading your applications and inquiries...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Metric Stat Cards (Symmetrical & Adaptive Grid) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5">
+          <!-- Card 1: Current Room -->
+          <div class="stat-card bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between gap-3.5 hover:border-slate-300 transition min-h-[100px]">
+            <div class="flex items-center gap-3.5 min-w-0 flex-1">
+              <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-800 shrink-0 border border-emerald-100">
+                <svg class="w-5 h-5 text-emerald-800" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <p id="card-room" class="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-tight truncate">Loading...</p>
+                <p class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mt-1">Current Room</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 2: Monthly Rent -->
+          <div class="stat-card bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between gap-3.5 hover:border-slate-300 transition min-h-[100px]">
+            <div class="flex items-center gap-3.5 min-w-0 flex-1">
+              <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-800 shrink-0 border border-emerald-100">
+                <svg class="w-5 h-5 text-emerald-800" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <p id="card-rent" class="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-tight truncate">₱0.00</p>
+                <p class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mt-1">Monthly Rent</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 3: Payment Status -->
+          <div class="stat-card bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between gap-3.5 hover:border-slate-300 transition min-h-[100px]">
+            <div class="flex items-center gap-3.5 min-w-0 flex-1">
+              <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-800 shrink-0 border border-emerald-100">
+                <svg class="w-5 h-5 text-emerald-800" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <p id="card-due" class="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-tight truncate">N/A</p>
+                <p class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mt-1">Payment Status</p>
+              </div>
+            </div>
+            <span id="card-status-badge" class="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 shrink-0 self-center">Pending</span>
+          </div>
+
+          <!-- Card 4: Outstanding Balance -->
+          <div class="stat-card bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between gap-3.5 hover:border-slate-300 transition min-h-[100px]">
+            <div class="flex items-center gap-3.5 min-w-0 flex-1">
+              <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-800 shrink-0 border border-emerald-100">
+                <svg class="w-5 h-5 text-emerald-800" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <p id="card-balance" class="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-tight truncate">₱0.00</p>
+                <p class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mt-1">Outstanding Balance</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Row (Equal Heights & Responsive Layout) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
+          <!-- Chart 1: Payment History -->
+          <div class="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col justify-between min-h-[380px]">
+            <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+              <div>
+                <h3 class="text-base font-bold text-slate-900">Payment History & Trends</h3>
+                <p class="text-xs text-slate-500 mt-0.5">Monthly payment status over time</p>
+              </div>
+              <span class="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100 shrink-0">Last 6 Months</span>
+            </div>
+            <div class="relative h-64 sm:h-72 w-full flex-1">
+              <canvas id="chartPaymentHistory"></canvas>
+            </div>
+          </div>
+
+          <!-- Chart 2: Monthly Expenses -->
+          <div class="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col justify-between min-h-[380px]">
+            <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+              <div>
+                <h3 class="text-base font-bold text-slate-900">Monthly Expense Breakdown</h3>
+                <p class="text-xs text-slate-500 mt-0.5">Overview of rental charges & fees</p>
+              </div>
+              <span class="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100 shrink-0">Expenses</span>
+            </div>
+            <div class="relative h-64 sm:h-72 w-full flex-1 flex items-center justify-center p-2">
+              <canvas id="chartMonthlyExpenses" style="max-height: 240px; max-width: 240px;"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Activity Sections (Balanced Heights) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
+          <!-- Owner Announcements Card -->
+          <div class="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col justify-between min-h-[210px]">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 class="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+                <span class="text-base">📢</span> Boarding House Announcements
+              </h3>
+              <button onclick="switchTab('announcements')" class="text-xs font-bold text-emerald-700 hover:text-emerald-900 hover:underline">View All →</button>
+            </div>
+            <div id="dash-announcements-list" class="flex-1 flex flex-col justify-center items-center py-4 text-center">
+              <p class="text-xs text-slate-400 font-medium">No recent announcements from your boarding house.</p>
+            </div>
+          </div>
+
+          <!-- Maintenance Notices Card -->
+          <div class="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col justify-between min-h-[210px]">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 class="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+                <span class="text-base">🔧</span> Active Maintenance Requests
+              </h3>
+              <button onclick="switchTab('maintenance')" class="text-xs font-bold text-emerald-700 hover:text-emerald-900 hover:underline">View All →</button>
+            </div>
+            <div id="dash-maintenance-list" class="flex-1 flex flex-col justify-center items-center py-4 text-center">
+              <p class="text-xs text-slate-400 font-medium">No active maintenance requests submitted.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: MY ROOM -->
+      <div id="tab-my-room" class="tab-content hidden space-y-6">
+        <div class="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+          <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-100 pb-6">
+            <div>
+              <h2 id="room-title" class="text-xl font-bold text-slate-900">Room Details</h2>
+              <p class="text-xs text-slate-500">Complete room setup, occupancy, rules, and amenities</p>
+            </div>
+            <span id="room-status-badge" class="px-3.5 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">Occupied</span>
+          </div>
+
+          <!-- Room Information Grid -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Room Image / Specs -->
+            <div class="space-y-4">
+              <img id="room-photo" src="" onerror="this.src='https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=800&q=80'" class="w-full h-56 object-cover rounded-2xl border border-slate-200 shadow-xs">
+              <div class="grid grid-cols-2 gap-3 text-xs">
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span class="text-slate-400 block font-medium">Room Type</span>
+                  <span id="room-type-text" class="font-bold text-slate-800 text-sm">—</span>
+                </div>
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span class="text-slate-400 block font-medium">Capacity</span>
+                  <span id="room-capacity-text" class="font-bold text-slate-800 text-sm">—</span>
+                </div>
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span class="text-slate-400 block font-medium">Monthly Rent</span>
+                  <span id="room-price-text" class="font-bold text-emerald-700 text-sm">₱0.00</span>
+                </div>
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span class="text-slate-400 block font-medium">Move-in Date</span>
+                  <span id="room-movein-text" class="font-bold text-slate-800 text-sm">—</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Boarding House & Amenities -->
+            <div class="space-y-4">
+              <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
+                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Boarding House Info</h4>
+                <p id="bh-name-text" class="font-black text-slate-900 text-base">Loading...</p>
+                <p id="bh-address-text" class="text-xs text-slate-600 leading-relaxed">—</p>
+                <div class="flex items-center gap-2 pt-2 text-xs font-semibold text-emerald-800 border-t border-slate-200/60">
+                  <span class="inline-flex items-center gap-1"><svg class="w-3.5 h-3.5 text-emerald-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Landlord Contact:</span>
+                  <span id="bh-owner-contact">—</span>
+                </div>
+              </div>
+
+              <div>
+                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Amenities Included</h4>
+                <div id="room-amenities-tags" class="flex flex-wrap gap-2">
+                  <span class="px-3 py-1 bg-emerald-50 text-emerald-700 text-xs rounded-xl font-semibold border border-emerald-100">Wi-Fi</span>
+                  <span class="px-3 py-1 bg-emerald-50 text-emerald-700 text-xs rounded-xl font-semibold border border-emerald-100">Water Filter</span>
+                </div>
+              </div>
+
+              <div>
+                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">House Rules</h4>
+                <p id="room-house-rules" class="text-xs text-slate-700 bg-amber-50/60 p-3.5 rounded-xl border border-amber-100 leading-relaxed">
+                  No loud noise after 10 PM. Maintain cleanliness in common areas.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: PAYMENT HISTORY -->
+      <div id="tab-payments" class="tab-content hidden space-y-6">
+        <div class="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-xl font-bold text-slate-900">Payment History & Receipts</h2>
+              <p class="text-xs text-slate-500">Track your rent payments, outstanding balances, and official receipts</p>
+            </div>
+            <div class="flex items-center gap-3">
+              <select id="paymentStatusFilter" onchange="loadPaymentHistory()" class="text-xs font-semibold border border-slate-200 rounded-xl px-3.5 py-2 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-600/20">
+                <option value="all">All Payments</option>
+                <option value="paid">Paid Only</option>
+                <option value="pending">Pending / Due</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Payments Table -->
+          <div class="overflow-x-auto rounded-2xl border border-slate-100">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr class="bg-slate-50 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-100">
+                  <th class="p-3.5">Month / Period</th>
+                  <th class="p-3.5">Amount</th>
+                  <th class="p-3.5">Due Date</th>
+                  <th class="p-3.5">Paid Date</th>
+                  <th class="p-3.5">Penalty</th>
+                  <th class="p-3.5">Status</th>
+                  <th class="p-3.5 text-right">Receipt</th>
+                </tr>
+              </thead>
+              <tbody id="paymentsTableBody" class="divide-y divide-slate-100 text-slate-700 font-medium">
+                <tr>
+                  <td colspan="7" class="p-6 text-center text-slate-400">Loading payment history...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 4: RENTAL INFORMATION -->
+      <div id="tab-rental-info" class="tab-content hidden space-y-6">
+        <div class="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+          <div>
+            <h2 class="text-xl font-bold text-slate-900">Contract & Boarding House Information</h2>
+            <p class="text-xs text-slate-500">Review your lease agreement terms, emergency contacts, and property guidelines</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="p-5 bg-slate-50 rounded-2xl border border-slate-100 space-y-4">
+              <h3 class="font-bold text-slate-900 text-sm border-b border-slate-200 pb-2">📋 Lease Contract Details</h3>
+              <div class="space-y-2 text-xs">
+                <div class="flex justify-between"><span class="text-slate-500">Contract Start:</span><span id="rental-start" class="font-semibold text-slate-800">—</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Contract End:</span><span id="rental-end" class="font-semibold text-slate-800">—</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Monthly Rent:</span><span id="rental-amount" class="font-semibold text-emerald-700">₱0.00</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Occupancy Status:</span><span class="font-bold text-emerald-700">Active Tenant</span></div>
+              </div>
+            </div>
+
+            <div class="p-5 bg-slate-50 rounded-2xl border border-slate-100 space-y-4">
+              <h3 class="font-bold text-slate-900 text-sm border-b border-slate-200 pb-2">🚨 Emergency Contacts</h3>
+              <div class="space-y-2 text-xs">
+                <div class="flex justify-between"><span class="text-slate-500">Emergency Contact Person:</span><span id="emergency-name" class="font-semibold text-slate-800">—</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Emergency Phone:</span><span id="emergency-phone" class="font-semibold text-slate-800">—</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Landlord Phone:</span><span id="landlord-phone" class="font-semibold text-emerald-800">—</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 5: MAINTENANCE REQUESTS -->
+      <div id="tab-maintenance" class="tab-content hidden space-y-6">
+        <div class="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-xl font-bold text-slate-900">Maintenance & Repair Requests</h2>
+              <p class="text-xs text-slate-500">Submit repair issues to your boarding house owner and track completion</p>
+            </div>
+            <button onclick="openMaintenanceModal()" class="px-4 py-2.5 bg-emerald-900 text-white rounded-xl text-xs font-bold hover:bg-emerald-800 transition flex items-center gap-1.5 shadow-sm active:scale-95">
+              <span>➕</span> New Request
+            </button>
+          </div>
+
+          <!-- Maintenance Requests List -->
+          <div id="maintenanceListContainer" class="space-y-4">
+            <p class="text-xs text-slate-400 italic">Loading maintenance requests...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: BROWSE BOARDING HOUSES & LOCATION MAP -->
+      <div id="tab-browse-dorms" class="tab-content hidden space-y-6">
+        <div class="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="text-xl font-black text-slate-900">Explore & Browse Boarding Houses</h2>
+                <span class="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">Interactive Map</span>
+              </div>
+              <p class="text-xs text-slate-500 mt-0.5">Browse ideal boarding houses, view map location pins, and inquire or apply to multiple landlords</p>
+            </div>
+            <button onclick="loadBrowseBoardingHouses()" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 self-start sm:self-auto active:scale-95">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              Refresh Dorms
+            </button>
+          </div>
+
+          <!-- Filters Bar -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/60">
+            <div class="relative sm:col-span-2">
+              <input type="text" id="browseSearchInput" oninput="filterBrowseListings()" placeholder="Search boarding house name, owner, or landmark..." class="w-full pl-9 pr-4 py-2.5 bg-white rounded-xl text-xs border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-600/20">
+              <svg class="w-4 h-4 text-slate-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            </div>
+            <div>
+              <select id="browseBarangayFilter" onchange="filterBrowseListings()" class="w-full px-3 py-2.5 bg-white rounded-xl text-xs font-semibold border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-600/20">
+                <option value="all">All Barangays</option>
+                <option value="Anilao">Anilao</option><option value="Aplaya">Aplaya</option>
+                <option value="Bagong Bayan I">Bagong Bayan I</option><option value="Bagong Bayan II">Bagong Bayan II</option>
+                <option value="Batangan">Batangan</option><option value="Bukal">Bukal</option>
+                <option value="Camantigue">Camantigue</option><option value="Carmundo">Carmundo</option>
+                <option value="Cawayan">Cawayan</option><option value="Dayhagan">Dayhagan</option>
+                <option value="Formon">Formon</option><option value="Hagan">Hagan</option>
+                <option value="Hagupit">Hagupit</option><option value="Ipil">Ipil</option>
+                <option value="Kaligtasan">Kaligtasan</option><option value="Labasan">Labasan</option>
+                <option value="Labonan">Labonan</option><option value="Libertad">Libertad</option>
+                <option value="Lisap">Lisap</option><option value="Luna">Luna</option>
+                <option value="Malitbog">Malitbog</option><option value="Mapang">Mapang</option>
+                <option value="Masaguisi">Masaguisi</option><option value="Mina de Oro">Mina de Oro</option>
+                <option value="Morente">Morente</option><option value="Ogbot">Ogbot</option>
+                <option value="Orconuma">Orconuma</option><option value="Poblacion">Poblacion</option>
+                <option value="Pulosahi">Pulosahi</option><option value="Sagana">Sagana</option>
+                <option value="San Isidro">San Isidro</option><option value="San Jose">San Jose</option>
+                <option value="San Juan">San Juan</option><option value="Sta. Cruz">Sta. Cruz</option>
+                <option value="Sigange">Sigange</option><option value="Tawas">Tawas</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Leaflet Map Container -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between text-xs text-slate-500 font-semibold px-1">
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span> OpenStreetMap Pin Locator (Click a marker to view details & inquire)</span>
+              <span id="browseMapCount" class="font-bold text-slate-700">0 Boarding Houses Pinpointed</span>
+            </div>
+            <div id="tenantBrowseMap" class="h-80 w-full rounded-2xl border border-slate-200/90 shadow-inner z-0"></div>
+          </div>
+
+          <!-- Boarding House Cards Grid -->
+          <div class="space-y-3">
+            <h3 class="text-sm font-black text-slate-900">Registered Boarding Houses</h3>
+            <div id="browseDormsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              <p class="text-xs text-slate-400 italic col-span-full py-8 text-center">Loading boarding houses...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 6: MESSAGING (Messenger-Style Multi-Conversation) -->
+      <div id="tab-messaging" class="tab-content hidden space-y-6">
+        <div class="bg-white rounded-3xl border border-slate-200/80 shadow-xs h-[640px] flex overflow-hidden">
+          
+          <!-- Left Column: Conversations List (Messenger-Style) -->
+          <div class="w-full sm:w-80 md:w-96 border-r border-slate-200/80 flex flex-col bg-slate-50/50" id="chatLeftPane">
+            <!-- Search bar -->
+            <div class="p-3.5 border-b border-slate-200/80 bg-white space-y-2.5">
+              <div class="flex items-center justify-between">
+                <h3 class="font-black text-slate-900 text-sm">Chats</h3>
+                <span id="convoCountBadge" class="text-[10px] font-bold px-2.5 py-0.5 bg-emerald-50 text-emerald-800 rounded-full border border-emerald-200">0 Landlords</span>
+              </div>
+              <div class="relative">
+                <input type="text" id="convoSearchInput" oninput="filterConversations(this.value)" placeholder="Search landlord or boarding house..." class="w-full pl-8 pr-3 py-2 bg-slate-100 rounded-xl text-xs border border-transparent focus:bg-white focus:border-emerald-600 focus:outline-none transition">
+                <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              </div>
+            </div>
+
+            <!-- Conversation List Items -->
+            <div id="conversationList" class="flex-1 overflow-y-auto divide-y divide-slate-100">
+              <p class="text-center text-slate-400 text-xs py-8">Loading conversations...</p>
+            </div>
+          </div>
+
+          <!-- Right Column: Active Conversation Chat Pane -->
+          <div class="hidden sm:flex flex-1 flex-col h-full bg-white" id="chatRightPane">
+            <!-- Active Landlord Header -->
+            <div class="p-3.5 border-b border-slate-200/80 bg-slate-50/80 flex items-center justify-between">
+              <div class="flex items-center gap-3 min-w-0">
+                <button onclick="backToConversationList()" class="sm:hidden p-1.5 text-slate-500 hover:text-slate-700">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                </button>
+                <div class="relative">
+                  <img id="chatOwnerAvatar" src="" onerror="this.src='https://ui-avatars.com/api/?name=Owner&background=023020&color=fff'" class="w-10 h-10 rounded-full object-cover ring-2 ring-emerald-600/30">
+                  <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-white"></span>
+                </div>
+                <div class="min-w-0">
+                  <h3 id="chatOwnerName" class="font-bold text-slate-900 text-sm truncate">Select a Landlord</h3>
+                  <p id="chatOwnerBH" class="text-[11px] text-emerald-800 font-semibold truncate">Direct Landlord Messaging</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2" id="chatHeaderActions">
+                <span id="chatAppStatusBadge" class="hidden text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200">Pending</span>
+                <a id="chatCallBtn" href="#" class="hidden p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition" title="Call Landlord">
+                  <svg class="w-4 h-4 text-emerald-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                </a>
+              </div>
+            </div>
+
+            <!-- Chat Message Bubbles -->
+            <div id="chatMessagesBox" class="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50/40 text-xs">
+              <p class="text-center text-slate-400 py-12">Select a landlord on the left to start messaging.</p>
+            </div>
+
+            <!-- Chat Input Bar -->
+            <form id="chatForm" onsubmit="handleSendMessage(event)" class="p-3 bg-white border-t border-slate-200/80 flex items-center gap-2">
+              <input type="hidden" id="chatActiveOwnerId">
+              <input type="text" id="chatInput" placeholder="Type your message to the landlord..." class="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-600/20">
+              <button type="submit" class="px-5 py-2.5 bg-emerald-950 text-white rounded-xl text-xs font-bold hover:bg-emerald-900 transition active:scale-95 flex items-center gap-1.5 shadow-sm">
+                <span>Send</span>
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+              </button>
+            </form>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- TAB 7: ANNOUNCEMENTS -->
+      <div id="tab-announcements" class="tab-content hidden space-y-6">
+        <div class="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+          <div>
+            <h2 class="text-xl font-bold text-slate-900">Broadcast Announcements</h2>
+            <p class="text-xs text-slate-500">Official updates from BPLO, Barangay, and Boarding House Owners</p>
+          </div>
+          <div id="announcementsContainer" class="space-y-4">
+            <p class="text-xs text-slate-400 italic">Loading announcements...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 8: DOCUMENTS -->
+      <div id="tab-documents" class="tab-content hidden space-y-6">
+        <div class="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-xl font-bold text-slate-900">My Rental Documents</h2>
+              <p class="text-xs text-slate-500">View receipts, contracts, and uploaded identification forms</p>
+            </div>
+            <button onclick="openDocumentModal()" class="px-4 py-2.5 bg-emerald-900 text-white rounded-xl text-xs font-bold hover:bg-emerald-800 transition flex items-center gap-1.5 shadow-sm active:scale-95">
+              <span>📤</span> Upload Document
+            </button>
+          </div>
+          <div id="documentsContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <p class="text-xs text-slate-400 italic col-span-full">Loading documents...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 9: NOTIFICATIONS -->
+      <div id="tab-notifications" class="tab-content hidden space-y-6">
+        <div class="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+          <div>
+            <h2 class="text-xl font-bold text-slate-900">Notification Center</h2>
+            <p class="text-xs text-slate-500">Rent reminders, payment updates, and maintenance notifications</p>
+          </div>
+          <div id="notificationsContainer" class="space-y-3">
+            <p class="text-xs text-slate-400 italic">Loading notifications...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 10: PROFILE (Responsive 2-Column Layout) -->
+      <div id="tab-profile" class="tab-content hidden space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Profile Left Card: Summary & Avatar -->
+          <div class="lg:col-span-1 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-5 flex flex-col items-center text-center">
+            <div class="relative">
+              <img id="profOverviewAvatar" src="{{profilePicture}}" onerror="this.src='https://ui-avatars.com/api/?name={{userName}}&background=023020&color=fff'" class="w-24 h-24 rounded-3xl object-cover ring-4 ring-emerald-600/20 shadow-md">
+              <label for="profPhoto" class="absolute -bottom-1 -right-1 bg-emerald-800 text-white p-2 rounded-2xl shadow hover:bg-emerald-900 cursor-pointer transition" title="Change Photo">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              </label>
+            </div>
+
+            <div class="space-y-1">
+              <h3 class="text-lg font-black text-slate-900">{{userName}}</h3>
+              <p class="text-xs text-slate-500 font-medium">{{userEmail}}</p>
+              <div class="pt-2 flex justify-center">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  <span class="w-2 h-2 rounded-full bg-emerald-600"></span> Verified Tenant
+                </span>
+              </div>
+            </div>
+
+            <div class="w-full border-t border-slate-100 pt-4 space-y-2.5 text-left text-xs">
+              <div class="flex items-center justify-between text-slate-600">
+                <span class="font-medium">Account Type:</span>
+                <span class="font-bold text-slate-900">Tenant / Boarder</span>
+              </div>
+              <div class="flex items-center justify-between text-slate-600">
+                <span class="font-medium">Portal Status:</span>
+                <span class="font-bold text-emerald-700">Active</span>
+              </div>
+              <div class="flex items-center justify-between text-slate-600">
+                <span class="font-medium">Platform:</span>
+                <span class="font-bold text-slate-900">DormMap Official</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Profile Right Card: Form -->
+          <div class="lg:col-span-2 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+            <div class="border-b border-slate-100 pb-4">
+              <h2 class="text-xl font-bold text-slate-900">Personal Information</h2>
+              <p class="text-xs text-slate-500 mt-1">Manage your official tenant profile details and contact number</p>
+            </div>
+
+            <form id="profileForm" onsubmit="handleProfileUpdate(event)" class="space-y-4 text-xs">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block font-bold text-slate-700 mb-1.5">Full Name</label>
+                  <input type="text" id="profFullName" placeholder="Juan Dela Cruz" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600/20 font-medium text-slate-800">
+                </div>
+                <div>
+                  <label class="block font-bold text-slate-700 mb-1.5">Contact Phone Number</label>
+                  <input type="text" id="profContact" placeholder="09123456789" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600/20 font-medium text-slate-800">
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block font-bold text-slate-700 mb-1.5">Gender</label>
+                  <select id="profGender" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600/20 font-medium text-slate-800">
+                    <option value="">Select Gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block font-bold text-slate-700 mb-1.5">Update Profile Photo</label>
+                  <input type="file" id="profPhoto" accept="image/*" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50/50 text-xs">
+                </div>
+              </div>
+
+              <div class="pt-4 border-t border-slate-100 flex justify-end">
+                <button type="submit" class="px-6 py-2.5 bg-emerald-900 text-white rounded-xl font-bold hover:bg-emerald-800 transition active:scale-95 shadow-md shadow-emerald-900/10">
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 11: SETTINGS (Responsive 2-Column Layout) -->
+      <div id="tab-settings" class="tab-content hidden space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Settings Left Card: Security Overview -->
+          <div class="lg:col-span-1 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-800 flex items-center justify-center font-bold">
+                🔒
+              </div>
+              <div>
+                <h3 class="font-bold text-slate-900 text-sm">Security & Access</h3>
+                <p class="text-[11px] text-slate-500">Protect your DormMap account</p>
+              </div>
+            </div>
+            <p class="text-xs text-slate-600 leading-relaxed">
+              Maintain a strong and unique password to protect your boarding house records, payment history, and tenancy contracts.
+            </p>
+            <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 text-xs space-y-1.5">
+              <span class="font-bold text-slate-800 block">Password Guidelines:</span>
+              <ul class="text-slate-500 list-disc list-inside space-y-1 text-[11px]">
+                <li>At least 6 characters long</li>
+                <li>Combination of letters and numbers</li>
+                <li>Do not share your password with anyone</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Settings Right Card: Change Password Form -->
+          <div class="lg:col-span-2 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+            <div class="border-b border-slate-100 pb-4">
+              <h2 class="text-xl font-bold text-slate-900">Change Account Password</h2>
+              <p class="text-xs text-slate-500 mt-1">Enter your current password and your desired new password</p>
+            </div>
+
+            <form id="passwordForm" onsubmit="handlePasswordChange(event)" class="space-y-4 text-xs">
+              <div>
+                <label class="block font-bold text-slate-700 mb-1.5">Current Password</label>
+                <input type="password" id="passCurrent" required placeholder="Enter your current password" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600/20 font-medium">
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block font-bold text-slate-700 mb-1.5">New Password</label>
+                  <input type="password" id="passNew" required placeholder="Enter new password (min. 6)" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600/20 font-medium">
+                </div>
+                <div>
+                  <label class="block font-bold text-slate-700 mb-1.5">Confirm New Password</label>
+                  <input type="password" id="passConfirm" required placeholder="Repeat new password" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600/20 font-medium">
+                </div>
+              </div>
+              <div class="pt-4 border-t border-slate-100 flex justify-end">
+                <button type="submit" class="px-6 py-2.5 bg-emerald-900 text-white rounded-xl font-bold hover:bg-emerald-800 transition active:scale-95 shadow-md shadow-emerald-900/10">
+                  Update Password
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Maintenance Request Modal -->
+  <div id="maintenanceModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 border border-slate-100 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="font-bold text-slate-900 text-base">New Maintenance Request</h3>
+        <button onclick="closeMaintenanceModal()" class="text-slate-400 hover:text-slate-600 font-bold p-1">✕</button>
+      </div>
+      <form id="maintenanceForm" onsubmit="handleCreateMaintenance(event)" class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Title / Issue Summary</label>
+          <input type="text" id="maintTitle" required placeholder="e.g. Leaking Faucet in Bathroom" class="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-600/20">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Category</label>
+            <select id="maintCategory" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-600/20">
+              <option value="plumbing">Plumbing</option>
+              <option value="electrical">Electrical</option>
+              <option value="appliance">Appliance</option>
+              <option value="furniture">Furniture</option>
+              <option value="general">General Repair</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Priority</label>
+            <select id="maintPriority" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-600/20">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Detailed Description</label>
+          <textarea id="maintDesc" required rows="3" placeholder="Provide details about the issue..." class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"></textarea>
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Attach Photo (Optional)</label>
+          <input type="file" id="maintPhoto" accept="image/*" class="w-full px-2 py-1 border border-slate-200 rounded-xl text-xs">
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeMaintenanceModal()" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition">Cancel</button>
+          <button type="submit" class="px-4 py-2 bg-emerald-900 text-white rounded-xl font-bold hover:bg-emerald-800 transition">Submit Request</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Document Upload Modal -->
+  <div id="documentModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 border border-slate-100 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="font-bold text-slate-900 text-base">Upload Rental Document</h3>
+        <button onclick="closeDocumentModal()" class="text-slate-400 hover:text-slate-600 font-bold p-1">✕</button>
+      </div>
+      <form id="documentForm" onsubmit="handleUploadDocument(event)" class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Document Title</label>
+          <input type="text" id="docTitle" required placeholder="e.g. Rental Agreement Copy" class="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-600/20">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Document Type</label>
+          <select id="docType" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-600/20">
+            <option value="contract">Lease Contract</option>
+            <option value="receipt">Official Receipt</option>
+            <option value="identification">ID Form</option>
+            <option value="other">Other Document</option>
+          </select>
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">File (PDF or Image)</label>
+          <input type="file" id="docFile" required accept=".pdf,image/*" class="w-full px-2 py-1 border border-slate-200 rounded-xl text-xs">
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeDocumentModal()" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition">Cancel</button>
+          <button type="submit" class="px-4 py-2 bg-emerald-900 text-white rounded-xl font-bold hover:bg-emerald-800 transition">Upload File</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- GCash Payment Breakdown Modal -->
+  <div id="gcashPayModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 border border-slate-100 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2">
+          <span class="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-extrabold text-xs shadow-xs">GC</span>
+          <div>
+            <h3 class="font-bold text-slate-900 text-sm">Pay Rent via GCash</h3>
+            <p class="text-[10px] text-slate-500">Powered by PayMongo Gateway</p>
+          </div>
+        </div>
+        <button onclick="closeGcashPayModal()" class="text-slate-400 hover:text-slate-600 font-bold p-1">✕</button>
+      </div>
+
+      <!-- Landlord GCash Info Box -->
+      <div class="p-3 bg-emerald-50/80 rounded-2xl border border-emerald-100 space-y-1 text-xs">
+        <p class="font-bold text-emerald-950 text-[11px] uppercase tracking-wider">🏡 Landlord Payment Destination</p>
+        <div class="flex justify-between"><span class="text-slate-500">Boarding House:</span><span id="gcashLandlordBH" class="font-bold text-slate-800">—</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">Landlord Name:</span><span id="gcashLandlordName" class="font-bold text-slate-800">—</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">GCash Account #:</span><span id="gcashLandlordNumber" class="font-bold text-emerald-700">—</span></div>
+      </div>
+
+      <div class="p-3.5 bg-blue-50/60 rounded-2xl border border-blue-100/80 space-y-1.5 text-xs">
+        <div class="flex justify-between"><span class="text-slate-500 font-medium">Billing Period:</span><span id="gcashModalMonth" class="font-bold text-slate-800">—</span></div>
+        <div class="flex justify-between"><span class="text-slate-500 font-medium">Monthly Rent Base:</span><span id="gcashModalBase" class="font-bold text-slate-800">₱0.00</span></div>
+        <div class="flex justify-between"><span class="text-slate-500 font-medium">Late Penalty:</span><span id="gcashModalPenalty" class="font-bold text-rose-600">₱0.00</span></div>
+        <div class="border-t border-blue-200/60 pt-2 flex justify-between text-sm"><span class="font-bold text-blue-950">Total Amount Due:</span><span id="gcashModalTotal" class="font-black text-blue-700 text-base">₱0.00</span></div>
+      </div>
+
+      <div class="text-[11px] text-slate-500 space-y-1 bg-slate-50 p-3 rounded-xl leading-relaxed">
+        <p>🔒 <strong>PayMongo Instant GCash Checkout:</strong> You will be redirected to the secure PayMongo GCash portal to authorize payment. Your payment will automatically update your rent balance upon completion.</p>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-1">
+        <button type="button" onclick="closeGcashPayModal()" class="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-200 transition">Cancel</button>
+        <button id="btnSubmitGcashPay" onclick="confirmAndPayGcash()" class="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs hover:bg-blue-700 transition flex items-center gap-2 shadow-md active:scale-95">
+          <span>Continue to PayMongo GCash</span> ➔
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Inquiry & Multi-Application Modal -->
+  <div id="inquiryModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 border border-slate-100 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-base font-bold shadow-xs">🏡</div>
+          <div>
+            <h3 class="font-black text-slate-900 text-sm">Submit Inquiry & Boarding House Application</h3>
+            <p id="inquiryModalBHName" class="text-[11px] text-emerald-800 font-bold truncate">Boarding House</p>
+          </div>
+        </div>
+        <button onclick="closeInquiryModal()" class="text-slate-400 hover:text-slate-600 font-bold p-1">✕</button>
+      </div>
+
+      <form id="inquiryForm" onsubmit="handleInquirySubmit(event)" class="space-y-3.5 text-xs">
+        <input type="hidden" id="inquiryOwnerId">
+        <input type="hidden" id="inquiryEstablishmentId">
+        <input type="hidden" id="inquiryBHName">
+
+        <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200/60 space-y-1.5">
+          <div class="flex justify-between text-[11px]"><span class="text-slate-500 font-medium">Owner / Landlord:</span><span id="inquiryOwnerName" class="font-bold text-slate-800">—</span></div>
+          <div class="flex justify-between text-[11px]"><span class="text-slate-500 font-medium">Location Address:</span><span id="inquiryLocation" class="font-bold text-slate-800">—</span></div>
+          <div class="flex justify-between text-[11px]"><span class="text-slate-500 font-medium">Estimated Rent Range:</span><span id="inquiryPriceRange" class="font-bold text-emerald-800">—</span></div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Preferred Room Type / Unit</label>
+          <select id="inquiryRoomType" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 text-xs font-semibold bg-white text-slate-800">
+            <option value="Single Room">Single Room</option>
+            <option value="Bedspacer">Bedspacer</option>
+            <option value="Double Sharing">Double Sharing</option>
+            <option value="Any Available">Any Available Room</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Inquiry Message / Request to Landlord</label>
+          <textarea id="inquiryMessage" rows="3" placeholder="Kumusta po landlord! Magtatanong po sana ako kung may available pa po kayong room o bedspacer slot at kailan po pwedeng mag-move in..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 text-xs leading-relaxed"></textarea>
+          <p class="text-[10px] text-slate-400 mt-1">Magsisimula ito ng opisyal na pending inquiry at conversation thread sa may-ari.</p>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+          <button type="button" onclick="closeInquiryModal()" class="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-200 transition">Cancel</button>
+          <button type="submit" id="btnSubmitInquiry" class="px-5 py-2.5 bg-emerald-950 text-white rounded-xl font-bold text-xs hover:bg-emerald-900 transition flex items-center gap-1.5 shadow-sm active:scale-95">
+            <span>Send Application & Inquiry</span> ➔
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<!-- Client-side Logic Script -->
+<script>
+  window.currentUserId = Number("{{userId}}") || 0;
+  let paymentHistoryChart = null;
+  let expenseBreakdownChart = null;
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('currentDateDisplay').innerText = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    
+    // Mobile Drawer Setup
+    const menuToggle = document.getElementById('menuToggle');
+    const mobileOverlay = document.getElementById('mobileOverlay');
+    if (menuToggle) {
+      menuToggle.addEventListener('click', toggleMobileSidebar);
+    }
+    if (mobileOverlay) {
+      mobileOverlay.addEventListener('click', closeMobileSidebar);
+    }
+
+    // Close profile menu when clicking outside
+    document.addEventListener('click', (e) => {
+      const container = document.getElementById('profileDropdownContainer');
+      if (container && !container.contains(e.target)) {
+        closeProfileMenu();
+      }
+    });
+
+    loadOverview();
+  });
+
+  function toggleMobileSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('mobileOverlay');
+    if (sidebar) sidebar.classList.toggle('-translate-x-full');
+    if (overlay) overlay.classList.toggle('hidden');
+  }
+
+  function closeMobileSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('mobileOverlay');
+    if (sidebar) sidebar.classList.add('-translate-x-full');
+    if (overlay) overlay.classList.add('hidden');
+  }
+
+  window.isTenantPending = false;
+  const lockedTabs = new Set(['my-room', 'payments', 'rental-info', 'maintenance', 'documents']);
+
+  function switchTab(tabId) {
+    closeMobileSidebar();
+    if (window.isTenantPending && lockedTabs.has(tabId)) {
+      Swal.fire({
+        icon: 'info',
+        title: '🔒 Feature Locked',
+        html: 'This module is locked until your boarding house owner accepts your tenant registration.<br><br>You can communicate directly with the landlord under <strong>Messages</strong>!',
+        confirmButtonColor: '#023020',
+        confirmButtonText: '💬 Open Messages',
+        showCancelButton: true,
+        cancelButtonText: 'Close'
+      }).then((res) => {
+        if (res.isConfirmed) {
+          switchTab('messaging');
+        }
+      });
+      return;
+    }
+
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('nav button.nav').forEach(el => el.classList.remove('active'));
+
+    const targetTab = document.getElementById(`tab-${tabId}`);
+    const targetBtn = document.getElementById(`btn-${tabId}`);
+
+    if (targetTab) targetTab.classList.remove('hidden');
+    if (targetBtn) targetBtn.classList.add('active');
+
+    document.getElementById('breadcrumbCurrent').innerText = tabId.replace('-', ' ');
+
+    if (tabId === 'dashboard') loadOverview();
+    else if (tabId === 'my-room') loadMyRoom();
+    else if (tabId === 'payments') loadPaymentHistory();
+    else if (tabId === 'rental-info') loadRentalInfo();
+    else if (tabId === 'maintenance') loadMaintenance();
+    else if (tabId === 'messaging') loadConversations();
+    else if (tabId === 'browse-dorms') loadBrowseBoardingHouses();
+    else if (tabId === 'announcements') loadAnnouncements();
+    else if (tabId === 'documents') loadDocuments();
+    else if (tabId === 'notifications') loadNotifications();
+    else if (tabId === 'profile') loadProfile();
+  }
+
+  function toggleProfileMenu(e) {
+    if (e) e.stopPropagation();
+    const menu = document.getElementById('profileMenu');
+    const arrow = document.getElementById('profileArrow');
+    if (menu) menu.classList.toggle('hidden');
+    if (arrow) arrow.classList.toggle('rotate-180');
+  }
+
+  function closeProfileMenu() {
+    const menu = document.getElementById('profileMenu');
+    const arrow = document.getElementById('profileArrow');
+    if (menu) menu.classList.add('hidden');
+    if (arrow) arrow.classList.remove('rotate-180');
+  }
+
+  async function loadOverview() {
+    try {
+      const res = await fetch('/tenant-dashboard/api/overview');
+      const data = await res.json();
+
+      window.isTenantPending = data.isPending === true;
+      const banner = document.getElementById('pendingNoticeBanner');
+
+      // Update sidebar lock indicators based strictly on isTenantPending
+      lockedTabs.forEach(tId => {
+        const btn = document.getElementById(`btn-${tId}`);
+        if (btn) {
+          if (window.isTenantPending) {
+            btn.classList.add('opacity-60');
+            if (!btn.querySelector('.lock-icon')) {
+              btn.insertAdjacentHTML('beforeend', `<span class="lock-icon ml-auto text-xs">🔒</span>`);
+            }
+          } else {
+            btn.classList.remove('opacity-60');
+            const icon = btn.querySelector('.lock-icon');
+            if (icon) icon.remove();
+          }
+        }
+      });
+
+      // Applications banner handling:
+      // Show banner if tenant is pending OR has applications needing review/action
+      const hasUnresolvedApps = (data.applications || []).some(a => ['pending_owner', 'accepted_by_owner'].includes(a.status));
+      if (window.isTenantPending || hasUnresolvedApps) {
+        if (banner) banner.classList.remove('hidden');
+        if (data.pendingBoardingHouse && document.getElementById('pendingHouseName')) {
+          document.getElementById('pendingHouseName').innerText = data.pendingBoardingHouse;
+        }
+        renderApplicationsList(data.applications || []);
+      } else {
+        // Confirmed active tenant with no pending inquiries -> hide pending warning banner
+        if (banner) banner.classList.add('hidden');
+      }
+
+      document.getElementById('card-room').innerText = data.cards.currentRoom;
+      document.getElementById('card-rent').innerText = `₱${Number(data.cards.monthlyRent || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+      document.getElementById('card-balance').innerText = `₱${Number(data.cards.outstandingBalance || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+      document.getElementById('card-due').innerText = data.cards.nextDueDate || 'N/A';
+
+      const badge = document.getElementById('card-status-badge');
+      if (data.cards.paymentStatus === 'up_to_date') {
+        badge.innerText = 'Up to Date'; badge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800';
+      } else if (data.cards.paymentStatus === 'overdue') {
+        badge.innerText = 'Overdue'; badge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800';
+      } else {
+        badge.innerText = 'Pending Due'; badge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800';
+      }
+
+      renderCharts(data.charts);
+
+      // Dash Announcements
+      const annBox = document.getElementById('dash-announcements-list');
+      if (data.announcements && data.announcements.length > 0) {
+        annBox.innerHTML = data.announcements.slice(0, 3).map(a => `
+          <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 space-y-1 hover:bg-slate-100/60 transition">
+            <h4 class="font-bold text-slate-900 text-xs">${a.title}</h4>
+            <p class="text-slate-600 text-[11px] line-clamp-2">${a.message}</p>
+          </div>
+        `).join('');
+      } else {
+        annBox.innerHTML = `<p class="text-xs text-slate-400 italic">No recent announcements.</p>`;
+      }
+
+      // Dash Maintenance
+      const maintBox = document.getElementById('dash-maintenance-list');
+      if (data.recentMaintenance && data.recentMaintenance.length > 0) {
+        maintBox.innerHTML = data.recentMaintenance.slice(0, 3).map(m => `
+          <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between text-xs hover:bg-slate-100/60 transition">
+            <div>
+              <p class="font-bold text-slate-900">${m.title}</p>
+              <span class="text-[10px] text-slate-500 capitalize">${m.category} • ${m.priority}</span>
+            </div>
+            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${m.status === 'resolved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${m.status}</span>
+          </div>
+        `).join('');
+      } else {
+        maintBox.innerHTML = `<p class="text-xs text-slate-400 italic">No active maintenance requests.</p>`;
+      }
+
+    } catch (err) { console.error('Error loading overview:', err); }
+  }
+
+  function renderCharts(charts) {
+    if (!charts) return;
+    if (paymentHistoryChart) paymentHistoryChart.destroy();
+    if (expenseBreakdownChart) expenseBreakdownChart.destroy();
+
+    const canvas1 = document.getElementById('chartPaymentHistory');
+    if (canvas1 && charts.paymentHistory) {
+      const ctx1 = canvas1.getContext('2d');
+      paymentHistoryChart = new Chart(ctx1, {
+        type: 'bar',
+        data: {
+          labels: charts.paymentHistory.map(m => m.label),
+          datasets: [
+            { label: 'Paid Rent (₱)', data: charts.paymentHistory.map(m => m.paid), backgroundColor: '#10b981', borderRadius: 6 },
+            { label: 'Pending Due (₱)', data: charts.paymentHistory.map(m => m.pending), backgroundColor: '#f59e0b', borderRadius: 6 }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+    }
+
+    const canvas2 = document.getElementById('chartMonthlyExpenses');
+    if (canvas2 && charts.expenseBreakdown) {
+      const ctx2 = canvas2.getContext('2d');
+      expenseBreakdownChart = new Chart(ctx2, {
+        type: 'doughnut',
+        data: {
+          labels: charts.expenseBreakdown.map(e => e.category),
+          datasets: [{
+            data: charts.expenseBreakdown.map(e => e.amount),
+            backgroundColor: ['#023020', '#ef4444', '#10b981']
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+    }
+  }
+
+  async function loadMyRoom() {
+    try {
+      const res = await fetch('/tenant-dashboard/api/my-room');
+      const data = await res.json();
+
+      if (!data.hasRoom) {
+        document.getElementById('room-title').innerText = 'No Room Assigned';
+        return;
+      }
+
+      document.getElementById('room-title').innerText = `Room ${data.room?.roomNumber || '—'} Details`;
+      document.getElementById('room-type-text').innerText = data.room?.roomType || 'Standard';
+      document.getElementById('room-capacity-text').innerText = `${data.room?.capacity || 1} Persons`;
+      document.getElementById('room-price-text').innerText = `₱${Number(data.room?.rentalPrice || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+      document.getElementById('room-movein-text').innerText = data.tenantRecord?.moveInDate || 'N/A';
+      document.getElementById('bh-name-text').innerText = data.boardingHouse?.boardingHouseName || 'Boarding House';
+      document.getElementById('bh-address-text').innerText = data.boardingHouse?.boardingHouseAddress || 'N/A';
+      document.getElementById('bh-owner-contact').innerText = data.boardingHouse?.contactNumber || 'N/A';
+
+      if (data.boardingHouse?.houseRules) {
+        document.getElementById('room-house-rules').innerText = data.boardingHouse.houseRules;
+      }
+    } catch (err) { console.error('Error loading my room:', err); }
+  }
+
+  async function loadPaymentHistory() {
+    try {
+      const statusFilter = document.getElementById('paymentStatusFilter');
+      const status = statusFilter ? statusFilter.value : 'all';
+      const res = await fetch(`/tenant-dashboard/api/payments?status=${status}`);
+      const data = await res.json();
+
+      const tbody = document.getElementById('paymentsTableBody');
+      if (!data.payments || data.payments.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-400">No payment records found.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = data.payments.map(p => {
+        const isPaid = p.status === 'paid';
+        return `
+          <tr class="hover:bg-slate-50 transition">
+            <td class="p-3.5 font-bold text-slate-900">${p.month || 'N/A'}</td>
+            <td class="p-3.5 text-emerald-700 font-bold">₱${Number(p.amount).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+            <td class="p-3.5">${p.dueDate || '—'}</td>
+            <td class="p-3.5">${p.paidDate || '—'}</td>
+            <td class="p-3.5 text-rose-600">₱${Number(p.penalty || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+            <td class="p-3.5">
+              <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${(p.status || 'pending').toUpperCase()}</span>
+            </td>
+            <td class="p-3.5 text-right flex items-center justify-end gap-2">
+              ${!isPaid ? `
+                <button onclick="openGcashPayModal('${p.id}', '${p.amount}', '${p.penalty || 0}', '${p.month}')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1 active:scale-95">
+                  <span>Pay GCash</span> ➔
+                </button>
+              ` : `
+                <button onclick="showReceiptModal('${p.month || ''}', '${p.amount || 0}', '${p.reference || 'N/A'}', '${p.status || 'pending'}')" class="text-xs font-bold text-emerald-700 hover:text-emerald-900 hover:underline">Receipt</button>
+              `}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    } catch (err) { console.error('Error loading payment history:', err); }
+  }
+
+  let currentGcashTarget = null;
+
+  async function openGcashPayModal(tenantPaymentId, amount, penalty, month) {
+    const base = Number(amount) - Number(penalty || 0);
+    const total = Number(amount);
+
+    Swal.fire({
+      title: 'Loading Payment Details...',
+      text: 'Fetching Landlord GCash information...',
+      allowOutsideClick: false,
+      didOpen: () => { Swal.showLoading(); }
+    });
+
+    let landlordBH = 'Boarding House';
+    let landlordName = 'Landlord';
+    let landlordNumber = 'Not provided';
+
+    try {
+      const res = await fetch('/api/payments/landlord-gcash');
+      const data = await res.json();
+      const info = data.landlordGcash || data.data;
+      if (info) {
+        landlordBH = info.boardingHouseName || landlordBH;
+        landlordName = info.gcashName || info.ownerName || landlordName;
+        landlordNumber = info.gcashNumber || landlordNumber;
+      }
+    } catch (err) {
+      console.error('Landlord GCash fetch error:', err);
+    }
+
+    Swal.fire({
+      title: '<strong>Pay Rent via GCash</strong>',
+      icon: 'info',
+      html: `
+        <div class="text-left space-y-3 text-xs pt-2">
+          <!-- Landlord GCash Destination Box -->
+          <div class="p-3 bg-emerald-50 rounded-2xl border border-emerald-100 space-y-1">
+            <p class="font-bold text-emerald-950 text-[11px] uppercase tracking-wider">🏡 Landlord Payment Destination</p>
+            <div class="flex justify-between"><span class="text-slate-500">Boarding House:</span><span class="font-bold text-slate-800">${landlordBH}</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">Landlord Name:</span><span class="font-bold text-slate-800">${landlordName}</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">GCash Account #:</span><span class="font-bold text-emerald-700">${landlordNumber}</span></div>
+          </div>
+
+          <!-- Billing Breakdown -->
+          <div class="p-3.5 bg-blue-50/70 rounded-2xl border border-blue-100 space-y-1.5">
+            <div class="flex justify-between"><span class="text-slate-500 font-medium">Billing Period:</span><span class="font-bold text-slate-800">${month || 'Current Month'}</span></div>
+            <div class="flex justify-between"><span class="text-slate-500 font-medium">Monthly Rent Base:</span><span class="font-bold text-slate-800">₱${base.toLocaleString('en-US', {minimumFractionDigits: 2})}</span></div>
+            <div class="flex justify-between"><span class="text-slate-500 font-medium">Late Penalty:</span><span class="font-bold text-rose-600">₱${Number(penalty || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</span></div>
+            <div class="border-t border-blue-200/60 pt-2 flex justify-between text-sm"><span class="font-bold text-blue-950">Total Amount Due:</span><span class="font-black text-blue-700 text-base">₱${total.toLocaleString('en-US', {minimumFractionDigits: 2})}</span></div>
+          </div>
+
+          <p class="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-xl leading-relaxed">
+            🔒 <strong>PayMongo Instant GCash Checkout:</strong> You will be redirected to the secure PayMongo GCash portal to authorize payment. Your payment will automatically update your rent balance upon completion.
+          </p>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonColor: '#2563eb',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Continue to PayMongo GCash ➔',
+      cancelButtonText: 'Cancel',
+      focusConfirm: false,
+      preConfirm: async () => {
+        Swal.showLoading();
+        try {
+          const res = await fetch('/api/payments/gcash/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              billingMonth: month,
+              tenantPaymentId: tenantPaymentId
+            })
+          });
+
+          const data = await res.json();
+          if (res.ok && data.checkoutUrl) {
+            window.location.href = data.checkoutUrl;
+            return false;
+          } else {
+            Swal.showValidationMessage(data.error || 'Failed to initiate PayMongo GCash session.');
+            return false;
+          }
+        } catch (err) {
+          console.error(err);
+          Swal.showValidationMessage('Network connection error. Please try again.');
+          return false;
+        }
+      }
+    });
+  }
+
+  function closeGcashPayModal() {
+    Swal.close();
+  }
+
+  window.openGcashPayModal = openGcashPayModal;
+  window.closeGcashPayModal = closeGcashPayModal;
+
+  function showReceiptModal(month, amount, reference, status) {
+    Swal.fire({
+      title: '<strong>Official Receipt</strong>',
+      icon: 'info',
+      html: `
+        <div class="text-left space-y-2 text-xs border-t border-slate-100 pt-3">
+          <p><strong>Month/Period:</strong> ${month}</p>
+          <p><strong>Amount:</strong> ₱${Number(amount).toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
+          <p><strong>Reference Number:</strong> ${reference}</p>
+          <p><strong>Status:</strong> <span class="capitalize font-bold">${status}</span></p>
+        </div>
+      `,
+      confirmButtonColor: '#023020',
+      confirmButtonText: 'Close'
+    });
+  }
+
+  async function loadRentalInfo() {
+    try {
+      const res = await fetch('/tenant-dashboard/api/rental-info');
+      const data = await res.json();
+
+      if (data.info) {
+        document.getElementById('rental-start').innerText = data.info.tenant?.contractStart || 'N/A';
+        document.getElementById('rental-end').innerText = data.info.tenant?.contractEnd || 'N/A';
+        document.getElementById('rental-amount').innerText = `₱${Number(data.info.tenant?.monthlyRent || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+        document.getElementById('emergency-name').innerText = data.info.tenant?.emergencyContact || 'N/A';
+        document.getElementById('emergency-phone').innerText = data.info.tenant?.emergencyPhone || 'N/A';
+        document.getElementById('landlord-phone').innerText = data.info.owner?.contactNumber || 'N/A';
+      }
+    } catch (err) { console.error('Error loading rental info:', err); }
+  }
+
+  async function loadMaintenance() {
+    try {
+      const res = await fetch('/tenant-dashboard/api/maintenance');
+      const data = await res.json();
+
+      const container = document.getElementById('maintenanceListContainer');
+      if (!data.requests || data.requests.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-400 italic p-4 bg-slate-50 rounded-2xl">No maintenance requests submitted yet.</p>`;
+        return;
+      }
+
+      container.innerHTML = data.requests.map(m => `
+        <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2 text-xs hover:bg-slate-100/60 transition">
+          <div class="flex items-center justify-between">
+            <h4 class="font-bold text-slate-900 text-sm">${m.title}</h4>
+            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${m.status === 'resolved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${(m.status || 'pending').toUpperCase()}</span>
+          </div>
+          <p class="text-slate-600 leading-relaxed">${m.description}</p>
+          <div class="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-200/60">
+            <span>Category: <strong class="capitalize">${m.category}</strong> • Priority: <strong class="capitalize">${m.priority}</strong></span>
+            <span>${new Date(m.createdAt).toLocaleDateString()}</span>
+          </div>
+        </div>
+      `).join('');
+    } catch (err) { console.error('Error loading maintenance:', err); }
+  }
+
+  function openMaintenanceModal() {
+    const modal = document.getElementById('maintenanceModal');
+    if (modal) modal.classList.remove('hidden');
+  }
+  function closeMaintenanceModal() {
+    const modal = document.getElementById('maintenanceModal');
+    if (modal) modal.classList.add('hidden');
+  }
+
+  async function handleCreateMaintenance(e) {
+    e.preventDefault();
+    const formData = new FormData();
+    formData.append('title', document.getElementById('maintTitle').value);
+    formData.append('category', document.getElementById('maintCategory').value);
+    formData.append('priority', document.getElementById('maintPriority').value);
+    formData.append('description', document.getElementById('maintDesc').value);
+
+    const file = document.getElementById('maintPhoto').files[0];
+    if (file) formData.append('photo', file);
+
+    const res = await fetch('/tenant-dashboard/api/maintenance', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (res.ok) {
+      Swal.fire({ icon: 'success', title: 'Submitted', text: data.message, confirmButtonColor: '#023020' });
+      closeMaintenanceModal();
+      document.getElementById('maintenanceForm').reset();
+      loadMaintenance();
+    } else {
+      Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to submit request', confirmButtonColor: '#023020' });
+    }
+  }
+
+  // ── Application Hub ───────────────────────────────────────────────────────
+
+  function renderApplicationsList(applications) {
+    const list = document.getElementById('pendingApplicationsList');
+    const badge = document.getElementById('pendingApplicationsCountBadge');
+    if (!list) return;
+
+    const pendingCount = applications.filter(a => ['pending_owner', 'accepted_by_owner'].includes(a.status)).length;
+    if (badge) badge.innerText = `${pendingCount} Pending`;
+
+    if (!applications.length) {
+      list.innerHTML = `<p class="text-xs text-amber-800/80 italic p-3 bg-white/60 rounded-xl">No active applications yet. Browse boarding houses below!</p>`;
+      return;
+    }
+
+    const statusLabels = {
+      pending_owner: { label: '⏳ Waiting for Owner Acceptance', cls: 'bg-amber-100 text-amber-800 border border-amber-200' },
+      accepted_by_owner: { label: '🎉 Offer Received — Accept Back to Confirm!', cls: 'bg-emerald-100 text-emerald-800 border border-emerald-200 animate-pulse' },
+      confirmed: { label: '✅ Confirmed Active Tenant', cls: 'bg-emerald-200 text-emerald-900 border border-emerald-300' },
+      declined_by_owner: { label: '❌ Declined by Owner', cls: 'bg-rose-100 text-rose-800 border border-rose-200' },
+      cancelled_by_tenant: { label: '🚫 Cancelled by You', cls: 'bg-slate-100 text-slate-600 border border-slate-200' }
+    };
+
+    list.innerHTML = applications.map(app => {
+      const sl = statusLabels[app.status] || { label: app.status, cls: 'bg-slate-100 text-slate-600 border border-slate-200' };
+      const bhName = app.boardingHouseName || (app.owner ? app.owner.boardingHouseName : 'Boarding House');
+      const ownerName = app.owner ? app.owner.fullName : 'Owner';
+
+      let actionBtns = '';
+      if (app.status === 'accepted_by_owner') {
+        actionBtns = `
+          <div class="flex items-center gap-2 mt-2">
+            <button onclick="confirmApplication('${app.id}', '${bhName}')" class="flex-1 px-3 py-2 bg-emerald-800 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm active:scale-95 flex items-center justify-center gap-1">
+              ✅ Accept Back & Confirm Room
+            </button>
+            <button onclick="cancelApplication('${app.id}', '${bhName}')" class="px-3 py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-xl text-xs font-bold transition active:scale-95">
+              ✕ Decline
+            </button>
+          </div>
+        `;
+      } else if (app.status === 'pending_owner') {
+        actionBtns = `
+          <div class="flex items-center gap-2 mt-2">
+            <button onclick="openConversationWith('${app.ownerId}')" class="flex-1 px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold transition active:scale-95 flex items-center justify-center gap-1">
+              💬 Message Landlord
+            </button>
+            <button onclick="cancelApplication('${app.id}', '${bhName}')" class="px-3 py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-xl text-xs font-bold transition active:scale-95">
+              ✕ Cancel
+            </button>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="p-3.5 bg-white/80 rounded-2xl border border-amber-200/80 space-y-1.5 text-xs shadow-xs">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <p class="font-black text-slate-900 truncate">${bhName}</p>
+              <p class="text-slate-500 text-[11px]">${ownerName}</p>
+            </div>
+            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ${sl.cls}">${sl.label}</span>
+          </div>
+          ${app.status === 'accepted_by_owner' ? `<p class="text-emerald-800 font-semibold text-[11px] p-2 bg-emerald-50 rounded-xl">💡 The owner has accepted your application! Click "Accept Back" to lock in this boarding house and unlock all features.</p>` : ''}
+          ${actionBtns}
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function confirmApplication(appId, bhName) {
+    const result = await Swal.fire({
+      icon: 'question',
+      title: '✅ Confirm Tenancy',
+      html: `Sigurado ka bang gusto mong i-confirm ang tenancy mo sa <strong>${bhName}</strong>?<br><br><span class="text-sm text-rose-700">⚠️ Lahat ng iyong ibang pending applications sa ibang boarding houses ay awtomatikong maka-cancel.</span>`,
+      confirmButtonColor: '#023020',
+      confirmButtonText: 'Yes, Confirm My Room!',
+      cancelButtonText: 'Not yet',
+      showCancelButton: true
+    });
+    if (!result.isConfirmed) return;
+
+    Swal.fire({ title: 'Confirming...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    try {
+      const res = await fetch(`/tenant-dashboard/api/applications/${appId}/confirm`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        await Swal.fire({ icon: 'success', title: '🎉 Tenancy Confirmed!', html: `Welcome! You are now an active tenant at <strong>${bhName}</strong>. All features are now unlocked!`, confirmButtonColor: '#023020' });
+        loadOverview();
+      } else {
+        Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to confirm application.', confirmButtonColor: '#023020' });
+      }
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Network Error', text: 'Please try again.', confirmButtonColor: '#023020' });
+    }
+  }
+
+  async function cancelApplication(appId, bhName) {
+    const result = await Swal.fire({
+      icon: 'warning',
+      title: '❌ Cancel Application',
+      html: `Cancel ang iyong application sa <strong>${bhName}</strong>?<br><small class="text-slate-500">Maabisuhan ang may-ari na ang application mo ay na-cancel.</small>`,
+      confirmButtonColor: '#dc2626',
+      confirmButtonText: 'Yes, Cancel It',
+      cancelButtonText: 'Go Back',
+      showCancelButton: true
+    });
+    if (!result.isConfirmed) return;
+
+    Swal.fire({ title: 'Cancelling...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    try {
+      const res = await fetch(`/tenant-dashboard/api/applications/${appId}/cancel`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        Swal.fire({ icon: 'info', title: 'Cancelled', text: data.message, confirmButtonColor: '#023020' });
+        loadOverview();
+      } else {
+        Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to cancel.', confirmButtonColor: '#023020' });
+      }
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Network Error', text: 'Please try again.', confirmButtonColor: '#023020' });
+    }
+  }
+
+  // ── Browse Boarding Houses & Leaflet Map ──────────────────────────────────
+
+  let browseData = [];
+  let tenantBrowseMapInstance = null;
+  let browseMarkers = [];
+
+  async function loadBrowseBoardingHouses() {
+    const grid = document.getElementById('browseDormsGrid');
+    const mapCount = document.getElementById('browseMapCount');
+    if (grid) grid.innerHTML = `<p class="text-xs text-slate-400 italic col-span-full py-8 text-center">Loading boarding houses...</p>`;
+
+    try {
+      const barangay = document.getElementById('browseBarangayFilter')?.value || 'all';
+      const search = document.getElementById('browseSearchInput')?.value || '';
+      const res = await fetch(`/tenant-dashboard/api/browse-boarding-houses?barangay=${encodeURIComponent(barangay)}&search=${encodeURIComponent(search)}`);
+      const data = await res.json();
+      browseData = data.boardingHouses || [];
+
+      if (mapCount) mapCount.innerText = `${browseData.length} Boarding Houses Pinpointed`;
+
+      initTenantBrowseMap(browseData);
+      renderBrowseGrid(browseData);
+    } catch (err) {
+      console.error('Browse error:', err);
+      if (grid) grid.innerHTML = `<p class="text-xs text-rose-500 col-span-full py-8 text-center">Failed to load boarding houses. Please refresh.</p>`;
+    }
+  }
+
+  function initTenantBrowseMap(bhs) {
+    const mapEl = document.getElementById('tenantBrowseMap');
+    if (!mapEl) return;
+    if (typeof L === 'undefined') return; // Leaflet not loaded
+
+    // Destroy old map if exists
+    if (tenantBrowseMapInstance) {
+      tenantBrowseMapInstance.remove();
+      tenantBrowseMapInstance = null;
+    }
+    browseMarkers = [];
+
+    tenantBrowseMapInstance = L.map('tenantBrowseMap').setView([12.7192, 121.4719], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© Leaflet'
+    }).addTo(tenantBrowseMapInstance);
+
+    bhs.forEach((bh, idx) => {
+      const lat = parseFloat(bh.latitude) || 12.7192;
+      const lng = parseFloat(bh.longitude) || 121.4719;
+
+      const hasApp = bh.application && !['declined_by_owner', 'cancelled_by_tenant'].includes(bh.application.status);
+      const appStatus = bh.application?.status;
+
+      const markerColor = appStatus === 'confirmed' ? 'green' :
+                          appStatus === 'accepted_by_owner' ? 'gold' :
+                          appStatus === 'pending_owner' ? 'orange' : 'blue';
+
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="width:28px;height:28px;background:${markerColor};border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:12px;">🏠</div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
+      });
+
+      const marker = L.marker([lat, lng], { icon }).addTo(tenantBrowseMapInstance);
+
+      const popupHtml = `
+        <div style="min-width:180px;font-family:sans-serif;">
+          <strong style="font-size:13px;">${bh.name}</strong><br>
+          <span style="font-size:11px;color:#666;">${bh.address}</span><br>
+          <span style="font-size:11px;color:#059669;font-weight:bold;">₱${Number(bh.rentalPriceMin).toLocaleString()} – ₱${Number(bh.rentalPriceMax).toLocaleString()} / mo</span><br>
+          <span style="font-size:11px;">${bh.roomsAvailable} rooms available</span><br>
+          ${hasApp ? `<span style="font-size:10px;background:#d1fae5;padding:2px 8px;border-radius:20px;color:#065f46;font-weight:bold;">${appStatus?.replace(/_/g, ' ').toUpperCase()}</span>` : `<button onclick="openInquiryModal('${bh.ownerId}','${bh.name.replace(/'/g, '&#39;')}','${bh.ownerName?.replace(/'/g, '&#39;')}','${bh.address?.replace(/'/g, '&#39;')}',${bh.rentalPriceMin},${bh.rentalPriceMax},'${bh.establishmentId||''}')" style="margin-top:6px;padding:5px 12px;background:#023020;color:white;border:none;border-radius:8px;font-size:11px;font-weight:bold;cursor:pointer;width:100%;">📩 Inquire & Apply</button>`}
+        </div>
+      `;
+      marker.bindPopup(popupHtml);
+      browseMarkers.push({ marker, bh, idx });
+    });
+
+    if (bhs.length > 0) {
+      const validCoords = bhs.map(bh => [parseFloat(bh.latitude) || 12.7192, parseFloat(bh.longitude) || 121.4719]);
+      tenantBrowseMapInstance.fitBounds(validCoords, { padding: [30, 30], maxZoom: 15 });
+    }
+  }
+
+  function renderBrowseGrid(bhs) {
+    const grid = document.getElementById('browseDormsGrid');
+    if (!grid) return;
+
+    if (!bhs.length) {
+      grid.innerHTML = `<p class="text-xs text-slate-400 italic col-span-full py-8 text-center">No boarding houses found.</p>`;
+      return;
+    }
+
+    grid.innerHTML = bhs.map((bh, idx) => {
+      const hasApp = bh.application && !['declined_by_owner', 'cancelled_by_tenant'].includes(bh.application.status);
+      const appStatus = bh.application?.status;
+      const statusMap = {
+        pending_owner: '<span class="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-[10px] font-bold">⏳ Pending</span>',
+        accepted_by_owner: '<span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-[10px] font-bold animate-pulse">🎉 Offer Received!</span>',
+        confirmed: '<span class="px-2 py-0.5 bg-emerald-200 text-emerald-900 rounded-full text-[10px] font-bold">✅ Confirmed</span>'
+      };
+      const statusBadge = statusMap[appStatus] || '';
+
+      const pic = bh.picture && !bh.picture.includes('default-dorm') ? bh.picture : 'https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=400&q=80';
+
+      return `
+        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200" data-bh-idx="${idx}">
+          <div class="relative h-36 overflow-hidden bg-slate-100">
+            <img src="${pic}" onerror="this.src='https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=400&q=80'" class="w-full h-full object-cover">
+            <div class="absolute top-2 left-2">${statusBadge}</div>
+            <div class="absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 bg-black/60 text-white rounded-full">${bh.roomsAvailable} avail.</div>
+          </div>
+          <div class="p-3.5 space-y-2">
+            <div>
+              <h4 class="font-bold text-slate-900 text-sm truncate">${bh.name}</h4>
+              <p class="text-[11px] text-slate-500 truncate">📍 ${bh.address}</p>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-emerald-700 font-bold text-xs">₱${Number(bh.rentalPriceMin).toLocaleString()} – ₱${Number(bh.rentalPriceMax).toLocaleString()}</span>
+              <span class="text-[10px] text-slate-400">${bh.barangay}</span>
+            </div>
+            <div class="flex gap-2 pt-1">
+              <button onclick="focusOnMap(${idx})" class="flex-none px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition active:scale-95" title="See on map">📍 Map</button>
+              ${hasApp
+                ? `<button onclick="openConversationWith('${bh.ownerId}')" class="flex-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition active:scale-95">💬 Message</button>`
+                : `<button onclick="openInquiryModal('${bh.ownerId}','${bh.name.replace(/'/g, '\\&quot;')}','${(bh.ownerName||'').replace(/'/g, '\\&quot;')}','${(bh.address||'').replace(/'/g, '\\&quot;')}',${bh.rentalPriceMin},${bh.rentalPriceMax},'${bh.establishmentId||''}')" class="flex-1 px-3 py-2 bg-emerald-950 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition shadow-sm active:scale-95">📩 Inquire & Apply</button>`
+              }
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function focusOnMap(idx) {
+    const bm = browseMarkers[idx];
+    if (!bm || !tenantBrowseMapInstance) return;
+    tenantBrowseMapInstance.setView(bm.marker.getLatLng(), 16);
+    bm.marker.openPopup();
+    document.getElementById('tenantBrowseMap')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function filterBrowseListings() {
+    const q = (document.getElementById('browseSearchInput')?.value || '').toLowerCase();
+    const barangay = document.getElementById('browseBarangayFilter')?.value || 'all';
+    const filtered = browseData.filter(bh => {
+      const matchQ = !q || bh.name.toLowerCase().includes(q) || (bh.ownerName||'').toLowerCase().includes(q) || (bh.address||'').toLowerCase().includes(q);
+      const matchB = barangay === 'all' || bh.barangay === barangay;
+      return matchQ && matchB;
+    });
+    renderBrowseGrid(filtered);
+    const mc = document.getElementById('browseMapCount');
+    if (mc) mc.innerText = `${filtered.length} Boarding Houses Pinpointed`;
+  }
+
+  // ── Inquiry Modal ─────────────────────────────────────────────────────────
+
+  function openInquiryModal(ownerId, bhName, ownerName, address, priceMin, priceMax, estId) {
+    document.getElementById('inquiryOwnerId').value = ownerId || '';
+    document.getElementById('inquiryBHName').value = bhName || '';
+    document.getElementById('inquiryEstablishmentId').value = estId || '';
+    document.getElementById('inquiryModalBHName').innerText = bhName || 'Boarding House';
+    document.getElementById('inquiryOwnerName').innerText = ownerName || '—';
+    document.getElementById('inquiryLocation').innerText = address || '—';
+    document.getElementById('inquiryPriceRange').innerText = `₱${Number(priceMin||0).toLocaleString()} – ₱${Number(priceMax||0).toLocaleString()} / month`;
+    document.getElementById('inquiryMessage').value = '';
+    document.getElementById('inquiryModal').classList.remove('hidden');
+  }
+
+  function closeInquiryModal() {
+    document.getElementById('inquiryModal').classList.add('hidden');
+  }
+
+  async function handleInquirySubmit(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnSubmitInquiry');
+    if (btn) { btn.disabled = true; btn.innerText = 'Sending...'; }
+
+    try {
+      const res = await fetch('/tenant-dashboard/api/applications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ownerId: document.getElementById('inquiryOwnerId').value,
+          boardingHouseName: document.getElementById('inquiryBHName').value,
+          requestedRoomType: document.getElementById('inquiryRoomType').value,
+          message: document.getElementById('inquiryMessage').value,
+          establishmentId: document.getElementById('inquiryEstablishmentId').value || null
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        closeInquiryModal();
+        await Swal.fire({ icon: 'success', title: '📩 Inquiry Sent!', html: `<strong>${document.getElementById('inquiryBHName')?.value || 'Boarding House'}</strong> — your application has been submitted. Check your Applications Hub on the Dashboard for updates!`, confirmButtonColor: '#023020' });
+        loadOverview();
+        loadBrowseBoardingHouses();
+      } else {
+        Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to submit inquiry.', confirmButtonColor: '#023020' });
+      }
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Network Error', text: 'Please try again.', confirmButtonColor: '#023020' });
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = 'Send Application & Inquiry ➔'; }
+    }
+  }
+
+  // ── Messenger-Style Conversations ─────────────────────────────────────────
+
+  let allConversations = [];
+  let activeChatOwnerId = null;
+  let messagePollInterval = null;
+
+  async function loadConversations(autoSelectOwnerId) {
+    const list = document.getElementById('conversationList');
+    if (list) list.innerHTML = `<p class="text-center text-slate-400 text-xs py-8">Loading conversations...</p>`;
+
+    try {
+      const res = await fetch('/tenant-dashboard/api/conversations');
+      const data = await res.json();
+      allConversations = data.conversations || [];
+
+      const badge = document.getElementById('convoCountBadge');
+      if (badge) badge.innerText = `${allConversations.length} Landlord${allConversations.length !== 1 ? 's' : ''}`;
+
+      renderConversationList(allConversations);
+
+      // Auto-select conversation
+      const targetId = autoSelectOwnerId || (allConversations.length > 0 ? allConversations[0].ownerId : null);
+      if (targetId) selectConversation(targetId);
+    } catch (err) {
+      console.error('Conversations error:', err);
+      if (list) list.innerHTML = `<p class="text-center text-rose-400 text-xs py-8">Failed to load conversations.</p>`;
+    }
+  }
+
+  function renderConversationList(conversations) {
+    const list = document.getElementById('conversationList');
+    if (!list) return;
+
+    if (!conversations.length) {
+      list.innerHTML = `<div class="p-6 text-center"><p class="text-xs text-slate-400">No conversations yet.</p><p class="text-[11px] text-slate-400 mt-1">Inquire a boarding house to start chatting!</p></div>`;
+      return;
+    }
+
+    list.innerHTML = conversations.map(c => {
+      const isActive = c.ownerId == activeChatOwnerId;
+      const unread = c.unreadCount > 0;
+      const timeStr = c.lastMessageTime ? new Date(c.lastMessageTime).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+      const statusMap = {
+        pending_owner: '⏳',
+        accepted_by_owner: '🎉',
+        confirmed: '✅',
+        declined_by_owner: '❌',
+        cancelled_by_tenant: '🚫'
+      };
+      const statusIcon = statusMap[c.applicationStatus] || '💬';
+
+      return `
+        <div onclick="selectConversation('${c.ownerId}')" class="flex items-center gap-3 px-3.5 py-3 cursor-pointer transition hover:bg-slate-100/80 ${ isActive ? 'bg-emerald-50 border-l-2 border-emerald-600' : '' }">
+          <div class="relative shrink-0">
+            <img src="${c.profilePicture || ''}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(c.ownerName||'O')}&background=023020&color=fff'" class="w-10 h-10 rounded-full object-cover">
+            ${unread ? '<span class="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 rounded-full ring-2 ring-white"></span>' : ''}
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-slate-900 text-xs truncate">${c.ownerName || 'Landlord'} ${statusIcon}</span>
+              <span class="text-[10px] text-slate-400 shrink-0 ml-1">${timeStr}</span>
+            </div>
+            <p class="text-[11px] text-emerald-800 font-medium truncate">${c.boardingHouseName || ''}</p>
+            <p class="text-[11px] text-slate-500 truncate ${ unread ? 'font-bold text-slate-800' : '' }">${c.lastMessage || 'No messages yet'}</p>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function filterConversations(query) {
+    const q = query.trim().toLowerCase();
+    const filtered = q ? allConversations.filter(c =>
+      (c.ownerName||'').toLowerCase().includes(q) ||
+      (c.boardingHouseName||'').toLowerCase().includes(q)
+    ) : allConversations;
+    renderConversationList(filtered);
+  }
+
+  async function selectConversation(ownerId) {
+    activeChatOwnerId = ownerId;
+    document.getElementById('chatActiveOwnerId').value = ownerId;
+
+    // Highlight active in list
+    const convo = allConversations.find(c => c.ownerId == ownerId);
+    if (convo) {
+      const avatar = document.getElementById('chatOwnerAvatar');
+      const nameEl = document.getElementById('chatOwnerName');
+      const bhEl = document.getElementById('chatOwnerBH');
+      if (avatar) { avatar.src = convo.profilePicture || ''; }
+      if (nameEl) nameEl.innerText = convo.ownerName || 'Landlord';
+      if (bhEl) bhEl.innerText = convo.boardingHouseName || 'Direct Landlord Messaging';
+
+      const appBadge = document.getElementById('chatAppStatusBadge');
+      if (appBadge && convo.applicationStatus) {
+        const statusText = { pending_owner:'⏳ Pending', accepted_by_owner:'🎉 Offer Received', confirmed:'✅ Confirmed', declined_by_owner:'❌ Declined' };
+        appBadge.innerText = statusText[convo.applicationStatus] || convo.applicationStatus;
+        appBadge.classList.remove('hidden');
+      } else if (appBadge) { appBadge.classList.add('hidden'); }
+    }
+
+    // On mobile: show right pane
+    const left = document.getElementById('chatLeftPane');
+    const right = document.getElementById('chatRightPane');
+    if (window.innerWidth < 640) {
+      if (left) left.classList.add('hidden');
+      if (right) { right.classList.remove('hidden'); right.classList.add('flex'); }
+    } else {
+      if (right) right.classList.add('flex');
+    }
+
+    // Re-render conversation list to reflect active state
+    renderConversationList(allConversations);
+
+    await loadChatMessages(ownerId);
+
+    // Poll for new messages every 8s
+    if (messagePollInterval) clearInterval(messagePollInterval);
+    messagePollInterval = setInterval(() => {
+      if (activeChatOwnerId == ownerId) loadChatMessages(ownerId);
+    }, 8000);
+  }
+
+  async function loadChatMessages(ownerId) {
+    const chatBox = document.getElementById('chatMessagesBox');
+    try {
+      const res = await fetch(`/tenant-dashboard/api/messages?ownerId=${ownerId}`);
+      const data = await res.json();
+
+      if (!data.messages || data.messages.length === 0) {
+        chatBox.innerHTML = `<p class="text-center text-slate-400 py-12 text-xs">No messages yet. Say hello to your landlord! 👋</p>`;
+        return;
+      }
+
+      const isAtBottom = chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight < 60;
+
+      chatBox.innerHTML = data.messages.map(m => {
+        const isMe = m.senderId === window.currentUserId;
+        const time = new Date(m.createdAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+        return `
+          <div class="flex flex-col ${ isMe ? 'items-end' : 'items-start' }">
+            <div class="max-w-[78%] px-4 py-2.5 rounded-2xl ${ isMe ? 'bg-emerald-950 text-white rounded-br-sm shadow-xs' : 'bg-slate-100 text-slate-900 rounded-bl-sm' }">
+              <p class="text-xs leading-relaxed">${m.message}</p>
+            </div>
+            <span class="text-[10px] text-slate-400 mt-0.5">${time}</span>
+          </div>
+        `;
+      }).join('');
+
+      if (isAtBottom) chatBox.scrollTop = chatBox.scrollHeight;
+    } catch (err) { console.error('Chat load error:', err); }
+  }
+
+  async function handleSendMessage(e) {
+    e.preventDefault();
+    const input = document.getElementById('chatInput');
+    const ownerId = document.getElementById('chatActiveOwnerId')?.value;
+    const text = (input?.value || '').trim();
+    if (!text) return;
+    if (!ownerId) {
+      Swal.fire({ icon: 'info', title: 'Select a Landlord', text: 'Please select a landlord conversation first.', confirmButtonColor: '#023020' });
+      return;
+    }
+
+    try {
+      const res = await fetch('/tenant-dashboard/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, ownerId: ownerId })
+      });
+      if (res.ok) {
+        if (input) input.value = '';
+        await loadChatMessages(ownerId);
+        // Refresh conversation list to update last message
+        const convRes = await fetch('/tenant-dashboard/api/conversations');
+        const convData = await convRes.json();
+        allConversations = convData.conversations || [];
+        renderConversationList(allConversations);
+      } else {
+        const data = await res.json();
+        Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to send message.', confirmButtonColor: '#023020' });
+      }
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Network Error', text: 'Please try again.', confirmButtonColor: '#023020' });
+    }
+  }
+
+  function backToConversationList() {
+    activeChatOwnerId = null;
+    if (messagePollInterval) { clearInterval(messagePollInterval); messagePollInterval = null; }
+    const left = document.getElementById('chatLeftPane');
+    const right = document.getElementById('chatRightPane');
+    if (left) left.classList.remove('hidden');
+    if (right) { right.classList.remove('flex'); right.classList.add('hidden'); }
+  }
+
+  function openConversationWith(ownerId) {
+    switchTab('messaging');
+    // Give tab a moment to show, then select
+    setTimeout(() => loadConversations(ownerId), 100);
+  }
+
+  async function loadAnnouncements() {
+    try {
+      const res = await fetch('/tenant-dashboard/api/announcements');
+      const data = await res.json();
+
+      const container = document.getElementById('announcementsContainer');
+      if (!data.announcements || data.announcements.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-400 italic p-4 bg-slate-50 rounded-2xl">No announcements posted.</p>`;
+        return;
+      }
+
+      container.innerHTML = data.announcements.map(a => `
+        <div class="p-5 bg-slate-50 rounded-2xl border border-slate-100 space-y-2 hover:bg-slate-100/60 transition">
+          <h3 class="font-bold text-slate-900 text-sm">${a.title}</h3>
+          <p class="text-xs text-slate-600 leading-relaxed">${a.message}</p>
+          <span class="text-[10px] text-slate-400 block pt-2 border-t border-slate-200/50">${new Date(a.createdAt).toLocaleDateString()}</span>
+        </div>
+      `).join('');
+    } catch (err) { console.error('Error loading announcements:', err); }
+  }
+
+  async function loadDocuments() {
+    try {
+      const res = await fetch('/tenant-dashboard/api/documents');
+      const data = await res.json();
+
+      const container = document.getElementById('documentsContainer');
+      if (!data.documents || data.documents.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-400 italic p-4 col-span-full bg-slate-50 rounded-2xl">No documents uploaded yet.</p>`;
+        return;
+      }
+
+      container.innerHTML = data.documents.map(d => `
+        <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3 text-xs hover:bg-slate-100/60 transition">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-900 truncate">${d.title}</span>
+            <span class="px-2.5 py-0.5 bg-slate-200 text-slate-700 rounded-full text-[10px] font-bold capitalize">${d.docType}</span>
+          </div>
+          <p class="text-slate-500 text-[11px]">${d.fileSize || 'N/A'}</p>
+          <a href="${d.fileUrl}" target="_blank" class="block text-center w-full py-2 bg-emerald-950 text-white rounded-xl font-bold hover:bg-emerald-900 transition active:scale-95">
+            View / Download File
+          </a>
+        </div>
+      `).join('');
+    } catch (err) { console.error('Error loading documents:', err); }
+  }
+
+  function openDocumentModal() {
+    const modal = document.getElementById('documentModal');
+    if (modal) modal.classList.remove('hidden');
+  }
+  function closeDocumentModal() {
+    const modal = document.getElementById('documentModal');
+    if (modal) modal.classList.add('hidden');
+  }
+
+  async function handleUploadDocument(e) {
+    e.preventDefault();
+    const formData = new FormData();
+    formData.append('title', document.getElementById('docTitle').value);
+    formData.append('docType', document.getElementById('docType').value);
+    formData.append('document', document.getElementById('docFile').files[0]);
+
+    const res = await fetch('/tenant-dashboard/api/documents', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (res.ok) {
+      Swal.fire({ icon: 'success', title: 'Uploaded', text: data.message, confirmButtonColor: '#023020' });
+      closeDocumentModal();
+      document.getElementById('documentForm').reset();
+      loadDocuments();
+    } else {
+      Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to upload document', confirmButtonColor: '#023020' });
+    }
+  }
+
+  async function loadNotifications() {
+    try {
+      const res = await fetch('/tenant-dashboard/api/notifications');
+      const data = await res.json();
+
+      const container = document.getElementById('notificationsContainer');
+      if (!data.notifications || data.notifications.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-400 italic p-4 bg-slate-50 rounded-2xl">No notifications.</p>`;
+        return;
+      }
+
+      container.innerHTML = data.notifications.map(n => `
+        <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-1 text-xs hover:bg-slate-100/60 transition">
+          <h4 class="font-bold text-slate-900">${n.title}</h4>
+          <p class="text-slate-600">${n.body}</p>
+        </div>
+      `).join('');
+    } catch (err) { console.error('Error loading notifications:', err); }
+  }
+
+  async function loadProfile() {
+    try {
+      const res = await fetch('/tenant-dashboard/api/profile');
+      const data = await res.json();
+
+      if (data.user) {
+        document.getElementById('profFullName').value = data.user.fullName || '';
+        document.getElementById('profContact').value = data.user.contactNumber || '';
+        document.getElementById('profGender').value = data.user.gender || '';
+        if (data.user.profilePicture) {
+          const overviewAv = document.getElementById('profOverviewAvatar');
+          if (overviewAv) overviewAv.src = data.user.profilePicture;
+        }
+      }
+    } catch (err) { console.error('Error loading profile:', err); }
+  }
+
+  async function handleProfileUpdate(e) {
+    e.preventDefault();
+    const formData = new FormData();
+    formData.append('fullName', document.getElementById('profFullName').value);
+    formData.append('contactNumber', document.getElementById('profContact').value);
+    formData.append('gender', document.getElementById('profGender').value);
+
+    const file = document.getElementById('profPhoto').files[0];
+    if (file) formData.append('profilePicture', file);
+
+    const res = await fetch('/tenant-dashboard/api/profile', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (res.ok) {
+      Swal.fire({ icon: 'success', title: 'Profile Updated', text: data.message, confirmButtonColor: '#023020' });
+      if (data.user?.profilePicture) {
+        const headerAv = document.getElementById('headerAvatar');
+        const overviewAv = document.getElementById('profOverviewAvatar');
+        if (headerAv) headerAv.src = data.user.profilePicture;
+        if (overviewAv) overviewAv.src = data.user.profilePicture;
+      }
+    } else {
+      Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to update profile', confirmButtonColor: '#023020' });
+    }
+  }
+
+  async function handlePasswordChange(e) {
+    e.preventDefault();
+    const currentPassword = document.getElementById('passCurrent').value;
+    const newPassword = document.getElementById('passNew').value;
+    const confirmPassword = document.getElementById('passConfirm').value;
+
+    const res = await fetch('/tenant-dashboard/api/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword, newPassword, confirmPassword })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      Swal.fire({ icon: 'success', title: 'Password Updated', text: data.message, confirmButtonColor: '#023020' });
+      document.getElementById('passwordForm').reset();
+    } else {
+      Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to update password', confirmButtonColor: '#023020' });
+    }
+  }
+</script>
+</body>
+</html>

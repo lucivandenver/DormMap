@@ -1,0 +1,221 @@
+{{> head}}
+
+<body class="bg-slate-100 text-slate-800 font-sans antialiased min-h-screen flex flex-col items-center justify-center p-4 selection:bg-blue-600 selection:text-white">
+  <!-- Top GCash Header Container -->
+  <div class="max-w-md w-full bg-white rounded-3xl border border-slate-200/80 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <!-- GCash Top Blue Branding Bar -->
+    <div class="bg-[#005ce6] p-6 text-white text-center relative shadow-sm">
+      <div class="inline-flex items-center justify-center gap-2 mb-1">
+        <div class="h-9 w-9 rounded-full bg-white text-[#005ce6] flex items-center justify-center font-black text-xl shadow-xs">
+          G
+        </div>
+        <span class="text-2xl font-black tracking-tight">GCash</span>
+      </div>
+      <p class="text-blue-100 text-[11px] font-medium tracking-wide uppercase">Merchant Payment Gateway</p>
+      
+      <div class="mt-4 pt-3 border-t border-white/15 flex items-center justify-between text-xs">
+        <span class="text-blue-100 font-medium">Merchant:</span>
+        <span class="font-bold text-white tracking-wide truncate max-w-[200px]">{{boardingHouseName}}</span>
+      </div>
+    </div>
+
+    <!-- Amount Banner -->
+    <div class="bg-blue-50/70 border-b border-blue-100 px-6 py-4 flex items-center justify-between">
+      <div>
+        <p class="text-[10px] uppercase tracking-wider font-bold text-slate-400">Total Amount Due</p>
+        <p class="text-2xl font-black text-[#005ce6]">₱{{amount}}</p>
+      </div>
+      <div class="text-right text-xs">
+        <p class="text-[10px] text-slate-400 font-bold uppercase">Payee (Landlord)</p>
+        <p class="font-bold text-slate-800 truncate max-w-[160px]">{{ownerName}}</p>
+        <p class="font-mono text-emerald-700 font-bold text-[11px]">{{ownerGcashNumber}}</p>
+      </div>
+    </div>
+
+    <!-- Body Steps Container -->
+    <div class="p-6 space-y-6">
+
+      <!-- STEP 1: GCash Mobile Number Input -->
+      <div id="stepMobile" class="space-y-4">
+        <div class="space-y-1">
+          <h2 class="text-base font-bold text-slate-900">Log in to Pay with GCash</h2>
+          <p class="text-xs text-slate-500">Enter the Philippine mobile number registered to your GCash account.</p>
+        </div>
+
+        <div class="space-y-2">
+          <label class="block text-xs font-bold text-slate-700">Mobile Number</label>
+          <div class="relative flex items-center">
+            <span class="absolute left-3.5 text-xs font-bold text-slate-500 font-mono">+63</span>
+            <input type="tel" id="inputMobile" maxlength="11" placeholder="9171234567" value="{{tenantPhone}}" class="w-full rounded-2xl border border-slate-300 bg-white pl-12 pr-4 py-3 text-sm font-mono font-bold tracking-wider text-slate-900 focus:border-[#005ce6] focus:ring-4 focus:ring-blue-500/10 focus:outline-none transition">
+          </div>
+          <p class="text-[11px] text-slate-400">Format: 9XXXXXXXXX or 09XXXXXXXXX</p>
+        </div>
+
+        <button type="button" id="btnNextToOtp" class="w-full py-3.5 bg-[#005ce6] hover:bg-[#004dc0] text-white rounded-2xl font-bold text-sm tracking-wide transition shadow-lg shadow-blue-600/25 active:scale-98 cursor-pointer">
+          Next ➔
+        </button>
+      </div>
+
+      <!-- STEP 2: 6-Digit OTP Verification -->
+      <div id="stepOtp" class="space-y-4 hidden">
+        <div class="space-y-1">
+          <h2 class="text-base font-bold text-slate-900">Authentication Code</h2>
+          <p class="text-xs text-slate-500">An authentication code was sent to <span id="displayPhoneMask" class="font-bold text-slate-800">+63 9XX-XXX-XXXX</span>.</p>
+        </div>
+
+        <div class="space-y-2">
+          <label class="block text-xs font-bold text-slate-700">6-Digit Code (OTP)</label>
+          <input type="text" id="inputOtp" maxlength="6" placeholder="123456" value="123456" class="w-full text-center tracking-[0.5em] text-xl font-mono font-black py-3 rounded-2xl border border-slate-300 bg-white focus:border-[#005ce6] focus:ring-4 focus:ring-blue-500/10 focus:outline-none transition">
+          <div class="flex items-center justify-between text-[11px] text-slate-400">
+            <span>Didn't get code? Resend in 55s</span>
+            <span class="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-md">Sandbox Test: 123456</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button type="button" id="btnBackToMobile" class="py-3.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-bold text-xs transition">
+            Back
+          </button>
+          <button type="button" id="btnNextToPin" class="flex-1 py-3.5 bg-[#005ce6] hover:bg-[#004dc0] text-white rounded-2xl font-bold text-sm tracking-wide transition shadow-lg shadow-blue-600/25 active:scale-98 cursor-pointer">
+            Submit Code ➔
+          </button>
+        </div>
+      </div>
+
+      <!-- STEP 3: 4-Digit MPIN Authorization -->
+      <div id="stepMpin" class="space-y-4 hidden">
+        <div class="space-y-1">
+          <h2 class="text-base font-bold text-slate-900">Enter Your 4-Digit MPIN</h2>
+          <p class="text-xs text-slate-500">Authorize payment of <strong class="text-blue-700">₱{{amount}}</strong> for rent.</p>
+        </div>
+
+        <div class="space-y-2">
+          <label class="block text-xs font-bold text-slate-700">4-Digit MPIN</label>
+          <input type="password" id="inputMpin" maxlength="4" placeholder="••••" value="1234" class="w-full text-center tracking-[0.6em] text-2xl font-mono font-black py-3 rounded-2xl border border-slate-300 bg-white focus:border-[#005ce6] focus:ring-4 focus:ring-blue-500/10 focus:outline-none transition">
+          <p class="text-[11px] text-slate-400 text-center">Never share your MPIN or OTP with anyone.</p>
+        </div>
+
+        <div class="p-3 bg-slate-50 rounded-2xl border border-slate-100 text-xs space-y-1">
+          <div class="flex justify-between text-slate-500"><span>Rent Period:</span><span class="font-bold text-slate-800">{{billingMonth}}</span></div>
+          <div class="flex justify-between text-slate-500"><span>Reference:</span><span class="font-mono text-slate-700">{{reference}}</span></div>
+          <div class="border-t border-slate-200 pt-1.5 flex justify-between font-bold text-slate-900"><span>Amount to Deduct:</span><span class="text-[#005ce6] font-black text-sm">₱{{amount}}</span></div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button type="button" id="btnBackToOtp" class="py-3.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-bold text-xs transition">
+            Back
+          </button>
+          <button type="button" id="btnPayNow" class="flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-sm tracking-wide transition shadow-lg shadow-emerald-600/25 active:scale-98 flex items-center justify-center gap-2 cursor-pointer">
+            <span id="btnPayText">PAY PHP {{amount}}</span>
+            <span id="btnPaySpinner" class="hidden animate-spin">⏳</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Security Footer -->
+    <div class="bg-slate-50 border-t border-slate-100 px-6 py-3.5 text-center text-[10px] text-slate-400 flex items-center justify-center gap-1.5">
+      <span>🔒</span>
+      <span>Secured 256-bit encrypted GCash Payment Gateway for DorMap</span>
+    </div>
+  </div>
+
+  <div class="mt-4 text-center">
+    <a href="/tenant-dashboard" class="text-xs text-slate-400 hover:text-slate-600 underline font-medium">Cancel and return to Tenant Dashboard</a>
+  </div>
+
+  <script>
+    const ref = "{{reference}}";
+    const amount = "{{amount}}";
+
+    const stepMobile = document.getElementById('stepMobile');
+    const stepOtp = document.getElementById('stepOtp');
+    const stepMpin = document.getElementById('stepMpin');
+
+    const inputMobile = document.getElementById('inputMobile');
+    const inputOtp = document.getElementById('inputOtp');
+    const inputMpin = document.getElementById('inputMpin');
+
+    const displayPhoneMask = document.getElementById('displayPhoneMask');
+
+    document.getElementById('btnNextToOtp').addEventListener('click', () => {
+      let phone = inputMobile.value.trim().replace(/^0/, '');
+      if (phone.length < 9) {
+        alert('Please enter a valid Philippine mobile number.');
+        return;
+      }
+      displayPhoneMask.textContent = '+63 ' + phone.slice(0, 3) + '***' + phone.slice(-4);
+      stepMobile.classList.add('hidden');
+      stepOtp.classList.remove('hidden');
+      inputOtp.focus();
+    });
+
+    document.getElementById('btnBackToMobile').addEventListener('click', () => {
+      stepOtp.classList.add('hidden');
+      stepMobile.classList.remove('hidden');
+    });
+
+    document.getElementById('btnNextToPin').addEventListener('click', () => {
+      if (inputOtp.value.trim().length < 4) {
+        alert('Please enter the 6-digit OTP code.');
+        return;
+      }
+      stepOtp.classList.add('hidden');
+      stepMpin.classList.remove('hidden');
+      inputMpin.focus();
+    });
+
+    document.getElementById('btnBackToOtp').addEventListener('click', () => {
+      stepMpin.classList.add('hidden');
+      stepOtp.classList.remove('hidden');
+    });
+
+    document.getElementById('btnPayNow').addEventListener('click', async () => {
+      const pin = inputMpin.value.trim();
+      if (pin.length < 4) {
+        alert('Please enter your 4-digit MPIN.');
+        return;
+      }
+
+      const btnPayText = document.getElementById('btnPayText');
+      const btnPaySpinner = document.getElementById('btnPaySpinner');
+      const btnPayNow = document.getElementById('btnPayNow');
+
+      btnPayNow.disabled = true;
+      btnPayText.textContent = 'Authorizing GCash Payment...';
+      btnPaySpinner.classList.remove('hidden');
+
+      try {
+        const res = await fetch('/api/payments/gcash/authorize-portal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ref: ref,
+            gcashNumber: inputMobile.value.trim()
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+          btnPayText.textContent = 'Payment Authorized! Redirecting...';
+          setTimeout(() => {
+            window.location.href = data.redirectUrl || `/payments/success?ref=${ref}`;
+          }, 800);
+        } else {
+          alert(data.error || 'Failed to complete GCash payment.');
+          btnPayNow.disabled = false;
+          btnPayText.textContent = `PAY PHP ${amount}`;
+          btnPaySpinner.classList.add('hidden');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Network connection error. Please try again.');
+        btnPayNow.disabled = false;
+        btnPayText.textContent = `PAY PHP ${amount}`;
+        btnPaySpinner.classList.add('hidden');
+      }
+    });
+  </script>
+</body>
+</html>

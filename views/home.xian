@@ -1,0 +1,1894 @@
+{{> head }}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <style>
+    :root {
+      --dormmap-primary: #023020;
+      --dormmap-primary-soft: #084d34;
+      --dormmap-accent: #f4b400;
+      --dormmap-surface: rgba(255, 255, 255, 0.82);
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(2, 48, 32, 0.08), transparent 34%),
+        radial-gradient(circle at bottom right, rgba(2, 48, 32, 0.06), transparent 28%),
+        #f8fafc;
+      color: #1f2937;
+    }
+
+    .font-display {
+      font-family: 'Poppins', sans-serif;
+    }
+
+    .glass-card {
+      background: var(--dormmap-surface);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(2, 48, 32, 0.08);
+      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+    }
+
+    .section-shell {
+      position: relative;
+    }
+
+    .section-shell::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.35), transparent);
+      pointer-events: none;
+    }
+
+    .nav-scrolled {
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      border-bottom: 1px solid rgba(2, 48, 32, 0.06);
+    }
+
+    .nav-link {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      padding-bottom: 0.2rem;
+      transition: color 180ms ease;
+    }
+
+    .nav-link::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      bottom: -0.2rem;
+      width: 100%;
+      height: 2px;
+      border-radius: 999px;
+      background: var(--dormmap-primary);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 180ms ease;
+    }
+
+    .nav-link:hover::after,
+    .nav-link:focus-visible::after {
+      transform: scaleX(1);
+    }
+
+    .nav-link:hover,
+    .nav-link:focus-visible {
+      color: var(--dormmap-primary);
+    }
+
+    .map-frame {
+      min-height: 420px;
+    }
+
+    @media (max-width: 768px) {
+      .map-frame {
+        min-height: 340px;
+      }
+    }
+
+    #detailCarouselTrack {
+      display: flex;
+      height: 100%;
+      width: 100%;
+      transition: transform 320ms cubic-bezier(0.25, 1, 0.5, 1);
+    }
+    .detail-carousel-dot {
+      transition: all 200ms ease;
+    }
+  </style>
+</head>
+<body class="antialiased text-slate-800">
+  <header id="siteHeader" class="fixed inset-x-0 top-0 z-50 transition-all duration-300">
+    <div class="w-full px-0">
+      <div class="border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
+        <div class="flex items-center justify-between gap-4">
+          <a href="#top" class="flex items-center gap-3 min-w-0">
+            <div class="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-emerald-950/10 bg-white shadow-sm">
+              <svg viewBox="0 0 64 64" class="h-full w-full" aria-hidden="true">
+                <defs>
+                  <linearGradient id="dormmapLogoBlue" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#1e4f8f" />
+                    <stop offset="100%" stop-color="#113a73" />
+                  </linearGradient>
+                  <linearGradient id="dormmapLogoGreen" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#77c84b" />
+                    <stop offset="100%" stop-color="#2d9a4a" />
+                  </linearGradient>
+                </defs>
+                <circle cx="32" cy="32" r="30" fill="white" stroke="url(#dormmapLogoBlue)" stroke-width="2.5" />
+                <path d="M15 30h10V18H15z" fill="url(#dormmapLogoBlue)" opacity="0.9" />
+                <path d="M13 30h12v16H13z" fill="#2f6fa8" opacity="0.96" />
+                <path d="M39 14l11 6v20H39z" fill="url(#dormmapLogoGreen)" opacity="0.94" />
+                <path d="M48 28l6 4v10h-6z" fill="#6bc94f" opacity="0.96" />
+                <path d="M20 33l12-10 12 10v14H20z" fill="white" stroke="url(#dormmapLogoBlue)" stroke-width="2.2" stroke-linejoin="round" />
+                <path d="M26 40h4v7h-4zM34 40h4v7h-4z" fill="url(#dormmapLogoBlue)" />
+                <path d="M24 49h16" stroke="url(#dormmapLogoBlue)" stroke-width="2.2" stroke-linecap="round" />
+                <path d="M32 47c-2.9 0-5.2 2.3-5.2 5.1 0 3.8 5.2 9.1 5.2 9.1s5.2-5.3 5.2-9.1c0-2.8-2.3-5.1-5.2-5.1z" fill="url(#dormmapLogoBlue)" />
+                <circle cx="32" cy="52" r="1.8" fill="white" />
+                <path d="M35 21h4v8h-4zM41 21h4v8h-4zM35 31h4v8h-4zM41 31h4v8h-4z" fill="rgba(255,255,255,0.9)" />
+                <path d="M15 46c3.5-1 7.1-1.2 10.6-.4M39 46c3.6-.1 7.1.5 10.5 1.8" stroke="rgba(17,58,115,0.18)" stroke-width="2" stroke-linecap="round" />
+              </svg>
+            </div>
+            <div class="min-w-0">
+              <div class="font-display text-base font-extrabold tracking-tight text-slate-900 sm:text-lg">DormMap</div>
+              <p class="truncate text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Official BPLO Dormitory Finder</p>
+            </div>
+          </a>
+
+          <nav class="hidden items-center gap-7 text-sm font-medium text-slate-700 lg:flex">
+            <a href="#top" class="nav-link">Home</a>
+            <a href="#search" class="nav-link">Find Housing</a>
+            <a href="#map" class="nav-link">Map</a>
+            <a href="/about" class="nav-link">About</a>
+            <a href="#contact" class="nav-link">Contact</a>
+          </nav>
+
+          <div class="flex items-center gap-2 sm:gap-3">
+            <!-- Language Selector Dropdown Container (Image 2 Minimalist Design) -->
+            <div class="relative inline-block text-left" id="langDropdownContainer">
+              <button type="button" id="headerLangBtn" onclick="toggleLanguageDropdown(event)" title="Select Language" class="inline-flex items-center gap-2.5 rounded-2xl bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-xs border border-slate-200/80 hover:bg-slate-50 transition cursor-pointer">
+                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/>
+                </svg>
+                <span class="current-lang-display font-medium text-slate-700">English</span>
+              </button>
+
+              <!-- Image 2 Minimal Floating Dropdown Card -->
+              <div id="langDropdownMenu" class="hidden absolute right-0 mt-2 w-56 sm:w-64 max-h-80 overflow-y-auto rounded-2xl bg-white shadow-xl border border-slate-100 py-1 z-50 divide-y divide-slate-100/60 animate-in fade-in zoom-in-95 duration-150">
+              </div>
+            </div>
+
+            <div class="hidden items-center gap-3 lg:flex">
+              <a href="/login" class="rounded-full border border-emerald-950/10 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-[var(--dormmap-primary)] hover:text-[var(--dormmap-primary)]">Login</a>
+              <a href="/register" class="rounded-full px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:opacity-95" style="background: var(--dormmap-primary);">Register</a>
+            </div>
+
+            <button id="mobileMenuButton" type="button" class="inline-flex h-11 w-11 items-center justify-center rounded-full border border-emerald-950/10 text-slate-800 transition hover:border-[var(--dormmap-primary)] hover:text-[var(--dormmap-primary)] lg:hidden" aria-label="Open menu">
+              <i data-lucide="menu" class="h-5 w-5"></i>
+            </button>
+          </div>
+        </div>
+
+        <div id="mobileMenu" class="mt-4 hidden border-t border-emerald-950/10 pt-4 lg:hidden">
+          <div class="flex flex-col gap-3 text-sm font-medium text-slate-700">
+            <a href="#top" class="rounded-2xl px-3 py-2 transition hover:bg-emerald-950/5">Home</a>
+            <a href="#search" class="rounded-2xl px-3 py-2 transition hover:bg-emerald-950/5">Find Housing</a>
+            <a href="#map" class="rounded-2xl px-3 py-2 transition hover:bg-emerald-950/5">Map</a>
+            <a href="/about" class="rounded-2xl px-3 py-2 transition hover:bg-emerald-950/5">About</a>
+            <a href="#contact" class="rounded-2xl px-3 py-2 transition hover:bg-emerald-950/5">Contact</a>
+            <div class="relative w-full">
+              <button type="button" onclick="toggleLanguageDropdown(event)" class="w-full flex items-center justify-between gap-2.5 rounded-2xl bg-white border border-slate-200 px-4 py-3 text-left font-medium text-slate-700">
+                <div class="flex items-center gap-2.5">
+                  <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/>
+                  </svg>
+                  <span class="text-xs">Language: <strong class="current-lang-display text-slate-900 font-semibold">English</strong></span>
+                </div>
+                <span class="text-xs text-slate-400">▾</span>
+              </button>
+            </div>
+            <div class="grid grid-cols-2 gap-3 pt-2">
+              <a href="/login" class="rounded-full border border-emerald-950/10 px-4 py-2 text-center font-semibold text-slate-700">Login</a>
+              <a href="/register" class="rounded-full px-4 py-2 text-center font-semibold text-white" style="background: var(--dormmap-primary);">Register</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- ===== HERO SECTION — Full-width BG municipality image, light green overlay ===== -->
+    <section class="relative min-h-[92vh] flex flex-col justify-center overflow-hidden" style="padding-top: 72px;">
+      <!-- Municipality background image -->
+      <div class="absolute inset-0 z-0">
+        <img
+          src="https://tse2.mm.bing.net/th/id/OIP.0ny3bYtW0Hhz4xQfMWEkjwHaEM?r=0&rs=1&pid=ImgDetMain&o=7&rm=3"
+          onerror="this.src='/images/bongabong-municipal.jpg'"
+          alt="Municipality of Bongabong"
+          class="h-full w-full object-cover object-center"
+        >
+        <!-- Light green gradient overlay -->
+        <div class="absolute inset-0" style="background: linear-gradient(135deg, rgba(5,120,70,0.82) 0%, rgba(2,48,32,0.75) 40%, rgba(5,100,60,0.60) 100%);"></div>
+        <!-- Subtle pattern noise for depth -->
+        <div class="absolute inset-0 opacity-10" style="background-image: url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'1\'%3E%3Ccircle cx=\'30\' cy=\'30\' r=\'1\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E');"></div>
+      </div>
+
+      <!-- Hero Content -->
+      <div class="relative z-10 mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        <div class="grid gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
+
+          <!-- Left: Text Content -->
+          <div class="space-y-7">
+            <!-- Official badge -->
+            <span class="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/15 px-4 py-2 text-xs font-black uppercase tracking-[0.28em] text-white backdrop-blur-md">
+              <img src="https://bongabong.gov.ph/logo.png" onerror="this.src='/images/bongabong-seal.png'" alt="Bongabong Seal" class="h-5 w-5 rounded-full bg-white p-0.5 object-contain">
+              Official Municipality of Bongabong
+            </span>
+
+            <div class="space-y-5">
+              <h1 class="font-display text-4xl font-extrabold leading-[1.1] text-white drop-shadow-md sm:text-5xl lg:text-6xl">
+                Find Your Ideal
+                <br>
+                <span style="color: #a7f3d0;">Boarding House</span>
+                <br>
+                Near Your School
+              </h1>
+              <p class="max-w-xl text-base leading-8 text-white/90 sm:text-lg">
+                DormMap is the official BPLO dormitory finder for the Municipality of Bongabong. Browse verified listings, compare amenities, and get location-aware boarding house information on any device.
+              </p>
+            </div>
+
+            <!-- Trust badges inline -->
+            <div class="flex flex-wrap gap-3">
+              <div class="flex items-center gap-2 rounded-2xl bg-white/15 border border-white/25 px-4 py-2.5 backdrop-blur-md">
+                <span class="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-400/30 text-white">
+                  <i data-lucide="badge-check" class="h-4 w-4"></i>
+                </span>
+                <span class="text-sm font-bold text-white">BPLO Verified</span>
+              </div>
+              <div class="flex items-center gap-2 rounded-2xl bg-white/15 border border-white/25 px-4 py-2.5 backdrop-blur-md">
+                <span class="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-400/30 text-white">
+                  <i data-lucide="shield-check" class="h-4 w-4"></i>
+                </span>
+                <span class="text-sm font-bold text-white">Safe & Secure</span>
+              </div>
+              <div class="flex items-center gap-2 rounded-2xl bg-white/15 border border-white/25 px-4 py-2.5 backdrop-blur-md">
+                <span class="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-400/30 text-white">
+                  <i data-lucide="map-pin" class="h-4 w-4"></i>
+                </span>
+                <span class="text-sm font-bold text-white">GPS Navigation</span>
+              </div>
+            </div>
+
+            <!-- CTA Buttons -->
+            <div class="flex flex-col gap-3 sm:flex-row">
+              <a href="#search" class="inline-flex min-w-[200px] items-center justify-center gap-2 rounded-full bg-white px-7 py-4 text-sm font-black text-emerald-950 shadow-xl transition hover:bg-emerald-50 active:scale-95">
+                <i data-lucide="search" class="h-4 w-4"></i>
+                Find Boarding Houses
+              </a>
+              <a href="#map" class="inline-flex min-w-[180px] items-center justify-center gap-2 rounded-full border-2 border-white/60 bg-transparent px-7 py-4 text-sm font-black text-white shadow-lg transition hover:bg-white/10 hover:border-white active:scale-95">
+                <i data-lucide="map-pinned" class="h-4 w-4"></i>
+                Explore the Map
+              </a>
+            </div>
+          </div>
+
+          <!-- Right: Floating boarding house card — inspired by BHRental style -->
+          <div class="relative flex justify-center lg:justify-end">
+            <!-- Main tilted/floating card -->
+            <div class="relative w-full max-w-sm">
+              <!-- Card container -->
+              <div class="overflow-hidden rounded-[28px] bg-white shadow-[0_40px_100px_rgba(2,48,32,0.35)] ring-1 ring-white/20 transition hover:-translate-y-1 hover:shadow-[0_60px_120px_rgba(2,48,32,0.40)] duration-300">
+                <!-- Room image -->
+                <div class="relative h-56">
+                  <img
+                    src="https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=800&q=80"
+                    alt="Boarding House Interior"
+                    class="h-full w-full object-cover"
+                  >
+                  <div class="absolute inset-0 bg-gradient-to-t from-slate-950/60 to-transparent"></div>
+                  <span class="absolute left-4 top-4 rounded-full bg-emerald-500 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-white shadow-md">✓ Verified</span>
+                </div>
+                <!-- Card body -->
+                <div class="p-5">
+                  <div class="flex items-start justify-between">
+                    <div>
+                      <h3 class="font-display text-base font-extrabold text-slate-900"> Verified Boarding Houses</h3>
+                      <p class="mt-0.5 text-xs text-slate-500">Near Institutions in Bongabong</p>
+                    </div>
+                    <div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-emerald-100 bg-white shadow-sm">
+                      <img src="https://bongabong.gov.ph/logo.png" onerror="this.src='/images/bongabong-seal.png'" alt="Bongabong Official Seal" class="h-full w-full object-contain p-0.5">
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Floating info bubble — Verified Landlords -->
+              <div class="absolute -left-8 -bottom-5 flex items-center gap-2.5 rounded-2xl bg-white px-4 py-3 shadow-2xl border border-slate-100 z-10">
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100">
+                  <i data-lucide="user-check" class="h-4 w-4 text-emerald-700"></i>
+                </span>
+                <div>
+                  <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Trusted</p>
+                  <p class="text-sm font-extrabold text-slate-900">Verified Landlords</p>
+                </div>
+              </div>
+
+              <!-- Floating info bubble — Instant Booking -->
+              <div class="absolute -right-6 top-8 flex items-center gap-2.5 rounded-2xl bg-emerald-950 px-4 py-3 shadow-2xl border border-emerald-900 z-10">
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-800">
+                  <i data-lucide="zap" class="h-4 w-4 text-emerald-300"></i>
+                </span>
+                <div>
+                  <p class="text-[10px] font-black uppercase tracking-wider text-emerald-400">Fast</p>
+                  <p class="text-sm font-extrabold text-white">Instant Inquiry</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wave divider -->
+      <div class="absolute bottom-0 left-0 right-0 z-10">
+        <svg viewBox="0 0 1440 60" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" class="w-full h-[60px]">
+          <path d="M0 60 L0 30 Q360 0 720 30 Q1080 60 1440 30 L1440 60 Z" fill="#f8fafc"/>
+        </svg>
+      </div>
+    </section>
+
+    <section id="search" class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div class="glass-card rounded-[28px] p-5 sm:p-6 lg:p-7">
+        <div class="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p class="text-xs font-bold uppercase tracking-[0.24em] text-slate-500">Quick Search</p>
+            <h2 class="font-display mt-2 text-2xl font-bold text-slate-950 sm:text-3xl">Find a verified boarding house fast</h2>
+          </div>
+          <button type="button" id="useLocationButton" class="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-950/10 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-[var(--dormmap-primary)] hover:text-[var(--dormmap-primary)]">
+            <i data-lucide="locate-fixed" class="h-4 w-4"></i>
+            Use My Current Location
+          </button>
+        </div>
+
+        <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+          <label class="xl:col-span-2">
+            <span class="mb-2 block text-sm font-semibold text-slate-700">Search Boarding House or School</span>
+            <input type="text" id="quickSearchQuery" placeholder="Boarding house, school name, owner, or street..." class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm outline-none transition focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
+          </label>
+          <label>
+            <span class="mb-2 block text-sm font-semibold text-slate-700">Barangay (Bongabong)</span>
+            <select id="quickBarangaySelect" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm outline-none transition focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
+              <option value="">Select Barangay</option>
+              <option>Anilao</option>
+              <option>Aplaya</option>
+              <option>Bagong Bayan I</option>
+              <option>Bagong Bayan II</option>
+              <option>Batangan</option>
+              <option>Bukal</option>
+              <option>Camantigue</option>
+              <option>Carmundo</option>
+              <option>Cawayan</option>
+              <option>Dayhagan</option>
+              <option>Formon</option>
+              <option>Hagan</option>
+              <option>Hagupit</option>
+              <option>Ipil</option>
+              <option>Kaligtasan</option>
+              <option>Labasan</option>
+              <option>Labonan</option>
+              <option>Libertad</option>
+              <option>Lisap</option>
+              <option>Luna</option>
+              <option>Malitbog</option>
+              <option>Mapang</option>
+              <option>Masaguisi</option>
+              <option>Mina de Oro</option>
+              <option>Morente</option>
+              <option>Ogbot</option>
+              <option>Orconuma</option>
+              <option>Poblacion</option>
+              <option>Pulosahi</option>
+              <option>Sagana</option>
+              <option>San Isidro</option>
+              <option>San Jose</option>
+              <option>San Juan</option>
+              <option>Sta. Cruz</option>
+              <option>Sigange</option>
+              <option>Tawas</option>
+              <option>Zone I</option>
+              <option>Zone II</option>
+              <option>Zone III</option>
+              <option>Zone IV</option>
+            </select>
+          </label>
+          <label>
+            <span class="mb-2 block text-sm font-semibold text-slate-700">Select School / Institution</span>
+            <select id="quickInstitutionSelect" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm outline-none transition focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
+              <option value="">Select School</option>
+              <option value="Mindoro State University">Mindoro State University (MinSU)</option>
+              <option value="Bongabong National High School">Bongabong National High School</option>
+              <option value="Eastern Mindoro College">Eastern Mindoro College (EMC)</option>
+              <option value="TESDA Training Center">TESDA Training Center</option>
+              <option value="St. Joseph Academy">St. Joseph Academy</option>
+              <option value="Formon National High School">Formon National High School</option>
+              <option value="Cawayan National High School">Cawayan National High School</option>
+              <option value="Labasan National High School">Labasan National High School</option>
+              <option value="Masaguisi National High School">Masaguisi National High School</option>
+              <option value="Kaligtasan National High School">Kaligtasan National High School</option>
+              <option value="Dayhagan National High School">Dayhagan National High School</option>
+            </select>
+          </label>
+          <label>
+            <span class="mb-2 block text-sm font-semibold text-slate-700">Price Range</span>
+            <select id="quickPriceSelect" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm outline-none transition focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
+              <option value="">Any price</option>
+              <option value="under_1000">Below ₱1,000</option>
+              <option value="1000_2000">₱1,000 - ₱2,000</option>
+              <option value="2000_3000">₱2,000 - ₱3,000</option>
+              <option value="3000_4000">₱3,000 - ₱4,000</option>
+              <option value="4000_5000">₱4,000 - ₱5,000</option>
+              <option value="above_5000">₱5,000 and up</option>
+            </select>
+          </label>
+          <label>
+            <span class="mb-2 block text-sm font-semibold text-slate-700">Boarding Type</span>
+            <select id="quickTypeSelect" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm outline-none transition focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
+              <option value="">Any type</option>
+              <option value="Solo Room">Solo Room</option>
+              <option value="Shared Room">Shared Room</option>
+              <option value="Dormitory">Dormitory</option>
+              <option value="Apartment">Apartment</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p class="text-sm text-slate-500">Tip: allow GPS to sort boarding houses by nearest distance.</p>
+          <button type="button" id="quickSearchBtn" onclick="performQuickSearch()" class="inline-flex items-center justify-center gap-2 rounded-full px-6 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 cursor-pointer active:scale-95" style="background: var(--dormmap-primary);">
+            <i data-lucide="search" class="h-4 w-4"></i>
+            Search Now
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="rounded-[24px] p-6 text-white shadow-[0_18px_50px_rgba(2,48,32,0.22)]" style="background: linear-gradient(135deg, #023020 0%, #084d34 100%);">
+          <p class="text-sm font-semibold text-emerald-100/80">Registered Boarding Houses</p>
+          <div class="mt-3 flex items-end gap-2">
+            <span class="counter text-4xl font-extrabold text-white" data-target="128">0</span>
+            <span class="mb-1 text-sm font-semibold text-emerald-100/90">+12 this month</span>
+          </div>
+        </div>
+        <div class="rounded-[24px] p-6 text-white shadow-[0_18px_50px_rgba(2,48,32,0.22)]" style="background: linear-gradient(135deg, #023020 0%, #084d34 100%);">
+          <p class="text-sm font-semibold text-emerald-100/80">Active Tenants</p>
+          <div class="mt-3 flex items-end gap-2">
+            <span class="counter text-4xl font-extrabold text-white" data-target="842">0</span>
+            <span class="mb-1 text-sm font-semibold text-emerald-100/90">Occupancy rising</span>
+          </div>
+        </div>
+        <div class="rounded-[24px] p-6 text-white shadow-[0_18px_50px_rgba(2,48,32,0.22)]" style="background: linear-gradient(135deg, #023020 0%, #084d34 100%);">
+          <p class="text-sm font-semibold text-emerald-100/80">Educational Institutions</p>
+          <div class="mt-3 flex items-end gap-2">
+            <span class="counter text-4xl font-extrabold text-white" data-target="18">0</span>
+            <span class="mb-1 text-sm font-semibold text-emerald-100/90">Schools covered</span>
+          </div>
+        </div>
+        <div class="rounded-[24px] p-6 text-white shadow-[0_18px_50px_rgba(2,48,32,0.22)]" style="background: linear-gradient(135deg, #023020 0%, #084d34 100%);">
+          <p class="text-sm font-semibold text-emerald-100/80">Barangays Covered</p>
+          <div class="mt-3 flex items-end gap-2">
+            <span class="counter text-4xl font-extrabold text-white" data-target="28">0</span>
+            <span class="mb-1 text-sm font-semibold text-emerald-100/90">Municipality-wide</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="map" class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div class="flex items-end justify-between gap-4">
+        <div>
+          <p class="text-xs font-bold uppercase tracking-[0.24em] text-slate-500">Interactive OpenStreetMap Preview</p>
+          <h2 class="font-display mt-2 text-2xl font-bold text-slate-950 sm:text-3xl">Explore boarding houses near you</h2>
+        </div>
+        <div class="hidden sm:flex items-center gap-2">
+          <button type="button" id="resetMapFilterBtn" onclick="resetMapAndFilters()" class="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50 hover:border-emerald-300 inline-flex items-center gap-1.5 active:scale-95 cursor-pointer">
+            <svg class="w-3.5 h-3.5 text-emerald-800 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+            Refresh Map
+          </button>
+          <a href="https://www.openstreetmap.org/#map=15/12.7192/121.4719" target="_blank" class="rounded-full border border-emerald-950/10 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-[var(--dormmap-primary)] hover:text-[var(--dormmap-primary)] inline-flex gap-1.5 items-center">
+            <svg class="w-4 h-4 text-emerald-800 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 15 22 22 18 22 2 15 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="15" y1="6" x2="15" y2="22"/></svg> Open Full Map ↗
+          </a>
+        </div>
+      </div>
+      <div class="mt-5 grid gap-6 xl:grid-cols-[1.6fr_1fr]">
+        <div class="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
+          <div id="landingMap" class="map-frame w-full"></div>
+        </div>
+        <div class="space-y-4 rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <p class="text-xs font-bold uppercase tracking-[0.24em] text-slate-500">Live Listings</p>
+              <h3 class="mt-2 text-lg font-semibold text-slate-900">Boarding houses near you</h3>
+            </div>
+            <span id="listingCount" class="rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-900">0 listings</span>
+          </div>
+          <div id="boardingHouseList" class="space-y-4" aria-live="polite">
+            <p class="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">Loading verified boarding house locations from the DormMap network...</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div class="flex items-end justify-between gap-4">
+        <div>
+          <p class="text-xs font-bold uppercase tracking-[0.24em] text-slate-500">Featured Boarding Houses</p>
+          <h2 class="font-display mt-2 text-2xl font-bold text-slate-950 sm:text-3xl">Top verified listings</h2>
+        </div>
+        <a href="#" class="hidden text-sm font-semibold text-[var(--dormmap-primary)] sm:inline-flex">View all</a>
+      </div>
+
+      <div id="topListingsGrid" class="mt-5 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+        <article class="overflow-hidden rounded-[28px] bg-white shadow-[0_18px_40px_rgba(15,23,42,0.08)] flex flex-col justify-between">
+          <div>
+            <div class="h-56 w-full bg-slate-200 animate-pulse"></div>
+            <div class="p-5 space-y-3">
+              <div class="h-6 w-3/4 bg-slate-200 rounded animate-pulse"></div>
+              <div class="h-4 w-1/2 bg-slate-100 rounded animate-pulse"></div>
+              <div class="h-6 w-2/3 bg-slate-100 rounded-full animate-pulse mt-4"></div>
+            </div>
+          </div>
+          <div class="p-5 pt-0">
+            <div class="h-11 w-full bg-slate-200 rounded-full animate-pulse"></div>
+          </div>
+        </article>
+        <article class="overflow-hidden rounded-[28px] bg-white shadow-[0_18px_40px_rgba(15,23,42,0.08)] flex flex-col justify-between">
+          <div>
+            <div class="h-56 w-full bg-slate-200 animate-pulse"></div>
+            <div class="p-5 space-y-3">
+              <div class="h-6 w-3/4 bg-slate-200 rounded animate-pulse"></div>
+              <div class="h-4 w-1/2 bg-slate-100 rounded animate-pulse"></div>
+              <div class="h-6 w-2/3 bg-slate-100 rounded-full animate-pulse mt-4"></div>
+            </div>
+          </div>
+          <div class="p-5 pt-0">
+            <div class="h-11 w-full bg-slate-200 rounded-full animate-pulse"></div>
+          </div>
+        </article>
+        <article class="overflow-hidden rounded-[28px] bg-white shadow-[0_18px_40px_rgba(15,23,42,0.08)] flex flex-col justify-between">
+          <div>
+            <div class="h-56 w-full bg-slate-200 animate-pulse"></div>
+            <div class="p-5 space-y-3">
+              <div class="h-6 w-3/4 bg-slate-200 rounded animate-pulse"></div>
+              <div class="h-4 w-1/2 bg-slate-100 rounded animate-pulse"></div>
+              <div class="h-6 w-2/3 bg-slate-100 rounded-full animate-pulse mt-4"></div>
+            </div>
+          </div>
+          <div class="p-5 pt-0">
+            <div class="h-11 w-full bg-slate-200 rounded-full animate-pulse"></div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- About teaser — directs users to the full About page -->
+    <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <div class="relative overflow-hidden rounded-[36px] p-8 sm:p-12 text-white shadow-2xl" style="background: linear-gradient(135deg, #023020 0%, #055c35 50%, #023020 100%);">
+        <!-- Decorative rings -->
+        <div class="absolute -right-20 -top-20 h-72 w-72 rounded-full border border-white/10 opacity-40"></div>
+        <div class="absolute -right-10 -top-10 h-44 w-44 rounded-full border border-white/15 opacity-40"></div>
+        <div class="absolute -left-12 -bottom-12 h-52 w-52 rounded-full border border-white/10 opacity-40"></div>
+        <div class="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div class="space-y-3 max-w-2xl">
+            <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-800/40 px-4 py-1.5 text-xs font-black uppercase tracking-wider text-emerald-300">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              Official BPLO Municipal Platform
+            </span>
+            <h2 class="font-display text-2xl font-extrabold text-white sm:text-3xl">
+              About DormMap &amp; Municipality of Bongabong
+            </h2>
+            <p class="text-sm leading-7 text-emerald-100/80">
+              DormMap is the official GIS-powered boarding house portal created by the BPLO of Bongabong, Oriental Mindoro. Discover our mission, vision, and everything you need to know about the platform.
+            </p>
+          </div>
+          <div class="flex flex-col gap-3 sm:flex-row lg:flex-col">
+            <a href="/about" class="inline-flex items-center justify-center gap-2 rounded-full bg-white px-7 py-3.5 text-sm font-black text-emerald-950 shadow-xl transition hover:bg-emerald-50 active:scale-95">
+              <i data-lucide="info" class="h-4 w-4"></i>
+              Learn More About Us
+            </a>
+            <a href="/about#faq" class="inline-flex items-center justify-center gap-2 rounded-full border-2 border-white/40 px-7 py-3.5 text-sm font-black text-white transition hover:bg-white/10 hover:border-white active:scale-95">
+              <i data-lucide="help-circle" class="h-4 w-4"></i>
+              View FAQs
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer id="contact" class="mt-8 w-full px-0 pb-0 pt-0 text-white" style="background: linear-gradient(135deg, #021a10 0%, #023020 60%, #021a10 100%);">
+      <div class="w-full px-6 py-12 sm:px-8 lg:px-10">
+        <div class="grid gap-10 md:grid-cols-2 xl:grid-cols-4">
+          <!-- Brand -->
+          <div>
+            <div class="flex items-center gap-3 mb-4">
+              <div class="h-10 w-10 rounded-full overflow-hidden bg-white/10 border border-white/20 shrink-0">
+                <img src="https://bongabong.gov.ph/logo.png" onerror="this.src='/images/bongabong-seal.png'" alt="Bongabong Seal" class="h-full w-full object-contain p-0.5">
+              </div>
+              <div>
+                <p class="font-display text-lg font-extrabold text-white">DormMap</p>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Official BPLO Portal</p>
+              </div>
+            </div>
+            <p class="text-sm leading-7 text-emerald-100/70 max-w-xs">Official BPLO dormitory finder for the Municipality of Bongabong, Oriental Mindoro.</p>
+          </div>
+          <!-- Quick Links -->
+          <div>
+            <h4 class="font-black text-white uppercase tracking-wider text-xs mb-4">Quick Links</h4>
+            <ul class="space-y-2.5 text-sm text-emerald-100/70">
+              <li><a href="#top" class="transition hover:text-white">Home</a></li>
+              <li><a href="#map" class="transition hover:text-white">Interactive Map</a></li>
+              <li><a href="#search" class="transition hover:text-white">Find Boarding Houses</a></li>
+              <li><a href="/about" class="transition hover:text-white">About DormMap</a></li>
+              <li><a href="/about#faq" class="transition hover:text-white">Frequently Asked Questions</a></li>
+            </ul>
+          </div>
+          <!-- Government -->
+          <div>
+            <h4 class="font-black text-white uppercase tracking-wider text-xs mb-4">Government</h4>
+            <ul class="space-y-2.5 text-sm text-emerald-100/70">
+              <li><a href="https://bongabong.gov.ph" target="_blank" class="transition hover:text-white">Municipality of Bongabong</a></li>
+              <li>Business Permit &amp; Licensing Office (BPLO)</li>
+              <li>Oriental Mindoro Province</li>
+              <li><a href="/about" class="transition hover:text-white">About the Platform</a></li>
+            </ul>
+          </div>
+          <!-- Contact -->
+          <div>
+            <h4 class="font-black text-white uppercase tracking-wider text-xs mb-4">Contact &amp; Support</h4>
+            <ul class="space-y-2.5 text-sm text-emerald-100/70">
+              <li class="flex items-center gap-2"><i data-lucide="phone" class="h-3.5 w-3.5 shrink-0 text-emerald-400"></i> (043) 000-0000</li>
+              <li class="flex items-center gap-2"><i data-lucide="mail" class="h-3.5 w-3.5 shrink-0 text-emerald-400"></i> bplo@bongabong.gov.ph</li>
+              <li class="flex items-start gap-2"><i data-lucide="map-pin" class="h-3.5 w-3.5 shrink-0 text-emerald-400 mt-0.5"></i> Municipal Hall, Bongabong, Oriental Mindoro</li>
+            </ul>
+          </div>
+        </div>
+        <div class="mt-10 flex flex-col gap-4 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <p class="text-sm text-emerald-100/50">&copy; 2026 DormMap — Municipality of Bongabong, Oriental Mindoro. All rights reserved.</p>
+          <div class="flex items-center gap-3 text-emerald-400">
+            <a href="https://bongabong.gov.ph" target="_blank" aria-label="Official Website" class="transition hover:text-white"><i data-lucide="globe" class="h-5 w-5"></i></a>
+            <a href="#contact" aria-label="Message" class="transition hover:text-white"><i data-lucide="message-circle" class="h-5 w-5"></i></a>
+            <a href="#" aria-label="Share" class="transition hover:text-white"><i data-lucide="share-2" class="h-5 w-5"></i></a>
+            <a href="mailto:bplo@bongabong.gov.ph" aria-label="Mail" class="transition hover:text-white"><i data-lucide="mail" class="h-5 w-5"></i></a>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Property Detail Modal -->
+  <div id="propertyDetailModal" class="fixed inset-0 z-[9999] hidden items-center justify-center bg-slate-950/75 p-3 sm:p-4 backdrop-blur-md overflow-y-auto">
+    <div class="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden my-6 animate-in fade-in zoom-in duration-200">
+      
+      <!-- Prominent Image Carousel (Wireframe Image 4 Style) -->
+      <div class="relative h-72 sm:h-80 md:h-96 bg-slate-950 overflow-hidden select-none group">
+        <!-- Carousel Track -->
+        <div id="detailCarouselTrack" class="flex h-full w-full transition-transform duration-300 ease-out">
+          <!-- Dynamic slides populated by initDetailCarousel -->
+        </div>
+
+        <!-- Carousel Left Arrow -->
+        <button type="button" id="carouselPrevBtn" onclick="moveDetailCarousel(-1)" class="absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center w-9 h-9 rounded-full bg-black/60 hover:bg-black/90 text-white backdrop-blur-md shadow-lg transition z-20 cursor-pointer focus:outline-none" title="Previous Photo">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+        </button>
+
+        <!-- Carousel Right Arrow -->
+        <button type="button" id="carouselNextBtn" onclick="moveDetailCarousel(1)" class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center w-9 h-9 rounded-full bg-black/60 hover:bg-black/90 text-white backdrop-blur-md shadow-lg transition z-20 cursor-pointer focus:outline-none" title="Next Photo">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+        </button>
+
+        <!-- Carousel Dots -->
+        <div id="detailCarouselDots" class="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-20 bg-black/40 backdrop-blur-sm px-3 py-1 rounded-full">
+          <!-- Rendered dynamically -->
+        </div>
+
+        <!-- Carousel Counter Badge (e.g. 1 / 3) -->
+        <div id="detailCarouselCounter" class="absolute top-4 left-4 z-20 px-2.5 py-0.5 rounded-full bg-black/60 text-white text-[11px] font-semibold backdrop-blur-md">1 / 1</div>
+
+        <!-- Close Button -->
+        <button type="button" onclick="closePropertyDetailModal()" class="absolute top-4 right-4 z-20 flex items-center justify-center w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 text-white font-bold text-sm backdrop-blur-md shadow transition cursor-pointer" title="Close">✕</button>
+
+        <!-- Title & Location Overlay -->
+        <div class="absolute inset-x-0 bottom-7 pt-16 pb-2 px-5 bg-gradient-to-t from-slate-950/95 via-slate-950/60 to-transparent z-10 pointer-events-none text-white">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span id="detailBadge" class="bg-emerald-600 text-white text-[9px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider inline-block">✓ Verified</span>
+            <span id="detailDistanceBadge" class="bg-slate-900/80 text-white text-[9px] font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 backdrop-blur-md hidden border border-white/20">
+              <span class="text-emerald-400">📍</span>
+              <span id="detailDistanceText">-- km away</span>
+            </span>
+          </div>
+          <h3 id="detailTitle" class="text-xl sm:text-2xl font-black mt-1 leading-tight text-white drop-shadow"></h3>
+          <p id="detailAddress" class="text-xs text-slate-200 mt-0.5 flex items-center gap-1"></p>
+        </div>
+      </div>
+
+      <!-- Compact Details Section (Small Fonts and Proportional Buttons as requested) -->
+      <div class="p-4 sm:p-5 space-y-3.5 max-h-[50vh] overflow-y-auto">
+        
+        <!-- 4-Stat Compact Grid -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50 p-3 rounded-xl border border-slate-100">
+          <div>
+            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Available Rooms</p>
+            <p id="detailRooms" class="text-xs font-black text-emerald-700 mt-0.5 truncate"></p>
+          </div>
+          <div>
+            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Owner Name</p>
+            <p id="detailOwner" class="text-xs font-bold text-slate-800 mt-0.5 truncate"></p>
+          </div>
+          <div>
+            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Contact</p>
+            <p id="detailContact" class="text-xs font-bold text-slate-800 mt-0.5 truncate"></p>
+          </div>
+          <div>
+            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Monthly Price</p>
+            <p id="detailPrice" class="text-xs font-black text-slate-900 mt-0.5 truncate"></p>
+          </div>
+        </div>
+
+        <!-- Room Types -->
+        <div>
+          <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Room Types Offered</h4>
+          <div id="detailRoomTypes" class="flex flex-wrap gap-1.5"></div>
+        </div>
+
+        <!-- Payment Methods -->
+        <div>
+          <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Accepted Payment Methods</h4>
+          <div id="detailPayments" class="flex flex-wrap gap-1.5"></div>
+        </div>
+
+        <!-- Compact Action Buttons -->
+        <div id="detailContactArea" class="pt-2.5 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <button type="button" id="detailInquireBtn" onclick="handleInquireClick()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 px-2.5 rounded-xl text-center text-xs shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+            <span>Inquire Now</span>
+          </button>
+          <button type="button" id="detailDirectionsBtn" onclick="handleGiveDirectionsClick()" class="bg-slate-800 hover:bg-slate-700 text-white font-bold py-2 px-2.5 rounded-xl text-center text-xs shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            <span>Get Directions</span>
+          </button>
+          <a id="detailCallBtn" href="#" class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-2 px-2.5 rounded-xl text-center text-xs transition flex items-center justify-center gap-1.5 truncate">
+            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            <span id="detailCallBtnText" class="truncate">Call</span>
+          </a>
+          <button type="button" onclick="closePropertyDetailModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 px-2.5 rounded-xl text-xs transition flex items-center justify-center cursor-pointer">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {{> authModal }}
+
+  <script>
+    // ── Inquiry → Auth Redirect ─────────────────────────────────────────────
+    // Clicking "Inquire Now" no longer creates anonymous messages.
+    // Instead it opens the Sign In / Register modal with the boarding house pre-filled.
+    window.closeInquiryModal = function() {}; // kept as no-op for legacy calls
+  </script>
+
+  <script>
+    window.currentSelectedHouse = null;
+    window.currentDirectionRoute = null;
+    window.landingMapMarkers = [];
+
+    let detailCarouselSlides = [];
+    let detailCarouselCurrentIndex = 0;
+
+    window.initDetailCarousel = function(images) {
+      detailCarouselSlides = Array.isArray(images) && images.length > 0 ? images.filter(Boolean) : [];
+      detailCarouselCurrentIndex = 0;
+
+      const track = document.getElementById('detailCarouselTrack');
+      const dotsContainer = document.getElementById('detailCarouselDots');
+      const prevBtn = document.getElementById('carouselPrevBtn');
+      const nextBtn = document.getElementById('carouselNextBtn');
+      const counter = document.getElementById('detailCarouselCounter');
+
+      if (!track) return;
+
+      if (detailCarouselSlides.length === 0) {
+        // Fallback placeholder slide
+        track.innerHTML = `
+          <div class="w-full h-full flex-shrink-0 flex flex-col items-center justify-center bg-slate-900 text-slate-400 gap-2 p-4 text-center">
+            <svg class="w-12 h-12 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+            <span class="text-xs font-semibold text-slate-400">No photos uploaded for this boarding house yet</span>
+          </div>
+        `;
+        if (dotsContainer) dotsContainer.style.display = 'none';
+        if (prevBtn) prevBtn.style.display = 'none';
+        if (nextBtn) nextBtn.style.display = 'none';
+        if (counter) counter.style.display = 'none';
+        track.style.transform = 'translateX(0%)';
+        return;
+      }
+
+      const categoryLabels = [
+        '🌿 1. Outdoor Spaces',
+        '🛋️ 2. Living Area',
+        '🛏️ 3. Bedroom',
+        '🍽️ 4. Dining or kitchenette',
+        '🚿 5. Bathroom'
+      ];
+
+      // Build slides
+      track.innerHTML = detailCarouselSlides.map((url, idx) => `
+        <div class="w-full h-full flex-shrink-0 relative bg-slate-950 flex items-center justify-center overflow-hidden">
+          <img src="${url}" alt="${categoryLabels[idx] || ('Photo ' + (idx + 1))}" class="w-full h-full object-cover select-none" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'w-full h-full flex flex-col items-center justify-center bg-slate-900 text-slate-400 gap-2\\'><svg class=\\'w-10 h-10 text-slate-600\\' fill=\\'none\\' stroke=\\'currentColor\\' viewBox=\\'0 0 24 24\\'><rect width=\\'18\\' height=\\'18\\' x=\\'3\\' y=\\'3\\' rx=\\'2\\'/><circle cx=\\'9\\' cy=\\'9\\' r=\\'2\\'/><path d=\\'m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21\\'/></svg><span class=\\'text-xs\\'>Photo load error</span></div>';">
+          ${idx < 5 ? `
+            <div class="absolute top-4 left-16 z-20 px-2.5 py-0.5 rounded-full bg-slate-950/75 border border-white/20 text-white text-[10px] font-bold backdrop-blur-md shadow-sm">
+              ${categoryLabels[idx]}
+            </div>
+          ` : ''}
+        </div>
+      `).join('');
+
+      // Build dots and arrows
+      if (detailCarouselSlides.length > 1) {
+        if (dotsContainer) {
+          dotsContainer.style.display = 'flex';
+          dotsContainer.innerHTML = detailCarouselSlides.map((_, idx) => `
+            <button type="button" onclick="goToDetailSlide(${idx})" class="detail-carousel-dot w-2 h-2 rounded-full transition-all cursor-pointer ${idx === 0 ? 'bg-white scale-125' : 'bg-white/40 hover:bg-white/70'}" title="Photo ${idx + 1}"></button>
+          `).join('');
+        }
+        if (prevBtn) prevBtn.style.display = 'flex';
+        if (nextBtn) nextBtn.style.display = 'flex';
+        if (counter) {
+          counter.style.display = 'block';
+          counter.textContent = `1 / ${detailCarouselSlides.length}`;
+        }
+      } else {
+        if (dotsContainer) dotsContainer.style.display = 'none';
+        if (prevBtn) prevBtn.style.display = 'none';
+        if (nextBtn) nextBtn.style.display = 'none';
+        if (counter) {
+          counter.style.display = 'block';
+          counter.textContent = `1 / 1`;
+        }
+      }
+
+      track.style.transform = 'translateX(0%)';
+    };
+
+    window.moveDetailCarousel = function(direction) {
+      if (detailCarouselSlides.length <= 1) return;
+      let newIndex = detailCarouselCurrentIndex + direction;
+      if (newIndex < 0) newIndex = detailCarouselSlides.length - 1;
+      if (newIndex >= detailCarouselSlides.length) newIndex = 0;
+      goToDetailSlide(newIndex);
+    };
+
+    window.goToDetailSlide = function(index) {
+      if (index < 0 || index >= detailCarouselSlides.length) return;
+      detailCarouselCurrentIndex = index;
+      const track = document.getElementById('detailCarouselTrack');
+      if (track) {
+        track.style.transform = `translateX(-${index * 100}%)`;
+      }
+
+      // Update dots
+      const dots = document.querySelectorAll('.detail-carousel-dot');
+      dots.forEach((dot, idx) => {
+        if (idx === index) {
+          dot.className = 'detail-carousel-dot w-2.5 h-2 rounded-full transition-all cursor-pointer bg-white scale-125';
+        } else {
+          dot.className = 'detail-carousel-dot w-2 h-2 rounded-full transition-all cursor-pointer bg-white/40 hover:bg-white/70';
+        }
+      });
+
+      // Update counter
+      const counter = document.getElementById('detailCarouselCounter');
+      if (counter) {
+        counter.textContent = `${index + 1} / ${detailCarouselSlides.length}`;
+      }
+    };
+
+    window.openPropertyDetailModal = function(houseId) {
+      const houses = window.allBoardingHousesCache || [];
+      const house = houses.find((h, idx) =>
+        (h.bhId && String(h.bhId) === String(houseId)) ||
+        h.id == houseId ||
+        idx == houseId ||
+        String(h.boardingHouseName).trim() === String(houseId).trim()
+      );
+      if (!house) return;
+
+      window.currentSelectedHouse = house;
+
+      document.getElementById('detailTitle').textContent = house.boardingHouseName || house.fullName || 'Boarding House';
+      document.getElementById('detailAddress').textContent = (house.boardingHouseAddress || house.barangay || 'Bongabong, Oriental Mindoro');
+      document.getElementById('detailRooms').textContent = (house.roomsAvailable ?? 0) + ' vacant rooms';
+      document.getElementById('detailOwner').textContent = house.fullName || 'Registered Owner';
+      document.getElementById('detailContact').textContent = house.contactNumber || house.email || 'Not provided';
+      document.getElementById('detailPrice').textContent = (() => {
+        const min = Number(house.rentalPriceMin);
+        const max = Number(house.rentalPriceMax);
+        if (min > 0 && max > 0 && min !== max) return `₱${min.toLocaleString()} – ₱${max.toLocaleString()}/mo`;
+        if (min > 0) return `₱${min.toLocaleString()}/mo`;
+        if (max > 0) return `₱${max.toLocaleString()}/mo`;
+        return 'Contact for price';
+      })();
+
+      // Populate carousel with all images provided by owner (primary picture, gallery, room photos)
+      const rawImages = (Array.isArray(house.galleryImages) && house.galleryImages.length > 0)
+        ? house.galleryImages
+        : [house.boardingHousePicture, house.profilePicture].filter(Boolean);
+      initDetailCarousel(rawImages);
+
+      const typesArr = Array.isArray(house.roomTypes) && house.roomTypes.length ? house.roomTypes : ['Solo Room', 'Shared Room'];
+      document.getElementById('detailRoomTypes').innerHTML = typesArr.map(t => `<span class="bg-emerald-50 text-emerald-800 text-[11px] font-bold px-2.5 py-1 rounded-lg border border-emerald-200/60">${t}</span>`).join('');
+
+      const payArr = Array.isArray(house.paymentMethods) && house.paymentMethods.length ? house.paymentMethods : ['Cash', 'GCash'];
+      document.getElementById('detailPayments').innerHTML = payArr.map(p => `<span class="bg-slate-100 text-slate-700 text-[11px] font-bold px-2.5 py-1 rounded-lg border border-slate-200">${p}</span>`).join('');
+
+      const callBtn = document.getElementById('detailCallBtn');
+      const callText = document.getElementById('detailCallBtnText');
+      if (house.contactNumber) {
+        callBtn.href = `tel:${house.contactNumber}`;
+        if (callText) callText.textContent = `Call ${house.contactNumber}`;
+      } else if (house.email) {
+        callBtn.href = `mailto:${house.email}`;
+        if (callText) callText.textContent = `Email`;
+      } else {
+        callBtn.href = '#';
+        if (callText) callText.textContent = `Contact`;
+      }
+
+      // Distance badge: reset then request user GPS
+      const distBadge = document.getElementById('detailDistanceBadge');
+      const distText = document.getElementById('detailDistanceText');
+      if (distBadge && distText) {
+        const houseLat = Number(house.latitude);
+        const houseLng = Number(house.longitude);
+        if (houseLat && houseLng && navigator.geolocation) {
+          distBadge.classList.remove('hidden');
+          distText.textContent = 'Calculating...';
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const km = _haversineKm(pos.coords.latitude, pos.coords.longitude, houseLat, houseLng);
+              distText.textContent = km < 1 ? `${Math.round(km * 1000)} m away` : `${km.toFixed(1)} km away`;
+            },
+            () => { distBadge.classList.add('hidden'); },
+            { enableHighAccuracy: true, timeout: 8000 }
+          );
+        } else {
+          distBadge.classList.add('hidden');
+        }
+      }
+
+      if (window.map) {
+        window.map.closePopup();
+      }
+
+      const modal = document.getElementById('propertyDetailModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      document.body.style.overflow = 'hidden';
+    };
+
+    // Haversine formula — returns distance in km between two lat/lng points
+    function _haversineKm(lat1, lng1, lat2, lng2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLng = (lng2 - lng1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLng/2) * Math.sin(dLng/2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    window.renderTopVerifiedListings = function(houses) {
+      const container = document.getElementById('topListingsGrid');
+      if (!container) return;
+
+      const validHouses = Array.isArray(houses) ? houses : [];
+      let html = '';
+
+      for (let i = 0; i < 3; i++) {
+        const house = validHouses[i];
+        if (house) {
+          const bhName = house.boardingHouseName || house.fullName || 'Boarding House';
+          const address = house.barangay ? ('Barangay ' + house.barangay) : (house.boardingHouseAddress || 'Bongabong, Oriental Mindoro');
+          const rooms = (house.roomsAvailable ?? 0) + ' available rooms';
+          const pic = house.boardingHousePicture || (Array.isArray(house.galleryImages) && house.galleryImages[0]) || '';
+
+          const priceText = (() => {
+            const min = Number(house.rentalPriceMin);
+            const max = Number(house.rentalPriceMax);
+            if (min > 0 && max > 0 && min !== max) return `₱${min.toLocaleString()} – ₱${max.toLocaleString()}`;
+            if (min > 0) return `₱${min.toLocaleString()}`;
+            if (max > 0) return `₱${max.toLocaleString()}`;
+            return 'Contact for price';
+          })();
+
+          let imgMarkup = '';
+          if (pic) {
+            imgMarkup = `
+              <img src="${pic}" alt="${bhName}" class="h-56 w-full object-cover select-none" onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">
+              <div class="h-56 w-full bg-slate-100 flex-col items-center justify-center text-slate-400 gap-2" style="display:none;">
+                <svg class="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                <span class="text-xs font-semibold text-slate-400">Photo Unavailable</span>
+              </div>
+            `;
+          } else {
+            imgMarkup = `
+              <div class="h-56 w-full bg-slate-100 flex flex-col items-center justify-center text-slate-400 gap-2">
+                <svg class="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                <span class="text-xs font-semibold text-slate-400">No Photo Uploaded</span>
+              </div>
+            `;
+          }
+
+          const houseDistBadge = `<span class="listing-dist-badge rounded-full bg-slate-100 px-3 py-1 text-slate-500" data-lat="${house.latitude || ''}" data-lng="${house.longitude || ''}" data-dist-el="true">📍 Getting distance...</span>`;
+
+          html += `
+            <article class="overflow-hidden rounded-[28px] bg-white shadow-[0_18px_40px_rgba(15,23,42,0.08)] transition hover:-translate-y-1 flex flex-col justify-between">
+              <div>
+                <div class="relative bg-slate-100 overflow-hidden">
+                  ${imgMarkup}
+                  <span class="absolute left-4 top-4 rounded-full bg-white/95 backdrop-blur-sm px-3 py-1 text-xs font-bold text-[var(--dormmap-primary)] shadow-sm">✓ Verified</span>
+                </div>
+                <div class="p-5">
+                  <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                      <h3 class="text-lg font-bold text-slate-950 truncate">${bhName}</h3>
+                      <p class="mt-1 text-sm text-slate-500 truncate">${address}</p>
+                    </div>
+                    <div class="text-right flex-shrink-0">
+                      <p class="text-xs font-semibold text-slate-500">Monthly</p>
+                      <p class="text-lg font-bold text-[var(--dormmap-primary)]">${priceText}</p>
+                    </div>
+                  </div>
+                  <div class="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
+                    <span class="rounded-full bg-slate-100 px-3 py-1">${rooms}</span>
+                    ${houseDistBadge}
+                  </div>
+                </div>
+              </div>
+              <div class="p-5 pt-0">
+                <button type="button" onclick="openPropertyDetailModal('${house.bhId || house.id}')" class="inline-flex w-full items-center justify-center rounded-full px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90 cursor-pointer shadow-sm" style="background: var(--dormmap-primary);">View Details</button>
+              </div>
+            </article>
+          `;
+        } else {
+          // 3rd slot placeholder (identical dimensions, classes, and structure!)
+          html += `
+            <article class="overflow-hidden rounded-[28px] bg-white shadow-[0_18px_40px_rgba(15,23,42,0.08)] transition hover:-translate-y-1 flex flex-col justify-between border border-dashed border-slate-200">
+              <div>
+                <div class="relative bg-slate-50 overflow-hidden border-b border-dashed border-slate-200">
+                  <div class="h-56 w-full flex flex-col items-center justify-center text-slate-400 gap-2 p-4 text-center">
+                    <div class="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400">
+                      <svg class="w-6 h-6 stroke-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                    </div>
+                    <div>
+                      <p class="text-xs font-bold text-slate-600">Listing Slot Available</p>
+                      <p class="text-[11px] text-slate-400 mt-0.5">Municipal BPLO Verification in progress</p>
+                    </div>
+                  </div>
+                  <span class="absolute left-4 top-4 rounded-full bg-slate-200/90 backdrop-blur-sm px-3 py-1 text-xs font-bold text-slate-600">Pending Listing</span>
+                </div>
+                <div class="p-5">
+                  <div class="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 class="text-lg font-bold text-slate-700">Awaiting Registration</h3>
+                      <p class="mt-1 text-sm text-slate-400">Bongabong, Oriental Mindoro</p>
+                    </div>
+                    <div class="text-right">
+                      <p class="text-xs font-semibold text-slate-400">Monthly</p>
+                      <p class="text-base font-bold text-slate-500">Open Slot</p>
+                    </div>
+                  </div>
+                  <div class="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
+                    <span class="rounded-full bg-slate-100 px-3 py-1">Accredited Only</span>
+                    <span class="rounded-full bg-slate-100 px-3 py-1">Safe Housing</span>
+                    <span class="rounded-full bg-slate-100 px-3 py-1">BPLO Zone</span>
+                  </div>
+                </div>
+              </div>
+              <div class="p-5 pt-0">
+                <button type="button" onclick="const r = document.getElementById('dormmapAuthRoot'); if(r){ r.classList.remove('hidden'); r.classList.add('flex'); window.authShowMode?.('register'); }" class="inline-flex w-full items-center justify-center rounded-full px-4 py-3 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition cursor-pointer">Register Your Boarding House</button>
+              </div>
+            </article>
+          `;
+        }
+      }
+
+      container.innerHTML = html;
+      // After render, compute GPS distances for all listing cards
+      setTimeout(() => window._updateListingDistanceBadges?.(), 200);
+    };
+
+    window.closePropertyDetailModal = function() {
+      const modal = document.getElementById('propertyDetailModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      document.body.style.overflow = '';
+    };
+
+    window.handleInquireClick = function() {
+      const house = window.currentSelectedHouse;
+      if (!house) return;
+
+      const bhName = house.boardingHouseName || house.fullName || '';
+
+      // Close the property detail modal first
+      closePropertyDetailModal();
+
+      // Open the auth modal in Register → Tenant mode using the global API
+      if (typeof window.openDormmapAuth === 'function') {
+        window.openDormmapAuth('register', 'tenant');
+      } else {
+        // Fallback: manually set dataset open
+        const authRoot = document.getElementById('dormmapAuthRoot');
+        if (authRoot) {
+          authRoot.dataset.open = 'true';
+          document.body.classList.add('overflow-hidden');
+          const registerTab = document.querySelector('[data-auth-tab="register"]');
+          const tenantRoleCard = document.querySelector('[data-auth-role="tenant"]');
+          if (registerTab) registerTab.click();
+          setTimeout(() => { if (tenantRoleCard) tenantRoleCard.click(); }, 50);
+        }
+      }
+
+      // After a short tick, pre-fill the boarding house in the tenant section
+      setTimeout(() => {
+        if (bhName) {
+          const bhSelect = document.querySelector('select[name="selectedBoardingHouse"]');
+          const bhSearch = document.querySelector('input[name="boardingHouseSearch"]');
+
+          if (bhSearch) bhSearch.value = bhName;
+
+          if (bhSelect) {
+            // Add/select this BH without clobbering existing options loaded from API
+            const existing = Array.from(bhSelect.options).find(o => o.value === bhName);
+            if (existing) {
+              existing.selected = true;
+            } else {
+              const opt = document.createElement('option');
+              opt.value = bhName;
+              opt.textContent = bhName;
+              opt.selected = true;
+              bhSelect.appendChild(opt);
+            }
+            bhSelect.disabled = false;
+          }
+
+          // Update the hint text so the user sees which BH is pre-selected
+          const hint = document.querySelector('[data-tenant-hint]');
+          if (hint) hint.textContent = `🏠 Pre-selected: "${bhName}" — You can change this anytime.`;
+        }
+      }, 150);
+    };
+
+    window.closeInquiryModal = function() {}; // no-op — inquiry modal removed
+
+    // Compute & display GPS distance on top listing cards after render
+    window._updateListingDistanceBadges = function() {
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition((pos) => {
+        const userLat = pos.coords.latitude;
+        const userLng = pos.coords.longitude;
+        document.querySelectorAll('[data-dist-el="true"]').forEach((badge) => {
+          const lat = parseFloat(badge.dataset.lat);
+          const lng = parseFloat(badge.dataset.lng);
+          if (!lat || !lng) {
+            badge.textContent = '📍 Bongabong';
+            return;
+          }
+          const km = _haversineKm(userLat, userLng, lat, lng);
+          badge.textContent = km < 1 ? `📍 ${Math.round(km * 1000)} m away` : `📍 ${km.toFixed(1)} km away`;
+          badge.classList.remove('text-slate-500');
+          badge.classList.add('text-emerald-700', 'bg-emerald-50', 'border', 'border-emerald-100');
+        });
+      }, () => {
+        // Fallback: show barangay label from data
+        document.querySelectorAll('[data-dist-el="true"]').forEach((badge) => {
+          badge.textContent = '📍 Bongabong';
+        });
+      }, { enableHighAccuracy: false, timeout: 8000 });
+    };
+
+    window.handleGiveDirectionsClick = function() {
+      const house = window.currentSelectedHouse;
+      if (!house) return;
+
+      const houseLat = Number(house.latitude) || 12.7192;
+      const houseLng = Number(house.longitude) || 121.4719;
+
+      if (!navigator.geolocation) {
+        Swal.fire('GPS Error', 'Geolocation is not supported by your browser.', 'error');
+        return;
+      }
+
+      closePropertyDetailModal();
+      document.getElementById('landingMap')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        const userLat = pos.coords.latitude;
+        const userLng = pos.coords.longitude;
+
+        if (window.currentDirectionRoute) {
+          window.map.removeLayer(window.currentDirectionRoute);
+        }
+        if (window.userLocationMarker) {
+          window.map.removeLayer(window.userLocationMarker);
+        }
+
+        // Add user location marker
+        window.userLocationMarker = L.marker([userLat, userLng], {
+          icon: L.divIcon({
+            className: 'user-gps-pin',
+            html: `<div class="flex items-center justify-center h-8 w-8 rounded-full bg-emerald-600 text-white shadow-lg border-2 border-white font-bold"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></svg></div>`,
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+          })
+        }).addTo(window.map).bindPopup("<b>Your Current Location</b>").openPopup();
+
+        // Fetch turn-by-turn road route from OSRM
+        try {
+          const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${userLng},${userLat};${houseLng},${houseLat}?overview=full&geometries=geojson`;
+          const routeRes = await fetch(osrmUrl);
+          const routeData = await routeRes.json();
+
+          let routeCoords = [[userLat, userLng], [houseLat, houseLng]];
+          if (routeData.code === 'Ok' && routeData.routes && routeData.routes[0]) {
+            routeCoords = routeData.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
+          }
+
+          // Solid green Google Maps style navigation line
+          window.currentDirectionRoute = L.polyline(routeCoords, {
+            color: '#047857',
+            weight: 6,
+            opacity: 0.95,
+            lineCap: 'round',
+            lineJoin: 'round'
+          }).addTo(window.map);
+
+          window.map.fitBounds(window.currentDirectionRoute.getBounds(), { padding: [60, 60] });
+
+          Swal.fire({
+            icon: 'success',
+            title: 'Directions Active',
+            text: `Solid green road route calculated from your GPS location to ${house.boardingHouseName || 'selected boarding house'}!`,
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 4000
+          });
+        } catch (err) {
+          // Fallback solid green polyline
+          window.currentDirectionRoute = L.polyline([[userLat, userLng], [houseLat, houseLng]], {
+            color: '#047857',
+            weight: 6,
+            opacity: 0.95
+          }).addTo(window.map);
+          const bounds = L.latLngBounds([[userLat, userLng], [houseLat, houseLng]]);
+          window.map.fitBounds(bounds, { padding: [60, 60] });
+        }
+      }, (err) => {
+        Swal.fire('Location Access', 'Please allow GPS location access to get directions to this boarding house.', 'warning');
+      });
+    };
+
+    // Shared Get Directions function — called directly from Leaflet popup buttons
+    window._getDirectionsToCoords = async function(destLat, destLng, label) {
+      if (!navigator.geolocation) {
+        Swal.fire('GPS Error', 'Geolocation is not supported by your browser.', 'error');
+        return;
+      }
+
+      document.getElementById('landingMap')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (window.map) window.map.closePopup();
+
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        const userLat = pos.coords.latitude;
+        const userLng = pos.coords.longitude;
+
+        if (window.currentDirectionRoute) window.map.removeLayer(window.currentDirectionRoute);
+        if (window.userLocationMarker) window.map.removeLayer(window.userLocationMarker);
+
+        window.userLocationMarker = L.circleMarker([userLat, userLng], {
+          radius: 10, color: '#047857', fillColor: '#10b981', fillOpacity: 0.9, weight: 3
+        }).addTo(window.map).bindPopup('<strong class="text-sm">📍 Your Current Location</strong>').openPopup();
+
+        try {
+          const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${userLng},${userLat};${destLng},${destLat}?overview=full&geometries=geojson`;
+          const routeRes = await fetch(osrmUrl);
+          const routeData = await routeRes.json();
+
+          let routeCoords = [[userLat, userLng], [destLat, destLng]];
+          if (routeData.code === 'Ok' && routeData.routes?.[0]) {
+            routeCoords = routeData.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+          }
+
+          window.currentDirectionRoute = L.polyline(routeCoords, {
+            color: '#047857', weight: 6, opacity: 0.95, lineCap: 'round', lineJoin: 'round'
+          }).addTo(window.map);
+          window.map.fitBounds(window.currentDirectionRoute.getBounds(), { padding: [60, 60] });
+
+          Swal.fire({
+            icon: 'success', title: 'Directions Active',
+            text: `Route calculated to ${label || 'destination'} from your GPS location!`,
+            toast: true, position: 'top-end', showConfirmButton: false, timer: 3500
+          });
+        } catch {
+          window.currentDirectionRoute = L.polyline([[userLat, userLng], [destLat, destLng]], {
+            color: '#047857', weight: 6, opacity: 0.95
+          }).addTo(window.map);
+          window.map.fitBounds(L.latLngBounds([[userLat, userLng], [destLat, destLng]]), { padding: [60, 60] });
+        }
+      }, () => {
+        Swal.fire('Location Access', 'Please allow GPS location to get directions.', 'warning');
+      }, { enableHighAccuracy: true, timeout: 10000 });
+    };
+
+    // Global event listener for View Details button inside map popups
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.view-detail-btn');
+      if (btn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = btn.getAttribute('data-detail-id');
+        if (id) {
+          window.openPropertyDetailModal(id);
+        }
+      }
+    });
+
+    const header = document.getElementById('siteHeader');
+    const mobileMenuButton = document.getElementById('mobileMenuButton');
+    const mobileMenu = document.getElementById('mobileMenu');
+    const useLocationButton = document.getElementById('useLocationButton');
+
+    const applyHeaderState = () => {
+      if (window.scrollY > 12) {
+        header.classList.add('nav-scrolled');
+      } else {
+        header.classList.remove('nav-scrolled');
+      }
+    };
+
+    window.addEventListener('scroll', applyHeaderState);
+    applyHeaderState();
+
+    mobileMenuButton?.addEventListener('click', () => {
+      mobileMenu.classList.toggle('hidden');
+    });
+
+    const counters = document.querySelectorAll('.counter');
+    const animateCounter = (element) => {
+      const target = Number(element.getAttribute('data-target') || '0');
+      const duration = 1200;
+      const startTime = performance.now();
+
+      const tick = (time) => {
+        const progress = Math.min((time - startTime) / duration, 1);
+        element.textContent = Math.floor(progress * target).toLocaleString();
+        if (progress < 1) {
+          requestAnimationFrame(tick);
+        } else {
+          element.textContent = target.toLocaleString();
+        }
+      };
+
+      requestAnimationFrame(tick);
+    };
+
+    const counterObserver = new IntersectionObserver((entries, observer) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          animateCounter(entry.target);
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.35 });
+
+    counters.forEach((counter) => counterObserver.observe(counter));
+
+    const map = L.map('landingMap', { scrollWheelZoom: false }).setView([12.7192, 121.4719], 14);
+    window.map = map;
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors',
+    }).addTo(map);
+
+    const boardingHouseList = document.getElementById('boardingHouseList');
+    const listingCount = document.getElementById('listingCount');
+    const currentLocationMarkers = [];
+    window.institutionMarker = null;
+    window.userGpsMarker = null;
+
+    // Dictionary of acronyms, short names, and aliases in Bongabong
+    const BONGABONG_ALIASES = {
+      'minsu': 'Mindoro State University',
+      'msu': 'Mindoro State University',
+      'mindoro state': 'Mindoro State University',
+      'bnhs': 'Bongabong National High School',
+      'bongabong high': 'Bongabong National High School',
+      'emc': 'Eastern Mindoro College',
+      'eastern mindoro': 'Eastern Mindoro College',
+      'tesda': 'TESDA Training Center',
+      'sja': 'St. Joseph Academy',
+      'st joseph': 'St. Joseph Academy',
+      'fnhs': 'Formon National High School',
+      'cnhs': 'Cawayan National High School',
+      'lnhs': 'Labasan National High School',
+      'mnhs': 'Masaguisi National High School',
+      'knhs': 'Kaligtasan National High School',
+      'dnhs': 'Dayhagan National High School',
+      'pob': 'Poblacion',
+      'poblacion': 'Poblacion',
+      'town center': 'Poblacion',
+      'zone 1': 'Zone I',
+      'zone 2': 'Zone II',
+      'zone 3': 'Zone III',
+      'zone 4': 'Zone IV'
+    };
+
+    // Preset coordinates for schools & educational institutions in Bongabong/Mindoro
+    const schoolLocations = {
+      'mindoro state university': { lat: 12.7485, lng: 121.4820, name: 'Mindoro State University (MinSU - Bongabong)' },
+      'bongabong national high school': { lat: 12.7210, lng: 121.4740, name: 'Bongabong National High School' },
+      'eastern mindoro college': { lat: 12.7150, lng: 121.4720, name: 'Eastern Mindoro College (EMC)' },
+      'tesda center': { lat: 12.7300, lng: 121.4780, name: 'TESDA Training Center' },
+      'tesda training center': { lat: 12.7300, lng: 121.4780, name: 'TESDA Training Center' },
+      'st. joseph academy': { lat: 12.7180, lng: 121.4710, name: 'St. Joseph Academy' },
+      'formon national high school': { lat: 12.7600, lng: 121.4600, name: 'Formon National High School' },
+      'cawayan national high school': { lat: 12.6800, lng: 121.4900, name: 'Cawayan National High School' },
+      'labasan national high school': { lat: 12.7100, lng: 121.4650, name: 'Labasan National High School' },
+      'masaguisi national high school': { lat: 12.7350, lng: 121.4880, name: 'Masaguisi National High School' },
+      'kaligtasan national high school': { lat: 12.7420, lng: 121.4700, name: 'Kaligtasan National High School' },
+      'dayhagan national high school': { lat: 12.6950, lng: 121.4850, name: 'Dayhagan National High School' }
+    };
+
+    const formatPrice = (minVal, maxVal) => {
+      const min = Number(minVal);
+      const max = Number(maxVal);
+      if (min > 0 && max > 0 && min !== max) return `₱${min.toLocaleString()} – ₱${max.toLocaleString()}/mo`;
+      if (min > 0) return `₱${min.toLocaleString()}/mo`;
+      if (max > 0) return `₱${max.toLocaleString()}/mo`;
+      return 'Contact for price';
+    };
+
+    const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[character]));
+
+    const createHouseCard = (house) => {
+      const roomTypes = Array.isArray(house.roomTypes) && house.roomTypes.length
+        ? house.roomTypes.join(', ')
+        : 'Not specified';
+      const paymentMethods = Array.isArray(house.paymentMethods) && house.paymentMethods.length
+        ? house.paymentMethods.join(', ')
+        : 'Not specified';
+
+      const name = escapeHtml(house.boardingHouseName || house.fullName || 'Boarding House');
+      const address = escapeHtml(house.boardingHouseAddress || house.barangay || 'Address not available');
+      const contact = escapeHtml(house.contactNumber || house.email || 'Not listed');
+      const minP = Number(house.rentalPriceMin);
+      const maxP = Number(house.rentalPriceMax);
+      const estPrice = minP || maxP || null;
+
+      return `
+        <article class="rounded-[22px] border border-slate-200 bg-slate-50 p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-900/20 hover:shadow-md">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h4 class="text-base font-semibold text-slate-950">${name}</h4>
+              <p class="mt-1 text-sm text-slate-600">${address}</p>
+            </div>
+            <span class="rounded-full bg-emerald-100 px-3 py-2 text-sm font-semibold text-emerald-900">${house.roomsAvailable ?? 'N/A'} rooms</span>
+          </div>
+          <div class="mt-4 grid gap-3 sm:grid-cols-2">
+            <div>
+              <p class="text-xs uppercase tracking-[0.24em] text-slate-500">Owner</p>
+              <p class="mt-1 text-sm text-slate-700">${escapeHtml(house.fullName || 'Owner not set')}</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.24em] text-slate-500">Contact</p>
+              <p class="mt-1 text-sm text-slate-700">${contact}</p>
+            </div>
+          </div>
+          <div class="mt-4 grid gap-2 sm:grid-cols-2">
+            <span class="rounded-full bg-white px-3 py-2 text-xs font-semibold text-slate-700">${roomTypes}</span>
+            <span class="rounded-full bg-white px-3 py-2 text-xs font-semibold text-slate-700">${paymentMethods}</span>
+          </div>
+          <div class="mt-4 flex items-center justify-between gap-3">
+            <p class="text-sm font-semibold text-slate-900">${formatPrice(minP, maxP)}</p>
+            <button type="button" class="focus-listing rounded-full border border-emerald-950/15 px-4 py-2 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-950 hover:text-white" data-lat="${house.latitude}" data-lng="${house.longitude}">Show on map</button>
+            <button type="button" onclick="window.openPropertyDetailModal('${house.bhId || house.id}')" class="rounded-full bg-emerald-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-800">View Details</button>
+          </div>
+        </article>
+      `;
+    };
+
+    const setListingCount = (count) => {
+      if (!listingCount) return;
+      listingCount.textContent = `${count} listing${count === 1 ? '' : 's'}`;
+    };
+
+    const clearLandingMapMarkers = () => {
+      window.landingMapMarkers.forEach((m) => map.removeLayer(m));
+      window.landingMapMarkers = [];
+    };
+
+    const renderDefaultListingsPlaceholder = () => {
+      boardingHouseList.innerHTML = `
+        <div class="rounded-2xl bg-slate-50/90 p-6 text-center border border-slate-200">
+          <div class="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-[#007a64] mb-3">
+            <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+          </div>
+          <h4 class="text-sm font-bold text-slate-900">Map Centered to Your Location</h4>
+          <p class="text-xs text-slate-500 mt-1">Select a marker on the map or use the quick search above to view verified boarding house details.</p>
+        </div>
+      `;
+      setListingCount(0);
+    };
+
+    const renderSingleHouseCard = (house) => {
+      boardingHouseList.innerHTML = createHouseCard(house);
+      setListingCount(1);
+      boardingHouseList.querySelectorAll('.focus-listing').forEach((button) => {
+        button.addEventListener('click', () => {
+          const latitude = Number(button.dataset.lat);
+          const longitude = Number(button.dataset.lng);
+          if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+            map.setView([latitude, longitude], 17);
+            document.getElementById('landingMap').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        });
+      });
+    };
+
+    const renderBoardingHouseMarkers = (houses, populateList = false, fitMap = false) => {
+      clearLandingMapMarkers();
+      if (populateList) boardingHouseList.innerHTML = '';
+      if (populateList) setListingCount(houses.length);
+
+      if (populateList && houses.length === 0) {
+        boardingHouseList.innerHTML = '<p class="text-sm text-slate-600 p-4 bg-slate-50 rounded-2xl border border-slate-200">No boarding houses match your search criteria. Try adjusting your filters.</p>';
+        return;
+      }
+
+      const bounds = L.latLngBounds();
+
+      houses.forEach((house, idx) => {
+        const latitude = Number(house.latitude);
+        const longitude = Number(house.longitude);
+        const name = escapeHtml(house.boardingHouseName || house.fullName || 'Boarding House');
+        const address = escapeHtml(house.boardingHouseAddress || house.barangay || 'Address not available');
+        const targetId = house.bhId || house.id || idx;
+
+        if (!Number.isNaN(latitude) && !Number.isNaN(longitude)) {
+          const customPin = L.divIcon({
+            className: 'custom-bh-pin',
+            html: `<div class="bg-emerald-950 text-white p-2 rounded-2xl shadow-xl border-2 border-white flex items-center justify-center hover:scale-110 transition cursor-pointer" style="width:36px;height:36px;">
+                     <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                   </div>`,
+            iconSize: [36, 36],
+            iconAnchor: [18, 36],
+            popupAnchor: [0, -32]
+          });
+
+          const marker = L.marker([latitude, longitude], { icon: customPin }).addTo(map).bindPopup(`
+            <div class="p-2 max-w-[260px]">
+              <strong class="text-sm font-extrabold text-slate-950 block leading-tight mb-1">${name}</strong>
+              <p class="text-xs text-slate-600 mb-2">📍 ${address}</p>
+              <div class="flex flex-col gap-1.5 border-t border-slate-100 pt-2">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-xs font-black text-emerald-800">${house.roomsAvailable ?? 0} rooms</span>
+                  <button type="button" onclick="window.openPropertyDetailModal('${targetId}')" class="bg-emerald-950 hover:bg-emerald-800 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-xs cursor-pointer shrink-0">
+                    View Details
+                  </button>
+                </div>
+                <button type="button"
+                  onclick="window._getDirectionsToCoords(${latitude}, ${longitude}, '${name.replace(/'/g, "\\'")}')"
+                  class="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold px-3 py-1.5 rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5">
+                  Get Directions
+                </button>
+              </div>
+            </div>
+          `);
+
+          // When user clicks pin, populate live listings side panel with this boarding house
+          marker.on('click', () => {
+            renderSingleHouseCard(house);
+          });
+
+          window.landingMapMarkers.push(marker);
+          bounds.extend([latitude, longitude]);
+        }
+
+        if (populateList) {
+          boardingHouseList.insertAdjacentHTML('beforeend', createHouseCard(house));
+        }
+      });
+
+      if (fitMap && window.landingMapMarkers.length > 0) {
+        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+      }
+
+      if (populateList) {
+        boardingHouseList.querySelectorAll('.focus-listing').forEach((button) => {
+          button.addEventListener('click', () => {
+            const latitude = Number(button.dataset.lat);
+            const longitude = Number(button.dataset.lng);
+            if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+              map.setView([latitude, longitude], 17);
+              document.getElementById('landingMap').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          });
+        });
+      }
+    };
+
+    // Zoom to educational institution on map
+    window.zoomToInstitution = function(schoolName) {
+      if (!schoolName) return;
+      let key = schoolName.trim().toLowerCase();
+      if (BONGABONG_ALIASES[key]) key = BONGABONG_ALIASES[key].toLowerCase();
+
+      if (window.institutionMarker) {
+        map.removeLayer(window.institutionMarker);
+        window.institutionMarker = null;
+      }
+
+      let school = schoolLocations[key];
+      if (!school) {
+        const matchKey = Object.keys(schoolLocations).find(k => k.includes(key) || key.includes(k));
+        if (matchKey) school = schoolLocations[matchKey];
+      }
+
+      if (school) {
+        map.flyTo([school.lat, school.lng], 16, { duration: 1.2 });
+        const icon = L.divIcon({
+          className: 'school-map-marker',
+          html: `<div class="bg-blue-600 text-white px-3 py-1.5 rounded-full text-xs font-black shadow-lg border-2 border-white flex items-center gap-1 shrink-0 animate-bounce">🏫 ${school.name}</div>`,
+          iconSize: [160, 36],
+          iconAnchor: [80, 18]
+        });
+        window.institutionMarker = L.marker([school.lat, school.lng], { icon }).addTo(map)
+          .bindPopup(`
+            <div class="p-1 max-w-[220px]">
+              <strong class="text-sm font-bold text-slate-900 block leading-tight mb-0.5">🏫 ${school.name}</strong>
+              <p class="text-xs text-slate-500 mb-2">Educational Institution in Bongabong</p>
+              <button type="button"
+                onclick="window._getDirectionsToCoords(${school.lat}, ${school.lng}, '${school.name.replace(/'/g, "\\'")}')"
+                class="w-full bg-emerald-950 hover:bg-emerald-800 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-sm cursor-pointer flex items-center justify-center gap-1.5">
+                Get Directions
+              </button>
+            </div>
+          `)
+          .openPopup();
+      }
+    };
+
+    window.performQuickSearch = function() {
+      const houses = window.allBoardingHousesCache || [];
+      let query = document.getElementById('quickSearchQuery')?.value.trim().toLowerCase() || '';
+      const barangay = document.getElementById('quickBarangaySelect')?.value || '';
+      const institution = document.getElementById('quickInstitutionSelect')?.value || '';
+      const priceRange = document.getElementById('quickPriceSelect')?.value || '';
+      const type = document.getElementById('quickTypeSelect')?.value || '';
+
+      if (query && BONGABONG_ALIASES[query]) {
+        query = BONGABONG_ALIASES[query].toLowerCase();
+      }
+
+      const schoolSearchTerm = institution || query;
+      if (schoolSearchTerm) {
+        window.zoomToInstitution(schoolSearchTerm);
+      }
+
+      const filtered = houses.filter((h) => {
+        const bhName = (h.boardingHouseName || '').toLowerCase();
+        const ownerName = (h.fullName || '').toLowerCase();
+        const bhAddress = (h.boardingHouseAddress || '').toLowerCase();
+        const bhBarangay = (h.barangay || '').toLowerCase();
+
+        const nameMatch = !query || 
+          bhName.includes(query) ||
+          ownerName.includes(query) ||
+          bhAddress.includes(query) ||
+          bhBarangay.includes(query) ||
+          (institution && institution.toLowerCase().includes(query));
+
+        const barangayMatch = !barangay || 
+          bhBarangay === barangay.toLowerCase() ||
+          bhAddress.includes(barangay.toLowerCase());
+
+        const typeMatch = !type || (Array.isArray(h.roomTypes) && h.roomTypes.some(t => t.toLowerCase().includes(type.toLowerCase())));
+
+        let priceMatch = true;
+        const estPrice = h.rentalPriceMin || h.rentalPriceMax || (h.roomsAvailable ? h.roomsAvailable * 1500 : 2500);
+        if (priceRange === 'under_1000') priceMatch = estPrice < 1000;
+        else if (priceRange === '1000_2000') priceMatch = estPrice >= 1000 && estPrice <= 2000;
+        else if (priceRange === '2000_3000') priceMatch = estPrice >= 2000 && estPrice <= 3000;
+        else if (priceRange === '3000_4000') priceMatch = estPrice >= 3000 && estPrice <= 4000;
+        else if (priceRange === '4000_5000') priceMatch = estPrice >= 4000 && estPrice <= 5000;
+        else if (priceRange === 'above_5000') priceMatch = estPrice > 5000;
+
+        return nameMatch && barangayMatch && typeMatch && priceMatch;
+      });
+
+      renderBoardingHouseMarkers(filtered, true, !schoolSearchTerm);
+      document.getElementById('map')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    // Refresh Map & Filters: Auto center to user's current GPS location & reset listings panel
+    window.resetMapAndFilters = function() {
+      const qInput = document.getElementById('quickSearchQuery');
+      const bSelect = document.getElementById('quickBarangaySelect');
+      const iSelect = document.getElementById('quickInstitutionSelect');
+      const pSelect = document.getElementById('quickPriceSelect');
+      const tSelect = document.getElementById('quickTypeSelect');
+
+      if (qInput) qInput.value = '';
+      if (bSelect) bSelect.value = '';
+      if (iSelect) iSelect.value = '';
+      if (pSelect) pSelect.value = '';
+      if (tSelect) tSelect.value = '';
+
+      if (window.institutionMarker) {
+        map.removeLayer(window.institutionMarker);
+        window.institutionMarker = null;
+      }
+
+      // 1. Direct map to user's current GPS location
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            map.flyTo([lat, lng], 15, { duration: 1.2 });
+            if (window.userGpsMarker) map.removeLayer(window.userGpsMarker);
+            window.userGpsMarker = L.circleMarker([lat, lng], {
+              radius: 10, color: '#047857', fillColor: '#10b981', fillOpacity: 0.9, weight: 3
+            }).addTo(map).bindPopup('<strong class="text-sm">📍 Your Current GPS Location</strong>').openPopup();
+          },
+          () => {
+            map.setView([12.7192, 121.4719], 14);
+          },
+          { enableHighAccuracy: true, timeout: 8000 }
+        );
+      } else {
+        map.setView([12.7192, 121.4719], 14);
+      }
+
+      // 2. Restore all pins on map and default empty state in live listings panel
+      if (window.allBoardingHousesCache) {
+        renderBoardingHouseMarkers(window.allBoardingHousesCache, false, false);
+      }
+      renderDefaultListingsPlaceholder();
+    };
+
+    // Listen to institution dropdown change to auto-zoom immediately
+    document.getElementById('quickInstitutionSelect')?.addEventListener('change', (e) => {
+      const val = e.target.value;
+      if (val) {
+        window.zoomToInstitution(val);
+        window.performQuickSearch();
+      }
+    });
+
+    // Dynamically fetch registered institutions to populate institution select
+    fetch('/api/institutions')
+      .then(res => res.json())
+      .then(insts => {
+        if (Array.isArray(insts) && insts.length > 0) {
+          const select = document.getElementById('quickInstitutionSelect');
+          if (!select) return;
+          const existingOptions = new Set(Array.from(select.options).map(o => o.value.toLowerCase()));
+          
+          insts.forEach(inst => {
+            if (inst.name && !existingOptions.has(inst.name.toLowerCase())) {
+              const opt = document.createElement('option');
+              opt.value = inst.name;
+              opt.textContent = inst.name;
+              select.appendChild(opt);
+
+              if (inst.latitude && inst.longitude) {
+                schoolLocations[inst.name.toLowerCase()] = {
+                  lat: Number(inst.latitude),
+                  lng: Number(inst.longitude),
+                  name: inst.name
+                };
+              }
+            }
+          });
+        }
+      })
+      .catch(err => console.log('Institutions fetch note:', err));
+
+    // 1. Automatically center map on user's current GPS location on page load
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          map.setView([lat, lng], 15);
+          if (window.userGpsMarker) map.removeLayer(window.userGpsMarker);
+          window.userGpsMarker = L.circleMarker([lat, lng], {
+            radius: 10, color: '#047857', fillColor: '#10b981', fillOpacity: 0.9, weight: 3
+          }).addTo(map).bindPopup('<strong class="text-sm">📍 Your Current Location</strong>').openPopup();
+        },
+        () => {
+          map.setView([12.7192, 121.4719], 14);
+        },
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    }
+
+    // 2. Fetch verified boarding houses, place pins on map, keep listings panel in default state
+    fetch('/api/boarding-houses')
+      .then((response) => response.json())
+      .then((houses) => {
+        if (!Array.isArray(houses) || houses.length === 0) {
+          renderDefaultListingsPlaceholder();
+          renderTopVerifiedListings([]);
+          return;
+        }
+
+        window.allBoardingHousesCache = houses;
+        // Place markers on the map, do NOT populate the side panel by default
+        renderBoardingHouseMarkers(houses, false, false);
+        renderDefaultListingsPlaceholder();
+        renderTopVerifiedListings(houses);
+      })
+      .catch((error) => {
+        console.error('Failed to load boarding houses:', error);
+        renderDefaultListingsPlaceholder();
+        renderTopVerifiedListings([]);
+      });
+
+    setTimeout(() => map.invalidateSize(), 250);
+    window.addEventListener('resize', () => map.invalidateSize());
+
+    useLocationButton?.addEventListener('click', () => {
+      if (!navigator.geolocation) {
+        alert('Geolocation is not supported by this browser.');
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          map.setView([pos.coords.latitude, pos.coords.longitude], 16);
+          L.circleMarker([pos.coords.latitude, pos.coords.longitude], {
+            radius: 8, color: '#023020', fillColor: '#023020', fillOpacity: 1, weight: 3
+          }).addTo(map).bindPopup('Your current location').openPopup();
+        },
+        () => alert('Location access was denied.'),
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    });
+
+    lucide.createIcons();
+  </script>
+  <script src="/js/landing-translator.js"></script>
+  {{> dormigoWidget }}
+</body>
+</html>

@@ -1,0 +1,1269 @@
+<style>
+  .dormmap-auth-shell {
+    font-family: 'Inter', sans-serif;
+  }
+
+  .dormmap-auth-shell .font-display {
+    font-family: 'Poppins', sans-serif;
+  }
+
+  .dormmap-auth-shell[data-open="false"] {
+    display: none;
+  }
+
+  .dormmap-auth-shell[data-open="true"] {
+    display: flex;
+  }
+
+  .dormmap-auth-shell input,
+  .dormmap-auth-shell select,
+  .dormmap-auth-shell textarea {
+    outline: none;
+  }
+
+  .dormmap-auth-panel {
+    max-height: min(90vh, 760px);
+  }
+
+  .dormmap-auth-scroll {
+    max-height: min(90vh, 760px);
+  }
+
+  .dormmap-auth-shell svg {
+    max-width: 100%;
+  }
+
+  .dormmap-auth-shell .icon-bw-sm,
+  .dormmap-auth-shell svg.icon-bw-sm,
+  .icon-bw-sm {
+    width: 16px !important;
+    height: 16px !important;
+    min-width: 16px !important;
+    min-height: 16px !important;
+    max-width: 16px !important;
+    max-height: 16px !important;
+    display: inline-block !important;
+    flex-shrink: 0 !important;
+    stroke-width: 2 !important;
+  }
+</style>
+
+<div id="dormmapAuthRoot" class="dormmap-auth-shell fixed inset-0 z-[80] items-center justify-center px-4 py-6 sm:px-6" data-open="false" data-initial-open="{{authOpen}}" data-initial-mode="{{authMode}}" data-initial-account-type="{{authAccountType}}" data-auth-error="{{authError}}" data-google-role-conflict="{{googleRoleConflict}}" data-google-role-conflict-existing="{{googleRoleConflictExisting}}" data-google-not-registered="{{googleNotRegistered}}" data-google-not-registered-email="{{googleNotRegisteredEmail}}">
+  <div class="absolute inset-0 bg-slate-950/70 backdrop-blur-sm" data-auth-close></div>
+  <div class="relative z-10 w-full max-w-[370px] overflow-hidden rounded-[24px] bg-white shadow-2xl ring-1 ring-black/5">
+    <section class="dormmap-auth-panel relative flex flex-col overflow-hidden bg-slate-50/80 px-3 py-3 sm:px-4 sm:py-4">
+      <div class="dormmap-auth-scroll overflow-y-auto pr-0.5">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">Access Portal</p>
+            <h3 class="font-display mt-1 text-[20px] font-bold leading-tight text-slate-950">Sign in or create your account</h3>
+          </div>
+          <button type="button" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-[var(--dormmap-primary)] hover:text-[var(--dormmap-primary)]" data-auth-close aria-label="Close dialog">
+            <i data-lucide="x" class="h-5 w-5"></i>
+          </button>
+        </div>
+
+        <!-- Centered circle logo -->
+        <div class="flex justify-center mt-3 mb-2">
+          <div class="h-24 w-24 sm:h-28 sm:w-28 rounded-full overflow-hidden border-2 border-emerald-200 bg-white shadow-md flex items-center justify-center p-1 transition hover:scale-105">
+            <img src="/images/dormmap-logo.png" alt="DormMap Logo" class="h-full w-full object-contain">
+          </div>
+        </div>
+
+        <div class="mt-3 grid grid-cols-2 rounded-full bg-slate-100 p-1 text-xs font-semibold sm:text-sm">
+          <button type="button" class="auth-tab rounded-full px-3 py-2.5 transition" data-auth-tab="login">Login</button>
+          <button type="button" class="auth-tab rounded-full px-3 py-2.5 transition" data-auth-tab="register">Register</button>
+        </div>
+
+        <!-- Account Type Card: only visible in REGISTER mode -->
+        <div class="mt-3 rounded-[20px] border border-slate-200 bg-white p-3 shadow-sm" id="authAccountTypeCard">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">Account Type</p>
+            </div>
+            <span class="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700" id="authRoleLabel">BPLO/Admin</span>
+          </div>
+          <div class="mt-3 grid grid-cols-2 gap-2">
+            <button type="button" class="auth-role-card rounded-2xl border border-slate-200 bg-slate-50 p-2.5 text-left transition hover:border-[var(--dormmap-primary)]" data-auth-role="bplo_admin" data-auth-label="BPLO/Admin">
+              <div class="flex items-center gap-2">
+                <i data-lucide="shield-check" class="h-4 w-4 shrink-0" style="color: var(--dormmap-primary);"></i>
+                <div>
+                  <p class="text-[12px] font-bold text-slate-900">BPLO/Admin</p>
+                  <p class="text-[10px] text-slate-500 leading-tight">Admin Login</p>
+                </div>
+              </div>
+            </button>
+            <button type="button" class="auth-role-card rounded-2xl border border-slate-200 bg-slate-50 p-2.5 text-left transition hover:border-[var(--dormmap-primary)]" data-auth-role="barangay" data-auth-label="Barangay">
+              <div class="flex items-center gap-2">
+                <i data-lucide="landmark" class="h-4 w-4 shrink-0" style="color: var(--dormmap-primary);"></i>
+                <div>
+                  <p class="text-[12px] font-bold text-slate-900">Barangay</p>
+                  <p class="text-[10px] text-slate-500 leading-tight">Local Official</p>
+                </div>
+              </div>
+            </button>
+            <button type="button" class="auth-role-card rounded-2xl border border-slate-200 bg-slate-50 p-2.5 text-left transition hover:border-[var(--dormmap-primary)]" data-auth-role="boarding_house_owner" data-auth-label="Owner">
+              <div class="flex items-center gap-2">
+                <i data-lucide="home" class="h-4 w-4 shrink-0" style="color: var(--dormmap-primary);"></i>
+                <div>
+                  <p class="text-[12px] font-bold text-slate-900">Owner</p>
+                  <p class="text-[10px] text-slate-500 leading-tight">Boarding House</p>
+                </div>
+              </div>
+            </button>
+            <button type="button" class="auth-role-card rounded-2xl border border-slate-200 bg-slate-50 p-2.5 text-left transition hover:border-[var(--dormmap-primary)]" data-auth-role="tenant" data-auth-label="Tenant">
+              <div class="flex items-center gap-2">
+                <i data-lucide="user-round" class="h-4 w-4 shrink-0" style="color: var(--dormmap-primary);"></i>
+                <div>
+                  <p class="text-[12px] font-bold text-slate-900">Tenant</p>
+                  <p class="text-[10px] text-slate-500 leading-tight">Seeker / Student</p>
+                </div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {{#if authError}}
+        <div class="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 leading-relaxed">{{{authError}}}</div>
+        {{/if}}
+        {{#if authSuccess}}
+        <div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 leading-relaxed">{{{authSuccess}}}</div>
+        {{/if}}
+
+        <form id="loginForm" class="mt-3 hidden space-y-3" method="POST" action="/login">
+          <input type="hidden" name="accountType" id="loginAccountType" value="{{authAccountType}}">
+          <div class="grid gap-3 sm:grid-cols-2">
+            <label class="sm:col-span-2">
+              <span class="mb-1 block text-[13px] font-semibold text-slate-700">Email</span>
+              <input type="email" name="email" id="loginEmailInput" value="{{authValues.email}}" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10" required>
+            </label>
+            <label class="sm:col-span-2">
+              <div class="flex items-center justify-between mb-1">
+                <span class="block text-[13px] font-semibold text-slate-700">Password</span>
+                <button type="button" onclick="showForgotPasswordModal()" class="text-xs font-semibold text-emerald-700 hover:underline">Forgot password?</button>
+              </div>
+              <input type="password" name="password" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10" required>
+            </label>
+          </div>
+          <div class="flex flex-col gap-2 sm:flex-row">
+            <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95" style="background: var(--dormmap-primary);">
+              <i data-lucide="log-in" class="h-4 w-4"></i>
+              Sign In
+            </button>
+          </div>
+        </form>
+
+        <!-- Forgot Password Card -->
+        <div id="forgotPasswordCard" class="mt-3 hidden space-y-3.5 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4 shadow-sm">
+          <div class="flex items-center gap-1.5 border-b border-emerald-100 pb-2">
+            <i data-lucide="key-round" class="w-4 h-4 text-emerald-700"></i>
+            <h4 class="font-bold text-slate-900 text-sm">Reset Password via Email</h4>
+          </div>
+
+          <!-- Step 1: Email input form -->
+          <form id="forgotStep1Form" onsubmit="submitForgotPasswordStep1(event)" class="space-y-3">
+            <p class="text-xs text-slate-600 leading-relaxed">
+              Enter your registered email address and we will send a password reset link to your Gmail inbox.
+            </p>
+            <label class="block">
+              <span class="mb-1 block text-xs font-bold text-slate-700">Registered Email Address</span>
+              <input type="email" id="forgotEmailInput" placeholder="e.g. user@gmail.com" class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/10 font-medium" required>
+            </label>
+            <div id="forgotStep1StatusMsg" class="hidden rounded-xl p-2.5 text-xs font-medium"></div>
+            <div class="flex items-center justify-between gap-2 pt-1">
+              <button type="button" onclick="hideForgotPasswordModal()" class="text-xs font-semibold text-slate-500 hover:text-slate-800 transition">
+                ← Back to Login
+              </button>
+              <button type="submit" id="forgotSubmitStep1Btn" class="inline-flex items-center gap-1.5 rounded-full bg-emerald-800 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-900 transition">
+                <span>Send Reset Link</span> →
+              </button>
+            </div>
+          </form>
+
+          <!-- Success State: shown after email is sent -->
+          <div id="forgotSuccessState" class="hidden space-y-3">
+            <div class="flex flex-col items-center gap-2 py-2 text-center">
+              <div class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
+                <i data-lucide="mail-check" class="w-6 h-6 text-emerald-700"></i>
+              </div>
+              <h5 class="font-bold text-slate-900 text-sm">Check Your Gmail Inbox</h5>
+              <p class="text-xs text-slate-600 leading-relaxed">
+                A password reset link has been sent to<br>
+                <strong id="forgotSentEmailDisplay" class="text-emerald-800 font-bold"></strong>.
+              </p>
+              <p class="text-xs text-slate-500 leading-relaxed">
+                Open your Gmail inbox, click the <strong>Reset My Password</strong> button in the email, and set your new password there. Then return here to sign in.
+              </p>
+              <p class="text-[10px] text-slate-400">Can't find it? Check your spam or junk folder.</p>
+            </div>
+            <div class="border-t border-emerald-100 pt-3 flex items-center justify-between gap-2">
+              <button type="button" onclick="backToForgotStep1()" class="text-xs font-semibold text-slate-500 hover:text-slate-800 transition">
+                ← Resend Email
+              </button>
+              <button type="button" onclick="hideForgotPasswordModal()" class="inline-flex items-center gap-1.5 rounded-full bg-emerald-800 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-900 transition">
+                Return to Sign In
+              </button>
+            </div>
+          </div>
+        </div>
+
+
+        <div class="mt-3 grid gap-3" id="googleAuthContainer">
+          <a href="/auth/google" id="googleAuthBtn" class="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+            <img src="https://www.google.com/favicon.ico" alt="Google" class="h-4 w-4" />
+            Continue with Google
+          </a>
+        </div>
+
+        <form id="registerForm" class="mt-3 hidden space-y-3.5" method="POST" action="/register" enctype="multipart/form-data">
+          <input type="hidden" name="accountType" id="registerAccountType" value="{{authAccountType}}">
+
+          <div class="rounded-[20px] border border-slate-200 bg-white p-3 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">Basic Details</p>
+              </div>
+              <span class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600" id="registerStepLabel">Step 1</span>
+            </div>
+
+            <div class="mt-2.5 grid gap-2.5 sm:grid-cols-2">
+              <label>
+                <span class="mb-1 block text-[13px] font-semibold text-slate-700">Full name</span>
+                <input type="text" name="fullName" value="{{authValues.fullName}}" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10" required>
+              </label>
+              <label>
+                <span class="mb-1 block text-[13px] font-semibold text-slate-700">Email</span>
+                <input type="email" name="email" value="{{authValues.email}}" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10" required>
+              </label>
+              <label>
+                <span class="mb-1 block text-[13px] font-semibold text-slate-700">Password</span>
+                <input type="password" name="password" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10" required>
+              </label>
+              <label>
+                <span class="mb-1 block text-[13px] font-semibold text-slate-700">Confirm password</span>
+                <input type="password" name="confirmPassword" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10" required>
+              </label>
+              <div data-tenant-hide class="sm:col-span-2">
+                <label>
+                  <span class="mb-1 block text-[13px] font-semibold text-slate-700">Profile picture</span>
+                  <input type="file" name="profilePicture" accept="image/*" class="w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-2.5 text-sm file:mr-4 file:rounded-full file:border-0 file:bg-[var(--dormmap-primary)] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white">
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div data-register-section="barangay" class="hidden rounded-[20px] border border-slate-200 bg-white p-3 shadow-sm">
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">Barangay Account</p>
+            </div>
+            <div class="mt-2.5 grid gap-2.5 sm:grid-cols-2">
+              <label class="sm:col-span-2">
+                <span class="mb-1 block text-[13px] font-semibold text-slate-700">Barangay</span>
+                <select name="barangay" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
+                  <option value="">Select Barangay</option>
+                  <option>Anilao</option>
+                  <option>Aplaya</option>
+                  <option>Bagong Bayan I</option>
+                  <option>Bagong Bayan II</option>
+                  <option>Batangan</option>
+                  <option>Bukal</option>
+                  <option>Camantigue</option>
+                  <option>Carmundo</option>
+                  <option>Cawayan</option>
+                  <option>Dayhagan</option>
+                  <option>Formon</option>
+                  <option>Hagan</option>
+                  <option>Hagupit</option>
+                  <option>Ipil</option>
+                  <option>Kaligtasan</option>
+                  <option>Labasan</option>
+                  <option>Labonan</option>
+                  <option>Libertad</option>
+                  <option>Lisap</option>
+                  <option>Luna</option>
+                  <option>Malitbog</option>
+                  <option>Mapang</option>
+                  <option>Masaguisi</option>
+                  <option>Mina de Oro</option>
+                  <option>Morente</option>
+                  <option>Ogbot</option>
+                  <option>Orconuma</option>
+                  <option>Poblacion</option>
+                  <option>Pulosahi</option>
+                  <option>Sagana</option>
+                  <option>San Isidro</option>
+                  <option>San Jose</option>
+                  <option>San Juan</option>
+                  <option>Sta. Cruz</option>
+                  <option>Sigange</option>
+                  <option>Tawas</option>
+                </select>
+              </label>
+              <label>
+                <span class="mb-1 block text-[13px] font-semibold text-slate-700">Position / designation</span>
+                <input type="text" name="positionTitle" placeholder="Barangay Secretary" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
+              </label>
+              <label>
+                <span class="mb-1 block text-[13px] font-semibold text-slate-700">Contact number</span>
+                <input type="text" name="contactNumber" placeholder="09xxxxxxxxx" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
+              </label>
+            </div>
+            <div class="mt-3 rounded-2xl border border-slate-200/80 bg-slate-50 px-3 py-2.5 text-xs text-slate-700">
+              <label class="flex items-start gap-2 cursor-pointer">
+                <input type="checkbox" name="acceptTerms" value="on" required class="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600">
+                <span>I agree to the <a href="#" onclick="alert('Terms of Service: By registering, you agree to follow DorMap municipal regulations and guidelines.'); return false;" class="font-bold underline text-emerald-800">Terms of Service</a> and <a href="#" onclick="alert('Privacy Policy: Your data is securely handled for DorMap official management.'); return false;" class="font-bold underline text-emerald-800">Privacy Policy</a>.</span>
+              </label>
+            </div>
+            <div class="mt-3 flex justify-end">
+              <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-full px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-950/20 hover:scale-[1.02] active:scale-[0.98] transition" style="background: var(--dormmap-primary);">
+                <i data-lucide="landmark" class="h-4 w-4"></i>
+                <span>Create Barangay Account</span>
+              </button>
+            </div>
+          </div>
+
+          <div data-register-section="boarding_house_owner" class="hidden rounded-[20px] border border-slate-200 bg-white p-3 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">Owner Wizard</p>
+              </div>
+              <div class="flex items-center gap-1.5 text-[10px] font-bold text-slate-500">
+                <span class="owner-step-dot rounded-full bg-[var(--dormmap-primary)] px-2.5 py-1 text-white" data-owner-dot="1">1</span>
+                <span class="owner-step-dot rounded-full bg-slate-100 px-2.5 py-1" data-owner-dot="2">2</span>
+                <span class="owner-step-dot rounded-full bg-slate-100 px-2.5 py-1" data-owner-dot="3">3</span>
+              </div>
+            </div>
+
+            <div class="mt-2.5 space-y-3" data-owner-step="1">
+              <div class="grid gap-2.5 sm:grid-cols-2">
+                <label class="sm:col-span-2">
+                  <span class="mb-1 block text-[13px] font-semibold text-slate-700">Boarding house name</span>
+                  <input type="text" name="boardingHouseName" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
+                </label>
+                <label class="sm:col-span-2">
+                  <span class="mb-1 block text-[13px] font-semibold text-slate-700">Location address (Barangay)</span>
+                  <select name="boardingHouseAddress" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
+                    <option value="">Select Barangay</option>
+                    <option>Anilao</option>
+                    <option>Aplaya</option>
+                    <option>Bagong Bayan I</option>
+                    <option>Bagong Bayan II</option>
+                    <option>Batangan</option>
+                    <option>Bukal</option>
+                    <option>Camantigue</option>
+                    <option>Carmundo</option>
+                    <option>Cawayan</option>
+                    <option>Dayhagan</option>
+                    <option>Formon</option>
+                    <option>Hagan</option>
+                    <option>Hagupit</option>
+                    <option>Ipil</option>
+                    <option>Kaligtasan</option>
+                    <option>Labasan</option>
+                    <option>Labonan</option>
+                    <option>Libertad</option>
+                    <option>Lisap</option>
+                    <option>Luna</option>
+                    <option>Malitbog</option>
+                    <option>Mapang</option>
+                    <option>Masaguisi</option>
+                    <option>Mina de Oro</option>
+                    <option>Morente</option>
+                    <option>Ogbot</option>
+                    <option>Orconuma</option>
+                    <option>Poblacion</option>
+                    <option>Pulosahi</option>
+                    <option>Sagana</option>
+                    <option>San Isidro</option>
+                    <option>San Jose</option>
+                    <option>San Juan</option>
+                    <option>Sta. Cruz</option>
+                    <option>Sigange</option>
+                    <option>Tawas</option>
+                  </select>
+                </label>
+                <label>
+                  <span class="mb-1 block text-[13px] font-semibold text-slate-700">Rooms available</span>
+                  <input type="number" name="roomsAvailable" min="1" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
+                </label>
+                <label class="sm:col-span-2">
+                  <div class="mb-1 flex items-center justify-between gap-3">
+                    <span class="block text-[13px] font-semibold text-slate-700">Streetmap location</span>
+                    <button type="button" data-owner-open-map class="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-[var(--dormmap-primary)] hover:text-[var(--dormmap-primary)]">
+                      <i data-lucide="map-pin" class="h-4 w-4"></i>
+                      Pick on map
+                    </button>
+                  </div>
+                  <input type="text" name="mapPin" readonly placeholder="Tap 'Pick on map' then select the location on the map below" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
+                  <input type="hidden" name="boardingHouseLatitude">
+                  <input type="hidden" name="boardingHouseLongitude">
+                  <p class="mt-1 text-xs text-slate-500" data-owner-map-hint>Use the map below to pin the boarding house on the street map.</p>
+                </label>
+                <div id="ownerMapPanel" class="hidden sm:col-span-2 rounded-2xl border border-slate-200 overflow-hidden">
+                  <div class="border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 flex items-center justify-between">
+                    <span>Owner streetmap selection</span>
+                    <button type="button" id="authOwnerFullMapBtn" class="text-xs font-bold text-emerald-800 bg-emerald-100/60 hover:bg-emerald-200/80 px-2.5 py-1 rounded-full border border-emerald-300 transition flex items-center gap-1">
+                      <svg class="icon-bw-sm w-3.5 h-3.5 shrink-0" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> Open Full Map
+                    </button>
+                  </div>
+                  <div id="ownerMap" class="h-52 w-full"></div>
+                </div>
+                <!-- 5 Required Category Photos for Boarding House -->
+                <div class="sm:col-span-2 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3.5 space-y-3">
+                  <div>
+                    <p class="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                      <span>📷 Property Photos — 5 Required Categories</span>
+                    </p>
+                    <p class="text-[11px] text-emerald-800 mt-0.5 leading-snug">
+                      Please upload 1 photo for each category below. Category 1 (Outdoor Spaces) will serve as your primary listing cover.
+                    </p>
+                  </div>
+                  <div class="grid gap-2.5 sm:grid-cols-2">
+                    <label class="block bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs">
+                      <span class="mb-0.5 block text-xs font-bold text-slate-800">1. Outdoor Spaces <span class="text-rose-500">*</span></span>
+                      <span class="text-[10px] text-slate-500 block mb-1">Front view, gate, exterior</span>
+                      <input type="file" name="galleryOutdoor" accept="image/*" required class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
+                    </label>
+                    <label class="block bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs">
+                      <span class="mb-0.5 block text-xs font-bold text-slate-800">2. Living Area <span class="text-rose-500">*</span></span>
+                      <span class="text-[10px] text-slate-500 block mb-1">Common room, sala, lounge</span>
+                      <input type="file" name="galleryLivingArea" accept="image/*" required class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
+                    </label>
+                    <label class="block bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs">
+                      <span class="mb-0.5 block text-xs font-bold text-slate-800">3. Bedroom <span class="text-rose-500">*</span></span>
+                      <span class="text-[10px] text-slate-500 block mb-1">Tenant room space, beds</span>
+                      <input type="file" name="galleryBedroom" accept="image/*" required class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
+                    </label>
+                    <label class="block bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs">
+                      <span class="mb-0.5 block text-xs font-bold text-slate-800">4. Dining or kitchenette <span class="text-rose-500">*</span></span>
+                      <span class="text-[10px] text-slate-500 block mb-1">Kitchen or dining facility</span>
+                      <input type="file" name="galleryDining" accept="image/*" required class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
+                    </label>
+                    <label class="block bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs sm:col-span-2">
+                      <span class="mb-0.5 block text-xs font-bold text-slate-800">5. Bathroom <span class="text-rose-500">*</span></span>
+                      <span class="text-[10px] text-slate-500 block mb-1">CR, comfort room, shower</span>
+                      <input type="file" name="galleryBathroom" accept="image/*" required class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div class="flex justify-end pt-1">
+                <button type="button" class="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold text-white shadow-md hover:scale-[1.02] active:scale-[0.98] transition" style="background: var(--dormmap-primary);" data-owner-next="2">
+                  <span>Continue to Step 2</span>
+                  <i data-lucide="arrow-right" class="h-4 w-4"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="mt-2.5 hidden space-y-3" data-owner-step="2">
+              <div class="grid gap-2.5 sm:grid-cols-2">
+                <fieldset class="sm:col-span-2">
+                  <legend class="mb-2 block text-[13px] font-semibold text-slate-700">Room types</legend>
+                  <div class="grid grid-cols-2 gap-2">
+                    <label class="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700"><input type="checkbox" name="roomTypes" value="Solo Room"> Solo</label>
+                    <label class="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700"><input type="checkbox" name="roomTypes" value="Shared Room"> Shared</label>
+                    <label class="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700"><input type="checkbox" name="roomTypes" value="Airconditioned"> Aircon</label>
+                    <label class="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700"><input type="checkbox" name="roomTypes" value="Mixed"> Mixed</label>
+                  </div>
+                </fieldset>
+                <fieldset class="sm:col-span-2">
+                  <legend class="mb-2 block text-[13px] font-semibold text-slate-700">Payment methods</legend>
+                  <div class="grid grid-cols-2 gap-2">
+                    <label class="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700"><input type="checkbox" name="paymentMethods" value="Cash"> Cash</label>
+                    <label class="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700"><input type="checkbox" name="paymentMethods" value="GCash"> GCash</label>
+                    <label class="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700"><input type="checkbox" name="paymentMethods" value="Maya"> Maya</label>
+                    <label class="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700"><input type="checkbox" name="paymentMethods" value="Bank Transfer"> Bank</label>
+                  </div>
+                </fieldset>
+                <label class="sm:col-span-2">
+                  <span class="mb-1 block text-[13px] font-semibold text-slate-700">Business permit</span>
+                  <input type="file" name="businessPermit" accept="image/*,.pdf" class="w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-2.5 text-sm file:mr-4 file:rounded-full file:border-0 file:bg-[var(--dormmap-primary)] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white">
+                </label>
+                <label class="sm:col-span-2">
+                  <span class="mb-1 block text-[13px] font-semibold text-slate-700">Supporting docs</span>
+                  <input type="file" name="proofOfOwnership" accept="image/*,.pdf" multiple class="w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-2.5 text-sm file:mr-4 file:rounded-full file:border-0 file:bg-[var(--dormmap-primary)] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white">
+                </label>
+              </div>
+              <div class="flex justify-between gap-3 pt-1">
+                <button type="button" class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition" data-owner-back="1">
+                  ← Previous Step
+                </button>
+                <button type="button" class="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold text-white shadow-md hover:scale-[1.02] active:scale-[0.98] transition" style="background: var(--dormmap-primary);" data-owner-next="3">
+                  <span>Continue to Step 3</span>
+                  <i data-lucide="arrow-right" class="h-4 w-4"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="mt-2.5 hidden space-y-3" data-owner-step="3">
+              <div class="rounded-2xl bg-emerald-50 p-3 text-xs leading-5 text-emerald-900">
+                <p class="font-bold">Final checklist</p>
+                <ul class="mt-2 space-y-1 list-disc pl-5">
+                  <li>Provide clear and valid contact details.</li>
+                  <li>Upload the required permits and a recognizable property photo.</li>
+                  <li>Include room options, payment methods, and a valid map pin so tenants can verify the property quickly.</li>
+                </ul>
+              </div>
+              <label class="block">
+                <span class="mb-1 block text-[13px] font-semibold text-slate-700">Additional notes</span>
+                <textarea name="notes" rows="3" placeholder="Wi-Fi, water source, curfew rules" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10"></textarea>
+              </label>
+              <div class="rounded-2xl border border-slate-200/80 bg-slate-50 px-3 py-2.5 text-xs text-slate-700">
+                <label class="flex items-start gap-2 cursor-pointer">
+                  <input type="checkbox" name="acceptTerms" value="on" required class="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600">
+                  <span>I agree to the <a href="#" onclick="alert('Terms of Service: By registering, you agree to follow DorMap municipal regulations and guidelines.'); return false;" class="font-bold underline text-emerald-800">Terms of Service</a> and <a href="#" onclick="alert('Privacy Policy: Your data is securely handled for DorMap official management.'); return false;" class="font-bold underline text-emerald-800">Privacy Policy</a>.</span>
+                </label>
+              </div>
+              <div class="flex justify-between gap-3 pt-1">
+                <button type="button" class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition" data-owner-back="2">
+                  ← Previous Step
+                </button>
+                <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-full px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-950/20 hover:scale-[1.02] active:scale-[0.98] transition" style="background: var(--dormmap-primary);">
+                  <i data-lucide="check-circle-2" class="h-4 w-4"></i>
+                  <span>Complete Owner Registration</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div data-register-section="tenant" class="hidden rounded-[20px] border border-slate-200 bg-white p-3 shadow-sm">
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-500">Tenant / Seeker Profile</p>
+              <!-- Info banner for undecided tenants -->
+              <div class="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-[11px] text-emerald-800 leading-snug flex gap-2 items-start">
+                <svg class="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span>Haven't decided on a boarding house yet? <strong>No problem</strong> — you can register now and choose one from your tenant dashboard anytime.</span>
+              </div>
+              <p class="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mt-2 flex items-center gap-1.5 leading-snug">
+                <svg class="icon-bw-sm w-4 h-4 shrink-0 text-amber-700" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+                <span>If you sign in with <strong>Google</strong>, you will be guided through the full profile setup on the next page.</span>
+              </p>
+            </div>
+            <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+              <label class="flex-1">
+                <span class="mb-1 block text-[13px] font-semibold text-slate-700">Search boarding house <span class="text-slate-400 font-normal">(optional)</span></span>
+                <input type="text" name="boardingHouseSearch" placeholder="Type boarding house name" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
+              </label>
+              <button type="button" data-tenant-search class="inline-flex h-12 shrink-0 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-[var(--dormmap-primary)] hover:text-[var(--dormmap-primary)]">
+                <svg class="icon-bw-sm w-4 h-4 shrink-0" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Search
+              </button>
+            </div>
+            <p class="mt-1.5 text-xs text-slate-400" data-tenant-hint>Search by name, or skip and choose a boarding house from your dashboard later.</p>
+            <div id="tenantMapPanel" class="mt-3 hidden rounded-2xl border border-slate-200 overflow-hidden sm:col-span-2">
+              <div class="border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+                <svg class="icon-bw-sm w-4 h-4 shrink-0 text-emerald-700" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                <span>Boarding house map results</span>
+              </div>
+              <div id="tenantMap" class="h-52 w-full"></div>
+            </div>
+            <div class="mt-3 grid gap-2.5 sm:grid-cols-2">
+              <label>
+                <span class="mb-1 block text-[13px] font-semibold text-slate-700">Contact number</span>
+                <input type="text" name="contactNumber" placeholder="09XXXXXXXXX" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
+              </label>
+              <label>
+                <span class="mb-1 block text-[13px] font-semibold text-slate-700">Gender</span>
+                <select name="gender" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
+                  <option value="">Select gender...</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="prefer_not_to_say">Prefer not to say</option>
+                </select>
+              </label>
+              <label>
+                <span class="mb-1 block text-[13px] font-semibold text-slate-700">Select boarding house <span class="text-slate-400 font-normal">(optional)</span></span>
+                <select name="selectedBoardingHouse" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
+                  <option value="">Choose from results or leave blank</option>
+                </select>
+              </label>
+              <label>
+                <span class="mb-1 block text-[13px] font-semibold text-slate-700">Valid ID picture <span class="text-slate-400 font-normal">(optional — can upload later)</span></span>
+                <input type="file" name="validIdPicture" accept="image/*" class="w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-2.5 text-sm file:mr-4 file:rounded-full file:border-0 file:bg-[var(--dormmap-primary)] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white">
+              </label>
+              <label class="sm:col-span-2">
+                <span class="mb-1 block text-[13px] font-semibold text-slate-700">Profile picture <span class="text-slate-400 font-normal">(optional)</span></span>
+                <input type="file" name="profilePicture" accept="image/*" class="w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-2.5 text-sm file:mr-4 file:rounded-full file:border-0 file:bg-[var(--dormmap-primary)] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white">
+              </label>
+            </div>
+            <div class="mt-3 rounded-2xl border border-slate-200/80 bg-slate-50 px-3 py-2.5 text-xs text-slate-700">
+              <label class="flex items-start gap-2 cursor-pointer">
+                <input type="checkbox" name="acceptTerms" value="on" required class="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600">
+                <span>I agree to the <a href="#" onclick="alert('Terms of Service: By registering, you agree to follow DorMap municipal regulations and guidelines.'); return false;" class="font-bold underline text-emerald-800">Terms of Service</a> and <a href="#" onclick="alert('Privacy Policy: Your data is securely handled for DorMap official management.'); return false;" class="font-bold underline text-emerald-800">Privacy Policy</a>.</span>
+              </label>
+            </div>
+            <div class="mt-3 flex justify-between gap-3 pt-1">
+              <button type="button" class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition" data-swap-auth>
+                ← Back
+              </button>
+              <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-full px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-950/20 hover:scale-[1.02] active:scale-[0.98] transition" style="background: var(--dormmap-primary);">
+                <i data-lucide="user-plus" class="h-4 w-4"></i>
+                <span>Create Tenant Account</span>
+              </button>
+            </div>
+          </div>
+        </form>
+
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+  (() => {
+    const authRoot = document.getElementById('dormmapAuthRoot');
+    if (!authRoot) return;
+
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    const loginAccountType = document.getElementById('loginAccountType');
+    const registerAccountType = document.getElementById('registerAccountType');
+    const authRoleLabel = document.getElementById('authRoleLabel');
+    const registerStepLabel = document.getElementById('registerStepLabel');
+    const roleCards = Array.from(document.querySelectorAll('[data-auth-role]'));
+    const tabs = Array.from(document.querySelectorAll('[data-auth-tab]'));
+    const swapButtons = Array.from(document.querySelectorAll('[data-swap-auth]'));
+    const closeButtons = Array.from(document.querySelectorAll('[data-auth-close]'));
+    const ownerSteps = Array.from(document.querySelectorAll('[data-owner-step]'));
+    const ownerDots = Array.from(document.querySelectorAll('[data-owner-dot]'));
+    const registerSections = Array.from(document.querySelectorAll('[data-register-section]'));
+    const ownerNextButtons = Array.from(document.querySelectorAll('[data-owner-next]'));
+    const ownerBackButtons = Array.from(document.querySelectorAll('[data-owner-back]'));
+    const tenantSearchButton = registerForm.querySelector('[data-tenant-search]');
+    const boardingHouseSearchInput = registerForm.querySelector('input[name="boardingHouseSearch"]');
+    const tenantHouseSelect = registerForm.querySelector('select[name="selectedBoardingHouse"]');
+    const ownerMapButton = registerForm.querySelector('[data-owner-open-map]');
+    const ownerMapHint = registerForm.querySelector('[data-owner-map-hint]');
+
+    const roleLabels = {
+      bplo_admin: 'BPLO/Admin',
+      barangay: 'Barangay Official',
+      boarding_house_owner: 'Boarding House Owner',
+      tenant: 'Tenant / Seeker',
+    };
+
+    const state = {
+      mode: authRoot.dataset.initialMode || 'login',
+      role: authRoot.dataset.initialAccountType || 'bplo_admin',
+      ownerStep: 1,
+    };
+
+    const syncInputs = (container, enabled) => {
+      container.querySelectorAll('input, select, textarea, button').forEach((field) => {
+        if (field.dataset.alwaysEnabled === 'true') return;
+        if (!enabled) {
+          field.dataset.wasRequired = field.required ? 'true' : 'false';
+          field.required = false;
+          field.disabled = true;
+          return;
+        }
+        field.disabled = false;
+        if (field.dataset.wasRequired === 'true') {
+          field.required = true;
+        }
+      });
+    };
+
+    const removeLegacyAuthFooter = () => {
+      const legacyNodes = Array.from(authRoot.querySelectorAll('button, a, div'));
+      legacyNodes.forEach((node) => {
+        const text = node.textContent?.trim();
+        if (!text) return;
+        if (text.includes('Need a new account?') || text === 'Close' || text.includes('Create an account')) {
+          node.remove();
+        }
+      });
+    };
+
+    const setMode = (mode, updateUrl = true) => {
+      state.mode = mode;
+      if (mode === 'register' && state.role === 'bplo_admin') {
+        state.role = 'boarding_house_owner';
+      }
+      tabs.forEach((tab) => {
+        const active = tab.dataset.authTab === mode;
+        tab.classList.toggle('bg-white', active);
+        tab.classList.toggle('text-slate-950', active);
+        tab.classList.toggle('shadow-sm', active);
+        tab.classList.toggle('text-slate-500', !active);
+      });
+      loginForm.classList.toggle('hidden', mode !== 'login');
+      registerForm.classList.toggle('hidden', mode !== 'register');
+
+      // Hide account type card on Login tab; show only on Register tab
+      const accountTypeCard = document.getElementById('authAccountTypeCard');
+      if (accountTypeCard) {
+        accountTypeCard.classList.toggle('hidden', mode === 'login');
+      }
+
+      roleCards.forEach((card) => {
+        const isAdmin = card.dataset.authRole === 'bplo_admin';
+        const visible = mode !== 'register' || !isAdmin;
+        card.classList.toggle('hidden', !visible);
+      });
+      if (updateUrl) {
+        history.pushState({}, '', mode === 'login' ? '/login' : '/register');
+      }
+      setRole(state.role);
+      lucide.createIcons();
+    };
+
+    const setRole = (role) => {
+      state.role = role;
+      loginAccountType.value = role;
+      registerAccountType.value = role;
+      authRoleLabel.textContent = roleLabels[role] || 'BLPO/Admin';
+
+      roleCards.forEach((card) => {
+        const active = card.dataset.authRole === role;
+        card.classList.toggle('border-[var(--dormmap-primary)]', active);
+        card.classList.toggle('bg-emerald-50', active);
+        card.classList.toggle('shadow-md', active);
+        card.classList.toggle('bg-slate-50', !active);
+      });
+
+      // Only pass accountType to Google in REGISTER mode; login should auto-detect from DB
+      const googleBtn = document.getElementById('googleAuthBtn') || document.querySelector('a[href*="/auth/google"]');
+      if (googleBtn) {
+        if (state.mode === 'register') {
+          googleBtn.href = `/auth/google?accountType=${role}`;
+        } else {
+          googleBtn.href = '/auth/google';
+        }
+      }
+
+      registerSections.forEach((section) => {
+        const sectionRole = section.dataset.registerSection;
+        const visible = state.mode === 'register' && sectionRole === role;
+        section.classList.toggle('hidden', !visible);
+        syncInputs(section, visible);
+      });
+
+      const tenantHide = document.querySelector('[data-tenant-hide]');
+      if (tenantHide) {
+        tenantHide.classList.toggle('hidden', role === 'tenant');
+        const tenantInputs = tenantHide.querySelectorAll('input, select, textarea');
+        tenantInputs.forEach((field) => {
+          field.disabled = role === 'tenant' ? true : false;
+          if (role !== 'tenant' && field.dataset.wasRequired === 'true') field.required = true;
+        });
+      }
+
+      state.ownerStep = 1;
+      updateOwnerWizard();
+    };
+
+    const updateOwnerWizard = () => {
+      ownerSteps.forEach((step) => {
+        const visible = state.role === 'boarding_house_owner' && Number(step.dataset.ownerStep) === state.ownerStep;
+        step.classList.toggle('hidden', !visible);
+        syncInputs(step, visible);
+      });
+
+      ownerDots.forEach((dot) => {
+        const stepNumber = Number(dot.dataset.ownerDot);
+        const active = state.role === 'boarding_house_owner' && stepNumber === state.ownerStep;
+        dot.classList.toggle('bg-[var(--dormmap-primary)]', active);
+        dot.classList.toggle('text-white', active);
+        dot.classList.toggle('bg-slate-100', !active);
+      });
+
+      if (registerStepLabel) {
+        registerStepLabel.textContent = state.role === 'boarding_house_owner' ? `Step ${state.ownerStep} of 3` : 'Step 1 of 1';
+      }
+    };
+
+    const openModal = (mode = state.mode, updateUrl = true) => {
+      authRoot.dataset.open = 'true';
+      removeLegacyAuthFooter();
+      setMode(mode, updateUrl);
+      setRole(state.role);
+      document.body.classList.add('overflow-hidden');
+    };
+
+    const closeModal = (updateUrl = true) => {
+      authRoot.dataset.open = 'false';
+      document.body.classList.remove('overflow-hidden');
+      if (updateUrl) {
+        history.pushState({}, '', '/');
+      }
+    };
+
+    const validateOwnerStep = () => {
+      const activeStep = ownerSteps.find((step) => !step.classList.contains('hidden'));
+      if (!activeStep) return true;
+      const invalidField = activeStep.querySelector('input:invalid, select:invalid, textarea:invalid');
+      if (invalidField) {
+        invalidField.reportValidity();
+        return false;
+      }
+      return true;
+    };
+
+    const resetTenantSelection = () => {
+      if (!tenantHouseSelect) return;
+      tenantHouseSelect.innerHTML = '<option value="">Choose from map results or search</option>';
+      tenantHouseSelect.disabled = false;
+    };
+
+    const updateTenantOptions = (houses = []) => {
+      if (!tenantHouseSelect) return;
+      const currentValue = tenantHouseSelect.value || '';
+      tenantHouseSelect.innerHTML = '<option value="">Choose from map results or search</option>';
+
+      if (houses.length === 0) {
+        const noResults = document.createElement('option');
+        noResults.value = '';
+        noResults.textContent = 'No boarding houses found. Use the map to select one.';
+        noResults.disabled = true;
+        noResults.selected = true;
+        tenantHouseSelect.appendChild(noResults);
+        tenantHouseSelect.disabled = true;
+        return;
+      }
+
+      houses.forEach((house) => {
+        const option = document.createElement('option');
+        option.value = house.name;
+        option.textContent = `${house.name} — ${house.type}`;
+        if (house.name === currentValue) {
+          option.selected = true;
+        }
+        tenantHouseSelect.appendChild(option);
+      });
+      tenantHouseSelect.disabled = false;
+    };
+
+    const searchTenantBoardingHouses = () => {
+      const query = boardingHouseSearchInput?.value.trim().toLowerCase() || '';
+      const houses = authMapHouseData.filter((house) => house.name.toLowerCase().includes(query));
+      updateTenantOptions(houses);
+    };
+
+    const setOwnerLocationValue = (value, lat, lng) => {
+      const ownerMapInput = registerForm.querySelector('input[name="mapPin"]');
+      const latInput = registerForm.querySelector('input[name="boardingHouseLatitude"]');
+      const lngInput = registerForm.querySelector('input[name="boardingHouseLongitude"]');
+      if (!ownerMapInput) return;
+      ownerMapInput.value = value;
+      if (latInput) latInput.value = lat || '';
+      if (lngInput) lngInput.value = lng || '';
+      if (ownerMapHint) {
+        ownerMapHint.textContent = 'Pinned location selected. Continue to the next step.';
+      }
+    };
+
+    const showAuthMap = (panelId) => {
+      const ownerPanel = document.getElementById('ownerMapPanel');
+      const tenantPanel = document.getElementById('tenantMapPanel');
+      if (ownerPanel) ownerPanel.classList.toggle('hidden', panelId !== 'owner');
+      if (tenantPanel) tenantPanel.classList.toggle('hidden', panelId !== 'tenant');
+    };
+
+    window.selectBoardingHouseFromMap = (house) => {
+      if (!house || !house.name) return;
+      if (boardingHouseSearchInput) {
+        boardingHouseSearchInput.value = house.name;
+      }
+      updateTenantOptions([house]);
+      if (tenantHouseSelect) {
+        tenantHouseSelect.value = house.name;
+      }
+      const tenantHint = document.querySelector('[data-tenant-hint]');
+      if (tenantHint) {
+        tenantHint.textContent = `Selected "${house.name}" from the map. Please continue your registration.`;
+      }
+    };
+
+    window.setOwnerLocationPin = setOwnerLocationValue;
+
+    let authMapHouseData = [];
+
+    // Fetch real boarding houses from API
+    fetch('/api/boarding-houses')
+      .then(r => r.json())
+      .then(houses => {
+        if (!Array.isArray(houses)) return;
+        authMapHouseData = houses.map(h => ({
+          name: h.boardingHouseName || h.fullName || 'Boarding House',
+          type: Array.isArray(h.roomTypes) ? h.roomTypes[0] : 'N/A',
+          lat: Number(h.latitude) || 12.7192,
+          lng: Number(h.longitude) || 121.4719,
+          address: h.boardingHouseAddress || h.barangay || '',
+          rooms: h.roomsAvailable ?? 0
+        })).filter(h => h.name);
+
+        // After data is loaded, if tenant map is initialized, add markers
+        if (window._tenantMapInitialized && window._tenantMarkersCallback) {
+          window._tenantMarkersCallback(authMapHouseData);
+        }
+        // Pre-populate select if already open
+        updateTenantOptions(authMapHouseData);
+      })
+      .catch(() => {});
+
+    const initAuthMaps = () => {
+      if (typeof L === 'undefined') return;
+
+      const createMarkerOnMap = (map, house) => {
+        const lat = Number(house.lat) || 12.7192;
+        const lng = Number(house.lng) || 121.4719;
+        const marker = L.marker([lat, lng]).addTo(map).bindPopup(`
+          <div style="min-width:140px">
+            <strong style="font-size:12px">${house.name}</strong><br>
+            <span style="font-size:11px;color:#64748b">${house.address || house.type}</span><br>
+            <span style="font-size:11px;color:#047857;font-weight:700">${house.rooms} rooms available</span>
+          </div>
+        `);
+        marker.on('click', () => {
+          window.selectBoardingHouseFromMap(house);
+        });
+        return marker;
+      };
+
+      const ownerMapElement = document.getElementById('ownerMap');
+      if (ownerMapElement) {
+        const ownerMap = L.map(ownerMapElement, { scrollWheelZoom: false }).setView([12.7192, 121.4719], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(ownerMap);
+
+        window.startOwnerLocationPick = () => {
+          showAuthMap('owner');
+          ownerMapElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setTimeout(() => ownerMap.invalidateSize(), 200);
+          ownerMap.on('click', (event) => {
+            const { lat, lng } = event.latlng;
+            const locationLabel = `Lat ${lat.toFixed(6)}, Lon ${lng.toFixed(6)}`;
+            setOwnerLocationValue(locationLabel, lat, lng);
+            const ownerPin = L.circleMarker([lat, lng], {
+              radius: 8, color: '#023020', fillColor: '#023020', fillOpacity: 1, weight: 3,
+            }).addTo(ownerMap);
+            ownerPin.bindPopup('Selected boarding house location').openPopup();
+            ownerMap.off('click');
+          });
+        };
+      }
+
+      const tenantMapElement = document.getElementById('tenantMap');
+      if (tenantMapElement) {
+        const tenantMap = L.map(tenantMapElement, { scrollWheelZoom: false }).setView([12.7192, 121.4719], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(tenantMap);
+
+        let tenantMarkers = [];
+
+        const rebuildTenantMarkers = (houses) => {
+          tenantMarkers.forEach(m => tenantMap.removeLayer(m));
+          tenantMarkers = [];
+          if (!houses || houses.length === 0) return;
+          houses.forEach(house => {
+            const marker = createMarkerOnMap(tenantMap, house);
+            tenantMarkers.push(marker);
+          });
+          if (houses.length === 1) {
+            const h = houses[0];
+            tenantMap.setView([h.lat || 12.7192, h.lng || 121.4719], 16);
+          }
+        };
+
+        window._tenantMapInitialized = true;
+        window._tenantMarkersCallback = rebuildTenantMarkers;
+
+        // If data already loaded before map init
+        if (authMapHouseData.length > 0) {
+          rebuildTenantMarkers(authMapHouseData);
+        }
+
+        window.filterTenantMap = (query) => {
+          const lowerQuery = (query || '').trim().toLowerCase();
+          const filtered = lowerQuery ? authMapHouseData.filter(h => h.name.toLowerCase().includes(lowerQuery)) : authMapHouseData;
+          rebuildTenantMarkers(filtered);
+        };
+
+        window.panTenantMapTo = (house) => {
+          if (!house) return;
+          const lat = Number(house.lat) || 12.7192;
+          const lng = Number(house.lng) || 121.4719;
+          tenantMap.setView([lat, lng], 17);
+          setTimeout(() => tenantMap.invalidateSize(), 100);
+        };
+      }
+    };
+
+    if (tenantSearchButton) {
+      tenantSearchButton.addEventListener('click', () => {
+        const query = boardingHouseSearchInput?.value || '';
+        const filtered = authMapHouseData.filter(h => h.name.toLowerCase().includes(query.trim().toLowerCase()));
+        updateTenantOptions(filtered);
+        if (query) {
+          window.filterTenantMap?.(query);
+          showAuthMap('tenant');
+        }
+      });
+    }
+
+    // Live input search
+    if (boardingHouseSearchInput) {
+      boardingHouseSearchInput.addEventListener('input', () => {
+        const query = boardingHouseSearchInput.value;
+        const filtered = authMapHouseData.filter(h => h.name.toLowerCase().includes(query.trim().toLowerCase()));
+        updateTenantOptions(filtered);
+        window.filterTenantMap?.(query);
+        if (query.trim()) {
+          showAuthMap('tenant');
+        }
+      });
+    }
+
+    // When select changes, pan map to that house
+    if (tenantHouseSelect) {
+      tenantHouseSelect.addEventListener('change', () => {
+        const selectedName = tenantHouseSelect.value;
+        const house = authMapHouseData.find(h => h.name === selectedName);
+        if (house) {
+          window.panTenantMapTo?.(house);
+          showAuthMap('tenant');
+        }
+      });
+    }
+
+    if (ownerMapButton) {
+      ownerMapButton.addEventListener('click', () => {
+        if (window.startOwnerLocationPick) {
+          window.startOwnerLocationPick();
+        }
+      });
+    }
+
+    const authOwnerFullMapBtn = document.getElementById('authOwnerFullMapBtn');
+    if (authOwnerFullMapBtn) {
+      authOwnerFullMapBtn.addEventListener('click', () => {
+        const latInput = document.querySelector('input[name="boardingHouseLatitude"]');
+        const lngInput = document.querySelector('input[name="boardingHouseLongitude"]');
+        const lat = latInput?.value || 12.7192;
+        const lng = lngInput?.value || 121.4719;
+        window.open(`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=16/${lat}/${lng}`, '_blank');
+      });
+    }
+
+    initAuthMaps();
+
+    roleCards.forEach((card) => {
+      card.addEventListener('click', () => setRole(card.dataset.authRole));
+    });
+
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => setMode(tab.dataset.authTab));
+    });
+
+    swapButtons.forEach((button) => {
+      button.addEventListener('click', () => setMode(state.mode === 'login' ? 'register' : 'login'));
+    });
+
+    closeButtons.forEach((button) => button.addEventListener('click', closeModal));
+
+    ownerNextButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        if (!validateOwnerStep()) return;
+        state.ownerStep = Math.min(3, Number(button.dataset.ownerNext));
+        updateOwnerWizard();
+      });
+    });
+
+    ownerBackButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        state.ownerStep = Math.max(1, Number(button.dataset.ownerBack));
+        updateOwnerWizard();
+      });
+    });
+
+    document.querySelectorAll('a[href="/login"], a[href="/register"]').forEach((link) => {
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        const mode = link.getAttribute('href') === '/register' ? 'register' : 'login';
+        openModal(mode, true);
+      });
+    });
+
+    window.addEventListener('popstate', () => {
+      if (window.location.pathname === '/register') {
+        openModal('register', false);
+        return;
+      }
+      if (window.location.pathname === '/login') {
+        openModal('login', false);
+        return;
+      }
+      closeModal(false);
+    });
+
+    let currentForgotEmail = '';
+
+    window.showForgotPasswordModal = () => {
+      document.getElementById('loginForm')?.classList.add('hidden');
+      document.getElementById('googleAuthContainer')?.classList.add('hidden');
+      const forgotCard = document.getElementById('forgotPasswordCard');
+      if (forgotCard) forgotCard.classList.remove('hidden');
+      const loginEmail = document.getElementById('loginEmailInput')?.value;
+      if (loginEmail) {
+        const forgotInput = document.getElementById('forgotEmailInput');
+        if (forgotInput) forgotInput.value = loginEmail;
+      }
+      backToForgotStep1();
+      lucide.createIcons();
+    };
+
+    window.hideForgotPasswordModal = () => {
+      document.getElementById('forgotPasswordCard')?.classList.add('hidden');
+      document.getElementById('loginForm')?.classList.remove('hidden');
+      document.getElementById('googleAuthContainer')?.classList.remove('hidden');
+    };
+
+    window.backToForgotStep1 = () => {
+      document.getElementById('forgotStep1Form')?.classList.remove('hidden');
+      document.getElementById('forgotSuccessState')?.classList.add('hidden');
+      const statusMsg = document.getElementById('forgotStep1StatusMsg');
+      if (statusMsg) statusMsg.classList.add('hidden');
+    };
+
+    window.submitForgotPasswordStep1 = async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('forgotEmailInput')?.value?.trim();
+      const btn = document.getElementById('forgotSubmitStep1Btn');
+      const statusMsg = document.getElementById('forgotStep1StatusMsg');
+      if (!email) return;
+
+      btn.disabled = true;
+      btn.innerHTML = `<span class="inline-block animate-spin mr-1">⌛</span> Sending...`;
+      if (statusMsg) statusMsg.classList.add('hidden');
+
+      try {
+        const res = await fetch('/forgot-password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json'
+          },
+          body: new URLSearchParams({ email })
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok && data.success) {
+          currentForgotEmail = email;
+          const sentDisplay = document.getElementById('forgotSentEmailDisplay');
+          if (sentDisplay) sentDisplay.textContent = email;
+          // Show the "Check Your Gmail" success panel. Do NOT expose OTP on screen.
+          document.getElementById('forgotStep1Form')?.classList.add('hidden');
+          document.getElementById('forgotSuccessState')?.classList.remove('hidden');
+          lucide.createIcons();
+        } else {
+          statusMsg.classList.remove('hidden', 'bg-emerald-50', 'text-emerald-700', 'border-emerald-200');
+          statusMsg.classList.add('bg-rose-50', 'text-rose-700', 'border', 'border-rose-200');
+          statusMsg.textContent = data.error || 'Failed to send the reset link. Please check your email address and try again.';
+        }
+      } catch (err) {
+        if (statusMsg) {
+          statusMsg.classList.remove('hidden');
+          statusMsg.classList.add('bg-rose-50', 'text-rose-700', 'border', 'border-rose-200');
+          statusMsg.textContent = 'Network error. Please check your connection and try again.';
+        }
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<span>Send Reset Link</span> →`;
+      }
+    };
+
+    setRole(state.role);
+    setMode(state.mode, false);
+    updateOwnerWizard();
+    lucide.createIcons();
+
+    // Expose global API so external scripts (e.g. handleInquireClick) can open the modal
+    window.openDormmapAuth = (mode = 'register', role = 'tenant') => {
+      authRoot.dataset.open = 'true';
+      document.body.classList.add('overflow-hidden');
+      setMode(mode, true);
+      setRole(role);
+      lucide.createIcons();
+    };
+    window._setDormmapAuthRole = setRole;
+    window._setDormmapAuthMode = setMode;
+
+    // Show SweetAlert if Google OAuth detected a role conflict
+    const googleRoleConflict = authRoot.dataset.googleRoleConflict;
+    const existingRole = authRoot.dataset.googleRoleConflictExisting;
+    if (googleRoleConflict === 'true' && typeof Swal !== 'undefined') {
+      const roleMap = {
+        super_admin: 'BPLO/Admin',
+        barangay: 'Barangay Official',
+        boarding_house_owner: 'Boarding House Owner',
+        tenant: 'Tenant',
+      };
+      const existingRoleLabel = roleMap[existingRole] || existingRole || 'another role';
+      Swal.fire({
+        icon: 'error',
+        title: 'Google Account Already Registered',
+        html: `This Gmail account is already registered as a <strong>${existingRoleLabel}</strong>.<br><br>Multiple roles per Gmail account are not allowed. Please sign in using your existing role.`,
+        confirmButtonText: 'Got it',
+        confirmButtonColor: '#047857',
+        customClass: {
+          popup: 'rounded-2xl',
+          title: 'text-slate-900',
+        }
+      });
+    }
+
+    // Show SweetAlert if Google account is not yet registered in the system
+    const googleNotRegistered = authRoot.dataset.googleNotRegistered;
+    const googleNotRegisteredEmail = authRoot.dataset.googleNotRegisteredEmail;
+    if (googleNotRegistered === 'true' && typeof Swal !== 'undefined') {
+      const emailBadge = googleNotRegisteredEmail
+        ? `<div class="my-2.5 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3.5 py-1 text-xs font-bold text-emerald-800"><i data-lucide="mail" class="h-3.5 w-3.5 inline"></i> ${googleNotRegisteredEmail}</div>`
+        : '';
+
+      Swal.fire({
+        icon: 'warning',
+        title: 'Account Not Registered Yet',
+        html: `
+          <div class="text-slate-600 text-sm leading-relaxed text-center">
+            <p>The Google account you signed in with is <strong>not yet registered</strong> on DorMap.</p>
+            ${emailBadge}
+            <p class="mt-2 text-xs text-slate-500">
+              Please create an account first to browse dorms or manage your boarding house. Choose your account type:
+            </p>
+            <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
+              <div class="p-2.5 rounded-xl border border-emerald-100 bg-emerald-50/60 text-xs">
+                <span class="font-bold text-emerald-950 block">🏠 Tenant / Student</span>
+                <span class="text-slate-500">Browse verified boarding houses, inquire, and reserve rooms.</span>
+              </div>
+              <div class="p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs">
+                <span class="font-bold text-slate-900 block">🏢 House Owner</span>
+                <span class="text-slate-500">List your property, manage tenants, rooms, and payments.</span>
+              </div>
+            </div>
+          </div>
+        `,
+        showCancelButton: true,
+        showDenyButton: true,
+        confirmButtonText: '🏠 Register as Tenant',
+        denyButtonText: '🏢 Register as Owner',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#047857',
+        denyButtonColor: '#023020',
+        cancelButtonColor: '#94a3b8',
+        customClass: {
+          popup: 'rounded-3xl p-5 sm:p-6 shadow-2xl max-w-md',
+          title: 'text-lg sm:text-xl font-black text-slate-900',
+          confirmButton: 'rounded-full px-4 py-2.5 text-xs sm:text-sm font-bold shadow-md',
+          denyButton: 'rounded-full px-4 py-2.5 text-xs sm:text-sm font-bold shadow-md',
+          cancelButton: 'rounded-full px-4 py-2.5 text-xs sm:text-sm font-semibold'
+        }
+      }).then((result) => {
+        if (result.isConfirmed) {
+          window.location.href = '/auth/google?accountType=tenant';
+        } else if (result.isDenied) {
+          window.location.href = '/auth/google?accountType=boarding_house_owner';
+        }
+      });
+
+      if (window.lucide) lucide.createIcons();
+    }
+  })();
+</script>

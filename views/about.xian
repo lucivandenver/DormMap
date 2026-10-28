@@ -1,0 +1,299 @@
+{{> head}}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root { --dormmap-primary: #023020; --dormmap-primary-soft: #084d34; }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', sans-serif; background: #f8fafc; color: #1f2937; }
+    .font-display { font-family: 'Poppins', sans-serif; }
+    .nav-link { position: relative; display: inline-flex; align-items: center; padding-bottom: 0.2rem; transition: color 180ms ease; }
+    .nav-link::after { content: ''; position: absolute; left: 0; bottom: -0.2rem; width: 100%; height: 2px; border-radius: 999px; background: var(--dormmap-primary); transform: scaleX(0); transform-origin: left; transition: transform 180ms ease; }
+    .nav-link:hover::after, .nav-link:focus-visible::after { transform: scaleX(1); }
+    .nav-link:hover, .nav-link:focus-visible { color: var(--dormmap-primary); }
+    .nav-scrolled { background: rgba(255,255,255,0.96); box-shadow: 0 10px 30px rgba(15,23,42,0.08); border-bottom: 1px solid rgba(2,48,32,0.06); }
+    .faq-item details summary { list-style: none; cursor: pointer; }
+    .faq-item details summary::-webkit-details-marker { display: none; }
+    .faq-item details[open] .faq-icon-plus { display: none; }
+    .faq-item details:not([open]) .faq-icon-minus { display: none; }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-fade-up { animation: fadeInUp 0.55s ease both; }
+  </style>
+</head>
+<body class="antialiased text-slate-800">
+
+  <header id="siteHeader" class="fixed inset-x-0 top-0 z-50 transition-all duration-300">
+    <div class="w-full px-0">
+      <div class="border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
+        <div class="flex items-center justify-between gap-4">
+          <a href="/" class="flex items-center gap-3 min-w-0">
+            <div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white border border-emerald-950/10 shadow-sm">
+              <img src="https://bongabong.gov.ph/logo.png" onerror="this.src='/images/bongabong-seal.png'" alt="Bongabong Official Seal" class="h-full w-full object-contain p-0.5">
+            </div>
+            <div class="min-w-0">
+              <div class="font-display text-base font-extrabold tracking-tight text-slate-900 sm:text-lg">DormMap</div>
+              <p class="truncate text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Official BPLO Dormitory Finder</p>
+            </div>
+          </a>
+          <nav class="hidden items-center gap-7 text-sm font-medium text-slate-700 lg:flex">
+            <a href="/" class="nav-link">Home</a>
+            <a href="/#search" class="nav-link">Find Housing</a>
+            <a href="/#map" class="nav-link">Map</a>
+            <a href="/about" class="nav-link" style="color:#023020;font-weight:700;">About</a>
+            <a href="/#contact" class="nav-link">Contact</a>
+          </nav>
+          <div class="hidden items-center gap-3 lg:flex">
+            <a href="/login" class="rounded-full border border-emerald-950/10 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-[#023020] hover:text-[#023020]">Login</a>
+            <a href="/register" class="rounded-full px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:opacity-95" style="background:#023020;">Register</a>
+          </div>
+          <button id="mobileMenuButton" type="button" class="inline-flex h-11 w-11 items-center justify-center rounded-full border border-emerald-950/10 text-slate-800 transition hover:border-[#023020] lg:hidden" aria-label="Open menu">
+            <i data-lucide="menu" class="h-5 w-5"></i>
+          </button>
+        </div>
+        <div id="mobileMenu" class="mt-4 hidden border-t border-emerald-950/10 pt-4 lg:hidden">
+          <div class="flex flex-col gap-3 text-sm font-medium text-slate-700">
+            <a href="/" class="rounded-2xl px-3 py-2 transition hover:bg-emerald-950/5">Home</a>
+            <a href="/#search" class="rounded-2xl px-3 py-2 transition hover:bg-emerald-950/5">Find Housing</a>
+            <a href="/#map" class="rounded-2xl px-3 py-2 transition hover:bg-emerald-950/5">Map</a>
+            <a href="/about" class="rounded-2xl px-3 py-2 bg-emerald-50 text-emerald-900 font-bold">About</a>
+            <a href="/#contact" class="rounded-2xl px-3 py-2 transition hover:bg-emerald-950/5">Contact</a>
+            <div class="grid grid-cols-2 gap-3 pt-2">
+              <a href="/login" class="rounded-full border border-emerald-950/10 px-4 py-2 text-center font-semibold text-slate-700">Login</a>
+              <a href="/register" class="rounded-full px-4 py-2 text-center font-semibold text-white" style="background:#023020;">Register</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="pt-20">
+
+    <!-- HERO -->
+    <section class="relative overflow-hidden" style="background:linear-gradient(135deg,#023020 0%,#044d30 50%,#023020 100%);">
+      <div class="absolute inset-0 z-0">
+        <img src="https://tse2.mm.bing.net/th/id/OIP.0ny3bYtW0Hhz4xQfMWEkjwHaEM?r=0&rs=1&pid=ImgDetMain&o=7&rm=3" onerror="this.src='/images/bongabong-municipal.jpg'" alt="Municipality of Bongabong" class="h-full w-full object-cover object-center opacity-25">
+      </div>
+      <div class="absolute -right-28 -top-28 h-96 w-96 rounded-full border border-white/10 opacity-40 z-0"></div>
+      <div class="absolute -left-20 -bottom-16 h-72 w-72 rounded-full border border-white/10 opacity-40 z-0"></div>
+      <div class="relative z-10 mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 text-center">
+        <div class="animate-fade-up">
+          <div class="flex justify-center mb-6">
+            <div class="h-20 w-20 rounded-full overflow-hidden bg-white/15 border-2 border-white/30 shadow-2xl backdrop-blur-md">
+              <img src="https://bongabong.gov.ph/logo.png" onerror="this.src='/images/bongabong-seal.png'" alt="Municipality of Bongabong Official Seal" class="h-full w-full object-contain p-1">
+            </div>
+          </div>
+          <span class="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.28em] text-white/90 backdrop-blur-md mb-6">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Official BPLO Digital Platform
+          </span>
+          <h1 class="font-display text-4xl font-extrabold text-white leading-tight sm:text-5xl lg:text-6xl drop-shadow-md">
+            About <span style="color:#a7f3d0;">DormMap</span>
+          </h1>
+          <p class="mt-5 mx-auto max-w-2xl text-base leading-8 text-white/80 sm:text-lg">
+            The official GIS-powered boarding house platform of the Municipality of Bongabong, Oriental Mindoro — connecting students, tenants, and property owners with legally verified housing.
+          </p>
+          <div class="mt-8 flex flex-col gap-3 sm:flex-row justify-center">
+            <a href="#mission" class="inline-flex items-center justify-center gap-2 rounded-full bg-white px-7 py-3.5 text-sm font-black text-emerald-950 shadow-xl transition hover:bg-emerald-50 active:scale-95">
+              <i data-lucide="compass" class="h-4 w-4"></i> Our Mission &amp; Vision
+            </a>
+            <a href="#faq" class="inline-flex items-center justify-center gap-2 rounded-full border-2 border-white/40 px-7 py-3.5 text-sm font-black text-white transition hover:bg-white/10 hover:border-white active:scale-95">
+              <i data-lucide="help-circle" class="h-4 w-4"></i> FAQs
+            </a>
+          </div>
+        </div>
+      </div>
+      <div class="relative z-10">
+        <svg viewBox="0 0 1440 60" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" class="w-full h-[60px]">
+          <path d="M0 60 L0 30 Q360 0 720 30 Q1080 60 1440 30 L1440 60 Z" fill="#f8fafc"/>
+        </svg>
+      </div>
+    </section>
+
+    <!-- WHAT IS DORMMAP -->
+    <section class="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+      <div class="grid gap-12 lg:grid-cols-2 lg:items-center">
+        <div>
+          <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-4 py-1.5 text-xs font-black uppercase tracking-wider text-emerald-950">
+            <i data-lucide="info" class="h-3.5 w-3.5"></i> What is DormMap?
+          </span>
+          <h2 class="font-display mt-4 text-3xl font-extrabold text-slate-950 sm:text-4xl leading-tight">Municipality of Bongabong Digital Boarding House System</h2>
+          <p class="mt-4 text-base leading-8 text-slate-600"><strong>DormMap</strong> is the official GIS-powered web portal created under the supervision of the <strong>Business Permit and Licensing Office (BPLO)</strong> and the <strong>Municipality of Bongabong, Oriental Mindoro</strong>. It connects students, tenants, and property owners with legally verified boarding houses across all 28 barangays.</p>
+          <p class="mt-4 text-base leading-8 text-slate-600">The platform digitizes dormitory accreditation and listing, making it easier for students — especially those attending Mindoro State University (MinSU), Bongabong National High School, Eastern Mindoro College, TESDA, and other institutions — to find safe, affordable, and verified housing near their schools.</p>
+          <div class="mt-8 grid gap-4 sm:grid-cols-2">
+            <div class="rounded-2xl bg-emerald-50 p-5 border border-emerald-100">
+              <div class="flex items-center gap-2.5 mb-2"><div class="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-950 text-white text-sm font-bold">&#10003;</div><h4 class="font-bold text-slate-900 text-sm">BPLO &amp; Permit Verified</h4></div>
+              <p class="text-xs text-slate-500 leading-relaxed">Every listing is audited for municipal business permits, fire safety clearance, and health standards.</p>
+            </div>
+            <div class="rounded-2xl bg-emerald-50 p-5 border border-emerald-100">
+              <div class="flex items-center gap-2.5 mb-2"><div class="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-950 text-white text-sm">&#128506;&#65039;</div><h4 class="font-bold text-slate-900 text-sm">GIS &amp; Map Navigation</h4></div>
+              <p class="text-xs text-slate-500 leading-relaxed">Turn-by-turn OpenStreetMap navigation from student location or campus to any boarding house.</p>
+            </div>
+            <div class="rounded-2xl bg-emerald-50 p-5 border border-emerald-100">
+              <div class="flex items-center gap-2.5 mb-2"><div class="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-950 text-white text-sm">&#128172;</div><h4 class="font-bold text-slate-900 text-sm">Direct Owner Messaging</h4></div>
+              <p class="text-xs text-slate-500 leading-relaxed">Real-time inquiry and messaging between verified tenants and boarding house owners.</p>
+            </div>
+            <div class="rounded-2xl bg-emerald-50 p-5 border border-emerald-100">
+              <div class="flex items-center gap-2.5 mb-2"><div class="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-950 text-white text-sm">&#128179;</div><h4 class="font-bold text-slate-900 text-sm">Digital Rent Payments</h4></div>
+              <p class="text-xs text-slate-500 leading-relaxed">Integrated GCash, PayMaya, and Cash payment processing with automated digital receipts.</p>
+            </div>
+          </div>
+        </div>
+        <div class="space-y-5">
+          <div class="overflow-hidden rounded-[28px] shadow-2xl border border-slate-100 bg-slate-100">
+            <img src="https://tse2.mm.bing.net/th/id/OIP.0ny3bYtW0Hhz4xQfMWEkjwHaEM?r=0&rs=1&pid=ImgDetMain&o=7&rm=3" onerror="this.src='/images/bongabong-municipal.jpg'" alt="Municipality of Bongabong Municipal Hall" class="h-[320px] w-full object-cover object-center">
+          </div>
+          <div class="grid grid-cols-3 gap-4">
+            <div class="rounded-2xl p-4 text-center text-white shadow-lg" style="background:linear-gradient(135deg,#023020,#084d34);"><p class="text-2xl font-extrabold">128+</p><p class="text-[11px] font-bold uppercase tracking-wider text-emerald-200 mt-0.5">Boarding Houses</p></div>
+            <div class="rounded-2xl p-4 text-center text-white shadow-lg" style="background:linear-gradient(135deg,#023020,#084d34);"><p class="text-2xl font-extrabold">28</p><p class="text-[11px] font-bold uppercase tracking-wider text-emerald-200 mt-0.5">Barangays</p></div>
+            <div class="rounded-2xl p-4 text-center text-white shadow-lg" style="background:linear-gradient(135deg,#023020,#084d34);"><p class="text-2xl font-extrabold">800+</p><p class="text-[11px] font-bold uppercase tracking-wider text-emerald-200 mt-0.5">Active Tenants</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MISSION & VISION -->
+    <section id="mission" class="py-16" style="background:linear-gradient(135deg,#f0fdf4 0%,#ecfdf5 100%);">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-12">
+          <span class="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-4 py-2 text-xs font-black uppercase tracking-wider text-emerald-950"><i data-lucide="target" class="h-3.5 w-3.5"></i> Mission &amp; Vision</span>
+          <h2 class="font-display mt-4 text-3xl font-extrabold text-slate-950 sm:text-4xl">Our Purpose &amp; Direction</h2>
+          <p class="mt-3 text-base text-slate-500 max-w-xl mx-auto">What drives DormMap and the Municipality of Bongabong's digital governance initiative.</p>
+        </div>
+        <div class="grid gap-8 lg:grid-cols-2">
+          <div class="relative overflow-hidden rounded-[32px] p-8 sm:p-10 text-white shadow-2xl" style="background:linear-gradient(135deg,#023020 0%,#044d30 100%);">
+            <div class="absolute -right-10 -top-10 h-40 w-40 rounded-full border border-white/15 opacity-50"></div>
+            <div class="absolute -left-8 -bottom-8 h-28 w-28 rounded-full border border-white/10 opacity-40"></div>
+            <div class="relative z-10">
+              <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 border border-white/20 mb-5"><i data-lucide="crosshair" class="h-7 w-7 text-emerald-300"></i></div>
+              <h3 class="font-display text-2xl font-extrabold text-white mb-4">Mission</h3>
+              <p class="text-base leading-8 text-white/85">To provide a transparent, accessible, and government-backed digital platform that empowers students, tenants, boarding house owners, and local government units to manage, discover, and regulate dormitory accommodations in the Municipality of Bongabong, Oriental Mindoro — ensuring safety, affordability, and legal compliance across all 28 barangays.</p>
+              <div class="mt-6 space-y-3">
+                <div class="flex items-center gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-400/30 text-emerald-300 text-xs font-bold">&#10003;</span><span class="text-sm text-white/80">Transparent &amp; accessible housing information</span></div>
+                <div class="flex items-center gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-400/30 text-emerald-300 text-xs font-bold">&#10003;</span><span class="text-sm text-white/80">Government-backed regulatory compliance</span></div>
+                <div class="flex items-center gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-400/30 text-emerald-300 text-xs font-bold">&#10003;</span><span class="text-sm text-white/80">Safe and affordable student housing</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="relative overflow-hidden rounded-[32px] p-8 sm:p-10 bg-white shadow-2xl border border-slate-100">
+            <div class="absolute -right-10 -top-10 h-40 w-40 rounded-full border border-emerald-100 opacity-60"></div>
+            <div class="absolute -left-8 -bottom-8 h-28 w-28 rounded-full border border-emerald-100 opacity-40"></div>
+            <div class="relative z-10">
+              <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-950 mb-5"><i data-lucide="eye" class="h-7 w-7 text-emerald-300"></i></div>
+              <h3 class="font-display text-2xl font-extrabold text-slate-950 mb-4">Vision</h3>
+              <p class="text-base leading-8 text-slate-600">To be the leading digital governance platform for municipal housing services in Oriental Mindoro — a model for smart, student-centered local government, where every boarder can find verified and affordable housing instantly, and every owner can manage their property with ease and full regulatory compliance.</p>
+              <div class="mt-6 space-y-3">
+                <div class="flex items-center gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">&#10022;</span><span class="text-sm text-slate-700">Leading digital housing governance model</span></div>
+                <div class="flex items-center gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">&#10022;</span><span class="text-sm text-slate-700">Smart, student-centered local government</span></div>
+                <div class="flex items-center gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">&#10022;</span><span class="text-sm text-slate-700">Instant access to verified housing for all</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PLATFORM FEATURES -->
+    <section class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+      <div class="text-center mb-12">
+        <span class="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-4 py-2 text-xs font-black uppercase tracking-wider text-emerald-950"><i data-lucide="layers" class="h-3.5 w-3.5"></i> Platform Features</span>
+        <h2 class="font-display mt-4 text-3xl font-extrabold text-slate-950 sm:text-4xl">Everything You Need in One Place</h2>
+      </div>
+      <div class="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+        <div class="rounded-[24px] bg-white p-6 shadow-md border border-slate-100 transition hover:-translate-y-1 hover:shadow-xl duration-200"><div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 mb-4"><i data-lucide="search" class="h-6 w-6 text-emerald-700"></i></div><h3 class="font-bold text-slate-900 text-lg mb-2">Smart Search &amp; Filter</h3><p class="text-sm text-slate-500 leading-relaxed">Search by barangay, school proximity, price range, room type, and more. Instantly find housing that matches your needs.</p></div>
+        <div class="rounded-[24px] bg-white p-6 shadow-md border border-slate-100 transition hover:-translate-y-1 hover:shadow-xl duration-200"><div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 mb-4"><i data-lucide="map" class="h-6 w-6 text-emerald-700"></i></div><h3 class="font-bold text-slate-900 text-lg mb-2">Interactive GIS Map</h3><p class="text-sm text-slate-500 leading-relaxed">View all verified boarding houses on an OpenStreetMap-powered interactive map with real-time location detection and routing.</p></div>
+        <div class="rounded-[24px] bg-white p-6 shadow-md border border-slate-100 transition hover:-translate-y-1 hover:shadow-xl duration-200"><div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 mb-4"><i data-lucide="shield-check" class="h-6 w-6 text-emerald-700"></i></div><h3 class="font-bold text-slate-900 text-lg mb-2">BPLO Verification System</h3><p class="text-sm text-slate-500 leading-relaxed">Only BPLO-accredited boarding houses with valid business permits, fire safety clearances, and sanitation certifications appear on the platform.</p></div>
+        <div class="rounded-[24px] bg-white p-6 shadow-md border border-slate-100 transition hover:-translate-y-1 hover:shadow-xl duration-200"><div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 mb-4"><i data-lucide="message-square" class="h-6 w-6 text-emerald-700"></i></div><h3 class="font-bold text-slate-900 text-lg mb-2">Real-Time Messaging</h3><p class="text-sm text-slate-500 leading-relaxed">Communicate directly with boarding house owners through the built-in inquiry and messaging system — no third-party apps needed.</p></div>
+        <div class="rounded-[24px] bg-white p-6 shadow-md border border-slate-100 transition hover:-translate-y-1 hover:shadow-xl duration-200"><div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 mb-4"><i data-lucide="credit-card" class="h-6 w-6 text-emerald-700"></i></div><h3 class="font-bold text-slate-900 text-lg mb-2">Online Rent Payment</h3><p class="text-sm text-slate-500 leading-relaxed">Pay rent digitally via GCash, PayMaya, or Cash — with automated digital receipts and payment history tracking for tenants and owners.</p></div>
+        <div class="rounded-[24px] bg-white p-6 shadow-md border border-slate-100 transition hover:-translate-y-1 hover:shadow-xl duration-200"><div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 mb-4"><i data-lucide="bar-chart-2" class="h-6 w-6 text-emerald-700"></i></div><h3 class="font-bold text-slate-900 text-lg mb-2">Barangay &amp; Admin Dashboard</h3><p class="text-sm text-slate-500 leading-relaxed">Dedicated dashboards for barangay officials, boarding house owners, tenants, and BPLO administrators for full platform oversight.</p></div>
+      </div>
+    </section>
+
+    <!-- WHO CAN USE -->
+    <section class="py-16" style="background:linear-gradient(135deg,#f0fdf4 0%,#ecfdf5 100%);">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-12">
+          <span class="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-4 py-2 text-xs font-black uppercase tracking-wider text-emerald-950"><i data-lucide="users" class="h-3.5 w-3.5"></i> Who Can Use DormMap?</span>
+          <h2 class="font-display mt-4 text-3xl font-extrabold text-slate-950 sm:text-4xl">Built for Everyone in Bongabong</h2>
+        </div>
+        <div class="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+          <div class="rounded-[24px] bg-white p-6 text-center shadow-md border border-slate-100"><div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-950 mb-4"><i data-lucide="user" class="h-8 w-8 text-white"></i></div><h3 class="font-bold text-slate-900 text-lg">Students &amp; Tenants</h3><p class="mt-2 text-sm text-slate-500 leading-relaxed">Search verified boarding houses near your school, send inquiries, and pay rent online.</p></div>
+          <div class="rounded-[24px] bg-white p-6 text-center shadow-md border border-slate-100"><div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-950 mb-4"><i data-lucide="home" class="h-8 w-8 text-white"></i></div><h3 class="font-bold text-slate-900 text-lg">Boarding House Owners</h3><p class="mt-2 text-sm text-slate-500 leading-relaxed">List and manage your properties, handle tenant inquiries, and receive digital rent payments.</p></div>
+          <div class="rounded-[24px] bg-white p-6 text-center shadow-md border border-slate-100"><div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-950 mb-4"><i data-lucide="building-2" class="h-8 w-8 text-white"></i></div><h3 class="font-bold text-slate-900 text-lg">Barangay Officials</h3><p class="mt-2 text-sm text-slate-500 leading-relaxed">Monitor listings within your barangay and coordinate with the BPLO on compliance.</p></div>
+          <div class="rounded-[24px] bg-white p-6 text-center shadow-md border border-slate-100"><div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-950 mb-4"><i data-lucide="settings" class="h-8 w-8 text-white"></i></div><h3 class="font-bold text-slate-900 text-lg">BPLO / Super Admin</h3><p class="mt-2 text-sm text-slate-500 leading-relaxed">Full platform oversight: verify listings, manage users, generate reports, and oversee all activity.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section id="faq" class="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
+      <div class="text-center mb-12">
+        <span class="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-4 py-2 text-xs font-black uppercase tracking-wider text-emerald-950"><i data-lucide="help-circle" class="h-3.5 w-3.5"></i> Frequently Asked Questions</span>
+        <h2 class="font-display mt-4 text-3xl font-extrabold text-slate-950 sm:text-4xl">Got Questions? We've Got Answers.</h2>
+        <p class="mt-3 text-base text-slate-500">Everything you need to know about DormMap and boarding house registration.</p>
+      </div>
+      <div class="space-y-4">
+        <div class="faq-item rounded-2xl bg-white shadow-sm border border-slate-100 overflow-hidden"><details><summary class="flex items-center justify-between gap-4 p-6 select-none"><span class="font-semibold text-slate-900">What is DormMap and who manages it?</span><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700"><i data-lucide="plus" class="faq-icon-plus h-4 w-4"></i><i data-lucide="minus" class="faq-icon-minus h-4 w-4"></i></span></summary><div class="px-6 pb-6 text-sm leading-7 text-slate-600">DormMap is the official digital boarding house platform of the Municipality of Bongabong, Oriental Mindoro. It is managed by the Business Permit and Licensing Office (BPLO) under the local government unit (LGU). The platform ensures all listed boarding houses are legally verified and compliant with municipal regulations.</div></details></div>
+        <div class="faq-item rounded-2xl bg-white shadow-sm border border-slate-100 overflow-hidden"><details><summary class="flex items-center justify-between gap-4 p-6 select-none"><span class="font-semibold text-slate-900">How do I register as a tenant on DormMap?</span><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700"><i data-lucide="plus" class="faq-icon-plus h-4 w-4"></i><i data-lucide="minus" class="faq-icon-minus h-4 w-4"></i></span></summary><div class="px-6 pb-6 text-sm leading-7 text-slate-600">Registering is free and easy. Click the <strong>Register</strong> button, select the <strong>Tenant</strong> role, fill in your full name, email, and set a password. After registering, you can immediately browse verified boarding houses and send inquiries to owners.</div></details></div>
+        <div class="faq-item rounded-2xl bg-white shadow-sm border border-slate-100 overflow-hidden"><details><summary class="flex items-center justify-between gap-4 p-6 select-none"><span class="font-semibold text-slate-900">How do I list my boarding house on DormMap?</span><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700"><i data-lucide="plus" class="faq-icon-plus h-4 w-4"></i><i data-lucide="minus" class="faq-icon-minus h-4 w-4"></i></span></summary><div class="px-6 pb-6 text-sm leading-7 text-slate-600">Register as a <strong>Boarding House Owner</strong>, complete your profile, then submit your property details including address, room types, pricing, amenities, and photos. The BPLO reviews your listing before publishing. You must present valid business permits and BPLO clearance to get verified.</div></details></div>
+        <div class="faq-item rounded-2xl bg-white shadow-sm border border-slate-100 overflow-hidden"><details><summary class="flex items-center justify-between gap-4 p-6 select-none"><span class="font-semibold text-slate-900">Are all boarding houses on DormMap verified?</span><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700"><i data-lucide="plus" class="faq-icon-plus h-4 w-4"></i><i data-lucide="minus" class="faq-icon-minus h-4 w-4"></i></span></summary><div class="px-6 pb-6 text-sm leading-7 text-slate-600">Yes. All boarding houses must pass the BPLO verification process: (1) Municipal Business Permit, (2) Fire Safety Inspection Certificate from BFP, (3) Sanitary Permit from the Municipal Health Office, and (4) Barangay Clearance. Listings that do not meet these requirements are not published.</div></details></div>
+        <div class="faq-item rounded-2xl bg-white shadow-sm border border-slate-100 overflow-hidden"><details><summary class="flex items-center justify-between gap-4 p-6 select-none"><span class="font-semibold text-slate-900">How does the map and GPS navigation work?</span><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700"><i data-lucide="plus" class="faq-icon-plus h-4 w-4"></i><i data-lucide="minus" class="faq-icon-minus h-4 w-4"></i></span></summary><div class="px-6 pb-6 text-sm leading-7 text-slate-600">DormMap uses OpenStreetMap (OSM). When you allow location access, the platform detects your position and shows nearby boarding houses sorted by distance. You can get turn-by-turn directions from your current location or from any school campus (MinSU, BNHS, EMC, etc.) to your chosen boarding house.</div></details></div>
+        <div class="faq-item rounded-2xl bg-white shadow-sm border border-slate-100 overflow-hidden"><details><summary class="flex items-center justify-between gap-4 p-6 select-none"><span class="font-semibold text-slate-900">How do I pay my rent online through DormMap?</span><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700"><i data-lucide="plus" class="faq-icon-plus h-4 w-4"></i><i data-lucide="minus" class="faq-icon-minus h-4 w-4"></i></span></summary><div class="px-6 pb-6 text-sm leading-7 text-slate-600">Once registered as a tenant and accepted by a boarding house owner, pay monthly rent through your Tenant Dashboard. Supported methods include <strong>GCash</strong>, <strong>PayMaya</strong>, and <strong>Cash (in-person)</strong>. A digital receipt is automatically generated and sent to both you and the owner.</div></details></div>
+        <div class="faq-item rounded-2xl bg-white shadow-sm border border-slate-100 overflow-hidden"><details><summary class="flex items-center justify-between gap-4 p-6 select-none"><span class="font-semibold text-slate-900">Is DormMap free to use?</span><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700"><i data-lucide="plus" class="faq-icon-plus h-4 w-4"></i><i data-lucide="minus" class="faq-icon-minus h-4 w-4"></i></span></summary><div class="px-6 pb-6 text-sm leading-7 text-slate-600">Yes. DormMap is completely <strong>free for tenants and students</strong>. No subscription fees for searching, inquiring, or viewing listings. For boarding house owners, registration and listing management are also free — the platform is funded and maintained by the Municipality of Bongabong as a public service initiative.</div></details></div>
+        <div class="faq-item rounded-2xl bg-white shadow-sm border border-slate-100 overflow-hidden"><details><summary class="flex items-center justify-between gap-4 p-6 select-none"><span class="font-semibold text-slate-900">Who can I contact for help or support?</span><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700"><i data-lucide="plus" class="faq-icon-plus h-4 w-4"></i><i data-lucide="minus" class="faq-icon-minus h-4 w-4"></i></span></summary><div class="px-6 pb-6 text-sm leading-7 text-slate-600">Email <strong>bplo@bongabong.gov.ph</strong> or call <strong>(043) 000-0000</strong> during office hours (Monday–Friday, 8:00 AM – 5:00 PM). You can also visit the BPLO office at 2F Municipal Building, Poblacion, Bongabong, Oriental Mindoro.</div></details></div>
+      </div>
+    </section>
+
+    <!-- CTA STRIP -->
+    <section class="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
+      <div class="relative overflow-hidden rounded-[36px] p-8 sm:p-12 text-white shadow-2xl" style="background:linear-gradient(135deg,#023020 0%,#055c35 50%,#023020 100%);">
+        <div class="absolute -right-20 -top-20 h-72 w-72 rounded-full border border-white/10 opacity-40"></div>
+        <div class="absolute -left-12 -bottom-12 h-52 w-52 rounded-full border border-white/10 opacity-40"></div>
+        <div class="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div class="space-y-3">
+            <h2 class="font-display text-2xl font-extrabold text-white sm:text-3xl">Need Help? Contact the BPLO</h2>
+            <p class="text-sm leading-7 text-emerald-100/80 max-w-xl">The Business Permit and Licensing Office of the Municipality of Bongabong is here to assist you with boarding house registration, verification, and platform support.</p>
+            <div class="flex flex-wrap gap-4 text-sm text-emerald-200">
+              <span class="flex items-center gap-2"><i data-lucide="phone" class="h-4 w-4"></i> (043) 000-0000</span>
+              <span class="flex items-center gap-2"><i data-lucide="mail" class="h-4 w-4"></i> bplo@bongabong.gov.ph</span>
+              <span class="flex items-center gap-2"><i data-lucide="clock" class="h-4 w-4"></i> Mon-Fri, 8:00 AM - 5:00 PM</span>
+            </div>
+          </div>
+          <div class="flex flex-col gap-3 sm:flex-row">
+            <a href="/register" class="inline-flex items-center justify-center gap-2 rounded-full bg-white px-7 py-3.5 text-sm font-black text-emerald-950 shadow-xl transition hover:bg-emerald-50 active:scale-95"><i data-lucide="user-plus" class="h-4 w-4"></i> Register Now - It's Free</a>
+            <a href="/" class="inline-flex items-center justify-center gap-2 rounded-full border-2 border-white/40 px-7 py-3.5 text-sm font-black text-white transition hover:bg-white/10 hover:border-white active:scale-95"><i data-lucide="home" class="h-4 w-4"></i> Back to Home</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="w-full text-white" style="background:linear-gradient(135deg,#021a10 0%,#023020 60%,#021a10 100%);">
+    <div class="mx-auto max-w-7xl px-6 py-12 sm:px-8 lg:px-10">
+      <div class="grid gap-10 md:grid-cols-2 xl:grid-cols-4">
+        <div><div class="flex items-center gap-3 mb-4"><div class="h-10 w-10 rounded-full overflow-hidden bg-white/10 border border-white/20 shrink-0"><img src="https://bongabong.gov.ph/logo.png" onerror="this.src='/images/bongabong-seal.png'" alt="Bongabong Seal" class="h-full w-full object-contain p-0.5"></div><div><p class="font-display text-lg font-extrabold text-white">DormMap</p><p class="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Official BPLO Portal</p></div></div><p class="text-sm leading-7 text-emerald-100/70 max-w-xs">Official BPLO dormitory finder for the Municipality of Bongabong, Oriental Mindoro.</p></div>
+        <div><h4 class="font-black text-white uppercase tracking-wider text-xs mb-4">Quick Links</h4><ul class="space-y-2.5 text-sm text-emerald-100/70"><li><a href="/" class="transition hover:text-white">Home</a></li><li><a href="/#map" class="transition hover:text-white">Interactive Map</a></li><li><a href="/#search" class="transition hover:text-white">Find Boarding Houses</a></li><li><a href="/about" class="transition hover:text-white text-emerald-300 font-bold">About DormMap</a></li><li><a href="/about#faq" class="transition hover:text-white">Frequently Asked Questions</a></li></ul></div>
+        <div><h4 class="font-black text-white uppercase tracking-wider text-xs mb-4">Government</h4><ul class="space-y-2.5 text-sm text-emerald-100/70"><li><a href="https://bongabong.gov.ph" target="_blank" class="transition hover:text-white">Municipality of Bongabong</a></li><li>Business Permit &amp; Licensing Office (BPLO)</li><li>Oriental Mindoro Province</li></ul></div>
+        <div><h4 class="font-black text-white uppercase tracking-wider text-xs mb-4">Contact &amp; Support</h4><ul class="space-y-2.5 text-sm text-emerald-100/70"><li class="flex items-center gap-2"><i data-lucide="phone" class="h-3.5 w-3.5 shrink-0 text-emerald-400"></i> (043) 000-0000</li><li class="flex items-center gap-2"><i data-lucide="mail" class="h-3.5 w-3.5 shrink-0 text-emerald-400"></i> bplo@bongabong.gov.ph</li><li class="flex items-start gap-2"><i data-lucide="map-pin" class="h-3.5 w-3.5 shrink-0 text-emerald-400 mt-0.5"></i> Municipal Hall, Bongabong, Oriental Mindoro</li></ul></div>
+      </div>
+      <div class="mt-10 flex flex-col gap-4 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
+        <p class="text-sm text-emerald-100/50">&copy; 2026 DormMap &mdash; Municipality of Bongabong, Oriental Mindoro. All rights reserved.</p>
+        <div class="flex items-center gap-3 text-emerald-400"><a href="https://bongabong.gov.ph" target="_blank" aria-label="Official Website" class="transition hover:text-white"><i data-lucide="globe" class="h-5 w-5"></i></a><a href="mailto:bplo@bongabong.gov.ph" aria-label="Mail" class="transition hover:text-white"><i data-lucide="mail" class="h-5 w-5"></i></a></div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    lucide.createIcons();
+    const btn = document.getElementById('mobileMenuButton');
+    const menu = document.getElementById('mobileMenu');
+    if (btn && menu) btn.addEventListener('click', () => menu.classList.toggle('hidden'));
+    const hdr = document.getElementById('siteHeader');
+    window.addEventListener('scroll', () => { hdr.classList.toggle('nav-scrolled', window.scrollY > 20); });
+    if (window.location.hash === '#faq') setTimeout(() => document.querySelector('#faq')?.scrollIntoView({ behavior: 'smooth' }), 300);
+  </script>
+</body>
+</html>

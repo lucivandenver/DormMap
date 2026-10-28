@@ -1,0 +1,1720 @@
+{{> head}}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<body class="bg-slate-100 text-slate-800 font-sans transition-colors duration-200">
+<div class="min-h-screen flex flex-col" id="barangayApp">
+  <!-- Top Navigation Header -->
+  <header class="fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur lg:px-6 shadow-xs">
+    <div class="flex items-center gap-3">
+      <button id="menuToggle" class="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden focus:outline-none" aria-label="Toggle Navigation">
+        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <a href="/" class="flex items-center gap-2 font-bold text-emerald-950 text-lg">
+        <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-700 text-white font-black text-sm">D</span>
+        <span>DormMap <span class="font-normal text-xs text-slate-400">/ Barangay Office</span></span>
+      </a>
+      <span class="hidden md:inline-block text-slate-300">|</span>
+      <div class="hidden md:flex items-center gap-2 text-xs text-slate-500" id="breadcrumbNav">
+        <span class="font-semibold text-emerald-700">Barangay Official</span>
+        <span>/</span>
+        <span id="breadcrumbCurrent" class="font-medium text-slate-700">Dashboard</span>
+      </div>
+    </div>
+    
+    <div class="flex items-center gap-3">
+      <button id="themeToggle" class="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition">
+        <span>◐</span> <span class="hidden sm:inline">Theme</span>
+      </button>
+
+      <div class="relative">
+        <button id="notifBtn" onclick="show('notifications')" class="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100" title="Notifications">
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+          <span id="notifBadge" class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-600 text-[10px] font-bold text-white hidden">0</span>
+        </button>
+      </div>
+
+      <div class="flex items-center gap-2 border-l border-slate-200 pl-3">
+        <div class="h-8 w-8 rounded-full bg-emerald-700 text-white flex items-center justify-center font-bold text-sm uppercase">
+          {{userName.[0]}}
+        </div>
+        <div class="hidden text-left sm:block">
+          <p class="text-xs font-bold text-slate-800 leading-tight">{{userName}}</p>
+          <p class="text-[10px] text-slate-400">Barangay Official</p>
+        </div>
+        <a href="/logout" title="Logout" class="ml-2 rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">
+          Logout
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Sidebar Navigation -->
+  <aside id="sidebar" class="fixed inset-y-16 left-0 z-30 w-64 -translate-x-full overflow-y-auto border-r border-slate-200 bg-white p-3 transition-transform duration-200 lg:translate-x-0">
+    <div class="px-3 py-2 border-b border-slate-100 pb-3 mb-2">
+      <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Jurisdiction Admin</p>
+      <h2 id="barangayJurisdiction" class="text-sm font-bold text-emerald-950 truncate">Loading...</h2>
+    </div>
+
+    <nav id="nav" class="space-y-4">
+      <!-- Group 1: OVERVIEW -->
+      <div>
+        <p class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Overview</p>
+        <div class="space-y-0.5">
+          <button data-view="overview" class="nav active">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+            <span>Dashboard Overview</span>
+          </button>
+        </div>
+      </div>
+
+      <hr class="border-slate-100 my-2" />
+
+      <!-- Group 2: BPLO TWO-WAY DATA MANAGEMENT -->
+      <div>
+        <p class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">BPLO Data Workflow</p>
+        <div class="space-y-0.5">
+          <button data-view="data_requests" class="nav relative">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            <span>Data Requests & Submissions</span>
+            <span id="pendingReqBadge" class="hidden ml-auto rounded-full bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold text-white">0</span>
+          </button>
+          <button data-view="renewals" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            <span>Permit Renewal Requests</span>
+          </button>
+        </div>
+      </div>
+
+      <hr class="border-slate-100 my-2" />
+
+      <!-- Group 3: MONITORING & COMPLIANCE -->
+      <div>
+        <p class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Monitoring & Compliance</p>
+        <div class="space-y-0.5">
+          <button data-view="applications" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+            <span>Owner Applications</span>
+          </button>
+          <button data-view="owners" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>Boarding House Owners</span>
+          </button>
+          <button data-view="houses" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span>Boarding Houses</span>
+          </button>
+          <button data-view="permits" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+            <span>Permit Monitoring</span>
+          </button>
+          <button data-view="alerts" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>Expiration Alerts</span>
+          </button>
+          <button data-view="tenants" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+            <span>Tenant Monitoring</span>
+          </button>
+          <button data-view="map" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            <span>OpenStreetMap GIS</span>
+          </button>
+        </div>
+      </div>
+
+      <hr class="border-slate-100 my-2" />
+
+      <!-- Group 4: COMMUNICATION & BROADCAST -->
+      <div>
+        <p class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Communication</p>
+        <div class="space-y-0.5">
+          <button data-view="announcements" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8 a3 3 0 1 1-5.8-1.6"/></svg>
+            <span>Announcements</span>
+          </button>
+          <button data-view="messages" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+            <span>Messaging</span>
+          </button>
+          <button data-view="notifications" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            <span>Notifications</span>
+          </button>
+        </div>
+      </div>
+
+      <hr class="border-slate-100 my-2" />
+
+      <!-- Group 5: REPORTS & PROFILE -->
+      <div>
+        <p class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Reports & Profile</p>
+        <div class="space-y-0.5">
+          <button data-view="reports" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 3v18h18"/><rect width="4" height="7" x="7" y="10" rx="1"/><rect width="4" height="12" x="15" y="5" rx="1"/></svg>
+            <span>Reports & Masterlists</span>
+          </button>
+          <button data-view="audit" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>Audit Logs</span>
+          </button>
+          <button data-view="profile" class="nav">
+            <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span>Official Profile</span>
+          </button>
+        </div>
+      </div>
+    </nav>
+  </aside>
+
+  <!-- Main Content Wrapper -->
+  <main class="px-4 pb-12 pt-20 lg:ml-64 lg:px-8">
+    <div class="mx-auto max-w-7xl">
+      <!-- Title Header -->
+      <div class="mb-6 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200/80 pb-4">
+        <div>
+          <span class="text-xs font-bold uppercase tracking-wider text-emerald-700">Jurisdiction Management</span>
+          <h1 id="title" class="text-2xl font-black text-slate-950 sm:text-3xl">Dashboard</h1>
+          <p id="subtitle" class="text-xs text-slate-500 mt-0.5">Your barangay's boarding house monitoring & inspection hub.</p>
+        </div>
+        <div class="flex items-center gap-2 mt-3 sm:mt-0">
+          <button onclick="refreshCurrentView()" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 transition">
+            <svg class="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+            Refresh Data
+          </button>
+        </div>
+      </div>
+
+      <!-- PANEL 1: OVERVIEW -->
+      <section data-panel="overview">
+        <!-- 10 Dashboard Cards Grid -->
+        <div id="cards" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5"></div>
+
+        <!-- 5 Analytics Charts Grid -->
+        <div class="mt-6 space-y-6">
+          <div class="grid gap-6 xl:grid-cols-5">
+            <!-- Chart 1: Monthly Registrations -->
+            <div class="rounded-2xl bg-white p-5 shadow-xs border border-slate-100 xl:col-span-3">
+              <div class="flex items-center justify-between">
+                <div>
+                  <h2 class="font-bold text-slate-900 text-sm">Monthly Boarding House Registrations</h2>
+                  <p class="text-xs text-slate-400">Owner registration trend in your barangay</p>
+                </div>
+                <span class="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">Last 6 Months</span>
+              </div>
+              <div id="monthlyChart" class="mt-6 flex h-48 items-end gap-3 px-2"></div>
+            </div>
+
+            <!-- Chart 2: Permit Status Distribution -->
+            <div class="rounded-2xl bg-white p-5 shadow-xs border border-slate-100 xl:col-span-2">
+              <h2 class="font-bold text-slate-900 text-sm">Permit Status Distribution</h2>
+              <p class="text-xs text-slate-400">Business permits status breakdown</p>
+              <div id="permitChart" class="mt-5 space-y-2.5"></div>
+            </div>
+          </div>
+
+          <div class="grid gap-6 xl:grid-cols-3">
+            <!-- Chart 3: Occupancy Trends -->
+            <div class="rounded-2xl bg-white p-5 shadow-xs border border-slate-100">
+              <h2 class="font-bold text-slate-900 text-sm">Occupancy Trends</h2>
+              <p class="text-xs text-slate-400">Occupied vs Vacant rooms over time</p>
+              <div id="occupancyTrendChart" class="mt-4 space-y-3"></div>
+            </div>
+
+            <!-- Chart 4: Available Rooms Breakdown -->
+            <div class="rounded-2xl bg-white p-5 shadow-xs border border-slate-100">
+              <h2 class="font-bold text-slate-900 text-sm">Available Rooms Breakdown</h2>
+              <p class="text-xs text-slate-400">Capacity utilization ratio</p>
+              <div id="availableRoomsChart" class="mt-6 flex flex-col items-center justify-center"></div>
+            </div>
+
+            <!-- Chart 5: Tenant Statistics -->
+            <div class="rounded-2xl bg-white p-5 shadow-xs border border-slate-100">
+              <h2 class="font-bold text-slate-900 text-sm">Tenant Statistics</h2>
+              <p class="text-xs text-slate-400">Monthly student & worker tenant registrations</p>
+              <div id="tenantStatsChart" class="mt-6 flex h-40 items-end gap-2 px-2"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PANEL 2: BPLO DATA REQUESTS & SUBMISSIONS -->
+      <section data-panel="data_requests" class="hidden space-y-6">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
+          <div>
+            <h2 class="font-bold text-slate-900">BPLO Data Requests & Compliance Inbox</h2>
+            <p class="text-xs text-slate-500">Respond to official BPLO data requests or submit voluntary boarding house updates anytime.</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button class="button secondary text-xs flex items-center gap-1.5" onclick="downloadMasterlistTemplate()">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Auto-Export Masterlist
+            </button>
+            <button class="button !bg-emerald-700 !text-white text-xs flex items-center gap-1.5" onclick="openSubmitDataModal()">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Submit On-Demand Data
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Active BPLO Data Requests</h3>
+          <div id="barangayDataRequestsList" class="grid gap-4"></div>
+        </div>
+
+        <div class="pt-4">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Your Barangay's Submission History</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Submission Title & Type</th>
+                  <th>Period</th>
+                  <th>Attached File</th>
+                  <th>Summary Stats</th>
+                  <th>Status</th>
+                  <th>Admin Feedback / Remarks</th>
+                  <th>Submitted Date</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="barangaySubmissionsTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- PANEL 3: PERMIT RENEWAL REQUESTS -->
+      <section data-panel="renewals" class="hidden space-y-6">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
+          <div>
+            <h2 class="font-bold text-slate-900">Permit Renewal Endorsements</h2>
+            <p class="text-xs text-slate-500">Monitor expiration dates, review owner renewal documents, and forward endorsements to BPLO.</p>
+          </div>
+          <button class="button !bg-emerald-700 !text-white text-xs flex items-center gap-1.5" onclick="openEndorseRenewalModal()">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Endorse Permit Renewal
+          </button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Establishment / Owner ID</th>
+                <th>Permit Number</th>
+                <th>Current Expiry</th>
+                <th>Requested Expiry</th>
+                <th>Status</th>
+                <th>Endorsed Date</th>
+                <th>BPLO Remarks</th>
+              </tr>
+            </thead>
+            <tbody id="barangayRenewalsTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PANEL 4: OWNER APPLICATIONS -->
+      <section data-panel="applications" class="hidden">
+        <div class="toolbar">
+          <input id="search" class="field" placeholder="Search owner name or property...">
+          <select id="appStatus" class="field">
+            <option value="">All Application Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="revision_requested">Revision Requested</option>
+            <option value="approved_barangay">Approved (Barangay)</option>
+            <option value="forwarded_to_bplo">Forwarded to BPLO</option>
+            <option value="rejected">Rejected</option>
+          </select>
+          <button class="button" onclick="loadApplications()">Search</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Applicant / Property</th>
+                <th>Uploaded Documents (6 Types)</th>
+                <th>Status</th>
+                <th>Date Applied</th>
+                <th>Review Action</th>
+              </tr>
+            </thead>
+            <tbody id="apps"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PANEL 5: BOARDING HOUSE OWNERS -->
+      <section data-panel="owners" class="hidden">
+        <div class="toolbar">
+          <input id="ownerSearch" class="field" placeholder="Search owner name, email, contact..." onkeyup="filterOwnersTable()">
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Owner Name</th>
+                <th>Email & Contact</th>
+                <th>Boarding House</th>
+                <th>Status</th>
+                <th>Registered Date</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="ownerRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PANEL 6: BOARDING HOUSES -->
+      <section data-panel="houses" class="hidden">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Establishment Name</th>
+                <th>Owner</th>
+                <th>Capacity & Occupancy</th>
+                <th>GPS Status</th>
+                <th>Account Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="houseRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PANEL 7: BUSINESS PERMIT MONITORING -->
+      <section data-panel="permits" class="hidden">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Permit Number</th>
+                <th>Owner ID</th>
+                <th>Issue Date</th>
+                <th>Expiration Date</th>
+                <th>Status</th>
+                <th>Permit Document</th>
+                <th>Manage</th>
+              </tr>
+            </thead>
+            <tbody id="permitRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PANEL 8: EXPIRATION ALERTS -->
+      <section data-panel="alerts" class="hidden">
+        <div class="rounded-2xl bg-white p-6 shadow-xs border border-slate-100">
+          <div class="flex items-center justify-between border-b pb-4">
+            <div>
+              <h2 class="font-bold text-slate-900">Automatic Expiration & Renewal Alerts</h2>
+              <p class="text-xs text-slate-500 mt-0.5">Automatic alerts for permits expiring in 30, 15, 7, and 1 day, or already expired.</p>
+            </div>
+            <span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">Live Alerts</span>
+          </div>
+          <div id="alertRows" class="mt-4 divide-y divide-slate-100"></div>
+        </div>
+      </section>
+
+      <!-- PANEL 9: TENANT MONITORING -->
+      <section data-panel="tenants" class="hidden">
+        <div class="toolbar">
+          <input id="tenantSearch" class="field" placeholder="Search tenant name or email..." onkeyup="loadTenants()">
+          <button class="button" onclick="loadTenants()">Search</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Tenant Name</th>
+                <th>Email</th>
+                <th>Contact Number</th>
+                <th>Selected Boarding House</th>
+                <th>Verification</th>
+                <th>Joined Date</th>
+              </tr>
+            </thead>
+            <tbody id="tenantRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PANEL 10: OPENSTREETMAP MONITORING -->
+      <section data-panel="map" class="hidden">
+        <div class="rounded-2xl bg-white p-4 shadow-xs border border-slate-100">
+          <div class="mb-3 flex flex-wrap items-center justify-between px-2 gap-2">
+            <div>
+              <h2 class="font-bold text-slate-900">Barangay Boarding House OpenStreetMap GIS Map</h2>
+              <p class="text-xs text-slate-500">Interactive OpenStreetMap display of geolocated establishments in your jurisdiction</p>
+            </div>
+            <div class="flex items-center gap-3 text-xs font-medium text-slate-600">
+              <span class="inline-flex items-center gap-1.5"><span class="h-3 w-3 rounded-full bg-emerald-600"></span> Active</span>
+              <span class="inline-flex items-center gap-1.5"><span class="h-3 w-3 rounded-full bg-amber-500"></span> Pending</span>
+              <span class="inline-flex items-center gap-1.5"><span class="h-3 w-3 rounded-full bg-rose-600"></span> Suspended</span>
+            </div>
+          </div>
+          <div id="barangayMap" class="h-[580px] rounded-xl border border-slate-200"></div>
+        </div>
+      </section>
+
+      <!-- PANEL 11: ANNOUNCEMENTS -->
+      <section data-panel="announcements" class="hidden">
+        <div class="grid gap-6 lg:grid-cols-5">
+          <form id="announcementForm" class="rounded-2xl bg-white p-6 shadow-xs border border-slate-100 lg:col-span-2">
+            <h2 class="font-bold text-slate-900">Broadcast Announcement</h2>
+            <p class="text-xs text-slate-500 mt-0.5">Send official notice to all registered boarding house owners in your barangay.</p>
+            
+            <div class="mt-4 space-y-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-700">Announcement Title</label>
+                <input name="title" class="field mt-1" placeholder="e.g. Fire Safety Inspection Advisory" required>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700">Message Body</label>
+                <textarea name="message" class="field mt-1 min-h-32" placeholder="Write full details..." required></textarea>
+              </div>
+              <button class="button w-full">Publish Announcement</button>
+            </div>
+          </form>
+
+          <div class="rounded-2xl bg-white p-6 shadow-xs border border-slate-100 lg:col-span-3">
+            <h2 class="font-bold text-slate-900">Recent Barangay Announcements</h2>
+            <div id="announcementList" class="mt-4 space-y-3">
+              <p class="text-xs text-slate-400">Loading announcements...</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PANEL 12: MESSAGING -->
+      <section data-panel="messages" class="hidden">
+        <div class="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
+          <div class="rounded-2xl bg-white p-4 shadow-xs border border-slate-100">
+            <h2 class="font-bold text-slate-900 px-2 pb-3 border-b">Message History / Inbox</h2>
+            <div class="table-wrap mt-3">
+              <table>
+                <thead><tr><th>Sender ID</th><th>Subject</th><th>Message</th></tr></thead>
+                <tbody id="messageRows"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <form id="messageForm" class="rounded-2xl bg-white p-6 shadow-xs border border-slate-100">
+            <h2 class="font-bold text-slate-900">Send Direct Message to Owner</h2>
+            <p class="text-xs text-slate-500 mt-0.5">Private official communication</p>
+            <div class="mt-4 space-y-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-700">Recipient Owner User ID</label>
+                <input class="field mt-1" name="recipientId" type="number" placeholder="Enter owner user ID" required>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700">Subject</label>
+                <input class="field mt-1" name="subject" placeholder="Subject / Regarding property">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700">Message</label>
+                <textarea class="field mt-1 min-h-36" name="message" placeholder="Type message..." required></textarea>
+              </div>
+              <button class="button w-full">Send Message</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- PANEL 13: REPORTS & EXPORTS -->
+      <section data-panel="reports" class="hidden space-y-6">
+        <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div class="rounded-2xl bg-white p-6 shadow-xs border border-slate-100 flex flex-col justify-between hover:border-emerald-300 transition-all">
+            <div>
+              <h3 class="font-bold text-slate-900">Boarding Houses List Report</h3>
+              <p class="text-xs text-slate-500 mt-1">Complete list of registered establishments, owners, capacity, and status.</p>
+            </div>
+            <button onclick="generateReport('houses')" class="button secondary mt-6 w-full">Generate / Print Preview</button>
+          </div>
+          <div class="rounded-2xl bg-white p-6 shadow-xs border border-slate-100 flex flex-col justify-between hover:border-emerald-300 transition-all">
+            <div>
+              <h3 class="font-bold text-slate-900">Business Permit Status Report</h3>
+              <p class="text-xs text-slate-500 mt-1">Summary of active, expiring, and expired permits in your jurisdiction.</p>
+            </div>
+            <button onclick="generateReport('permits')" class="button secondary mt-6 w-full">Generate / Print Preview</button>
+          </div>
+          <div class="rounded-2xl bg-white p-6 shadow-xs border border-slate-100 flex flex-col justify-between hover:border-emerald-300 transition-all">
+            <div>
+              <h3 class="font-bold text-slate-900">Tenant Registration Report</h3>
+              <p class="text-xs text-slate-500 mt-1">Total registered student & worker tenants across all barangay properties.</p>
+            </div>
+            <button onclick="generateReport('tenants')" class="button secondary mt-6 w-full">Generate / Print Preview</button>
+          </div>
+        </div>
+
+        <div id="reportPreviewContainer" class="hidden rounded-2xl bg-white p-6 shadow-xs border border-slate-100">
+          <div class="flex items-center justify-between border-b pb-3 mb-4">
+            <h3 id="reportPreviewTitle" class="font-bold text-slate-900 text-base">Report Preview</h3>
+            <button onclick="window.print()" class="button font-bold flex items-center gap-2">Print Report</button>
+          </div>
+          <div id="reportPreviewContent" class="overflow-x-auto"></div>
+        </div>
+      </section>
+
+      <!-- PANEL 14: NOTIFICATIONS -->
+      <section data-panel="notifications" class="hidden">
+        <div class="rounded-2xl bg-white p-6 shadow-xs border border-slate-100">
+          <div class="flex items-center justify-between border-b pb-4">
+            <h2 class="font-bold text-slate-900">System Notifications</h2>
+            <span class="text-xs text-slate-400">All alerts & activities</span>
+          </div>
+          <div id="notificationList" class="mt-4 divide-y"></div>
+        </div>
+      </section>
+
+      <!-- PANEL 15: AUDIT LOGS -->
+      <section data-panel="audit" class="hidden">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Timestamp</th><th>Action Code</th><th>Entity Target</th><th>IP Address</th></tr></thead>
+            <tbody id="auditRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PANEL 16: PROFILE -->
+      <section data-panel="profile" class="hidden">
+        <form id="profileForm" class="max-w-xl rounded-2xl bg-white p-6 shadow-xs border border-slate-100 space-y-4">
+          <h2 class="font-bold text-slate-900 text-lg border-b pb-3">Official Profile Information</h2>
+          <div>
+            <label class="block text-xs font-bold text-slate-700">Full Name</label>
+            <input id="profileFullName" class="field mt-1 bg-slate-50" readonly>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700">Email Address</label>
+            <input id="profileEmail" class="field mt-1 bg-slate-50" readonly>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700">Assigned Barangay</label>
+            <input id="profileBarangay" class="field mt-1 bg-slate-50 font-bold text-emerald-800" readonly>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700">Position Title</label>
+            <input id="profilePosition" name="positionTitle" class="field mt-1" placeholder="e.g. Barangay Captain / Inspector">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700">Contact Number</label>
+            <input id="profileContact" name="contactNumber" class="field mt-1" placeholder="e.g. 09171234567">
+          </div>
+          <button class="button w-full !bg-emerald-700">Save Profile Changes</button>
+        </form>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL: SUBMIT DATA TO BPLO (FOR REQUEST OR ON-DEMAND) -->
+<div id="submitDataModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs">
+  <div class="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between border-b pb-3 mb-4">
+      <div>
+        <h2 id="submitDataModalTitle" class="text-lg font-bold text-slate-900">Submit Data to BPLO Admin</h2>
+        <p id="submitDataModalSubtitle" class="text-xs text-slate-500">Provide updated boarding house data, masterlists, or permit reports.</p>
+      </div>
+      <button onclick="closeModal('submitDataModal')" class="text-slate-400 hover:text-slate-700 font-bold text-lg">✕</button>
+    </div>
+    <form id="submitDataForm" class="space-y-4" enctype="multipart/form-data">
+      <input type="hidden" name="requestId" id="submitDataRequestId">
+      <input type="hidden" name="previousSubmissionId" id="submitDataPrevId">
+      
+      <div>
+        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Submission Title</label>
+        <input name="title" id="submitDataTitleInput" class="field" placeholder="e.g., Q1 2026 Boarding House Masterlist" required>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Submission Category</label>
+          <select name="submissionType" id="submitDataTypeSelect" class="field">
+            <option value="requested_report">Requested BPLO Report</option>
+            <option value="unregistered_houses">Newly Discovered Unregistered Houses</option>
+            <option value="new_establishments">New Boarding House Establishments</option>
+            <option value="closed_establishments">Closed / Inactive Establishments</option>
+            <option value="permit_renewals">Permit Renewals & Expirations</option>
+            <option value="ownership_changes">Ownership Changes</option>
+            <option value="location_changes">Location Changes</option>
+            <option value="occupancy_update">Occupancy / Room Updates</option>
+            <option value="general_update">General Boarding House Update</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Reporting Period</label>
+          <input name="reportingPeriod" id="submitDataPeriodInput" class="field" placeholder="e.g. 1st Quarter 2026 / March 2026">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Attach Masterlist / Document (PDF, XLSX, CSV, DOCS, ZIP)</label>
+        <input type="file" name="submissionFile" class="field !py-2 text-xs" accept=".pdf,.xlsx,.xls,.csv,.doc,.docx,.zip,.png,.jpg,.jpeg">
+        <p class="text-[10px] text-slate-400 mt-1">Leave empty if you wish to submit current system live records automatically.</p>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Remarks / Explanation for BPLO</label>
+        <textarea name="remarks" class="field min-h-20" placeholder="Provide notes regarding newly discovered dorms, closed establishments, or compliance status..."></textarea>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-3 border-t">
+        <button type="button" class="button secondary" onclick="closeModal('submitDataModal')">Cancel</button>
+        <button type="submit" class="button !bg-emerald-700 !text-white">Submit to BPLO Admin</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL: ENDORSE PERMIT RENEWAL -->
+<div id="endorseRenewalModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs">
+  <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between border-b pb-3 mb-4">
+      <h2 class="text-lg font-bold text-slate-900">Endorse Business Permit Renewal</h2>
+      <button onclick="closeModal('endorseRenewalModal')" class="text-slate-400 hover:text-slate-700 font-bold text-lg">✕</button>
+    </div>
+    <form id="endorseRenewalForm" class="space-y-4" enctype="multipart/form-data">
+      <div>
+        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Select Boarding House Owner</label>
+        <select name="ownerId" id="renewalOwnerSelect" class="field" required></select>
+      </div>
+      <div>
+        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Business Permit Number</label>
+        <input name="permitNumber" id="renewalPermitNumber" class="field" placeholder="Permit Number">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Current Expiration</label>
+          <input type="date" name="currentExpirationDate" class="field">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Requested Renewal Date</label>
+          <input type="date" name="requestedRenewalDate" class="field" required>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Attach Supporting Renewal File</label>
+        <input type="file" name="renewalDocument" class="field !py-2 text-xs">
+      </div>
+      <div>
+        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Barangay Endorsement Notes</label>
+        <textarea name="barangayNotes" class="field min-h-20" placeholder="State inspection results, clearance verification..."></textarea>
+      </div>
+      <div class="flex justify-end gap-2 pt-3 border-t">
+        <button type="button" class="button secondary" onclick="closeModal('endorseRenewalModal')">Cancel</button>
+        <button type="submit" class="button !bg-emerald-700 !text-white">Endorse to BPLO</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Inline Document Lightbox -->
+<div id="docLightbox" class="fixed inset-0 z-[100] hidden items-center justify-center bg-slate-950/80 p-4 backdrop-blur-xs" onclick="if(event.target===this)closeLightbox()">
+  <div class="relative w-full max-w-3xl max-h-[90vh] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+    <div class="flex items-center justify-between px-4 py-3 border-b bg-slate-50">
+      <span id="lightboxLabel" class="text-sm font-bold text-slate-800"></span>
+      <div class="flex items-center gap-2">
+        <a id="lightboxOpenTab" href="#" target="_blank" class="text-xs font-bold text-emerald-700 hover:underline">Open in New Tab ↗</a>
+        <button onclick="closeLightbox()" class="ml-2 flex items-center justify-center w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-base transition-all" title="Close">✕</button>
+      </div>
+    </div>
+    <div class="flex-1 overflow-auto flex items-center justify-center bg-slate-100 p-4">
+      <img id="lightboxImg" src="" alt="Document" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:8px;display:none;">
+      <iframe id="lightboxFrame" src="" style="width:100%;height:70vh;border:none;display:none;"></iframe>
+    </div>
+  </div>
+</div>
+
+<!-- Application Review & Document Details Modal -->
+<div id="reviewModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs overflow-y-auto">
+  <div class="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl my-8">
+    <div class="flex items-center justify-between border-b pb-3">
+      <div>
+        <h3 class="font-bold text-slate-900 text-lg">Review Owner Application & Verification Documents</h3>
+        <p class="text-xs text-slate-500">Inspect 6 required documents before taking official action.</p>
+      </div>
+      <button onclick="closeReviewModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
+    </div>
+    <div class="mt-4">
+      <p class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Uploaded Verification Documents</p>
+      <div id="modalDocGrid" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"></div>
+    </div>
+    <div class="mt-6 border-t pt-4 space-y-4">
+      <input type="hidden" id="reviewAppId">
+      <div>
+        <label class="block text-xs font-bold text-slate-700">Official Decision Action</label>
+        <select id="reviewActionSelect" class="field mt-1 font-bold">
+          <option value="approve">Approve (Barangay Level)</option>
+          <option value="forward">Forward to BPLO Super Admin</option>
+          <option value="revision">Request Revision from Owner</option>
+          <option value="reject">Reject Application</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-700">Official Review Note / Remarks</label>
+        <textarea id="reviewNoteInput" class="field mt-1 min-h-24" placeholder="Add official inspection notes, required document revisions, or feedback for the owner..."></textarea>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeReviewModal()" class="button secondary">Cancel</button>
+        <button onclick="submitAppReview()" class="button !bg-emerald-700 !text-white">Submit Decision</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Business Permit Expiration Modal -->
+<div id="permitEditModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs">
+  <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+    <div class="flex items-center justify-between border-b pb-3">
+      <h3 class="font-bold text-slate-900">Manage Business Permit Record</h3>
+      <button onclick="closePermitEditModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
+    </div>
+    <form id="permitEditForm" class="mt-4 space-y-3">
+      <input type="hidden" id="permitEditId">
+      <div>
+        <label class="block text-xs font-bold text-slate-700">Permit Number</label>
+        <input id="permitEditNumber" name="permitNumber" class="field mt-1" required>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-700">Issue Date</label>
+          <input id="permitEditIssueDate" name="issueDate" type="date" class="field mt-1">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700">Expiration Date</label>
+          <input id="permitEditExpDate" name="expirationDate" type="date" class="field mt-1" required>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-700">Permit Status</label>
+        <select id="permitEditStatus" name="status" class="field mt-1">
+          <option value="active">Active</option>
+          <option value="pending">Pending</option>
+          <option value="renewal_requested">Renewal Requested</option>
+          <option value="expired">Expired</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+      <div class="flex justify-end gap-2 pt-3">
+        <button type="button" onclick="closePermitEditModal()" class="button secondary">Cancel</button>
+        <button type="submit" class="button !bg-emerald-700 !text-white">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Toast Notification -->
+<div id="toast" class="fixed bottom-5 right-5 z-50 hidden rounded-xl px-4 py-3 text-sm font-medium text-white shadow-xl transition-all"></div>
+
+<style>
+  .nav { display: flex; align-items: center; gap: 0.65rem; width: 100%; border-radius: 0.75rem; padding: 0.6rem 0.75rem; text-align: left; font-size: 0.825rem; font-weight: 600; color: #475569; transition: all 0.15s; }
+  .nav:hover, .nav.active { background: #ecfdf5; color: #065f46; }
+  .field { width: 100%; border: 1px solid #cbd5e1; border-radius: 0.65rem; padding: 0.6rem 0.75rem; font-size: 0.85rem; background: white; }
+  .field:focus { outline: 2px solid #059669; border-color: transparent; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; }
+  .toolbar .field { max-width: 18rem; }
+  .button { border-radius: 0.65rem; background: #065f46; padding: 0.6rem 1rem; font-size: 0.825rem; font-weight: 600; color: #fff; cursor: pointer; border: none; transition: opacity 0.15s; }
+  .button:hover { opacity: 0.9; }
+  .button.secondary { background: #fff; color: #334155; border: 1px solid #cbd5e1; }
+  .button.secondary:hover { background: #f8fafc; }
+  .table-wrap { overflow-x: auto; border-radius: 1rem; background: #fff; border: 1px solid #f1f5f9; box-shadow: 0 1px 3px rgba(15,23,42,0.05); }
+  table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.825rem; }
+  th { background: #f8fafc; color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
+  th, td { padding: 0.85rem 1rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  .badge { border-radius: 999px; padding: 0.2rem 0.55rem; font-size: 0.7rem; font-weight: 700; display: inline-block; }
+  .status-pending, .status-pending_submission { background: #eff6ff; color: #1e40af; }
+  .status-under_review { background: #faf5ff; color: #6b21a8; }
+  .status-revision_requested, .status-revision_required { background: #fffbeb; color: #92400e; }
+  .status-approved_barangay, .status-forwarded_to_bplo, .status-approved, .status-bplo_approved, .status-active { background: #dcfce7; color: #166534; }
+  .status-rejected, .status-suspended, .status-expired, .status-overdue { background: #fee2e2; color: #991b1b; }
+  .dark { background-color: #0f172a; color: #e2e8f0; }
+  .dark header, .dark aside, .dark .bg-white { background-color: #1e293b !important; border-color: #334155 !important; color: #e2e8f0 !important; }
+  .dark th { background-color: #0f172a !important; color: #94a3b8 !important; }
+  .dark td, .dark th { border-color: #334155 !important; }
+  .dark .field { background-color: #0f172a !important; border-color: #475569 !important; color: #fff !important; }
+</style>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+const api = '/barangay-dashboard/api';
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const labels = {
+  overview: 'Dashboard Overview',
+  data_requests: 'BPLO Data Requests & Submissions',
+  renewals: 'Permit Renewal Requests',
+  applications: 'Owner Applications',
+  owners: 'Boarding House Owners',
+  houses: 'Boarding Houses',
+  permits: 'Business Permit Monitoring',
+  alerts: 'Permit Expiration Alerts',
+  tenants: 'Tenant Monitoring',
+  map: 'OpenStreetMap Monitoring',
+  announcements: 'Announcements',
+  messages: 'Messaging',
+  reports: 'Reports & Masterlists',
+  notifications: 'Notifications',
+  audit: 'Audit Logs',
+  profile: 'Profile Settings'
+};
+
+let map;
+let allOwnersData = [];
+let allAppsData = [];
+
+const toast = (msg, bad = false) => {
+  const e = document.getElementById('toast');
+  e.textContent = msg;
+  e.className = `fixed bottom-5 right-5 z-50 rounded-xl px-4 py-3 text-sm font-medium text-white shadow-xl ${bad ? 'bg-rose-700' : 'bg-emerald-700'}`;
+  e.classList.remove('hidden');
+  setTimeout(() => e.classList.add('hidden'), 3500);
+};
+
+async function req(url, opt = {}) {
+  const r = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opt });
+  let d;
+  const text = await r.text();
+  try {
+    d = JSON.parse(text);
+  } catch {
+    throw Error(r.ok ? 'Unexpected response from server.' : `Server error (${r.status})`);
+  }
+  if (!r.ok) throw Error(d.error || 'Request failed');
+  return d;
+}
+
+function show(view) {
+  document.querySelectorAll('[data-panel]').forEach(e => e.classList.toggle('hidden', e.dataset.panel !== view));
+  document.querySelectorAll('.nav').forEach(e => e.classList.toggle('active', e.dataset.view === view));
+  document.getElementById('title').textContent = labels[view] || 'Dashboard';
+  document.getElementById('breadcrumbCurrent').textContent = labels[view] || 'Dashboard';
+  document.getElementById('sidebar').classList.add('-translate-x-full');
+
+  const handlers = {
+    overview: loadOverview,
+    data_requests: loadBarangayDataRequests,
+    renewals: loadBarangayPermitRenewals,
+    applications: loadApplications,
+    owners: loadOwners,
+    houses: loadHouses,
+    permits: loadPermits,
+    alerts: loadAlerts,
+    tenants: loadTenants,
+    map: loadMap,
+    messages: loadMessages,
+    announcements: loadAnnouncements,
+    notifications: loadNotifications,
+    audit: loadAudit,
+    profile: loadProfile
+  };
+  if (handlers[view]) handlers[view]();
+}
+
+function refreshCurrentView() {
+  const activeNav = document.querySelector('.nav.active');
+  if (activeNav) show(activeNav.dataset.view);
+}
+
+document.querySelectorAll('.nav').forEach(e => e.onclick = () => show(e.dataset.view));
+document.getElementById('menuToggle').onclick = () => document.getElementById('sidebar').classList.toggle('-translate-x-full');
+
+const toggleTheme = () => {
+  document.body.classList.toggle('dark');
+  localStorage.setItem('dormap-theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+};
+document.getElementById('themeToggle').onclick = toggleTheme;
+if (localStorage.getItem('dormap-theme') === 'dark') document.body.classList.add('dark');
+
+function closeModal(id) {
+  const el = document.getElementById(id);
+  el.classList.add('hidden');
+  el.classList.remove('flex');
+}
+function openModal(id) {
+  const el = document.getElementById(id);
+  el.classList.remove('hidden');
+  el.classList.add('flex');
+}
+
+// 1. OVERVIEW
+async function loadOverview() {
+  try {
+    const d = await req(api + '/overview');
+    document.getElementById('barangayJurisdiction').textContent = d.barangay || 'All Barangays';
+    document.getElementById('subtitle').textContent = `Official boarding house monitoring hub for Brgy. ${d.barangay}`;
+
+    if (d.cards.pendingDataRequests > 0) {
+      document.getElementById('pendingReqBadge').textContent = d.cards.pendingDataRequests;
+      document.getElementById('pendingReqBadge').classList.remove('hidden');
+    } else {
+      document.getElementById('pendingReqBadge').classList.add('hidden');
+    }
+    
+    // 10 Dashboard Cards
+    const cardsList = [
+      { key: 'houses', label: 'Total Boarding Houses' },
+      { key: 'pendingDataRequests', label: 'Pending BPLO Requests' },
+      { key: 'activeOwners', label: 'Active Owners' },
+      { key: 'pendingRenewalsCount', label: 'Pending Renewals' },
+      { key: 'expiredPermits', label: 'Expired Permits' },
+      { key: 'expiringPermits', label: 'Expiring in 30 Days' },
+      { key: 'tenants', label: 'Registered Tenants' },
+      { key: 'vacantRooms', label: 'Vacant Rooms' },
+      { key: 'occupiedRooms', label: 'Occupied Rooms' },
+      { key: 'unreadMessages', label: 'Unread Messages' }
+    ];
+
+    document.getElementById('cards').innerHTML = cardsList.map(c => `
+      <article class="rounded-2xl bg-white p-4 shadow-xs border border-slate-100 hover:border-slate-200 transition-all flex items-center gap-3.5">
+        <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800 font-bold text-sm shrink-0">
+          ${c.label.substring(0, 2).toUpperCase()}
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-xl font-bold text-slate-900 tracking-tight leading-none">${d.cards[c.key] ?? 0}</p>
+          <p class="text-xs font-medium text-slate-500 mt-1 truncate">${c.label}</p>
+        </div>
+      </article>
+    `).join('');
+
+    // Charts
+    const mx = Math.max(1, ...(d.charts.monthly || []).map(x => +x.count));
+    document.getElementById('monthlyChart').innerHTML = (d.charts.monthly || []).length ? d.charts.monthly.map(x => `
+      <div class="flex flex-1 flex-col items-center gap-2">
+        <b class="text-xs text-slate-700">${x.count}</b>
+        <div class="w-full rounded-t bg-emerald-700 hover:bg-emerald-600 transition-all" style="height:${Math.max(12, (+x.count / mx) * 130)}px"></div>
+        <span class="text-[10px] font-bold text-slate-400 truncate w-full text-center">${x.month}</span>
+      </div>
+    `).join('') : '<p class="text-xs text-slate-400">No owner registrations recorded in recent months.</p>';
+
+    document.getElementById('permitChart').innerHTML = (d.charts.permitStatus || []).length ? d.charts.permitStatus.map(x => `
+      <div class="flex justify-between items-center rounded-xl bg-slate-50 p-3 border border-slate-100">
+        <span class="capitalize text-xs font-semibold text-slate-700">${esc(x.status)}</span>
+        <b class="text-sm text-emerald-900">${x.count}</b>
+      </div>
+    `).join('') : '<p class="text-xs text-slate-400">No permit records stored yet.</p>';
+
+    const trends = d.charts.occupancyTrends || [];
+    const trendMax = Math.max(1, ...trends.map(t => (t.occupied || 0) + (t.vacant || 0)));
+    document.getElementById('occupancyTrendChart').innerHTML = trends.length ? trends.map(t => `
+      <div>
+        <div class="flex justify-between text-xs font-semibold mb-1">
+          <span class="text-slate-600">${t.month}</span>
+          <span class="text-slate-500">${t.occupied} occ / ${t.vacant} vac</span>
+        </div>
+        <div class="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex">
+          <div class="bg-emerald-600 h-full" style="width: ${((t.occupied / trendMax) * 100).toFixed(1)}%"></div>
+          <div class="bg-amber-400 h-full" style="width: ${((t.vacant / trendMax) * 100).toFixed(1)}%"></div>
+        </div>
+      </div>
+    `).join('') : '<p class="text-xs text-slate-400">No occupancy trends available.</p>';
+
+    const vacant = d.cards.vacantRooms || 0;
+    const occupied = d.cards.occupiedRooms || 0;
+    const totalCapacity = vacant + occupied;
+    const occPct = totalCapacity ? ((occupied / totalCapacity) * 100).toFixed(1) : 0;
+    const vacPct = totalCapacity ? ((vacant / totalCapacity) * 100).toFixed(1) : 0;
+    
+    document.getElementById('availableRoomsChart').innerHTML = `
+      <div class="w-full space-y-4">
+        <div class="relative flex items-center justify-center">
+          <div class="h-28 w-28 rounded-full border-6 border-emerald-600 border-t-amber-400 flex flex-col items-center justify-center">
+            <span class="text-xl font-black text-slate-900">${totalCapacity}</span>
+            <span class="text-[9px] text-slate-400 uppercase font-bold">Total Rooms</span>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-center">
+          <div class="rounded-xl bg-amber-50 p-2 border border-amber-100">
+            <span class="text-[10px] font-bold text-amber-800">Vacant</span>
+            <p class="text-base font-black text-amber-900">${vacant} (${vacPct}%)</p>
+          </div>
+          <div class="rounded-xl bg-emerald-50 p-2 border border-emerald-100">
+            <span class="text-[10px] font-bold text-emerald-800">Occupied</span>
+            <p class="text-base font-black text-emerald-900">${occupied} (${occPct}%)</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const tenantStats = d.charts.tenantStats?.monthly || [];
+    const tMax = Math.max(1, ...tenantStats.map(x => +x.count));
+    document.getElementById('tenantStatsChart').innerHTML = tenantStats.length ? tenantStats.map(x => `
+      <div class="flex flex-1 flex-col items-center gap-1">
+        <b class="text-[11px] text-emerald-900">${x.count}</b>
+        <div class="w-full rounded-t bg-emerald-700 hover:bg-emerald-600 transition-all" style="height:${Math.max(10, (+x.count / tMax) * 110)}px"></div>
+        <span class="text-[10px] font-bold text-slate-400">${x.month}</span>
+      </div>
+    `).join('') : '<p class="text-xs text-slate-400">No tenant registration stats recorded.</p>';
+
+  } catch (e) { toast(e.message, true); }
+}
+
+// 2. DATA REQUESTS & SUBMISSIONS
+async function loadBarangayDataRequests() {
+  try {
+    const [reqData, subData] = await Promise.all([
+      req(api + '/data-requests'),
+      req(api + '/submissions')
+    ]);
+
+    const reqContainer = document.getElementById('barangayDataRequestsList');
+    if (!reqData.data.length) {
+      reqContainer.innerHTML = '<div class="rounded-2xl bg-white p-6 text-center text-slate-400 border">No pending data requests from BPLO.</div>';
+    } else {
+      reqContainer.innerHTML = reqData.data.map(r => `
+        <div class="rounded-2xl bg-white p-5 border border-slate-100 shadow-xs space-y-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <span class="badge ${r.priority === 'urgent' ? 'status-rejected' : (r.priority === 'high' ? 'status-revision_requested' : 'status-submitted')} uppercase">
+                ${esc(r.priority)}
+              </span>
+              <span class="badge status-active capitalize">${esc(r.category.replace(/_/g, ' '))}</span>
+              <span class="text-xs text-slate-400">Required: <b>${esc(r.requiredFormat)}</b></span>
+            </div>
+            <div class="text-xs font-bold ${r.isOverdue ? 'text-rose-600' : 'text-slate-700'}">
+              Deadline: ${esc(r.submissionDeadline)} (${r.daysRemaining >= 0 ? `${r.daysRemaining} days left` : 'OVERDUE'})
+            </div>
+          </div>
+          <div>
+            <h4 class="text-base font-bold text-slate-900">${esc(r.title)}</h4>
+            <p class="text-xs text-slate-600 mt-1">${esc(r.purpose)}</p>
+            ${r.instructions ? `<p class="text-xs text-emerald-800 bg-emerald-50 p-2.5 rounded-lg mt-2 font-medium">📋 Instructions: ${esc(r.instructions)}</p>` : ''}
+          </div>
+          ${r.latestSubmission?.status === 'revision_requested' ? `
+            <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">
+              <b>⚠️ BPLO Admin Feedback / Revision Note:</b><br>${esc(r.latestSubmission.adminRemarks || 'Please review and resubmit the requested masterlist/information.')}
+            </div>
+          ` : ''}
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t text-xs">
+            <div>
+              Status: <span class="badge status-${esc(r.submissionStatus)}">${esc(r.submissionStatus.replace(/_/g, ' '))}</span>
+            </div>
+            <div class="flex gap-2">
+              <button class="button !bg-emerald-700 !text-white text-xs !py-1.5" onclick="openSubmitDataModal(${r.id}, '${esc(r.title)}', '${esc(r.category)}', '${esc(r.reportingPeriod)}', ${r.latestSubmission?.id || 'null'})">
+                ${r.latestSubmission ? (r.latestSubmission.status === 'revision_requested' ? 'Resubmit Revised Report' : 'Update Submission') : 'Prepare & Submit Report'}
+              </button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('barangaySubmissionsTable').innerHTML = subData.data.length ? subData.data.map(s => `
+      <tr>
+        <td><b>${esc(s.title)}</b><br><span class="text-xs text-slate-400 capitalize">${esc(s.submissionType.replace(/_/g, ' '))} (v${s.version})</span></td>
+        <td>${esc(s.reportingPeriod || '—')}</td>
+        <td>
+          <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+            ${s.fileUrl
+              ? `<a href="${esc(s.fileUrl)}" target="_blank" style="color:#059669;font-weight:600;font-size:12px;text-decoration:underline">View File</a>`
+              : `<span style="color:#94a3b8;font-size:12px">No file</span>`
+            }
+            <button onclick="downloadSubmissionExcel(${s.id})" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#1e293b;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:3px 10px;cursor:pointer" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">
+              <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Excel
+            </button>
+          </div>
+        </td>
+        <td class="text-xs text-slate-600">Houses: ${s.summaryData?.totalHouses ?? '—'} · Vacant: ${s.summaryData?.vacantRooms ?? '—'}</td>
+        <td><span class="badge status-${esc(s.status)}">${esc(s.status.replace(/_/g, ' '))}</span></td>
+        <td class="text-xs text-slate-700">${esc(s.adminRemarks || '—')}</td>
+        <td class="text-xs">${new Date(s.createdAt).toLocaleDateString()}</td>
+        <td>
+          ${s.status === 'revision_requested' ? `<button class="button !bg-amber-600 !text-white text-xs !py-1 !px-2" onclick="openSubmitDataModal(${s.requestId || 'null'}, '${esc(s.title)}', '${esc(s.submissionType)}', '${esc(s.reportingPeriod)}', ${s.id})">Resubmit v${s.version + 1}</button>` : `<span class="text-slate-400 text-xs">Logged</span>`}
+        </td>
+      </tr>
+    `).join('') : '<tr><td colspan="8" class="text-center text-slate-400 py-6">No previous submissions recorded.</td></tr>';
+
+  } catch (e) { toast(e.message, true); }
+}
+
+function openSubmitDataModal(requestId = null, title = '', type = 'requested_report', period = '', prevId = null) {
+  const form = document.getElementById('submitDataForm');
+  if (form) form.reset();
+
+  document.getElementById('submitDataRequestId').value = (requestId && requestId !== 'null') ? requestId : '';
+  document.getElementById('submitDataPrevId').value = (prevId && prevId !== 'null') ? prevId : '';
+  document.getElementById('submitDataTitleInput').value = title || (requestId ? 'Masterlist Compliance Report' : 'Voluntary Boarding House Update');
+  document.getElementById('submitDataTypeSelect').value = type || (requestId ? 'requested_report' : 'general_update');
+  document.getElementById('submitDataPeriodInput').value = period || 'Current Cycle';
+
+  openModal('submitDataModal');
+}
+
+document.getElementById('submitDataForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const submitBtn = form.querySelector('button[type="submit"]');
+  const originalBtnText = submitBtn ? submitBtn.innerHTML : 'Submit to BPLO Admin';
+
+  const formData = new FormData(form);
+  try {
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = 'Submitting...';
+    }
+    const res = await fetch(api + '/submissions', { method: 'POST', body: formData });
+    let d;
+    const text = await res.text();
+    try {
+      d = JSON.parse(text);
+    } catch {
+      throw Error(res.ok ? 'Unexpected response format from server.' : `Server error (${res.status}): ${text.slice(0, 80)}`);
+    }
+
+    if (!res.ok) throw Error(d.error || 'Submission failed');
+    closeModal('submitDataModal');
+    form.reset();
+    toast(d.message || 'Data successfully submitted to BPLO.');
+    loadBarangayDataRequests();
+    loadOverview();
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalBtnText;
+    }
+  }
+};
+
+async function downloadMasterlistTemplate() {
+  try {
+    toast('Generating Excel masterlist, please wait...');
+    const res = await fetch(api + '/masterlist-export', {
+      credentials: 'include'
+    });
+    if (!res.ok) {
+      let errMsg = res.statusText;
+      try { const err = await res.json(); errMsg = err.error || errMsg; } catch {}
+      throw new Error(errMsg);
+    }
+    const blob = await res.blob();
+    // Derive filename from Content-Disposition header if present
+    const cd = res.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename="?([^";\n]+)"?/);
+    const filename = match ? match[1] : `barangay_masterlist_${new Date().toISOString().slice(0,10)}.xlsx`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+    toast('✅ Masterlist Excel downloaded successfully.');
+  } catch (e) { toast(e.message, true); }
+}
+
+async function downloadSubmissionExcel(id) {
+  try {
+    toast('Generating Excel file...');
+    const res = await fetch(`/api/submissions/${id}/export-excel`, {
+      credentials: 'include'
+    });
+    if (!res.ok) {
+      let errMsg = res.statusText;
+      try { const err = await res.json(); errMsg = err.error || errMsg; } catch {}
+      throw new Error(errMsg);
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename="?([^";\n]+)"?/);
+    const filename = match ? match[1] : `submission_${id}_${new Date().toISOString().slice(0,10)}.xlsx`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+    toast('✅ Submission Excel downloaded.');
+  } catch (e) { toast(e.message, true); }
+}
+
+// 3. PERMIT RENEWALS
+async function loadBarangayPermitRenewals() {
+  try {
+    const d = await req(api + '/permit-renewals');
+    document.getElementById('barangayRenewalsTable').innerHTML = d.renewals.length ? d.renewals.map(r => `
+      <tr>
+        <td><b>Owner ID #${r.ownerId}</b></td>
+        <td>${esc(r.permitNumber || '—')}</td>
+        <td>${esc(r.currentExpirationDate || '—')}</td>
+        <td>${esc(r.requestedRenewalDate || '—')}</td>
+        <td><span class="badge status-${esc(r.status)}">${esc(r.status.replace(/_/g, ' '))}</span></td>
+        <td class="text-xs">${new Date(r.createdAt).toLocaleDateString()}</td>
+        <td class="text-xs text-slate-700">${esc(r.bploNotes || '—')}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="7" class="text-center text-slate-400 py-6">No permit renewal endorsements yet.</td></tr>';
+  } catch (e) { toast(e.message, true); }
+}
+
+async function openEndorseRenewalModal() {
+  const houses = await req(api + '/houses');
+  const sel = document.getElementById('renewalOwnerSelect');
+  sel.innerHTML = houses.data.map(h => `<option value="${h.id}">${esc(h.boardingHouseName)} (${esc(h.fullName)})</option>`).join('');
+  openModal('endorseRenewalModal');
+}
+
+document.getElementById('endorseRenewalForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const submitBtn = form.querySelector('button[type="submit"]');
+  const originalBtnText = submitBtn ? submitBtn.innerHTML : 'Endorse to BPLO';
+
+  const formData = new FormData(form);
+  try {
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = 'Submitting...';
+    }
+    const res = await fetch(api + '/permit-renewals', { method: 'POST', body: formData });
+    let d;
+    const text = await res.text();
+    try {
+      d = JSON.parse(text);
+    } catch {
+      throw Error(res.ok ? 'Unexpected response format from server.' : `Server error (${res.status})`);
+    }
+
+    if (!res.ok) throw Error(d.error || 'Endorsement failed');
+    closeModal('endorseRenewalModal');
+    form.reset();
+    toast(d.message || 'Permit renewal endorsed to BPLO.');
+    loadBarangayPermitRenewals();
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalBtnText;
+    }
+  }
+};
+
+// 4. APPLICATIONS
+async function loadApplications() {
+  try {
+    const q = new URLSearchParams({ search: document.getElementById('search').value, status: document.getElementById('appStatus').value });
+    let d = await req(api + '/applications?' + q);
+    allAppsData = d.data || [];
+    document.getElementById('apps').innerHTML = d.data.length ? d.data.map(x => `
+      <tr>
+        <td>
+          <b class="text-slate-900">${esc(x.fullName)}</b><br>
+          <span class="text-xs text-slate-500">${esc(x.boardingHouseName || 'No property name')} · ${esc(x.email)}</span>
+        </td>
+        <td>
+          <div class="flex flex-wrap gap-1.5 text-[11px]">
+            ${x.validIdPicture ? '<span class="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700 font-semibold">Gov ID ✓</span>' : '<span class="rounded bg-rose-50 px-1.5 py-0.5 text-rose-700">Gov ID ✗</span>'}
+            ${x.businessPermit ? '<span class="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700 font-semibold">Permit ✓</span>' : '<span class="rounded bg-rose-50 px-1.5 py-0.5 text-rose-700">Permit ✗</span>'}
+            ${x.barangayClearance ? '<span class="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700 font-semibold">Brgy ✓</span>' : '<span class="rounded bg-rose-50 px-1.5 py-0.5 text-rose-700">Brgy ✗</span>'}
+            ${x.proofOfOwnership ? '<span class="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700 font-semibold">Ownership ✓</span>' : '<span class="rounded bg-rose-50 px-1.5 py-0.5 text-rose-700">Ownership ✗</span>'}
+            ${x.rentalPermit ? '<span class="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700 font-semibold">Rental ✓</span>' : '<span class="rounded bg-rose-50 px-1.5 py-0.5 text-rose-700">Rental ✗</span>'}
+            ${x.profilePicture ? '<span class="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700 font-semibold">Photo ✓</span>' : '<span class="rounded bg-rose-50 px-1.5 py-0.5 text-rose-700">Photo ✗</span>'}
+          </div>
+        </td>
+        <td><span class="badge status-${esc(x.applicationStatus)}">${esc(x.applicationStatus)}</span></td>
+        <td class="text-xs">${new Date(x.createdAt).toLocaleDateString()}</td>
+        <td><button class="button text-xs py-1 px-2.5" onclick="openReviewModal(${x.id})">Inspect & Review</button></td>
+      </tr>
+    `).join('') : '<tr><td colspan="5" class="text-slate-400 text-center py-4">No owner applications found.</td></tr>';
+  } catch (e) { toast(e.message, true); }
+}
+
+function openReviewModal(id) {
+  const app = allAppsData.find(x => x.id === id);
+  document.getElementById('reviewAppId').value = id;
+  document.getElementById('reviewNoteInput').value = app?.applicationReviewNote || '';
+  
+  const docTypes = [
+    { label: 'Government ID', url: app?.validIdPicture },
+    { label: 'Business Permit', url: app?.businessPermit },
+    { label: 'Barangay Clearance', url: app?.barangayClearance },
+    { label: 'Proof of Ownership', url: app?.proofOfOwnership },
+    { label: 'Rental Permit', url: app?.rentalPermit },
+    { label: 'Profile Photo', url: app?.profilePicture }
+  ];
+
+  document.getElementById('modalDocGrid').innerHTML = docTypes.map(d => `
+    <div class="rounded-xl border border-slate-200 p-3 bg-slate-50 flex flex-col justify-between">
+      <div class="flex items-center gap-2">
+        <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-slate-700 border border-slate-200 shrink-0">
+          <svg class="w-4 h-4 text-emerald-800" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        </div>
+        <div>
+          <p class="text-xs font-bold text-slate-800">${d.label}</p>
+          <span class="text-[10px] font-bold ${d.url ? 'text-emerald-700' : 'text-slate-400'}">${d.url ? 'Uploaded ✓' : 'Not Attached ✗'}</span>
+        </div>
+      </div>
+      <div class="mt-3 space-y-1.5">
+        ${d.url ? `<button onclick="openLightbox('${esc(d.url)}', '${esc(d.label)}')" class="block w-full text-center text-xs font-bold text-white bg-emerald-700 py-1.5 px-2 rounded-lg hover:bg-emerald-800 transition-all">🔍 View Document</button>` : `<button disabled class="w-full text-center text-xs font-bold text-slate-400 bg-slate-200 py-1.5 px-2 rounded-lg cursor-not-allowed">No File</button>`}
+      </div>
+    </div>
+  `).join('');
+
+  openModal('reviewModal');
+}
+
+function closeReviewModal() { closeModal('reviewModal'); }
+
+function openLightbox(url, label) {
+  const lb = document.getElementById('docLightbox');
+  const img = document.getElementById('lightboxImg');
+  const frame = document.getElementById('lightboxFrame');
+  const lbl = document.getElementById('lightboxLabel');
+  const tabLink = document.getElementById('lightboxOpenTab');
+
+  lbl.textContent = label || 'Document Preview';
+  tabLink.href = url;
+
+  const isPdf = url.toLowerCase().endsWith('.pdf');
+  if (isPdf) {
+    img.style.display = 'none';
+    frame.style.display = 'block';
+    frame.src = url;
+  } else {
+    frame.style.display = 'none';
+    img.style.display = 'block';
+    img.src = url;
+  }
+
+  openModal('docLightbox');
+}
+
+function closeLightbox() {
+  closeModal('docLightbox');
+  document.getElementById('lightboxImg').src = '';
+  document.getElementById('lightboxFrame').src = '';
+}
+
+async function submitAppReview() {
+  const id = document.getElementById('reviewAppId').value;
+  const action = document.getElementById('reviewActionSelect').value;
+  const note = document.getElementById('reviewNoteInput').value;
+  try {
+    await req(`${api}/applications/${id}/review`, { method: 'PATCH', body: JSON.stringify({ action, note }) });
+    closeReviewModal();
+    toast('Application decision recorded.');
+    loadApplications();
+    loadOverview();
+  } catch (e) { toast(e.message, true); }
+}
+
+// 5. OWNERS
+async function loadOwners() {
+  try {
+    let d = await req(api + '/applications');
+    allOwnersData = d.data || [];
+    filterOwnersTable();
+  } catch (e) { toast(e.message, true); }
+}
+
+function filterOwnersTable() {
+  const q = document.getElementById('ownerSearch').value.toLowerCase();
+  const filtered = allOwnersData.filter(x => 
+    (x.fullName || '').toLowerCase().includes(q) ||
+    (x.email || '').toLowerCase().includes(q) ||
+    (x.contactNumber || '').toLowerCase().includes(q)
+  );
+  document.getElementById('ownerRows').innerHTML = filtered.length ? filtered.map(x => `
+    <tr>
+      <td><b>${esc(x.fullName)}</b></td>
+      <td class="text-xs">${esc(x.email)}<br>${esc(x.contactNumber || 'No contact')}</td>
+      <td class="text-xs">${esc(x.boardingHouseName || '—')}</td>
+      <td><span class="badge status-${esc(x.applicationStatus)}">${esc(x.applicationStatus)}</span></td>
+      <td class="text-xs">${new Date(x.createdAt).toLocaleDateString()}</td>
+      <td>
+        <button class="text-xs font-bold ${x.isSuspended ? 'text-emerald-700' : 'text-rose-700'}" onclick="houseStatus(${x.id}, ${!x.isSuspended})">
+          ${x.isSuspended ? 'Activate' : 'Suspend'}
+        </button>
+      </td>
+    </tr>
+  `).join('') : '<tr><td colspan="6" class="text-slate-400 text-center py-4">No owners matching filter.</td></tr>';
+}
+
+// 6. HOUSES
+async function loadHouses() {
+  try {
+    let d = await req(api + '/houses');
+    document.getElementById('houseRows').innerHTML = d.data.length ? d.data.map(x => `
+      <tr>
+        <td><b>${esc(x.boardingHouseName)}</b><br><span class="text-xs text-slate-500">${esc(x.boardingHouseAddress || '')}</span></td>
+        <td>${esc(x.fullName)}</td>
+        <td class="text-xs">
+          <b class="text-amber-800">${x.roomsAvailable ?? 0} vacant</b> / <b class="text-emerald-800">${x.occupiedRooms ?? 0} occupied</b>
+        </td>
+        <td class="text-xs">${x.boardingHouseLatitude ? '📍 Geolocated' : '❌ Map pin missing'}</td>
+        <td><span class="badge status-${x.isSuspended ? 'suspended' : x.applicationStatus}">${x.isSuspended ? 'Suspended' : esc(x.applicationStatus)}</span></td>
+        <td class="space-x-2">
+          <button class="text-xs font-bold ${x.isSuspended ? 'text-emerald-700' : 'text-rose-700'}" onclick="houseStatus(${x.id}, ${!x.isSuspended})">
+            ${x.isSuspended ? 'Activate' : 'Suspend'}
+          </button>
+        </td>
+      </tr>
+    `).join('') : '<tr><td colspan="6" class="text-slate-400 text-center py-4">No registered boarding houses.</td></tr>';
+  } catch (e) { toast(e.message, true); }
+}
+
+async function houseStatus(id, isSuspended) {
+  if (!confirm(isSuspended ? 'Suspend this boarding house owner account?' : 'Activate this boarding house owner account?')) return;
+  try {
+    await req(`${api}/houses/${id}/status`, { method: 'PATCH', body: JSON.stringify({ isSuspended }) });
+    toast('Status updated successfully.');
+    loadHouses(); loadOwners(); loadOverview();
+  } catch (e) { toast(e.message, true); }
+}
+
+// 7. PERMITS
+let permitCache = [];
+async function loadPermits() {
+  try {
+    let d = await req(api + '/permits');
+    permitCache = d.data || [];
+    document.getElementById('permitRows').innerHTML = d.data.length ? d.data.map(x => `
+      <tr>
+        <td><b>${esc(x.permitNumber)}</b></td>
+        <td>Owner ID #${x.ownerId}</td>
+        <td class="text-xs">${esc(x.issueDate || '—')}</td>
+        <td class="text-xs font-bold text-emerald-950">${esc(x.expirationDate)}</td>
+        <td><span class="badge status-${esc(x.status)}">${esc(x.status)}</span></td>
+        <td>${x.documentUrl ? `<a class="text-xs font-bold text-emerald-700 underline" target="_blank" href="${esc(x.documentUrl)}">View File</a>` : '—'}</td>
+        <td><button class="button text-xs py-1 px-2 secondary font-bold" onclick="openPermitEditModal(${x.id})">Edit Dates</button></td>
+      </tr>
+    `).join('') : '<tr><td colspan="7" class="text-slate-400 text-center py-4">No business permit records found.</td></tr>';
+  } catch (e) { toast(e.message, true); }
+}
+
+function openPermitEditModal(id) {
+  const p = permitCache.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('permitEditId').value = id;
+  document.getElementById('permitEditNumber').value = p.permitNumber || '';
+  document.getElementById('permitEditIssueDate').value = p.issueDate || '';
+  document.getElementById('permitEditExpDate').value = p.expirationDate || '';
+  document.getElementById('permitEditStatus').value = p.status || 'active';
+  openModal('permitEditModal');
+}
+
+function closePermitEditModal() { closeModal('permitEditModal'); }
+
+document.getElementById('permitEditForm').onsubmit = async e => {
+  e.preventDefault();
+  const id = document.getElementById('permitEditId').value;
+  try {
+    await req(`${api}/permits/${id}`, { method: 'PATCH', body: JSON.stringify(Object.fromEntries(new FormData(e.target))) });
+    closePermitEditModal();
+    toast('Business permit record updated.');
+    loadPermits(); loadAlerts(); loadOverview();
+  } catch (err) { toast(err.message, true); }
+};
+
+// 8. ALERTS
+async function loadAlerts() {
+  try {
+    let d = await req(api + '/permit-alerts');
+    document.getElementById('alertRows').innerHTML = d.data.length ? d.data.map(x => `
+      <div class="flex items-center justify-between py-3">
+        <div>
+          <b class="text-sm text-slate-900">${esc(x.permitNumber)}</b>
+          <p class="text-xs text-slate-500">Expiration Date: ${esc(x.expirationDate)} (Owner ID: #${x.ownerId})</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="badge status-${x.days < 0 ? 'expired' : 'pending'}">
+            ${x.days < 0 ? 'Expired' : x.days === 0 ? 'Expires Today' : x.days + ' Days Left'}
+          </span>
+          <button onclick="openPermitEditModal(${x.id})" class="button text-xs py-1 px-2 secondary font-bold">Manage Permit</button>
+        </div>
+      </div>
+    `).join('') : '<p class="py-4 text-xs text-slate-400 text-center">No active expiration reminders.</p>';
+  } catch (e) { toast(e.message, true); }
+}
+
+// 9. TENANTS
+async function loadTenants() {
+  try {
+    const q = document.getElementById('tenantSearch').value;
+    let d = await req(api + '/tenants?' + new URLSearchParams({ search: q }));
+    document.getElementById('tenantRows').innerHTML = d.data.length ? d.data.map(x => `
+      <tr>
+        <td><b>${esc(x.fullName)}</b></td>
+        <td class="text-xs">${esc(x.email)}</td>
+        <td class="text-xs">${esc(x.contactNumber || '—')}</td>
+        <td class="text-xs font-semibold">${esc(x.selectedBoardingHouse || 'Unassigned')}</td>
+        <td><span class="badge status-${x.emailVerified ? 'approved' : 'pending'}">${x.emailVerified ? 'Verified' : 'Unverified'}</span></td>
+        <td class="text-xs">${new Date(x.createdAt).toLocaleDateString()}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="6" class="text-slate-400 text-center py-4">No tenants found in system.</td></tr>';
+  } catch (e) { toast(e.message, true); }
+}
+
+// 10. MAP
+async function loadMap() {
+  try {
+    let d = await req(api + '/map-houses');
+    if (!map) {
+      map = L.map('barangayMap').setView([12.7192, 121.4719], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+    }
+    d.data.forEach(x => {
+      let a = Number(x.boardingHouseLatitude), b = Number(x.boardingHouseLongitude);
+      if (Number.isFinite(a) && Number.isFinite(b)) {
+        L.marker([a, b]).addTo(map).bindPopup(`
+          <div class="p-1">
+            <b class="text-emerald-800 text-sm">${esc(x.boardingHouseName)}</b><br>
+            <span class="text-xs text-slate-600">Owner: ${esc(x.fullName)}</span><br>
+            <span class="text-xs text-slate-600">Vacant Rooms: <b>${x.roomsAvailable ?? 0}</b> | Occupied: <b>${x.occupiedRooms ?? 0}</b></span><br>
+            <span class="text-xs text-slate-600">Contact: ${esc(x.contactNumber || '—')}</span><br>
+            <span class="badge status-${x.isSuspended ? 'suspended' : esc(x.applicationStatus)} mt-1">${x.isSuspended ? 'Suspended' : esc(x.applicationStatus)}</span>
+          </div>
+        `);
+      }
+    });
+    setTimeout(() => map.invalidateSize(), 150);
+  } catch (e) { toast(e.message, true); }
+}
+
+// 11. ANNOUNCEMENTS
+async function loadAnnouncements() {
+  document.getElementById('announcementList').innerHTML = `<p class="text-xs text-slate-500">Broadcasts are distributed to all verified boarding house owners in your barangay.</p>`;
+}
+
+document.getElementById('announcementForm').onsubmit = async e => {
+  e.preventDefault();
+  try {
+    await req(api + '/announcements', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(e.target))) });
+    e.target.reset();
+    toast('Announcement published to owners.');
+  } catch (err) { toast(err.message, true); }
+};
+
+// 12. MESSAGES
+async function loadMessages() {
+  try {
+    let d = await req(api + '/messages');
+    document.getElementById('messageRows').innerHTML = d.data.length ? d.data.map(x => `
+      <tr>
+        <td class="text-xs">#${x.senderId}</td>
+        <td class="text-xs font-bold">${esc(x.subject || '—')}</td>
+        <td class="text-xs">${esc(x.message)}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="3" class="text-slate-400 text-center py-4">No messages yet.</td></tr>';
+  } catch (e) { toast(e.message, true); }
+}
+
+document.getElementById('messageForm').onsubmit = async e => {
+  e.preventDefault();
+  try {
+    await req(api + '/messages', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(e.target))) });
+    e.target.reset();
+    toast('Message sent to owner.');
+    loadMessages();
+  } catch (err) { toast(err.message, true); }
+};
+
+// 13. NOTIFICATIONS
+async function loadNotifications() {
+  try {
+    let d = await req(api + '/notifications');
+    document.getElementById('notificationList').innerHTML = d.data.length ? d.data.map(x => `
+      <div class="py-3">
+        <b class="text-xs text-slate-900">${esc(x.title)}</b>
+        <p class="text-xs text-slate-500 mt-0.5">${esc(x.body)}</p>
+        <span class="text-[10px] text-slate-400">${new Date(x.createdAt).toLocaleString()}</span>
+      </div>
+    `).join('') : '<p class="py-4 text-xs text-slate-400 text-center">No notifications recorded.</p>';
+  } catch (e) { toast(e.message, true); }
+}
+
+// 14. AUDIT
+async function loadAudit() {
+  try {
+    let d = await req(api + '/audit-logs');
+    document.getElementById('auditRows').innerHTML = d.data.length ? d.data.map(x => `
+      <tr>
+        <td class="text-xs">${new Date(x.createdAt).toLocaleString()}</td>
+        <td><b class="text-xs text-emerald-800">${esc(x.action)}</b></td>
+        <td class="text-xs">${esc(x.entityType)} #${x.entityId || ''}</td>
+        <td class="text-xs">${esc(x.ipAddress || '—')}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="4" class="text-slate-400 text-center py-4">No audit logs recorded yet.</td></tr>';
+  } catch (e) { toast(e.message, true); }
+}
+
+// 15. PROFILE
+async function loadProfile() {
+  try {
+    let d = await req(api + '/profile');
+    const u = d.data;
+    document.getElementById('profileFullName').value = u.fullName || '';
+    document.getElementById('profileEmail').value = u.email || '';
+    document.getElementById('profileBarangay').value = u.barangay || 'Not Assigned';
+    document.getElementById('profilePosition').value = u.positionTitle || '';
+    document.getElementById('profileContact').value = u.contactNumber || '';
+  } catch (e) { toast(e.message, true); }
+}
+
+document.getElementById('profileForm').onsubmit = async e => {
+  e.preventDefault();
+  try {
+    await req(api + '/profile', { method: 'PATCH', body: JSON.stringify(Object.fromEntries(new FormData(e.target))) });
+    toast('Profile updated successfully.');
+  } catch (err) { toast(err.message, true); }
+};
+
+// 16. REPORTS
+async function generateReport(type) {
+  try {
+    let res = await req(`${api}/reports?type=${type}`);
+    const data = res.data || [];
+    const container = document.getElementById('reportPreviewContainer');
+    const title = document.getElementById('reportPreviewTitle');
+    const content = document.getElementById('reportPreviewContent');
+    container.classList.remove('hidden');
+
+    const titles = {
+      houses: 'Boarding Houses Master List Report',
+      permits: 'Business Permit Monitoring Report',
+      tenants: 'Tenant Registration & Directory Report'
+    };
+    title.textContent = `${titles[type] || 'Official Barangay Report'} - Brgy. ${res.barangay || ''}`;
+
+    if (!data.length) {
+      content.innerHTML = '<p class="py-4 text-center text-xs text-slate-400">No records available for this report filter.</p>';
+      return;
+    }
+
+    content.innerHTML = `
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th>Establishment</th>
+            <th>Owner Name</th>
+            <th>Address</th>
+            <th>Vacant Rooms</th>
+            <th>Occupied Rooms</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.map(x => `
+            <tr>
+              <td><b>${esc(x.boardingHouseName || x.fullName)}</b></td>
+              <td>${esc(x.fullName || '—')}</td>
+              <td>${esc(x.boardingHouseAddress || res.barangay)}</td>
+              <td>${x.roomsAvailable ?? 0}</td>
+              <td>${x.occupiedRooms ?? 0}</td>
+              <td>${esc(x.applicationStatus || 'Active')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (e) { toast(e.message, true); }
+}
+
+// Initial Load
+loadOverview();
+</script>
+{{> footer}}

@@ -1,0 +1,31 @@
+name: Deploy to AWS EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Automated deployment to AWS EC2 instance via SSH
+      - name: Deploy to AWS EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USERNAME || 'ubuntu' }}
+          key: ${{ secrets.AWS_SSH_KEY }}
+          port: 22
+          script: |
+            echo "Pulling latest code on AWS..."
+            cd ~/DorMap || cd /home/ubuntu/DorMap || cd ~/xianfire-system
+            git pull origin main
+            npm install --production
+            # Restart application with PM2 or systemd
+            pm2 restart all || pm2 restart index.js || pm2 start index.js --name "dormap"
+            echo "DorMap successfully deployed and restarted!"

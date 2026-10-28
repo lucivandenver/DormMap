@@ -1,0 +1,29 @@
+{
+  "name": "dormap-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "nodemon src/server.js --watch src --exec node --experimental-json-modules",
+    "start": "node src/server.js",
+    "migrate": "node src/utils/migrate.js"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.0.0",
+    "jsonwebtoken": "^9.0.0",
+    "mysql2": "^3.9.2",
+    "sequelize": "^6.37.3",
+    "socket.io": "^4.8.1",
+    "multer": "^1.4.5-lts.1",
+    "xlsx": "^0.18.5",
+    "pdfkit": "^0.13.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}

@@ -1,0 +1,131 @@
+{{> head}}
+<body class="bg-slate-50">
+  <div class="min-h-screen py-12">
+    <div class="container page-shell">
+
+      <!-- Municipality of Bongabong Official Branding -->
+      <div class="flex justify-center mb-8">
+        <a href="/" class="flex items-center gap-3 group">
+          <div class="h-12 w-12 rounded-full overflow-hidden shadow-md border border-emerald-100 bg-white shrink-0 transition group-hover:shadow-lg">
+            <img src="/images/dormmap-logo.png" alt="DormMap Logo" class="h-full w-full object-contain p-0.5">
+          </div>
+          <div>
+            <p class="text-[11px] font-extrabold uppercase tracking-[0.22em] text-slate-500 leading-none">Municipality of</p>
+            <p class="text-base font-black text-slate-900 leading-tight">Bongabong, Or. Mindoro</p>
+          </div>
+        </a>
+      </div>
+
+      <div class="grid gap-8 lg:grid-cols-[1fr_420px] lg:items-center">
+        <div class="rounded-[24px] border border-slate-200 bg-white p-8 shadow-sm">
+          <span class="inline-flex items-center rounded-full bg-emerald-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-emerald-900">Welcome back</span>
+          <h1 class="mt-6 text-3xl font-bold text-slate-950">Access DormMap Easily</h1>
+          <p class="mt-4 text-sm leading-7 text-slate-600">Login to view verified boarding houses, manage your dashboard, and access real-time location-enabled services from any device.</p>
+          <div class="mt-8 grid gap-4 sm:grid-cols-2">
+            <div class="rounded border border-slate-200 bg-slate-50 p-4">
+              <p class="text-xs uppercase tracking-[0.22em] text-slate-500">Secure login</p>
+              <p class="mt-2 text-sm text-slate-700">Email verification and password protection.</p>
+            </div>
+            <div class="rounded border border-slate-200 bg-slate-50 p-4">
+              <p class="text-xs uppercase tracking-[0.22em] text-slate-500">Mobile friendly</p>
+              <p class="mt-2 text-sm text-slate-700">Responsive UI for phones, tablets, and desktops.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card p-8 shadow-sm">
+          <div class="flex flex-col items-center mb-4 text-center">
+            <div class="h-28 w-28 sm:h-32 sm:w-32 rounded-full bg-white border-2 border-emerald-200 shadow-md overflow-hidden mb-3 flex items-center justify-center p-1 transition hover:scale-105">
+              <img src="/images/dormmap-logo.png" alt="DormMap Logo" class="h-full w-full object-contain">
+            </div>
+            <h2 class="text-2xl font-bold">Login</h2>
+            <p class="text-xs text-slate-500 mt-1">Your role is automatically detected from your account</p>
+          </div>
+          {{#if authError}}
+            <div class="card-alt text-red-700 mb-4 leading-relaxed">{{{ authError }}}</div>
+          {{/if}}
+          {{#if authSuccess}}
+            <div class="card-alt bg-emerald-50 text-emerald-700 mb-4 leading-relaxed">{{{ authSuccess }}}</div>
+          {{/if}}
+          <form method="POST" action="/login" class="grid gap-4">
+            <label>
+              <span class="text-sm text-slate-700">Email</span>
+              <input type="email" name="email" value="{{ authValues.email }}" class="input mt-2" placeholder="you@example.com" required />
+            </label>
+            <label>
+              <span class="text-sm text-slate-700">Password</span>
+              <input type="password" name="password" class="input mt-2" placeholder="Password" required />
+            </label>
+            <button type="submit" class="button-primary">Login</button>
+          </form>
+          <div class="mt-4 grid gap-3">
+            <a href="/auth/google" class="button-secondary inline-flex items-center justify-center gap-3 px-4 py-3 text-sm font-semibold">
+              <span aria-hidden="true" class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-slate-900 shadow-sm">G</span>
+              Sign in with Google
+            </a>
+            <p class="text-center text-sm text-slate-600">Quick login using your Google account.</p>
+          </div>
+          <div class="text-center mt-4 text-sm text-slate-600">
+            Don't have an account? <a href="/register" class="link">Register</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    {{#if googleNotRegistered}}
+    if (typeof Swal !== 'undefined') {
+      const email = '{{googleNotRegisteredEmail}}';
+      const emailBadge = email
+        ? `<div class="my-2.5 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3.5 py-1 text-xs font-bold text-emerald-800"><i class="fa-solid fa-envelope"></i> ${email}</div>`
+        : '';
+
+      Swal.fire({
+        icon: 'warning',
+        title: 'Account Not Registered Yet',
+        html: `
+          <div class="text-slate-600 text-sm leading-relaxed text-center">
+            <p>Ang Google account na ginamit mo sa pag-sign in ay <strong>hindi pa nakarehistro</strong> sa DorMap.</p>
+            ${emailBadge}
+            <p class="mt-2 text-xs text-slate-500">
+              Kailangan mo munang gumawa ng account upang makapaghanap ng dorm o makapag-post ng iyong boarding house. Piliin ang iyong account type:
+            </p>
+            <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
+              <div class="p-2.5 rounded-xl border border-emerald-100 bg-emerald-50/60 text-xs">
+                <span class="font-bold text-emerald-950 block">🏠 Tenant / Student</span>
+                <span class="text-slate-500">Maghanap ng verified dorms, mag-inquire, at mag-reserve ng kwarto.</span>
+              </div>
+              <div class="p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs">
+                <span class="font-bold text-slate-900 block">🏢 House Owner</span>
+                <span class="text-slate-500">Ilista ang boarding house at pamahalaan ang mga boarders at kwarto.</span>
+              </div>
+            </div>
+          </div>
+        `,
+        showCancelButton: true,
+        showDenyButton: true,
+        confirmButtonText: '🏠 Register as Tenant',
+        denyButtonText: '🏢 Register as Owner',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#047857',
+        denyButtonColor: '#023020',
+        cancelButtonColor: '#94a3b8',
+        customClass: {
+          popup: 'rounded-3xl p-5 sm:p-6 shadow-2xl max-w-md',
+          title: 'text-lg sm:text-xl font-black text-slate-900',
+          confirmButton: 'rounded-full px-4 py-2.5 text-xs sm:text-sm font-bold shadow-md',
+          denyButton: 'rounded-full px-4 py-2.5 text-xs sm:text-sm font-bold shadow-md',
+          cancelButton: 'rounded-full px-4 py-2.5 text-xs sm:text-sm font-semibold'
+        }
+      }).then((result) => {
+        if (result.isConfirmed) {
+          window.location.href = '/auth/google?accountType=tenant';
+        } else if (result.isDenied) {
+          window.location.href = '/auth/google?accountType=boarding_house_owner';
+        }
+      });
+    }
+    {{/if}}
+  </script>
+
+{{> footer }}

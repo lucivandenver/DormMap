@@ -1,0 +1,56 @@
+{{> head}}
+
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex items-center justify-center p-4">
+  <div class="max-w-md w-full bg-white rounded-3xl p-8 border border-slate-200 shadow-2xl text-center space-y-6 animate-in fade-in duration-300">
+    <div class="inline-flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-500 text-white text-4xl shadow-lg ring-8 ring-emerald-100">
+      ✓
+    </div>
+
+    <div class="space-y-1">
+      <span class="inline-block px-3 py-1 bg-emerald-50 text-emerald-800 rounded-full text-[10px] font-bold uppercase tracking-wider">Payment Verified</span>
+      <h1 class="text-2xl font-black text-slate-900 tracking-tight">Payment Successful!</h1>
+      <p class="text-xs text-slate-500">Your rent payment has been officially confirmed and credited.</p>
+    </div>
+
+    <div id="receiptDetailsBox" class="p-5 bg-slate-50 rounded-2xl border border-slate-100 space-y-2.5 text-xs text-left">
+      <div class="flex justify-between"><span class="text-slate-400 font-medium">Transaction Ref:</span><span class="font-bold text-slate-900" id="dispRef">{{reference}}</span></div>
+      <div class="flex justify-between"><span class="text-slate-400 font-medium">Receipt Number:</span><span class="font-bold text-emerald-800" id="dispReceipt">—</span></div>
+      <div class="flex justify-between"><span class="text-slate-400 font-medium">Amount Paid:</span><span class="font-black text-slate-900 text-sm" id="dispAmount">₱0.00</span></div>
+      <div class="flex justify-between"><span class="text-slate-400 font-medium">Billing Period:</span><span class="font-bold text-slate-800" id="dispMonth">—</span></div>
+    </div>
+
+    <div class="space-y-3 pt-2">
+      <a id="btnDownloadReceipt" href="#" target="_blank" class="block w-full py-3 bg-emerald-950 text-white font-bold rounded-2xl text-xs hover:bg-emerald-900 transition shadow-md">
+        📄 Download Official Receipt
+      </a>
+      <a href="/tenant-dashboard" class="block w-full py-3 bg-slate-100 text-slate-700 font-bold rounded-2xl text-xs hover:bg-slate-200 transition">
+        Return to Dashboard
+      </a>
+    </div>
+  </div>
+
+  <script>
+    const ref = "{{reference}}";
+
+    async function loadSuccessDetails() {
+      if (!ref) return;
+      try {
+        const res = await fetch(`/api/payments/status/by-ref?ref=${ref}`);
+        if (res.ok) {
+          const data = await res.json();
+          document.getElementById('dispReceipt').innerText = data.receiptNumber || 'REC-CONFIRMED';
+          document.getElementById('dispAmount').innerText = `₱${Number(data.amount || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+          document.getElementById('dispMonth').innerText = data.billingMonth || 'Current Period';
+
+          if (data.receiptUrl) {
+            document.getElementById('btnDownloadReceipt').href = data.receiptUrl;
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    loadSuccessDetails();
+  </script>
+</body>
