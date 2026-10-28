@@ -246,7 +246,9 @@ Alternative sa `DB_SSL_CA`: gumawa ng Render Secret File na `ca.pem` at set
    generated session secret at manual deployment setting. Review muna ang plan at
    costs; hindi kusang gumagawa ng Render service ang file na ito.
 
-**Kung Render Free muna:** puwedeng i-demo ang app gamit ang parehong build/start
+**Kung Render Free muna:** alisin ang `UPLOAD_DIR` override, o gamitin ang
+`UPLOAD_DIR=./public/uploads`. Huwag gamitin ang `/var/data/uploads` kung walang
+persistent disk na naka-mount sa `/var/data`. Puwedeng i-demo ang app gamit ang parehong build/start
 commands, pero huwag umasa sa local uploads: nawawala ang bagong files sa restart,
 redeploy o spin-down. Hindi supported ang persistent disk sa Free. Kailangan ng
 external object storage integration bago iyon gamitin para sa durable uploads;
@@ -254,6 +256,13 @@ hindi pa kasama ang S3/Cloudinary integration sa review na ito. Relational data
 at sessions ay nasa Aiven. Blocked din ang SMTP ports 465/587 sa Free, kaya ang
 current Gmail SMTP reset/verification emails ay nangangailangan ng paid compute
 o ibang email transport implementation.
+
+Kung naiwan ang `/var/data/uploads` at nagbalik iyon ng `EACCES`, `EPERM` o `EROFS`,
+ang app ay gagamit ng writable `public/uploads` fallback at maglalabas ng warning.
+Parehong folder ang ginagamit ng uploads at downloads. Temporary storage pa rin
+iyon; hindi nito ginagawang persistent ang Free plan. Sa paid disk setup, puwedeng
+set `UPLOAD_DIR_STRICT=true` para huminto ang startup kung hindi writable ang disk,
+sa halip na gumamit ng temporary fallback. Enabled ito sa paid blueprint.
 
 ## 7. Optional Google login, email, payments at Dormigo
 
@@ -328,6 +337,7 @@ Remove-Item Env:DB_NAME
 
 | Error | Check |
 | --- | --- |
+| `EACCES ... /var/data/uploads` | Walang writable disk sa path. Free: remove `UPLOAD_DIR` or set `./public/uploads`; paid: verify disk mount `/var/data`. |
 | `ECONNREFUSED` locally | Running ba ang MySQL? Tama ba ang host at port? |
 | Aiven connection timeout | Service status, network allowlist, outbound ranges, port |
 | `self-signed certificate` | Actual Aiven CA contents/path, `DB_SSL=true` |

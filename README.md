@@ -56,6 +56,12 @@ The separate `backend/` folder is not the entry point of these dashboards.
 It does not create infrastructure by itself. Free Render instances cannot keep
 the current local uploads across restarts/redeploys.
 
+For a Free service, omit `UPLOAD_DIR` or set `./public/uploads`. `/var/data/uploads`
+requires an attached writable disk. If a configured folder is denied/read-only,
+startup falls back to local uploads with a warning; those files are temporary.
+Set `UPLOAD_DIR_STRICT=true` to require the configured disk instead. The paid
+blueprint enables strict mode.
+
 The migration command creates missing tables/columns without dropping tables,
 changing existing column types or deleting unknown legacy columns. It uses a
 database advisory lock to serialize concurrent bootstrap runs. Back up before

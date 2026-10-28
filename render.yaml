@@ -19,11 +19,13 @@ services:
       - key: NODE_ENV
         value: production
       - key: NODE_VERSION
-        value: 24
+        value: "24"
       - key: SESSION_SECRET
         generateValue: true
       - key: UPLOAD_DIR
         value: /var/data/uploads
+      - key: UPLOAD_DIR_STRICT
+        value: "true"
       - key: DB_SSL
         value: "true"
       - key: DB_HOST

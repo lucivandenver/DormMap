@@ -19,18 +19,31 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
   const { User } = await import('../../models/userModel.js');
   const { BoardingHouse, OwnerRoom } = await import('../../models/ownerModels.js');
   const { SavedDorm } = await import('../../models/savedDormModel.js');
+  const { TenantDocument } = await import('../../models/tenantModels.js');
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'dormmap-integration-'));
   let server;
   let base;
   let ids = [];
-  async function start() {
+  const uploadedFiles = [];
+  async function start({ deniedUploads = false } = {}) {
     const probe = net.createServer().listen(0, '127.0.0.1');
     await once(probe, 'listening');
     const port = probe.address().port;
     await new Promise(resolve => probe.close(resolve));
-    server = spawn(process.execPath, ['index.js'], {
+    const preload = path.join(directory, 'deny-upload.mjs');
+    if (deniedUploads) fs.writeFileSync(preload, `
+      import fs from 'node:fs';
+      const mkdir = fs.mkdirSync.bind(fs);
+      fs.mkdirSync = (target, options) => {
+        if (target === process.env.UPLOAD_DIR) {
+          throw Object.assign(new Error('permission denied'), { code: 'EACCES' });
+        }
+        return mkdir(target, options);
+      };
+    `);
+    server = spawn(process.execPath, [...(deniedUploads ? ['--import', preload] : []), 'index.js'], {
       cwd: new URL('../../', import.meta.url),
-      env: { ...process.env, NODE_ENV: 'development', PORT: String(port), UPLOAD_DIR: directory, SESSION_SECRET: 'integration-session-secret-keep-between-restarts' },
+      env: { ...process.env, NODE_ENV: 'development', PORT: String(port), UPLOAD_DIR: deniedUploads ? path.join(directory, 'denied-mount') : directory, UPLOAD_DIR_STRICT: 'false', SESSION_SECRET: 'integration-session-secret-keep-between-restarts' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     await new Promise((resolve, reject) => {
@@ -60,7 +73,9 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
   try {
     await migrateSchema({ createDatabase: true });
     const suffix = Date.now();
-    const password = await bcrypt.hash('test-password-123', 4);
+    // A bcrypt 5 hash must remain usable after updating the runtime to bcrypt 6.
+    const password = '$2b$04$l.BV6KSMb9VAGyiF9pJpV.CWCrM5qEs2tNQ0ysFRyG4wS.5wObq0i';
+    assert.equal(await bcrypt.compare('test-password-123', password), true);
     const users = await User.bulkCreate([
       { fullName: 'Review Tenant', email: `review-${suffix}@example.test`, password, accountType: 'tenant', emailVerified: true },
       { fullName: 'Second Tenant', email: `second-${suffix}@example.test`, password, accountType: 'tenant', emailVerified: true },
@@ -132,6 +147,21 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.equal(await (await request('/uploads/review-persistent.txt')).text(), 'persistent upload');
       assert.equal((await request('/api/payments/seed-demo')).status, 404);
     });
+    await t.test('an EACCES disk does not prevent boot, multipart upload or file download', async () => {
+      await stop();
+      await start({ deniedUploads: true });
+      assert.equal((await request('/healthz')).status, 200);
+      const form = new FormData();
+      form.set('title', 'Fallback storage check');
+      form.set('docType', 'other');
+      form.set('document', new Blob(['fallback upload works'], { type: 'text/plain' }), 'fallback-check.txt');
+      const response = await request('/tenant-dashboard/api/documents', cookie, { method: 'POST', body: form });
+      assert.equal(response.status, 201, await response.clone().text());
+      const data = await response.json();
+      assert.match(data.document.fileUrl, /^\/uploads\/tenant-/);
+      uploadedFiles.push(new URL('../../public' + data.document.fileUrl, import.meta.url));
+      assert.equal(await (await request(data.document.fileUrl)).text(), 'fallback upload works');
+    });
     await request(`/tenant-dashboard/api/saved-dorms/${key}`, cookie, { method: 'DELETE' });
     assert.equal(await SavedDorm.count({ where: { tenantId: tenant.id } }), 0);
     assert.ok(room.id);
@@ -140,11 +170,13 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
     if (ids.length) {
       const { Op } = await import('sequelize');
       await SavedDorm.destroy({ where: { tenantId: { [Op.in]: ids } } });
+      await TenantDocument.destroy({ where: { tenantId: { [Op.in]: ids } } });
       await OwnerRoom.destroy({ where: { ownerId: { [Op.in]: ids } } });
       await BoardingHouse.destroy({ where: { ownerId: { [Op.in]: ids } } });
       await User.destroy({ where: { id: { [Op.in]: ids } } });
     }
     await closeDatabase();
+    for (const file of uploadedFiles) fs.rmSync(file, { force: true });
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });

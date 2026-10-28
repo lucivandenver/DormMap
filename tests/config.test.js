@@ -6,6 +6,7 @@ import path from 'node:path';
 import { databaseConfig } from '../config/database.js';
 import { sessionOptions, sessionStore } from '../config/session.js';
 import { prepareUploads } from '../config/storage.js';
+import * as storage from '../config/storage.js';
 
 after(() => sessionStore.stopExpiringSessions());
 
@@ -50,4 +51,51 @@ test('moving uploads onto a disk preserves newer files on repeated starts', () =
     assert.equal(fs.readFileSync(path.join(target, 'old.jpg'), 'utf8'), 'newer disk copy');
     assert.equal(fs.readFileSync(path.join(target, 'new.jpg'), 'utf8'), 'new upload');
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('a denied upload directory falls back and still accepts files', t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'dormmap-denied-'));
+  const denied = path.join(directory, 'unmounted-disk');
+  const fallback = path.join(directory, 'uploads');
+  const mkdir = fs.mkdirSync.bind(fs);
+  const warnings = [];
+  t.mock.method(console, 'warn', message => warnings.push(message));
+  t.mock.method(fs, 'mkdirSync', (target, options) => {
+    if (target === denied) throw Object.assign(new Error('permission denied'), { code: 'EACCES' });
+    return mkdir(target, options);
+  });
+  try {
+    assert.equal(prepareUploads(denied, fallback), fallback);
+    fs.writeFileSync(path.join(fallback, 'uploaded.txt'), 'new upload');
+    assert.equal(fs.readFileSync(path.join(fallback, 'uploaded.txt'), 'utf8'), 'new upload');
+    assert.match(warnings[0], /temporary.*restart or redeploy/);
+    assert.deepEqual(fs.readdirSync(fallback), ['uploaded.txt']);
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('strict disk configuration fails instead of using temporary storage', t => {
+  const original = process.env.UPLOAD_DIR_STRICT;
+  process.env.UPLOAD_DIR_STRICT = 'true';
+  t.mock.method(fs, 'mkdirSync', () => {
+    throw Object.assign(new Error('read-only disk'), { code: 'EROFS' });
+  });
+  try { assert.throws(() => prepareUploads('/unwritable-disk', '/fallback'), error => error.code === 'EROFS'); }
+  finally {
+    if (original === undefined) delete process.env.UPLOAD_DIR_STRICT; else process.env.UPLOAD_DIR_STRICT = original;
+  }
+});
+
+test('startup exports the selected fallback to all upload consumers', t => {
+  const fallback = fs.mkdtempSync(path.join(os.tmpdir(), 'dormmap-shared-'));
+  const configured = storage.uploadDir;
+  const mkdir = fs.mkdirSync.bind(fs);
+  t.mock.method(console, 'warn', () => {});
+  t.mock.method(fs, 'mkdirSync', (target, options) => {
+    if (target === configured) throw Object.assign(new Error('permission denied'), { code: 'EACCES' });
+    return mkdir(target, options);
+  });
+  try {
+    assert.equal(prepareUploads(undefined, fallback), fallback);
+    assert.equal(storage.uploadDir, fallback);
+  } finally { fs.rmSync(fallback, { recursive: true, force: true }); }
 });
