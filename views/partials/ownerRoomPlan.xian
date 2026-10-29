@@ -1,0 +1,17 @@
+<section data-room-plan data-initial-plan="{{authValues.roomPlan}}" data-initial-floors="{{authValues.floorCount}}" data-initial-type="{{authValues.propertyType}}" data-initial-address="{{authValues.streetAddress}}" class="room-plan-panel" aria-label="Property and room inventory">
+  <h3>Property, floors & rooms</h3>
+  <p class="room-plan-help">Start with your main property. One owner account can manage additional branches after approval. Each new branch is reviewed by its own barangay.</p>
+  <div class="room-plan-grid">
+    <label>Property type<select name="propertyType"><option>Boarding House</option><option>Dormitory</option><option>Apartment</option><option>Bedspace Residence</option><option>Family Rental</option><option>Mixed</option></select></label>
+    <label>Number of floors<input name="floorCount" type="number" min="1" max="50" value="1" required></label>
+    <label class="room-plan-wide">Street address / landmark<input name="streetAddress" maxlength="2000" placeholder="Street, purok, landmark (separate from your barangay)"></label>
+  </div>
+  <div class="room-plan-grid"><label>Property amenities<textarea name="amenities" rows="2" placeholder="Wi-Fi, water, study area"></textarea></label><label>House rules<textarea name="houseRules" rows="2" placeholder="Quiet hours, visitors, cooking"></textarea></label></div>
+  <p class="room-plan-help">Bedspace = one person per bed. A whole-room rental has one lease, with a household count. Prices below are monthly and show their basis.</p>
+  <div data-room-rows></div>
+  <div class="room-plan-actions"><button type="button" data-room-add>Add a room</button><label>Generate rooms<input type="number" data-generate-count min="1" max="25" value="1" aria-label="Number of rooms to generate"></label><button type="button" data-room-generate>Add copies of last room</button></div>
+  <p data-room-summary role="status" aria-live="polite"></p>
+  <p data-room-error role="alert" class="room-plan-error"></p>
+  <input type="hidden" name="roomPlan" value="[]">
+  <p class="room-plan-help">Unavailable slots are owner-reported, not identified tenants. After approval, link those occupants in Tenants so they are not counted twice. Do not include tenant names or IDs here.</p>
+</section>

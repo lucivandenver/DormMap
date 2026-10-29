@@ -26,6 +26,7 @@ export const TenantDocument = sequelize.define('TenantDocument', {
 }, { tableName: 'TenantDocuments' });
 
 export const TenantApplication = sequelize.define('TenantApplication', {
+  occupantCount: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
   tenantId:          { type: DataTypes.INTEGER, allowNull: false }, // User.id (tenant)
   ownerId:           { type: DataTypes.INTEGER, allowNull: false }, // User.id (owner)
   boardingHouseId:   { type: DataTypes.INTEGER, allowNull: true },  // BoardingHouse.id if assigned

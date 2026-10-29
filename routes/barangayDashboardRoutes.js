@@ -43,6 +43,9 @@ router.get('/api/permit-renewals', controller.getPermitRenewals);
 router.post('/api/permit-renewals', upload.single('renewalDocument'), controller.submitPermitRenewal);
 router.patch('/api/permit-renewals/:id', controller.updatePermitRenewalStatus);
 
+router.get('/api/branches', controller.listBranches);
+router.patch('/api/branches/:id/review', controller.reviewBranchApplication);
+
 // Owner Applications & Boarding Houses
 router.get('/api/applications', controller.applications);
 router.patch('/api/applications/:id/review', controller.reviewApplication);

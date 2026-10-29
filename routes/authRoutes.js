@@ -1,9 +1,12 @@
+import { randomUUID } from 'node:crypto';
+import { BoardingHouse, OwnerRoom } from '../models/ownerModels.js';
+import { validateOwnerSetup, registerPropertyInventory } from '../services/ownerRegistrationService.js';
 import { hasApprovedBarangay, ownerBarangayError } from '../services/registrationPolicy.js';
 import { uploadDir } from '../config/storage.js';
 import express from "express";
 import passport from "passport";
 import { Op as SequelizeOp } from "sequelize";
-import { User, Op as ModelOp } from "../models/userModel.js";
+import { User, sequelize, Op as ModelOp } from "../models/userModel.js";
 import { OwnerGallery } from "../models/ownerModels.js";
 
 const Op = SequelizeOp || ModelOp || User.sequelize?.Sequelize?.Op;
@@ -26,7 +29,7 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
-    cb(null, `${Date.now()}-${safeName}`);
+    cb(null, `${randomUUID()}-${safeName}`);
   },
 });
 const allowedMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
@@ -34,7 +37,7 @@ const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024, files: 16 },
   fileFilter: (req, file, cb) => {
-    if (!allowedMimeTypes.has(file.mimetype)) {
+    if (!allowedMimeTypes.has(file.mimetype) || !['.jpg','.jpeg','.png','.webp','.pdf'].includes(path.extname(file.originalname).toLowerCase())) {
       return cb(new Error('Only JPG, PNG, WEBP, and PDF files are allowed.'));
     }
     cb(null, true);
@@ -61,7 +64,11 @@ const registerUpload = upload.fields([
 router.get("/login", loginPage);
 router.post("/login", loginUser);
 router.get("/register", registerPage);
-router.post("/register", registerUpload, registerUser);
+const cleanFailedRegistration = (req, res, next) => {
+  res.on('finish', () => { if (!req.registrationSaved) for (const files of Object.values(req.files || {})) for (const file of files) { if (file.filename) fs.rm(path.join(uploadDir, path.basename(file.filename)), { force: true }, () => {}); } });
+  next();
+};
+router.post("/register", cleanFailedRegistration, registerUpload, registerUser);
 router.get("/forgot-password", forgotPasswordPage);
 router.post("/forgot-password", sendPasswordResetLink);
 router.get("/reset-password", resetPasswordPage);
@@ -174,17 +181,22 @@ router.get("/auth/google/callback", (req, res, next) => {
 router.get("/complete-barangay-profile", completeBarangayProfilePage);
 router.post("/complete-barangay-profile", completeBarangayProfile);
 
-router.get("/complete-owner-profile", (req, res) => {
+router.get("/complete-owner-profile", async (req, res, next) => {
   const pendingId = req.session.pendingOwnerUserId || req.session.userId;
   if (!pendingId) return res.redirect("/login");
   
+  try {
+    const user = await User.findByPk(pendingId);
+    if (!user || user.accountType !== 'boarding_house_owner') return res.redirect('/dashboard');
+    if (await OwnerRoom.count({ where: { ownerId: user.id } })) return res.redirect('/owner-dashboard');
+  } catch (error) { return next(error); }
   res.render("completeOwnerProfile", {
     title: "Complete Property Details | DormMap",
     error: ""
   });
 });
 
-router.post("/complete-owner-profile", registerUpload, async (req, res) => {
+router.post("/complete-owner-profile", cleanFailedRegistration, registerUpload, async (req, res) => {
   const pendingId = req.session.pendingOwnerUserId || req.session.userId;
   if (!pendingId) return res.redirect("/login");
 
@@ -203,6 +215,7 @@ router.post("/complete-owner-profile", registerUpload, async (req, res) => {
 
   const renderError = (error) => res.render("completeOwnerProfile", {
     title: "Complete Property Details | DormMap",
+    authValues: req.body,
     error
   });
 
@@ -223,6 +236,10 @@ router.post("/complete-owner-profile", registerUpload, async (req, res) => {
     if (user.accountType !== 'boarding_house_owner') return res.status(403).send('Owner account required.');
     if (!await hasApprovedBarangay(boardingHouseAddress)) return renderError(ownerBarangayError);
 
+    let setup;
+    try { setup = validateOwnerSetup(req.body, req.files); } catch (error) { return renderError(error.message); }
+    await sequelize.transaction(async transaction => {
+    await user.reload({ transaction, lock: transaction.LOCK.UPDATE });
     const getUploadUrl = (field) => req.files?.[field]?.[0] ? `/uploads/${req.files[field][0].filename}` : null;
 
     // New 5-category gallery photos (required by the registration wizard)
@@ -256,6 +273,7 @@ router.post("/complete-owner-profile", registerUpload, async (req, res) => {
     user.barangay = boardingHouseAddress; // Sort by barangay
     user.roomsAvailable = Number(roomsAvailable) || 1;
     user.contactNumber = contactNumber;
+    user.paymentMethods = JSON.stringify([].concat(req.body.paymentMethods || []).filter(method => ['Cash','GCash','Bank Transfer'].includes(method)));
     if (gcashNumber) user.gcashNumber = gcashNumber;
     if (gcashName) user.gcashName = gcashName;
     user.mapPin = mapPin;
@@ -274,7 +292,8 @@ router.post("/complete-owner-profile", registerUpload, async (req, res) => {
       user.galleryImages = JSON.stringify(galleryImagesArr);
     }
 
-    await user.save();
+    await user.save({ transaction });
+    const primary = await registerPropertyInventory(user, setup, transaction);
 
     // Populate initial OwnerGallery records so owner dashboard gallery is fully synced
     const categoryMetadata = [
@@ -287,20 +306,22 @@ router.post("/complete-owner-profile", registerUpload, async (req, res) => {
     for (const item of categoryMetadata) {
       if (item.img) {
         try {
-          const existing = await OwnerGallery.findOne({ where: { ownerId: user.id, sortOrder: item.slot } });
+          const existing = await OwnerGallery.findOne({ where: { ownerId: user.id, sortOrder: item.slot }, transaction });
           if (existing) {
             existing.imageUrl = item.img;
             existing.caption = item.caption;
             existing.imageType = item.type;
-            await existing.save();
+            existing.boardingHouseId = primary.id;
+            await existing.save({ transaction });
           } else {
             await OwnerGallery.create({
               ownerId: user.id,
+              boardingHouseId: primary.id,
               imageUrl: item.img,
               caption: item.caption,
               sortOrder: item.slot,
               imageType: item.type
-            });
+            }, { transaction });
           }
         } catch (e) {
           console.error("Error saving owner gallery slot:", e);
@@ -308,6 +329,9 @@ router.post("/complete-owner-profile", registerUpload, async (req, res) => {
       }
     }
 
+    });
+
+    req.registrationSaved = true;
     // Authenticate session completely
     req.session.userId = user.id;
     req.session.accountType = user.accountType;

@@ -2,7 +2,8 @@
 
 Render/Aiven deployment support and the upload-storage fix are already on `main`.
 The live landing-page and approval changes were merged in PR #1.
-Google admin, property/tenant/room and payment fixes are prepared in `codex/admin-owner-gcash` for review.
+Google admin, property/tenant/room and payment fixes were merged in PR #2.
+Owner registration, floor/bed inventory and additional-branch review are prepared in `codex/owner-room-registration`. No additional environment variables are required; `npm run start:render` applies the additive model migration. Back up the database before production migration.
 
 ## 1. Ano talaga ang ide-deploy?
 

@@ -1,3 +1,4 @@
+import { validateOwnerSetup, registerPropertyInventory } from '../services/ownerRegistrationService.js';
 
       /*
     MIT License
@@ -735,6 +736,10 @@ export const registerUser = async (req, res) => {
     // Undecided tenants can register without a boarding house selection.
     // They can select/update their boarding house later from their dashboard.
 
+    let setup;
+    if (normalizedAccountType === 'boarding_house_owner') {
+      try { setup = validateOwnerSetup(req.body, req.files); } catch (error) { return renderRegisterPage(res, { authAccountType: normalizedAccountType, authError: error.message, authValues: req.body }); }
+    }
     const hashed = await bcrypt.hash(password, 10);
     const verificationToken = Math.random().toString(36).substring(2, 18);
     const supportingDocuments = JSON.stringify({
@@ -753,7 +758,8 @@ export const registerUser = async (req, res) => {
       galleryBathroom || ''
     ];
 
-    const user = await User.create({
+    const user = await sequelize.transaction(async transaction => {
+    const created = await User.create({
       accountType: normalizedAccountType,
       applicationStatus: ['boarding_house_owner', 'barangay'].includes(normalizedAccountType) ? 'pending' : 'approved',
       fullName,
@@ -777,11 +783,19 @@ export const registerUser = async (req, res) => {
       businessPermit: accountType === "boarding_house_owner" ? businessPermit : null,
       supportingDocuments: accountType === "boarding_house_owner" ? supportingDocuments : null,
       selectedBoardingHouse: accountType === "tenant" ? selectedBoardingHouse || null : null,
-      validIdPicture: accountType === "tenant" ? validIdPicture : null,
+      validIdPicture: validIdPicture,
+      barangayClearance: getUploadedPath(req.files, "barangayClearance"),
+      rentalPermit: getUploadedPath(req.files, "rentalPermit"),
+      gcashNumber: normalizedAccountType === "boarding_house_owner" ? String(req.body.gcashNumber || "").trim().slice(0,30) || null : null,
+      gcashName: normalizedAccountType === "boarding_house_owner" ? String(req.body.gcashName || "").trim().slice(0,255) || null : null,
       contactNumber: contactNumber || null,
       notes: notes || null,
+    }, { transaction });
+    if (setup) await registerPropertyInventory(created, setup, transaction);
+    return created;
     });
 
+    req.registrationSaved = true;
     // Populate initial OwnerGallery records so owner gallery is fully synced
     if (normalizedAccountType === "boarding_house_owner") {
       const categoryMetadata = [

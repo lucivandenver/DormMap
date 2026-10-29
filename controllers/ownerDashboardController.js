@@ -1,3 +1,4 @@
+import { propertyMetadata, floorNumber } from '../services/roomPlanService.js';
 import { syncPrimaryHouse } from '../services/primaryHouseService.js';
 import { saveRoom, saveTenant, removeRoom, removeTenant, offerApplication, ownerLock, fail } from '../services/occupancyService.js';
 import { hasApprovedBarangay } from '../services/registrationPolicy.js';
@@ -162,7 +163,7 @@ export const createBoardingHouse = async (req, res, next) => {
       return res.status(400).json({ error: 'Boarding House name is required.' });
     }
     const owner = await User.findByPk(ownerId);
-    if (!barangay || barangay !== owner.barangay || !await hasApprovedBarangay(barangay)) return res.status(422).json({ error: 'Choose your approved barangay jurisdiction. Contact BPLO to transfer to another barangay.' });
+    if (!barangay || !await hasApprovedBarangay(barangay)) return res.status(422).json({ error: 'Choose a barangay with an approved, active official. Each new branch requires its own barangay review.' });
     if (!latitude || !longitude) return res.status(422).json({ error: 'Select the actual property location on the map.' });
     if ((latitude && (!Number.isFinite(Number(latitude)) || Math.abs(Number(latitude)) > 90)) || (longitude && (!Number.isFinite(Number(longitude)) || Math.abs(Number(longitude)) > 180))) return res.status(422).json({ error: 'Invalid map coordinates.' });
     const house = await BoardingHouse.create({
@@ -177,7 +178,9 @@ export const createBoardingHouse = async (req, res, next) => {
       description: description || '',
       amenities: amenities || '',
       houseRules: houseRules || '',
-      isPrimary: false
+      ...propertyMetadata({ ...req.body, streetAddress: address }),
+      isPrimary: false,
+      approvalStatus: 'pending'
     });
     await audit(req, 'create_boarding_house', 'BoardingHouse', house.id, { name: house.name });
     res.status(201).json({ data: house, message: 'Boarding House added successfully.' });
@@ -189,7 +192,11 @@ export const updateBoardingHouse = async (req, res, next) => {
     const ownerId = oid(req);
     const house = await BoardingHouse.findOne({ where: { id: req.params.id, ownerId } });
     if (!house) return res.status(404).json({ error: 'Boarding house not found.' });
-    const safeBody = Object.fromEntries(['name','address','latitude','longitude','picture','description','amenities','houseRules'].filter(key => req.body[key] !== undefined).map(key => [key, req.body[key]]));
+    if (req.body.barangay && req.body.barangay !== house.barangay) fail('An existing property cannot silently move jurisdictions. Register a separate branch or contact BPLO about a transfer.');
+    const safeBody = Object.fromEntries(['name','address','latitude','longitude','picture','description','amenities','houseRules','propertyType','floorCount'].filter(key => req.body[key] !== undefined).map(key => [key, req.body[key]]));
+    if ('propertyType' in safeBody || 'floorCount' in safeBody) { const metadata = propertyMetadata({ propertyType: safeBody.propertyType || house.propertyType, floorCount: safeBody.floorCount || house.floorCount || 1 }); safeBody.propertyType = metadata.propertyType; safeBody.floorCount = metadata.floorCount; }
+    if (safeBody.floorCount && (await OwnerRoom.findAll({ where: { ownerId, boardingHouseId: house.id } })).some(room => floorNumber(room.floor) > safeBody.floorCount)) fail('Move or update rooms on higher floors before reducing this property’s floor count.');
+    if (!house.isPrimary && ['rejected','revision_requested'].includes(house.approvalStatus)) safeBody.approvalStatus = 'pending';
     if ('name' in safeBody && !String(safeBody.name).trim()) fail('Boarding house name cannot be empty.');
     if ('latitude' in safeBody && safeBody.latitude !== '' && (!Number.isFinite(Number(safeBody.latitude)) || Math.abs(Number(safeBody.latitude)) > 90)) fail('Invalid latitude.');
     if ('longitude' in safeBody && safeBody.longitude !== '' && (!Number.isFinite(Number(safeBody.longitude)) || Math.abs(Number(safeBody.longitude)) > 180)) fail('Invalid longitude.');
@@ -225,9 +232,9 @@ export const getRooms = async (req, res, next) => {
     if (req.query.status) where.status = req.query.status;
     if (req.query.boardingHouseId) where.boardingHouseId = Number(req.query.boardingHouseId);
     const data = await OwnerRoom.findAll({ where, order: [['roomNumber', 'ASC']] });
-    const tenants = await OwnerTenant.findAll({ where: { ownerId: oid(req), status: 'active' }, attributes: ['id','roomId','fullName'] });
+    const tenants = await OwnerTenant.findAll({ where: { ownerId: oid(req), status: 'active' }, attributes: ['id','roomId','fullName','occupantCount','bedNumber'] });
     const houses = await BoardingHouse.findAll({ where: { ownerId: oid(req) }, attributes: ['id','name'] });
-    res.json({ data: data.map(room => ({ ...room.toJSON(), boardingHouseName: houses.find(house => house.id === room.boardingHouseId)?.name || '', occupants: tenants.filter(tenant => tenant.roomId === room.id) })) });
+    res.json({ data: data.map(room => ({ ...room.toJSON(), boardingHouseName: houses.find(house => house.id === room.boardingHouseId)?.name || '', occupants: tenants.filter(tenant => tenant.roomId === room.id), occupiedPeople: tenants.filter(tenant => tenant.roomId === room.id).reduce((sum, tenant) => sum + tenant.occupantCount, 0) })) });
   } catch (err) { next(err); }
 };
 

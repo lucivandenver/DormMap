@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DormMap</title>
 
+  <link rel="stylesheet" href="/css/adaptive-navigation.css">
+  <script src="/js/adaptive-navigation.js" defer></script>
+  <link rel="stylesheet" href="/css/room-registration.css">
+  <script src="/js/owner-room-plan.js" defer></script>
+  <script src="/js/registration-files.js" defer></script>
+  <script src="/js/room-details.js"></script>
+  <script src="/js/branch-review.js" defer></script>
   <!-- PWA Manifest & App Icons -->
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#007a64">

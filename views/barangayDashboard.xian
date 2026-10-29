@@ -366,7 +366,7 @@
       </section>
 
       <!-- PANEL 6: BOARDING HOUSES -->
-      <section data-panel="houses" class="hidden">
+      <section data-panel="houses" class="hidden"><section data-branch-review="/barangay-dashboard/api" class="rounded-2xl border bg-white p-5 mb-5 space-y-3"><div class="flex flex-wrap justify-between gap-3"><div><h2 class="font-bold">Additional property / branch applications</h2><p class="text-xs text-slate-500">Review only branches in your assigned barangay. A branch uses the owner’s existing account.</p></div><button type="button" data-branch-refresh class="button secondary">Refresh branches</button></div><p data-branch-error role="alert" class="text-sm text-rose-700"></p><div data-branch-list class="space-y-3">Loading branches…</div></section>
         <div class="table-wrap">
           <table>
             <thead>

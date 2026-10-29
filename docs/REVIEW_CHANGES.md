@@ -2,15 +2,20 @@
 
 Prepared: 29 October 2026, Manila
 
-**Current review branch:** `codex/admin-owner-gcash`, based on main commit `4b3e8d6a6b09f28bfde76e108ce5d234a1e234a2`.
+**Current review branch:** `codex/owner-room-registration`, based on main `456b0dd6824909b6fdb714ce4ccc638aaf193d0a`. PR #1 and #2 are already merged. This change is for review; it does not deploy Render.
 
-The live landing/approval changes from PR #1 have already been merged. This branch contains the subsequent admin, owner, tenant/room, unregistered-map and payment fixes.
+## Owner registration and inventory enhancement
 
-The original shortlist/Render/Aiven changes described below and the upload fallback fix were already pushed to main. This new branch adds live public statistics, geographic search with no invented pins/prices, and BPLO approval of barangay accounts. Owner registration now requires an approved active barangay official. See the final section of `docs/DEPLOY_RENDER_AIVEN.md` for definitions and setup. No live Render deployment is performed by this change.
+- Both password and Google completion registration create a primary property and actual room records together. Five gallery categories, five supporting documents and a profile photo are validated on the server (5 MB each). Failed submissions clean up their new uploads.
+- Owners specify property type, up to 50 floors, room numbers, bedspace/solo/shared/studio/family/apartment types, physical beds, person capacity, monthly rent basis and existing unavailable slots. Room numbers must be unique on each floor. Bedspaces require one capacity slot per bed; solo rooms have capacity one.
+- A single account can manage branches in other barangays that have an approved active official. Additional branches stay hidden from tenants until reviewed, with actual room inventory, by their assigned barangay or BPLO. Revision/rejection/suspension notes are visible to the owner. Branch listing approval does not issue or replace a business permit; existing permit records remain owner based.
+- Tenant assignments track household size and unique bed numbers. Whole-room rentals become unavailable after one lease, including a family smaller than the room capacity. Existing unavailable slots can be converted to identified tenants without counting occupancy twice. Suspension blocks new occupancy but permits move-outs.
+- Tenant/public listing details show floors, room type, physical beds, occupancy, owner-reported unavailable spaces, free spaces and monthly price basis. Tenant identities are not exposed publicly. These counts update on listing refresh; this change does not claim every open details panel streams room changes.
+- Shared navigation gains keyboard focus, mobile drawer controls, panel history and responsive table scrolling. Registration has file previews and room-plan summaries, with validated transitions between steps. Privacy text no longer claims an unverified hosting provider.
 
-This branch also fixes Google admin provisioning through an explicit verified-email operator allowlist, property/profile synchronization, room/tenant occupancy transactions, owner offers and tenant confirmation, rent bills and PayMongo reconciliation, and scoped red unregistered map notices. It adds real inventory-based BPLO/barangay counts and owner pagination. See `docs/DEPLOY_RENDER_AIVEN.md` for the required `ADMIN_GOOGLE_EMAILS` configuration and merchant settlement limitations.
+Legacy room prices retain their existing per-person basis. Existing branches default to approved to preserve their prior visibility. New columns are additive through `npm run migrate`; review a database backup before production migration. No new environment variable is required.
 
-Validation: 23 unit tests; 13 database scenarios plus the parent runner, including concurrent occupancy/checkout requests and a signed HTTP webhook; desktop/mobile browser checks and owner property registration, room/tenant/move-out, red-pin publication/details, BPLO review and live landing updates. No live Google session, real-money charge, or Render deployment is claimed. The configured PayMongo merchant receives hosted checkout funds; owner GCash metadata is not automatic per-owner settlement.
+Validation: 27 unit tests; 16 database scenarios plus their parent runner, including multipart registration, concurrent occupancy, household/bed rules, scoped branch approval, checkout and signed webhook handling. Desktop/mobile browser checks cover the registration wizard, file previews, map pin, branch review, room/tenant changes and listing details. No live Google OAuth, real-money charge or Render deployment is claimed. PayMongo settlement limitations documented below are unchanged.
 
 ## Existing system, based on the repository
 
