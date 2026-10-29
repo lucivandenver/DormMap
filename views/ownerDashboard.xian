@@ -228,6 +228,7 @@
             <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
             <span>Messaging</span>
           </button>
+          <button data-view="maintenance" class="nav"><span>Maintenance Requests</span></button>
           <button data-view="notifications" class="nav">
             <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
             <span>Notifications</span>
@@ -769,6 +770,7 @@
         </div>
       </section>
 
+      <section data-panel="maintenance" class="hidden space-y-4"><h2 class="text-xl font-bold">Tenant maintenance requests</h2><p class="text-sm text-slate-500">Review reported issues and send a status update to the tenant.</p><div id="ownerMaintenanceList" class="space-y-3"></div></section>
       <!-- PANEL 11: MAP -->
       <section data-panel="map" class="hidden bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
         <div class="flex items-center justify-between">
@@ -809,9 +811,9 @@
             <div class="flex items-center justify-between">
               <label class="block text-xs font-bold text-emerald-900 flex items-center gap-1.5">
                 <svg class="w-4 h-4 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-                Pumili ng Boarding House (Select Boarding House to Manage Photos):
+                Select the property to manage photos:
               </label>
-              <span class="text-[11px] text-emerald-700 font-semibold hidden sm:inline">Palitan ang boarding house para makita ang pictures nito</span>
+              <span class="text-[11px] text-emerald-700 font-semibold hidden sm:inline">Select a property to view its photos</span>
             </div>
             <select id="galleryBoardingHouseSelector" onchange="onGalleryBoardingHouseChange()" class="w-full text-sm font-semibold border border-emerald-300 rounded-lg px-3 py-2.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs cursor-pointer">
               <option value="">— Naglo-load ng mga Boarding House… —</option>
@@ -1242,7 +1244,7 @@
         <span>ℹ️</span> Two-Way Acceptance Workflow
       </p>
       <p>
-        Kapag in-accept mo ito, maipapadala ang alok (offer) sa dashboard ni tenant. <strong>Hindi pa siya ganap na tenant hanggang hindi niya ito ina-accept back</strong> para makaiwas sa double booking.
+        The room offer will appear on the tenant dashboard. <strong>The tenant must confirm it before a space is assigned</strong> to prevent double booking.
       </p>
     </div>
 
@@ -1350,6 +1352,7 @@
     else if (currentTab === 'payments') loadPayments();
     else if (currentTab === 'inquiries') loadInquiries();
     else if (currentTab === 'messages') loadMessages();
+    else if (currentTab === 'maintenance') loadOwnerMaintenance();
     else if (currentTab === 'notifications') loadNotifications();
     else if (currentTab === 'map') initOsmMap();
     else if (currentTab === 'gallery') loadGallery();
@@ -1855,7 +1858,7 @@
         </div>
 
         <div class="flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
-          <button onclick="onRoomBhChange(${bh.id}); switchTab('rooms');" class="text-emerald-700 font-bold hover:underline flex items-center gap-1">
+          <button onclick="onRoomBhChange(${bh.id}); show('rooms');" class="text-emerald-700 font-bold hover:underline flex items-center gap-1">
             <span>Manage Rooms →</span>
           </button>
           <div class="flex items-center gap-2">
@@ -2210,8 +2213,9 @@
       const roomOptions = '<option value="">No Room Assigned</option>' + (roomsData.data || []).map(r =>
         `<option value="${r.id}">${esc(r.boardingHouseName || 'Boarding house')} — Room ${esc(r.roomNumber)} (${esc(r.roomType)}) · ${r.availableSlots} free - ₱${Number(r.rentalPrice).toLocaleString()}</option>`
       ).join('');
-      document.getElementById('tenantRoomSelect').innerHTML = roomOptions;
-      document.getElementById('acceptAppRoomSelect').innerHTML = roomOptions;
+      for (const id of ['tenantRoomSelect','acceptAppRoomSelect']) {
+        const select=document.getElementById(id),previous=select.value;select.innerHTML=roomOptions;if([...select.options].some(option=>option.value===previous))select.value=previous;
+      }
     } catch (err) {
       console.error('Error loading tenants:', err);
     }
@@ -2512,7 +2516,7 @@
     const inboxUsers = {};
     
     data.forEach(m => {
-      const peer = m.senderId;
+      const peer = m.peerId;
       if (!inboxUsers[peer]) {
         inboxUsers[peer] = m;
       }
@@ -2520,8 +2524,8 @@
 
     inbox.innerHTML = Object.entries(inboxUsers).map(([peer, m]) => `
       <button onclick="openChat(${peer})" class="w-full text-left p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition">
-        <h4 class="font-bold text-slate-800 text-sm">User ID: ${peer}</h4>
-        <p class="text-xs text-slate-500 truncate mt-1">${m.message}</p>
+        <h4 class="font-bold text-slate-800 text-sm">${esc(m.peerName)}</h4>
+        <p class="text-xs text-slate-500 truncate mt-1">${esc(m.message)}</p>
       </button>
     `).join('');
   }
@@ -2530,12 +2534,13 @@
     document.getElementById('msgRecipientId').value = peerId;
     const res = await fetch('/owner-dashboard/api/messages');
     const { data } = await res.json();
-    const filtered = data.filter(m => m.senderId === peerId || m.recipientId === peerId).reverse();
+    peerId = Number(peerId);
+    const filtered = data.filter(m => Number(m.peerId) === peerId).reverse();
     const chat = document.getElementById('messageChat');
     chat.innerHTML = filtered.map(m => `
       <div class="flex ${m.senderId === peerId ? 'justify-start' : 'justify-end'}">
         <div class="rounded-2xl px-4 py-2 text-sm max-w-xs ${m.senderId === peerId ? 'bg-slate-200 text-slate-800' : 'bg-emerald-700 text-white'}">
-          ${m.message}
+          ${esc(m.message)}
         </div>
       </div>
     `).join('');
@@ -2557,8 +2562,16 @@
     openChat(recipientId);
   });
 
+  async function loadOwnerMaintenance() {
+    const {data}=await ownerRequest('/owner-dashboard/api/maintenance');
+    const list=document.getElementById('ownerMaintenanceList');
+    list.innerHTML=data.length?data.map(row=>`<article class="rounded-xl border bg-white p-4 space-y-2"><h3 class="font-bold">${esc(row.title)}</h3><p class="text-xs">${esc(row.tenantName)} · ${esc(row.priority)} · ${esc(row.status)}</p><p class="text-sm">${esc(row.description)}</p><p class="text-sm text-emerald-800">${esc(row.ownerResponse||'No owner response yet.')}</p><form data-maintenance-id="${row.id}" class="flex flex-wrap gap-2"><label class="text-xs">Status<select name="status" class="block rounded border p-2"><option value="in_progress">In progress</option><option value="resolved">Resolved</option><option value="rejected">Declined</option></select></label><label class="flex-1 text-xs">Response<input name="ownerResponse" required maxlength="2000" class="block w-full rounded border p-2" placeholder="Explain the action or repair schedule"></label><button class="rounded bg-emerald-800 px-4 py-2 text-sm text-white">Send update</button></form></article>`).join(''):'<p class="rounded-xl border bg-white p-4 text-sm text-slate-500">No maintenance requests.</p>';
+    list.querySelectorAll('form').forEach(form=>form.onsubmit=async event=>{event.preventDefault();try{await ownerRequest('/owner-dashboard/api/maintenance/'+form.dataset.maintenanceId,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(form)))});ownerToast('Tenant notified of the maintenance update.');loadOwnerMaintenance();}catch(error){ownerToast(error.message,true);}});
+  }
+
   // ─── Notifications ───
-  async function loadNotifications() {
+  async function loadNotifications() { return window.DormMapPortal?.refresh(); }
+async function loadLegacyNotifications() {
     const res = await fetch('/owner-dashboard/api/notifications');
     const { data } = await res.json();
     const list = document.getElementById('notificationsList');
@@ -2675,7 +2688,7 @@
       // Populate boarding house selector
       if (selector) {
         if (boardingHouses.length === 0) {
-          selector.innerHTML = `<option value="">— Walang Boarding House na nahanap. Magdagdag muna sa Boarding House Profile. —</option>`;
+          selector.innerHTML = `<option value="">— No property found. Add one in Boarding House Profile first. —</option>`;
         } else {
           selector.innerHTML = boardingHouses.map(bh =>
             `<option value="${bh.id}" ${String(bh.id) === String(activeId) ? 'selected' : ''}>🏠 ${bh.name}${bh.isPrimary ? ' ⭐ (Primary)' : ''} — ${bh.address || ''}</option>`
@@ -2766,11 +2779,11 @@
       if (typeof Swal !== 'undefined') {
         Swal.fire({
           icon: 'info',
-          title: 'Walang piniling larawan',
-          text: 'Pumili ng kahit isang photo category na nais mong i-upload o palitan.',
+          title: 'No photo selected',
+          text: 'Select at least one photo category to upload or replace.',
         });
       } else {
-        alert('Pumili ng kahit isang photo category na nais mong i-upload o palitan.');
+        alert('Select at least one photo category to upload or replace.');
       }
       return;
     }

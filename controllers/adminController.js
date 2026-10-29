@@ -656,7 +656,7 @@ export const reviewPermitRenewal = async (req, res, next) => {
 
       await OwnerNotification.create({
         ownerId: renewal.ownerId,
-        title: 'Business Permit Renewal Approved! 🎉',
+        title: 'Business Permit Renewal Approved',
         body: `Your business permit renewal request (${pNum}) has been APPROVED by BPLO Bongabong.`,
         type: 'permit',
       }).catch(() => {});

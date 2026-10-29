@@ -1,3 +1,5 @@
+import { BarangayMessage } from '../models/adminModels.js';
+import { namedMessages } from '../services/messageIdentityService.js';
 import { propertyMetadata, floorNumber } from '../services/roomPlanService.js';
 import { syncPrimaryHouse } from '../services/primaryHouseService.js';
 import { saveRoom, saveTenant, removeRoom, removeTenant, offerApplication, ownerLock, fail } from '../services/occupancyService.js';
@@ -9,7 +11,7 @@ import {
   BoardingHouse, OwnerRoom, OwnerTenant, OwnerPayment, OwnerInquiry,
   OwnerMessage, OwnerNotification, OwnerActivityLog, OwnerGallery,
 } from '../models/ownerModels.js';
-import { TenantApplication } from '../models/tenantModels.js';
+import { TenantApplication, MaintenanceRequest } from '../models/tenantModels.js';
 import { sequelize } from '../models/db.js';
 
 const oid = (req) => req.session.userId;
@@ -399,18 +401,32 @@ export const createInquiry = async (req, res, next) => {
 export const getMessages = async (req, res, next) => {
   try {
     const id = oid(req);
-    const data = await OwnerMessage.findAll({
+    const direct = await OwnerMessage.findAll({
       where: { [Op.or]: [{ senderId: id }, { recipientId: id }] },
       order: [['createdAt', 'DESC']],
     });
+    const official = await BarangayMessage.findAll({ where: { [Op.or]: [{ senderId: id }, { recipientId: id }] }, order: [['createdAt','DESC']] });
+    const data = [...direct,...official].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+    await BarangayMessage.update({isRead:true},{where:{recipientId:id,isRead:false}});
     await OwnerMessage.update({ isRead: true }, { where: { recipientId: id, isRead: false } });
-    res.json({ data });
+    res.json({ data: await namedMessages(data, id) });
   } catch (err) { next(err); }
 };
 
 export const sendMessage = async (req, res, next) => {
   try {
-    const data = await OwnerMessage.create({ ...req.body, senderId: oid(req), ownerId: oid(req) });
+    const recipient = await User.findByPk(req.body.recipientId);
+    const message = String(req.body.message || '').trim();
+    if (!recipient || recipient.isArchived || recipient.isSuspended || recipient.id === Number(oid(req)) || !message || message.length > 5000) return res.status(422).json({ error: 'Select a recipient and enter a message up to 5,000 characters.' });
+    const prior = await OwnerMessage.count({ where: { [Op.or]: [{ senderId: oid(req), recipientId: recipient.id }, { senderId: recipient.id, recipientId: oid(req) }] } });
+    const tenant = await OwnerTenant.count({ where: { ownerId: oid(req), tenantUserId: recipient.id } });
+    const officialConversation = await BarangayMessage.count({ where: { [Op.or]: [{senderId:oid(req),recipientId:recipient.id},{senderId:recipient.id,recipientId:oid(req)}] } });
+    if (officialConversation && ['barangay','super_admin','bplo_admin'].includes(recipient.accountType)) {
+      const data = await BarangayMessage.create({senderId:oid(req),recipientId:recipient.id,message,subject:String(req.body.subject||'').slice(0,255)||null});
+      return res.status(201).json({data,message:'Message sent.'});
+    }
+    if (!prior && !tenant) return res.status(403).json({ error: 'Choose one of your existing conversations or tenants.' });
+    const data = await OwnerMessage.create({ recipientId: recipient.id, message, subject: String(req.body.subject || '').slice(0,255) || null, senderId: oid(req), ownerId: oid(req) });
     res.status(201).json({ data, message: 'Message sent.' });
   } catch (err) { next(err); }
 };
@@ -1230,7 +1246,7 @@ export const declineTenantApplication = async (req, res, next) => {
 
     await OwnerNotification.create({
       ownerId,
-      title: '❌ Tenant Application Declined',
+      title: 'Tenant Application Declined',
       body: `You have declined ${tenantUser.fullName}'s rental application.`,
       type: 'tenant_declined',
     }).catch(() => {});
@@ -1239,3 +1255,22 @@ export const declineTenantApplication = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+
+export const getMaintenance = async (req,res,next) => {
+  try {
+    const rows=await MaintenanceRequest.findAll({where:{ownerId:oid(req)},order:[['createdAt','DESC']]});
+    const users=rows.length?await User.findAll({where:{id:{[Op.in]:rows.map(row=>row.tenantId)}},attributes:['id','fullName']}):[];
+    res.json({data:rows.map(row=>({...row.toJSON(),tenantName:users.find(user=>user.id===row.tenantId)?.fullName||'Former tenant'}))});
+  }catch(error){next(error);}
+};
+export const updateMaintenance = async (req,res,next) => {
+  try {
+    const row=await MaintenanceRequest.findOne({where:{id:req.params.id,ownerId:oid(req)}});
+    if(!row)return res.status(404).json({error:'Maintenance request not found.'});
+    if(!['in_progress','resolved','rejected'].includes(req.body.status))return res.status(422).json({error:'Select a valid maintenance status.'});
+    const ownerResponse=String(req.body.ownerResponse||'').trim().slice(0,2000);
+    if(!ownerResponse)return res.status(422).json({error:'Enter a response so the tenant understands this update.'});
+    await row.update({status:req.body.status,ownerResponse,resolvedAt:req.body.status==='resolved'?new Date():null});
+    await audit(req,'update_maintenance','MaintenanceRequest',row.id,{status:row.status});res.json({message:'Maintenance request updated.'});
+  }catch(error){next(error);}
+};

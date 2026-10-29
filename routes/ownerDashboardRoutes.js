@@ -72,6 +72,8 @@ router.patch('/api/inquiries/:id/reply', controller.replyInquiry);
 router.patch('/api/inquiries/:id/archive', controller.archiveInquiry);
 
 // Messages
+router.get('/api/maintenance', controller.getMaintenance);
+router.patch('/api/maintenance/:id', controller.updateMaintenance);
 router.get('/api/messages', controller.getMessages);
 router.post('/api/messages', controller.sendMessage);
 

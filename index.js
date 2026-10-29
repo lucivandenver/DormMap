@@ -49,6 +49,7 @@ const __dirname = dirname(__filename);
 
 import { resolveGoogleAccount } from "./services/googleAccountService.js";
 import { installLandingUpdates } from "./services/landingService.js";
+import { installPortalActivity } from "./services/portalActivityService.js";
 import { initWebSocket } from "./services/websocketService.js";
 
 const app = express();
@@ -181,6 +182,7 @@ fs.readdir(partialsDir, (err, files) => {
     });
 });
 
+installPortalActivity(app);
 app.use("/", router);
 
 app.use((error, req, res, next) => {

@@ -382,7 +382,7 @@ export const createMaintenanceRequest = async (req, res, next) => {
     if (tenantRec?.ownerId) {
       await OwnerNotification.create({
         ownerId: tenantRec.ownerId,
-        title: '🔧 New Maintenance Request',
+        title: 'New Maintenance Request',
         body: `Tenant ${user.fullName} submitted a maintenance request: "${title}"`,
         type: 'maintenance',
         link: '#maintenance'
@@ -630,11 +630,11 @@ export const sendMessage = async (req, res, next) => {
 
     await OwnerNotification.create({
       ownerId: ownerId,
-      title: '💬 New Message from Tenant',
+      title: 'New Message from Tenant',
       body: `${user.fullName}: "${message.trim().substring(0, 60)}..."`,
       type: 'message',
       link: '#messages'
-    }).catch(() => {});
+    }).catch(error => console.error('Message notification failed:', error.message));
 
     res.status(201).json({ message: 'Message sent successfully.', newMessage });
   } catch (err) { next(err); }
@@ -750,7 +750,7 @@ export const applyBoardingHouse = async (req, res, next) => {
     // Create OwnerNotification
     await OwnerNotification.create({
       ownerId: owner.id,
-      title: '🏠 New Tenant Application Pending',
+      title: 'New Tenant Application Pending',
       body: `${user.fullName} inquired/applied for ${boardingHouseName}${roomTypeInfo}. Review & accept tenant in your portal.`,
       type: 'tenant_application',
       link: '#tenants'
@@ -802,7 +802,7 @@ export const cancelApplication = async (req, res, next) => {
     // Notify owner
     await OwnerNotification.create({
       ownerId: app.ownerId,
-      title: '❌ Tenant Cancelled Application',
+      title: 'Tenant Cancelled Application',
       body: `${user.fullName} has cancelled/declined their application for ${app.boardingHouseName}.`,
       type: 'tenant_cancelled',
       link: '#tenants'

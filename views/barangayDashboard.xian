@@ -1604,7 +1604,7 @@ async function loadMessages() {
     let d = await req(api + '/messages');
     document.getElementById('messageRows').innerHTML = d.data.length ? d.data.map(x => `
       <tr>
-        <td class="text-xs">#${x.senderId}</td>
+        <td class="text-xs">${esc(x.senderName)}</td>
         <td class="text-xs font-bold">${esc(x.subject || '—')}</td>
         <td class="text-xs">${esc(x.message)}</td>
       </tr>
@@ -1623,7 +1623,8 @@ document.getElementById('messageForm').onsubmit = async e => {
 };
 
 // 13. NOTIFICATIONS
-async function loadNotifications() {
+async function loadNotifications() { return window.DormMapPortal?.refresh(); }
+async function loadLegacyNotifications() {
   try {
     let d = await req(api + '/notifications');
     document.getElementById('notificationList').innerHTML = d.data.length ? d.data.map(x => `
