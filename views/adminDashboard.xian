@@ -339,7 +339,7 @@
       </section>
 
       <!-- VIEW 4: OWNER APPLICATIONS -->
-      <section data-view="owners" class="hidden space-y-6">
+      <section data-view="owners" class="hidden space-y-6"><section data-branch-review="/admin/api" class="rounded-2xl border bg-white p-5 space-y-3"><div class="flex flex-wrap justify-between gap-3"><div><h2 class="font-bold">Additional property / branch applications</h2><p class="text-xs text-slate-500">Each branch belongs to its own barangay jurisdiction. Pending branches stay off tenant listings.</p></div><button type="button" data-branch-refresh class="button secondary">Refresh branches</button></div><p data-branch-error role="alert" class="text-sm text-rose-700"></p><div data-branch-list class="space-y-3">Loading branches…</div></section>
         <div class="toolbar bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
           <input id="ownerSearch" class="field !w-64" placeholder="Search owner, property, email">
           <select id="ownerStatus" class="field !w-44">

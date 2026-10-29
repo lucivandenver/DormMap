@@ -1,6 +1,6 @@
 import { Op } from 'sequelize';
 import { User } from '../models/userModel.js';
-import { BoardingHouse, OwnerRoom } from '../models/ownerModels.js';
+import { BoardingHouse, OwnerRoom, OwnerTenant } from '../models/ownerModels.js';
 import { TenantApplication } from '../models/tenantModels.js';
 import { SavedDorm } from '../models/savedDormModel.js';
 
@@ -57,11 +57,12 @@ export async function listTenantDorms(tenantId, query = {}, { includeUnregistere
       'rentalPriceMin', 'rentalPriceMax', 'amenities', 'houseRules', 'roomTypes', 'paymentMethods', 'galleryImages', 'createdAt', 'publicMapUnregistered'],
   });
   const ownerIds = owners.map(owner => owner.id);
-  const [houses, rooms, applications, saved] = await Promise.all([
+  const [houses, rooms, applications, saved, occupants] = await Promise.all([
     BoardingHouse.findAll({ where: { ownerId: { [Op.in]: ownerIds } } }),
     OwnerRoom.findAll({ where: { ownerId: { [Op.in]: ownerIds } } }),
     tenantId ? TenantApplication.findAll({ where: { tenantId }, order: [['createdAt', 'DESC'], ['id', 'DESC']] }) : [],
     tenantId ? SavedDorm.findAll({ where: { tenantId } }) : [],
+    OwnerTenant.findAll({ where: { ownerId: { [Op.in]: ownerIds }, status: 'active' }, attributes: ['ownerId','roomId','occupantCount','bedNumber'] }),
   ]);
   const savedKeys = new Set(saved.map(item => item.listingKey));
   const listings = [];
@@ -69,6 +70,7 @@ export async function listTenantDorms(tenantId, query = {}, { includeUnregistere
     const ownedHouses = houses.filter(house => house.ownerId === owner.id);
     if (!ownedHouses.length && !owner.boardingHouseName) continue;
     for (const house of ownedHouses.length ? ownedHouses : [null]) {
+      if (house && house.approvalStatus !== 'approved') continue;
       if (owner.publicMapUnregistered && house && house.barangay !== owner.barangay) continue;
       const key = house ? `bh-${house.id}` : `owner-${owner.id}`;
       const name = house?.name || owner.boardingHouseName || `${owner.fullName}'s Boarding House`;
@@ -78,8 +80,20 @@ export async function listTenantDorms(tenantId, query = {}, { includeUnregistere
       const prices = (available.length ? available : houseRooms).map(room => price(room.rentalPrice)).filter(value => value !== null);
       const app = applications.find(item => item.ownerId === owner.id &&
         (house ? item.boardingHouseId === house.id || (!item.boardingHouseId && item.boardingHouseName === name) : item.boardingHouseName === name));
+      const roomInventory = houseRooms.map(room => {
+        const active = occupants.filter(tenant => tenant.ownerId === owner.id && tenant.roomId === room.id);
+        return { id: room.id, roomNumber: room.roomNumber, floor: room.floor, roomType: room.roomType, rentalBasis: room.rentalBasis, rentalPrice: Number(room.rentalPrice), capacity: room.capacity, bedCount: room.bedCount, occupiedPeople: active.reduce((sum, tenant) => sum + Number(tenant.occupantCount || 1), 0), occupiedBeds: room.rentalBasis === 'bed' ? active.length : null, unavailableReported: room.reservedSlots, availableSlots: room.status === 'available' ? Number(room.availableSlots) : 0, status: room.status, genderPref: room.genderPref, furnished: room.furnished, aircon: room.aircon };
+      });
+      const bases = [...new Set(roomInventory.map(room => room.rentalBasis))];
       listings.push({
         id: key,
+        propertyType: house?.propertyType || 'Boarding House',
+        floorCount: house?.floorCount || null,
+        roomInventory,
+        pricingLabel: bases.length === 1 ? `per ${bases[0]} / month` : bases.length ? 'mixed price bases — see room rates' : 'monthly — confirm with owner',
+        totalCapacity: roomInventory.reduce((sum, room) => sum + room.capacity, 0),
+        occupiedPeople: roomInventory.reduce((sum, room) => sum + room.occupiedPeople, 0),
+        availableBeds: roomInventory.filter(room => room.rentalBasis === 'bed').reduce((sum, room) => sum + room.availableSlots, 0),
         isPrimary: !house || house.isPrimary,
         registrationStatus: owner.publicMapUnregistered ? 'unregistered' : 'registered',
         createdAt: house?.createdAt || owner.createdAt,
@@ -104,7 +118,7 @@ export async function listTenantDorms(tenantId, query = {}, { includeUnregistere
         availableSlots: available.reduce((sum, room) => sum + Number(room.availableSlots), 0),
         rentalPriceMin: prices.length ? Math.min(...prices) : price(owner.rentalPriceMin),
         rentalPriceMax: prices.length ? Math.max(...prices) : price(owner.rentalPriceMax),
-        availableRooms: available.map(room => ({ id: room.id, roomNumber: room.roomNumber, roomType: room.roomType, rentalPrice: room.rentalPrice })),
+        availableRooms: roomInventory.filter(room => room.availableSlots > 0),
         application: app ? { id: app.id, status: app.status, requestedRoomType: app.requestedRoomType } : null,
         isSaved: savedKeys.has(key),
       });

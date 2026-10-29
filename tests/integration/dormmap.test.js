@@ -18,7 +18,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
   const { sequelize } = await import('../../models/db.js');
   const { migrateSchema, closeDatabase } = await import('../../services/schemaService.js');
   const { User } = await import('../../models/userModel.js');
-  const { BoardingHouse, OwnerRoom, OwnerTenant } = await import('../../models/ownerModels.js');
+  const { BoardingHouse, OwnerRoom, OwnerTenant, OwnerGallery } = await import('../../models/ownerModels.js');
   const { Barangay, EducationalInstitution } = await import('../../models/adminModels.js');
   const { TenantApplication } = await import('../../models/tenantModels.js');
   const { OwnerPayment } = await import('../../models/ownerModels.js');
@@ -326,6 +326,50 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.equal((await request(`/api/payments/status/by-ref?ref=${checkout.payment.internalReference}`, cookie)).status, 403);
       assert.equal((await request(`/api/payments/${checkout.payment.id}/receipt/download`, secondCookie)).status, 200);
     });
+    await t.test('owner signup atomically creates a property and detailed floor/bed inventory', async () => {
+      const form = new FormData();
+      const data = { accountType:'boarding_house_owner', fullName:'Registered Room Owner', email:`layout-${suffix}@example.test`, password:'test-password-123',confirmPassword:'test-password-123',acceptTerms:'on',boardingHouseName:'Layout Main',boardingHouseAddress:'Orconuma',streetAddress:'Purok 2, Main Street',roomsAvailable:'1',contactNumber:'09171234567',mapPin:'Lat 12.668945, Lon 121.491777',boardingHouseLatitude:'12.668945',boardingHouseLongitude:'121.491777',propertyType:'Mixed',floorCount:'2',roomPlan:JSON.stringify([{roomNumber:'101',floor:1,roomType:'Bedspace',capacity:6,bedCount:6,rentalBasis:'bed',unavailable:2,rentalPrice:1500},{roomNumber:'201',floor:2,roomType:'Family Room',capacity:4,bedCount:2,rentalBasis:'room',unavailable:0,rentalPrice:6000}]) };
+      for (const [key,value] of Object.entries(data)) form.set(key,value);
+      const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5X8AAAAASUVORK5CYII=','base64');
+      for (const name of ['profilePicture','galleryOutdoor','galleryLivingArea','galleryBedroom','galleryDining','galleryBathroom','validIdPicture','businessPermit','barangayClearance','proofOfOwnership','rentalPermit']) form.set(name,new Blob([png],{type:'image/png'}),name+'.png');
+      const response=await request('/register',null,{method:'POST',body:form});assert.equal(response.status,302,await response.clone().text());
+      const created=await User.findOne({where:{email:data.email}});assert.ok(created);ids.push(created.id);
+      for(const value of [created.profilePicture,created.boardingHousePicture,created.validIdPicture,created.businessPermit,created.barangayClearance,created.rentalPermit,...JSON.parse(created.galleryImages || '[]'),...Object.values(JSON.parse(created.supportingDocuments || '{}'))]) if(typeof value==='string'&&value.startsWith('/uploads/'))uploadedFiles.push(new URL('../../public'+value,import.meta.url));
+      const primary=await BoardingHouse.findOne({where:{ownerId:created.id,isPrimary:true}});assert.equal(primary.floorCount,2);assert.equal(primary.address,'Purok 2, Main Street');
+      const rooms=await OwnerRoom.findAll({where:{ownerId:created.id},order:[['roomNumber','ASC']]});assert.equal(rooms.length,2);assert.equal(rooms[0].availableSlots,4);assert.equal(rooms[1].bedCount,2);assert.equal(rooms[1].rentalBasis,'room');assert.equal(created.roomsAvailable,2);assert.equal(created.applicationStatus,'pending');
+    });
+    await t.test('bed numbers, reported occupancy and whole-room household leases stay consistent', async () => {
+      await house.update({ floorCount:4 });
+      const beds=await saveRoom(owner.id,null,{boardingHouseId:house.id,roomNumber:'401',floor:'4th Floor',roomType:'Bedspace',capacity:6,bedCount:6,rentalBasis:'bed',availableSlots:4,rentalPrice:1200});
+      const one=await saveTenant(owner.id,null,{fullName:'Bed Resident One',roomId:beds.id,monthlyRent:1200});
+      const two=await saveTenant(owner.id,null,{fullName:'Bed Resident Two',roomId:beds.id,monthlyRent:1200,useReservedSlot:true});
+      assert.notEqual(one.bedNumber,two.bedNumber);assert.equal((await OwnerRoom.findByPk(beds.id)).availableSlots,3);
+      await assert.rejects(saveTenant(owner.id,null,{fullName:'Duplicate Bed',roomId:beds.id,bedNumber:one.bedNumber,monthlyRent:1200}),/bed number/);
+      await saveTenant(owner.id,one.id,{status:'moved_out'});assert.equal((await OwnerRoom.findByPk(beds.id)).availableSlots,4);
+      const family=await saveRoom(owner.id,null,{boardingHouseId:house.id,roomNumber:'402',floor:'4th Floor',roomType:'Family Room',capacity:4,bedCount:2,rentalBasis:'room',rentalPrice:6000});
+      const household=await saveTenant(owner.id,null,{fullName:'Household Lead',roomId:family.id,occupantCount:3,monthlyRent:6000});
+      assert.equal((await OwnerRoom.findByPk(family.id)).availableSlots,0);
+      await assert.rejects(saveTenant(owner.id,null,{fullName:'Another Household',roomId:family.id,monthlyRent:6000}),/available capacity/);
+      const listings=await(await request('/api/boarding-houses')).json();const item=listings.find(item=>item.bhId===house.id);const info=item.roomInventory.find(room=>room.id===beds.id);
+      assert.equal(info.occupiedBeds,1);assert.equal(info.unavailableReported,1);assert.equal(info.availableSlots,4);assert.equal(info.floor,'4th Floor');assert.ok(!JSON.stringify(item).includes('Bed Resident'));
+      await saveTenant(owner.id,household.id,{status:'moved_out'});assert.equal((await OwnerRoom.findByPk(family.id)).availableSlots,4);
+    });
+    await t.test('another barangay can approve its own branch without another owner account', async () => {
+      const local=await User.create({fullName:'Labasan Official',email:`labasan-${suffix}@example.test`,password,accountType:'barangay',applicationStatus:'approved',barangay:'Labasan',emailVerified:true});ids.push(local.id);
+      const ownerCookie=await login(owner.email), originalOfficialCookie=await login(official.email),localCookie=await login(local.email);
+      const response=await request('/owner-dashboard/api/boarding-houses',ownerCookie,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'Second Barangay Branch',barangay:'Labasan',address:'Labasan main road',latitude:12.773,longitude:121.475,floorCount:4,propertyType:'Bedspace Residence'})});assert.equal(response.status,201,await response.clone().text());
+      const branch=(await response.json()).data;assert.equal(branch.ownerId,owner.id);assert.equal(branch.approvalStatus,'pending');
+      const post={method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'approve'})};
+      assert.equal((await request(`/barangay-dashboard/api/branches/${branch.id}/review`,originalOfficialCookie,post)).status,404);
+      assert.equal((await request(`/barangay-dashboard/api/branches/${branch.id}/review`,localCookie,post)).status,422);
+      await saveRoom(owner.id,null,{boardingHouseId:branch.id,roomNumber:'401',floor:'4th Floor',roomType:'Bedspace',capacity:4,bedCount:4,rentalBasis:'bed',rentalPrice:1600});
+      let listings=await(await request('/api/boarding-houses')).json();assert.ok(!listings.some(item=>item.bhId===branch.id));
+      assert.equal((await request(`/barangay-dashboard/api/branches/${branch.id}/review`,localCookie,post)).status,200);
+      listings=await(await request('/api/boarding-houses')).json();assert.ok(listings.some(item=>item.bhId===branch.id&&item.barangay==='Labasan'&&item.ownerId===owner.id));
+      assert.equal((await request(`/barangay-dashboard/api/branches/${branch.id}/review`,localCookie,{...post,body:JSON.stringify({action:'suspend',note:'Temporary inspection'})})).status,200);
+      listings=await(await request('/api/boarding-houses')).json();assert.ok(!listings.some(item=>item.bhId===branch.id));
+      assert.ok(listings.some(item=>item.bhId===house.id));
+    });
     await request(`/tenant-dashboard/api/saved-dorms/${key}`, cookie, { method: 'DELETE' });
     assert.equal(await SavedDorm.count({ where: { tenantId: tenant.id } }), 0);
     assert.ok(room.id);
@@ -346,6 +390,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       await Barangay.destroy({ where: { name: { [Op.like]: 'Review Barangay %' } } });
       await EducationalInstitution.destroy({ where: { name: { [Op.like]: 'Review School %' } } });
       await OwnerRoom.destroy({ where: { ownerId: { [Op.in]: ids } } });
+      await OwnerGallery.destroy({ where: { ownerId: { [Op.in]: ids } } });
       await BoardingHouse.destroy({ where: { ownerId: { [Op.in]: ids } } });
       await User.destroy({ where: { id: { [Op.in]: ids } } });
     }

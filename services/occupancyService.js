@@ -1,3 +1,4 @@
+import { floorNumber, floorLabel, ROOM_TYPES } from './roomPlanService.js';
 import { Op } from 'sequelize';
 import { sequelize } from '../models/db.js';
 import { User } from '../models/userModel.js';
@@ -21,9 +22,10 @@ export async function ownedRoom(ownerId, id, transaction) {
 export async function syncOccupancy(ownerId, roomIds, transaction) {
   for (const id of [...new Set(roomIds.filter(Boolean))]) {
     const room = await ownedRoom(ownerId, id, transaction);
-    const occupied = await OwnerTenant.count({ where: { ownerId, roomId: id, status: 'active' }, transaction });
+    const occupants = await OwnerTenant.findAll({ where: { ownerId, roomId: id, status: 'active' }, transaction });
+    const occupied = occupants.reduce((sum, tenant) => sum + Number(tenant.occupantCount || 1), 0);
     if (occupied + room.reservedSlots > room.capacity) fail('Room capacity cannot be lower than its active tenants and reserved slots.');
-    const availableSlots = room.status === 'maintenance' ? 0 : room.capacity - occupied - room.reservedSlots;
+    const availableSlots = room.status === 'maintenance' ? 0 : room.rentalBasis === 'room' && (occupants.length || room.reservedSlots > 0) ? 0 : room.capacity - occupied - room.reservedSlots;
     await room.update({ availableSlots, status: room.status === 'maintenance' ? 'maintenance' : availableSlots ? 'available' : 'occupied' }, { transaction });
   }
   const roomsAvailable = await OwnerRoom.count({ where: { ownerId, status: 'available', availableSlots: { [Op.gt]: 0 } }, transaction });
@@ -35,7 +37,9 @@ export async function saveRoom(ownerId, id, body) {
     const room = id ? await ownedRoom(ownerId, id, transaction) : null;
     const values = pick(body, ['roomNumber','roomType','floor','dimensions','genderPref','amenities','photos','description']);
     const capacity = integer(body.capacity ?? room?.capacity ?? 1, 1, 'Capacity');
-    const active = room ? await OwnerTenant.count({ where: { ownerId, roomId: room.id, status: 'active' }, transaction }) : 0;
+    const occupants = room ? await OwnerTenant.findAll({ where: { ownerId, roomId: room.id, status: 'active' }, transaction }) : [];
+    const active = occupants.reduce((sum, tenant) => sum + Number(tenant.occupantCount || 1), 0);
+    if (capacity > 100) fail('Room capacity cannot exceed 100 occupants.');
     if (capacity < active) fail('Move tenants before reducing room capacity.');
     values.capacity = capacity;
     values.rentalPrice = money(body.rentalPrice ?? room?.rentalPrice ?? 0);
@@ -43,14 +47,28 @@ export async function saveRoom(ownerId, id, body) {
     if (!values.boardingHouseId) fail('Select a boarding house before adding a room.');
     const house = await BoardingHouse.findOne({ where: { id: values.boardingHouseId, ownerId }, transaction });
     if (!house) fail('Boarding house does not belong to this owner.', 404);
+    const floor = floorNumber(body.floor ?? room?.floor ?? '1st Floor');
+    if (!Number.isInteger(floor) || floor < 1 || floor > (house.floorCount || 50)) fail('Select a floor within this property’s floor count.');
+    values.floor = floorLabel(floor);
+    values.roomType = body.roomType || room?.roomType || (capacity === 1 ? 'Solo Room' : 'Shared Room');
+    if (values.roomType === 'Solo Room' && capacity !== 1 && (!room || body.capacity !== undefined || body.roomType !== undefined)) fail('A solo room has one occupant. Choose Shared Room or Family Room for a larger capacity.');
+    if (!ROOM_TYPES.includes(values.roomType) && values.roomType !== room?.roomType) fail('Choose a supported room type.');
+    values.rentalBasis = body.rentalBasis || room?.rentalBasis || (values.roomType === 'Bedspace' ? 'bed' : 'person');
+    if (!['bed','room','person'].includes(values.rentalBasis) || (values.roomType === 'Bedspace' && values.rentalBasis !== 'bed')) fail('Choose a valid price basis; bedspace is per bed.');
+    values.bedCount = integer(body.bedCount || room?.bedCount || capacity, 1, 'Beds');
+    if (values.bedCount > 100) fail('Physical beds cannot exceed 100.');
+    if (values.rentalBasis === 'bed' && values.bedCount !== capacity) fail('Bedspace beds and occupant capacity must match.');
+    if (values.rentalBasis === 'room' && occupants.length > 1) fail('Move or consolidate existing tenants before switching to a whole-room lease.');
+    if (room && active && room.rentalBasis !== values.rentalBasis) fail('Move current tenants out before changing the rent basis.');
     if (room && active && values.boardingHouseId !== room.boardingHouseId) fail('Move active tenants out before moving this room to another house.');
     values.roomNumber = String(values.roomNumber ?? room?.roomNumber ?? '').trim();
     if (!values.roomNumber) fail('Room number is required.');
-    const duplicate = await OwnerRoom.findOne({ where: { ownerId, boardingHouseId: values.boardingHouseId, roomNumber: values.roomNumber, ...(id ? { id: { [Op.ne]: id } } : {}) }, transaction });
+    const duplicate = await OwnerRoom.findOne({ where: { ownerId, boardingHouseId: values.boardingHouseId, floor: values.floor, roomNumber: values.roomNumber, ...(id ? { id: { [Op.ne]: id } } : {}) }, transaction });
     if (duplicate) fail('This room number already exists in the selected boarding house.', 409);
+    if (values.rentalBasis === 'room' && occupants.length && Number(body.availableSlots) > 0) fail('Move the active household out before making this whole room available.');
     const desired = body.availableSlots === undefined || body.availableSlots === '' ? null : integer(body.availableSlots, 0, 'Available slots');
     if (desired !== null && desired > capacity - active) fail('Available slots exceed the unoccupied capacity.');
-    values.reservedSlots = desired === null ? room?.reservedSlots || 0 : capacity - active - desired;
+    values.reservedSlots = desired === null || (values.rentalBasis === 'room' && room && (occupants.length || room.reservedSlots > 0) && desired === 0) ? room?.reservedSlots || 0 : capacity - active - desired;
     const status = body.status ?? room?.status ?? 'available';
     if (!['available','occupied','maintenance'].includes(status)) fail('Invalid room status.');
     values.status = status === 'maintenance' ? status : 'available';
@@ -71,14 +89,31 @@ export async function saveTenant(ownerId, id, body, { transaction: suppliedTrans
     values.status = body.status ?? tenant?.status ?? 'active';
     if (!['active','moved_out','inactive','evicted'].includes(values.status)) fail('Invalid tenant status.');
     values.roomId = body.roomId === undefined ? tenant?.roomId || null : body.roomId ? integer(body.roomId, 1, 'Room') : null;
+    values.occupantCount = integer(body.occupantCount ?? tenant?.occupantCount ?? 1, 1, 'Household occupants');
+    if (values.occupantCount > 100) fail('Household occupants cannot exceed 100.');
     values.monthlyRent = money(body.monthlyRent ?? tenant?.monthlyRent ?? 0);
     // The ledger controls balance; a public form cannot inject IDs, owner IDs, or payment balances.
     if (trustedUserId) values.tenantUserId = trustedUserId;
     if (values.roomId) {
       const room = await ownedRoom(ownerId, values.roomId, transaction);
       if (values.status === 'active') {
-        const count = await OwnerTenant.count({ where: { ownerId, roomId: room.id, status: 'active', ...(id ? { id: { [Op.ne]: id } } : {}) }, transaction });
-        if (room.status === 'maintenance' || count + room.reservedSlots >= room.capacity) fail('This room has no available slots.', 409);
+        const others = await OwnerTenant.findAll({ where: { ownerId, roomId: room.id, status: 'active', ...(id ? { id: { [Op.ne]: id } } : {}) }, transaction });
+        const count = others.reduce((sum, tenant) => sum + Number(tenant.occupantCount || 1), 0);
+        const branch = await BoardingHouse.findByPk(room.boardingHouseId, { transaction });
+        if (branch?.approvalStatus !== 'approved' && (!tenant || tenant.status !== 'active' || tenant.roomId !== room.id || values.occupantCount > Number(tenant.occupantCount || 1))) fail('This branch is not approved for new tenancy.');
+        if (room.rentalBasis === 'bed' && values.occupantCount !== 1) fail('Each bedspace tenant occupies one bed. Add separate records for other bedspace tenants.');
+        if (body.useReservedSlot === true || body.useReservedSlot === 'on') {
+          const newlyLinked = tenant?.status === 'active' && tenant.roomId === room.id ? Math.max(0,values.occupantCount-Number(tenant.occupantCount || 1)) : values.occupantCount;
+          if (!newlyLinked) fail('This tenant is already assigned. Uncheck the existing-occupant option.');
+          if (room.reservedSlots < newlyLinked) fail('There are not enough owner-reported unavailable slots to link.');
+          await room.update({ reservedSlots: room.reservedSlots-newlyLinked }, { transaction });
+        }
+        if (room.status === 'maintenance' || (room.rentalBasis === 'room' && others.length) || count + values.occupantCount + room.reservedSlots > room.capacity) fail('This room has no available capacity for these occupants.', 409);
+        if (room.rentalBasis === 'bed') {
+          const taken = new Set(others.map(tenant => tenant.bedNumber).filter(Boolean));
+          values.bedNumber = body.bedNumber ? integer(body.bedNumber, 1, 'Bed number') : tenant?.roomId === room.id && tenant?.bedNumber || Array.from({ length: room.capacity }, (_,i) => i+1).find(n => !taken.has(n));
+          if (!values.bedNumber || values.bedNumber > room.capacity || taken.has(values.bedNumber)) fail('This bed number is unavailable.', 409);
+        } else values.bedNumber = null;
       }
     }
     for (const key of ['moveInDate','moveOutDate','contractStart','contractEnd']) if (values[key] === '') values[key] = null;
@@ -123,7 +158,10 @@ export async function offerApplication(ownerId, tenantUserId, body) {
     await room.reload({ transaction });
     if (!room.availableSlots || room.status === 'maintenance') fail('This room is full or unavailable.', 409);
     const house = await BoardingHouse.findByPk(room.boardingHouseId, { transaction });
-    await app.update({ status: 'accepted_by_owner', roomId: room.id, boardingHouseId: house.id, boardingHouseName: house.name, monthlyRent: money(body.monthlyRent ?? room.rentalPrice), moveInDate: body.moveInDate || null, ownerNotes: String(body.notes || '').slice(0,2000), acceptedAt: new Date() }, { transaction });
+    if (house?.approvalStatus !== 'approved') fail('This branch must be approved before offering rooms.');
+    const occupantCount = integer(body.occupantCount || 1, 1, 'Household occupants');
+    if (occupantCount > room.capacity || (room.rentalBasis === 'bed' && occupantCount !== 1)) fail('The offered household size does not match this room.');
+    await app.update({ occupantCount, status: 'accepted_by_owner', roomId: room.id, boardingHouseId: house.id, boardingHouseName: house.name, monthlyRent: money(body.monthlyRent ?? Number(room.rentalPrice)*(room.rentalBasis === 'person' ? occupantCount : 1)), moveInDate: body.moveInDate || null, ownerNotes: String(body.notes || '').slice(0,2000), acceptedAt: new Date() }, { transaction });
     return app;
   });
 }
@@ -136,11 +174,13 @@ export async function confirmOffer(userId, applicationId) {
     const user = await User.findByPk(userId, { transaction, lock: transaction.LOCK.UPDATE });
     const app = await TenantApplication.findByPk(applicationId, { transaction, lock: transaction.LOCK.UPDATE });
     if (app.status === 'confirmed') return app;
+    const branch = app.boardingHouseId ? await BoardingHouse.findByPk(app.boardingHouseId, { transaction }) : null;
+    if (branch?.approvalStatus !== 'approved') fail('This branch is not currently approved.');
     if (app.status !== 'accepted_by_owner') fail('This offer is not available for confirmation.');
     const otherActive = await OwnerTenant.findOne({ where: { tenantUserId: userId, status: 'active' }, transaction });
     if (otherActive) fail('You already have an active tenancy. Arrange move-out before confirming another.', 409);
     const existing = await OwnerTenant.findOne({ where: { ownerId: app.ownerId, email: user.email }, transaction });
-    await saveTenant(app.ownerId, existing?.id, { fullName: user.fullName, email: user.email, contactNumber: user.contactNumber, roomId: app.roomId, monthlyRent: app.monthlyRent, moveInDate: app.moveInDate || new Date().toISOString().slice(0,10), status: 'active' }, { transaction, trustedUserId: userId });
+    await saveTenant(app.ownerId, existing?.id, { occupantCount: app.occupantCount || 1, fullName: user.fullName, email: user.email, contactNumber: user.contactNumber, roomId: app.roomId, monthlyRent: app.monthlyRent, moveInDate: app.moveInDate || new Date().toISOString().slice(0,10), status: 'active' }, { transaction, trustedUserId: userId });
     await app.update({ status: 'confirmed', confirmedAt: new Date() }, { transaction });
     await user.update({ selectedBoardingHouse: app.boardingHouseName, applicationStatus: 'approved' }, { transaction });
     await TenantApplication.update({ status: 'cancelled_by_tenant' }, { where: { tenantId: userId, id: { [Op.ne]: app.id }, status: { [Op.in]: ['pending_owner','accepted_by_owner'] } }, transaction });

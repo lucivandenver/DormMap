@@ -18,6 +18,7 @@ export async function publicDormListings() {
   const listings = await listTenantDorms(null, {}, { includeUnregistered: true });
   const gallery = listings.length ? await OwnerGallery.findAll({ where: { ownerId: { [Op.in]: [...new Set(listings.map(item => item.ownerId))] } }, order: [['sortOrder', 'ASC']] }) : [];
   return listings.map(item => ({
+    roomInventory: item.roomInventory, propertyType: item.propertyType, floorCount: item.floorCount, totalCapacity: item.totalCapacity, occupiedPeople: item.occupiedPeople, availableBeds: item.availableBeds, pricingLabel: item.pricingLabel,
     id: item.id, registrationStatus: item.registrationStatus, bhId: item.establishmentId, ownerId: item.ownerId,
     boardingHouseName: item.name, boardingHouseAddress: item.address, barangay: item.barangay,
     fullName: item.ownerName, contactNumber: item.ownerContact,
@@ -37,7 +38,7 @@ export async function landingSnapshot() {
     EducationalInstitution.count({ where: { isActive: true } }),
     User.findAll({ where: activeBarangayWhere, attributes: ['barangay'] }),
   ]);
-  const activeTenants = owners.length ? await OwnerTenant.count({ where: { ownerId: { [Op.in]: owners.map(owner => owner.id) }, status: 'active' } }) : 0;
+  const activeTenants = owners.length ? await OwnerTenant.sum('occupantCount', { where: { ownerId: { [Op.in]: owners.map(owner => owner.id) }, status: 'active' } }) : 0;
   const now = new Date();
   // Calendar month in the Philippines, including the last eight hours of the prior UTC day.
   const ph = new Date(now.getTime() + 8 * 3600000);
@@ -45,7 +46,7 @@ export async function landingSnapshot() {
   return { listings, stats: {
     registeredHouses: listings.filter(item => item.registrationStatus === 'registered').length,
     newHousesThisMonth: listings.filter(item => item.registrationStatus === 'registered' && new Date(item.createdAt).getTime() >= start).length,
-    activeTenants, institutions,
+    activeTenants: Number(activeTenants || 0), institutions,
     barangays: new Set(officials.map(user => user.barangay).filter(Boolean)).size,
   }, updatedAt: now.toISOString() };
 }

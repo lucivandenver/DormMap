@@ -1,3 +1,4 @@
+import { listBranchApplications, reviewBranch } from '../services/branchReviewService.js';
 import { OwnerTenant, OwnerRoom, BoardingHouse } from '../models/ownerModels.js';
 import { inventorySummary } from '../services/inventorySummaryService.js';
 import { setPublicMapStatus } from '../services/publicMapStatusService.js';
@@ -936,4 +937,11 @@ export const updatePublicMapStatus = async (req, res, next) => {
     await audit(req, 'public_map_status', 'User', owner.id, { action: req.body.action, ...data });
     res.json({ data, message: 'Public map status updated.' });
   } catch (error) { next(error); }
+};
+
+export const listBranches = async (req, res, next) => {
+  try { res.json({ data: await listBranchApplications(await barangayOf(req)) }); } catch (error) { next(error); }
+};
+export const reviewBranchApplication = async (req, res, next) => {
+  try { const data = await reviewBranch(req.params.id, req.body.action, req.body.note, await barangayOf(req)); await audit(req, 'branch_review', 'BoardingHouse', data.id, { action: req.body.action }); res.json({ data, message: 'Branch review saved.' }); } catch (error) { next(error); }
 };

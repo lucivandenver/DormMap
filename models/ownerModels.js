@@ -13,6 +13,10 @@ export const BoardingHouse = sequelize.define('BoardingHouse', {
   description:  { type: DataTypes.TEXT,    allowNull: true },
   amenities:    { type: DataTypes.TEXT,    allowNull: true },
   houseRules:   { type: DataTypes.TEXT,    allowNull: true },
+  propertyType: { type: DataTypes.STRING, allowNull: false, defaultValue: 'Boarding House' },
+  floorCount: { type: DataTypes.INTEGER, allowNull: true },
+  approvalStatus: { type: DataTypes.STRING, allowNull: false, defaultValue: 'approved' },
+  reviewNote: { type: DataTypes.TEXT, allowNull: true },
   isPrimary:    { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
 }, { tableName: 'BoardingHouses' });
 
@@ -24,6 +28,8 @@ export const OwnerRoom = sequelize.define('OwnerRoom', {
   floor:           { type: DataTypes.STRING,  allowNull: false, defaultValue: '1st Floor' },
   capacity:        { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
   availableSlots:  { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+  rentalBasis: { type: DataTypes.STRING, allowNull: false, defaultValue: 'person' },
+  bedCount: { type: DataTypes.INTEGER, allowNull: true },
   reservedSlots:   { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   rentalPrice:     { type: DataTypes.DECIMAL(10,2), allowNull: false, defaultValue: 0 },
   dimensions:      { type: DataTypes.STRING,  allowNull: true },
@@ -37,6 +43,8 @@ export const OwnerRoom = sequelize.define('OwnerRoom', {
 }, { tableName: 'OwnerRooms' });
 
 export const OwnerTenant = sequelize.define('OwnerTenant', {
+  occupantCount: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+  bedNumber: { type: DataTypes.INTEGER, allowNull: true },
   tenantUserId: { type: DataTypes.INTEGER, allowNull: true },
   ownerId:          { type: DataTypes.INTEGER, allowNull: false },
   roomId:           { type: DataTypes.INTEGER, allowNull: true },

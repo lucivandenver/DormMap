@@ -83,7 +83,7 @@
         {{#if (eq pendingStatus "suspended")}}
           Your boarding house owner account has been suspended. Please contact the Barangay or BPLO office for resolution.
         {{else}}
-          Your account is currently in the <strong class="text-amber-400 uppercase tracking-wide">{{pendingStatus}}</strong> stage. A complete dashboard will become available once both Barangay and BPLO approve your registration.
+          Your account is currently in the <strong class="text-amber-400 uppercase tracking-wide">{{pendingStatus}}</strong> stage. A complete dashboard will become available after the assigned barangay approves your application. BPLO oversees compliance; each additional branch has its own listing review.
         {{/if}}
       </p>
       <a href="/logout" class="inline-flex items-center justify-center gap-2 w-full rounded-2xl bg-rose-600 px-6 py-3.5 font-bold text-white shadow-lg hover:bg-rose-700 transition active:scale-95">
@@ -606,25 +606,7 @@
           </button>
         </div>
 
-        <!-- Floor Tab Navigation -->
-        <div class="flex gap-2 p-1 bg-slate-100 rounded-xl w-fit">
-          <button id="floorTab-1" onclick="showFloor('1st Floor')"
-            class="floor-tab flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all bg-white text-slate-800 shadow-sm">
-            <span class="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-700 text-white text-[10px] font-black">1</span>
-            1st Floor
-          </button>
-          <button id="floorTab-2" onclick="showFloor('2nd Floor')"
-            class="floor-tab flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all text-slate-500 hover:text-slate-700">
-            <span class="flex h-5 w-5 items-center justify-center rounded-md bg-slate-300 text-white text-[10px] font-black">2</span>
-            2nd Floor
-          </button>
-          <button id="floorTab-3" onclick="showFloor('3rd Floor')"
-            class="floor-tab flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all text-slate-500 hover:text-slate-700">
-            <span class="flex h-5 w-5 items-center justify-center rounded-md bg-slate-300 text-white text-[10px] font-black">3</span>
-            3rd Floor
-          </button>
-        </div>
-
+        <div id="dynamicFloorTabs" class="flex gap-2 overflow-x-auto pb-2" aria-label="Filter rooms by floor"></div>
         <!-- Floor Label Badge -->
         <div class="flex items-center gap-2">
           <span id="activeFloorLabel" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black">
@@ -1072,8 +1054,9 @@
           <label class="block text-xs font-bold text-slate-500 mb-1">Room Type</label>
           <select name="roomType" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
             <option>Solo Room</option>
+            <option>Bedspace</option>
             <option>Shared Room</option>
-            <option>Airconditioned</option>
+            <option>Apartment Room</option>
             <option>Studio</option>
             <option>Family Room</option>
           </select>
@@ -1084,12 +1067,14 @@
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-500 mb-1">Capacity (persons) *</label>
-          <input type="number" name="capacity" required min="1" placeholder="e.g. 2" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
+          <input type="number" name="capacity" required min="1" max="100" placeholder="e.g. 2" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-500 mb-1">Available Slots</label>
           <input type="number" name="availableSlots" min="0" placeholder="e.g. 2" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
         </div>
+        <div><label class="block text-xs font-bold text-slate-500 mb-1">Physical beds<input name="bedCount" type="number" min="1" max="100" class="w-full rounded-lg border p-2.5"></label></div>
+        <div><label class="block text-xs font-bold text-slate-500 mb-1">Monthly rent basis<select name="rentalBasis" class="w-full rounded-lg border p-2.5"><option value="person">Per person</option><option value="bed">Per bed</option><option value="room">Whole room</option></select></label></div>
         <div class="col-span-2">
           <label class="block text-xs font-bold text-slate-500 mb-1">Gender Preference</label>
           <select name="genderPref" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
@@ -1158,7 +1143,7 @@
       <div>
         <label class="block text-xs font-bold text-slate-600 mb-1">Description</label>
         <textarea id="bhModalDescription" name="description" rows="2" class="w-full rounded-xl border border-slate-200 p-2.5 text-xs font-semibold focus:border-emerald-600 outline-none" placeholder="Describe this boarding house branch, amenities, or features..."></textarea>
-        <label class="mt-3 block text-xs font-bold text-slate-600">Amenities for this property</label><textarea id="bhModalAmenities" class="w-full rounded-xl border border-slate-200 p-2.5 text-sm" placeholder="Wi-Fi, water, study area..."></textarea>
+        <div class="grid grid-cols-2 gap-3 mt-3"><label class="text-xs font-bold">Property type<select id="bhModalType" class="w-full rounded-lg border p-2"><option>Boarding House</option><option>Dormitory</option><option>Apartment</option><option>Bedspace Residence</option><option>Family Rental</option><option>Mixed</option></select></label><label class="text-xs font-bold">Number of floors<input type="number" id="bhModalFloors" min="1" max="50" value="1" class="w-full rounded-lg border p-2"></label></div><label class="mt-3 block text-xs font-bold text-slate-600">Amenities for this property</label><textarea id="bhModalAmenities" class="w-full rounded-xl border border-slate-200 p-2.5 text-sm" placeholder="Wi-Fi, water, study area..."></textarea>
         <label class="mt-3 block text-xs font-bold text-slate-600">House rules for this property</label><textarea id="bhModalRules" class="w-full rounded-xl border border-slate-200 p-2.5 text-sm" placeholder="Quiet hours, visitors, house rules..."></textarea>
 
       </div>
@@ -1221,13 +1206,13 @@
           <select name="roomId" id="tenantRoomSelect" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none"></select>
         </div>
         <div>
-          <label class="block text-xs font-bold text-slate-500 mb-1">Monthly Rent (₱) *</label>
+          <label class="block text-xs font-bold text-slate-500 mb-1">Agreed monthly total (₱) *</label>
           <input type="number" step="0.01" min="0" name="monthlyRent" required class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-500 mb-1">Tenancy status</label>
           <select name="status" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm"><option value="active">Active</option><option value="moved_out">Moved out</option><option value="inactive">Inactive</option><option value="evicted">Evicted</option></select>
-          <label class="mt-3 block text-xs font-bold text-slate-500 mb-1">Move-in Date</label>
+          <label class="mt-3 block text-xs font-bold text-slate-500 mb-1">Household occupants<input name="occupantCount" type="number" min="1" max="100" value="1" class="w-full rounded-lg border p-2.5"></label><label class="block text-xs">Bed number (bedspace only)<input name="bedNumber" type="number" min="1" max="100" placeholder="Auto assign" class="w-full rounded-lg border p-2.5"></label><label class="block text-xs"><input name="useReservedSlot" type="checkbox"> Link an existing owner-reported unavailable slot (instead of a new occupant)</label><label class="mt-3 block text-xs font-bold text-slate-500 mb-1">Move-in Date</label>
           <input type="date" name="moveInDate" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
         </div>
       </div>
@@ -1267,7 +1252,7 @@
         <select id="acceptAppRoomSelect" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none"></select>
       </div>
       <div>
-        <label class="block text-xs font-bold text-slate-500 mb-1">Monthly Rent (₱) *</label>
+        <label class="block text-xs font-bold text-slate-500 mb-1">Household size (1 for each bedspace)<input id="acceptAppOccupants" type="number" min="1" max="100" value="1" class="w-full border rounded-lg p-2 mb-3"></label><label class="block text-xs font-bold text-slate-500 mb-1">Agreed monthly total (₱) *</label>
         <input type="number" id="acceptAppRent" placeholder="e.g. 3000" min="0" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
       </div>
       <div>
@@ -1865,6 +1850,7 @@
               ${bh.latitude ? '📍 Map Pinned' : '⚠️ No Map Pin'}
             </span>
           </div>
+          <p class="mt-2 text-xs font-semibold text-emerald-800">${esc(bh.propertyType || 'Boarding House')} · ${bh.floorCount || 'Unspecified'} floors · ${esc(bh.approvalStatus || 'approved')}</p>${bh.reviewNote ? `<p class="text-xs text-rose-700">${esc(bh.reviewNote)}</p>` : ''}
           ${bh.description ? `<p class="text-xs text-slate-600 mt-2 line-clamp-2">${bh.description}</p>` : ''}
         </div>
 
@@ -1900,6 +1886,8 @@
       document.getElementById('bhModalName').value = targetBh.name || '';
       document.getElementById('bhModalBarangay').value = targetBh.barangay || '';
       document.getElementById('bhModalAddress').value = targetBh.address || '';
+      document.getElementById('bhModalType').value = targetBh.propertyType || 'Boarding House';
+      document.getElementById('bhModalFloors').value = targetBh.floorCount || 3;
       document.getElementById('bhModalDescription').value = targetBh.description || '';
       document.getElementById('bhModalAmenities').value = targetBh.amenities || '';
       document.getElementById('bhModalRules').value = targetBh.houseRules || '';
@@ -1915,7 +1903,8 @@
       const profile = await ownerRequest('/owner-dashboard/api/profile');
       const assigned = profile.data.barangay;
       const select = document.getElementById('bhModalBarangay');
-      for (const option of select.options) option.disabled = Boolean(option.value && option.value !== assigned && option.value !== targetBh?.barangay);
+      const allowed = await ownerRequest('/api/eligible-barangays');
+      for (const option of select.options) option.disabled = Boolean(option.value && (targetBh ? option.value !== targetBh.barangay : !allowed.includes(option.value)));
       if (!targetBh) select.value = assigned || '';
     } catch (error) { ownerToast(error.message, true); return; }
     modal.classList.remove('hidden');
@@ -1975,6 +1964,7 @@
     if (!latitude || !longitude) { ownerToast('Click the map or drag the pin to select the property’s actual location first.', true); return; }
     const payload = {
       name, barangay, address, description, latitude, longitude,
+      propertyType: document.getElementById('bhModalType').value, floorCount: document.getElementById('bhModalFloors').value,
       amenities: document.getElementById('bhModalAmenities').value, houseRules: document.getElementById('bhModalRules').value,
       mapPin: `Coordinates: ${latitude}, ${longitude}`
     };
@@ -2029,7 +2019,14 @@
       const res = await fetch(`/owner-dashboard/api/rooms${query}`);
       const { data } = await res.json();
       _allRooms = data || [];
-      renderRoomsByFloor(_activeFloor);
+      const house = _allBoardingHouses.find(h => Number(h.id) === Number(_selectedBhId));
+      const count = Math.max(house?.floorCount || 3, ..._allRooms.map(room => parseInt(room.floor) || 1));
+      const labels = Array.from({length:Math.min(count,50)},(_,i) => { const n=i+1; return `${n}${n%100>=11 && n%100<=13 ? 'th' : ({1:'st',2:'nd',3:'rd'}[n%10] || 'th')} Floor`; });
+      document.getElementById('dynamicFloorTabs').innerHTML = labels.map(label => `<button type="button" class="floor-tab rounded-full border px-4 py-2 text-xs whitespace-nowrap" data-floor="${label}">${label} · ${_allRooms.filter(room=>room.floor===label).length}</button>`).join('');
+      document.querySelectorAll('#dynamicFloorTabs button').forEach(button=>button.addEventListener('click',()=>showFloor(button.dataset.floor)));
+      document.querySelector('#roomForm [name="floor"]').innerHTML = labels.map(label=>`<option>${label}</option>`).join('');
+      if (!labels.includes(_activeFloor)) _activeFloor=labels[0];
+      showFloor(_activeFloor);
     } catch (err) {
       console.error('Error loading rooms:', err);
       document.getElementById('roomsTable').innerHTML = `<tr><td colspan="7" class="p-6 text-center text-rose-500 text-xs">Failed to load rooms. Please refresh.</td></tr>`;
@@ -2041,7 +2038,7 @@
     // Update tab styles
     const floorMap = { '1st Floor': '1', '2nd Floor': '2', '3rd Floor': '3' };
     document.querySelectorAll('.floor-tab').forEach(btn => {
-      const isActive = btn.id === `floorTab-${floorMap[floor]}`;
+      const isActive = btn.dataset.floor === floor;
       btn.classList.toggle('bg-white', isActive);
       btn.classList.toggle('text-slate-800', isActive);
       btn.classList.toggle('shadow-sm', isActive);
@@ -2088,9 +2085,9 @@
       <tr class="border-b border-slate-100 hover:bg-slate-50/50 transition">
         <td class="p-4 font-bold text-slate-800">${esc(r.roomNumber)}</td>
         <td class="p-4"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${floorBadge[r.floor] || 'bg-slate-100 text-slate-600'}">${r.floor || '1st Floor'}</span></td>
-        <td class="p-4 text-xs">${esc(r.roomType)}</td>
+        <td class="p-4 text-xs">${esc(r.roomType)}<p class="text-xs text-slate-500">${r.bedCount || 'Unspecified'} beds · ${r.rentalBasis === 'room' ? 'Whole room' : 'Per '+esc(r.rentalBasis)}</p></td>
         <td class="p-4 font-semibold text-emerald-700">₱${Number(r.rentalPrice).toLocaleString()}</td>
-        <td class="p-4">${r.availableSlots} free / ${r.capacity}<p class="mt-1 text-xs text-slate-500">${(r.occupants || []).map(t => esc(t.fullName)).join(", ") || "No active occupants"}</p></td>
+        <td class="p-4">${r.rentalBasis === 'room' ? r.availableSlots > 0 ? 'Whole room available' : 'Whole room unavailable' : r.availableSlots + (r.rentalBasis === 'bed' ? ' beds available' : ' slots available')} · ${r.occupiedPeople || 0} occupied / ${r.capacity} capacity · ${r.reservedSlots || 0} reported unavailable<p class="mt-1 text-xs text-slate-500">${(r.occupants || []).map(t => esc(t.fullName)).join(", ") || "No active occupants"}</p></td>
         <td class="p-4"><span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${
           r.status === 'available' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
         }">${r.status}</span></td>
@@ -2129,6 +2126,7 @@
     }
   }
 
+  document.querySelector('#roomForm [name="roomType"]').addEventListener('change', event => { document.querySelector('#roomForm [name="rentalBasis"]').value = event.target.value === 'Bedspace' ? 'bed' : event.target.value === 'Shared Room' ? 'person' : 'room'; if (event.target.value === 'Bedspace') document.querySelector('#roomForm [name="bedCount"]').value = document.querySelector('#roomForm [name="capacity"]').value || 1; });
   document.getElementById('roomForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = document.getElementById('roomSaveBtn');
@@ -2189,7 +2187,7 @@
       } else {
         tbody.innerHTML = data.map(t => `
           <tr class="border-b border-slate-100 hover:bg-slate-50/50 transition">
-            <td class="p-4 font-bold text-slate-800">${esc(t.fullName)}<p class="text-xs font-medium text-slate-500">${esc(t.status)}</p></td>
+            <td class="p-4 font-bold text-slate-800">${esc(t.fullName)}<p class="text-xs font-medium text-slate-500">${esc(t.status)} · ${t.occupantCount || 1} occupant(s)${t.bedNumber ? ' · Bed '+Number(t.bedNumber) : ''}</p></td>
             <td class="p-4 text-xs text-slate-500">${t.contactNumber || t.email || '—'}</td>
             <td class="p-4">${t.roomId ? 'Room ' + esc(t.roomNumber || t.roomId) : '<span class="text-slate-400 text-xs">Unassigned</span>'}<p class="text-xs text-slate-500">${esc(t.boardingHouseName || '')}</p></td>
             <td class="p-4 font-semibold text-emerald-700">₱${Number(t.monthlyRent || 0).toLocaleString()}</td>
@@ -2331,7 +2329,7 @@
       const res = await fetch(`/owner-dashboard/api/pending-applications/${userId}/accept`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ applicationId: applicationId || null, roomId: roomId || null, monthlyRent, moveInDate })
+        body: JSON.stringify({ occupantCount: document.getElementById('acceptAppOccupants').value, applicationId: applicationId || null, roomId: roomId || null, monthlyRent, moveInDate })
       });
       const data = await res.json();
       if (res.ok) {

@@ -370,7 +370,7 @@
       {{#if error}}
       <div class="error-box">
         <span>⚠️</span>
-        <span>{{error}}</span>
+        <span>{{error}} Please reselect your files before resubmitting.</span>
       </div>
       {{/if}}
 
@@ -383,7 +383,7 @@
           <div class="step-connector" id="conn2"></div>
           <span class="step-dot" id="dot3">3</span>
         </div>
-        <span style="font-size:0.75rem;font-weight:700;color:#047857;background:#ecfdf5;padding:0.25rem 0.75rem;border-radius:999px;white-space:nowrap;margin-left:0.75rem;">Google Account ✓</span>
+        <span style="font-size:0.75rem;font-weight:700;color:#047857;background:#ecfdf5;padding:0.25rem 0.75rem;border-radius:999px;white-space:nowrap;margin-left:0.75rem;">Account connected ✓</span>
       </div>
       <div class="step-label-row">
         <span class="step-label active" id="lbl1">Property Info</span>
@@ -391,13 +391,13 @@
         <span class="step-label" id="lbl3">Terms & Submit</span>
       </div>
 
-      <form method="POST" action="/complete-owner-profile" enctype="multipart/form-data" id="ownerWizardForm">
+      <form novalidate method="POST" action="/complete-owner-profile" enctype="multipart/form-data" id="ownerWizardForm">
 
         <!-- =========== STEP 1: Property Info =========== -->
         <div id="step1" class="space-y-3.5">
           <label>
             <span>Boarding House Name <span class="req">*</span></span>
-            <input type="text" name="boardingHouseName" required placeholder="e.g. Green Haven Residence">
+            <input type="text" name="boardingHouseName" value="{{authValues.boardingHouseName}}" required placeholder="e.g. Green Haven Residence">
           </label>
 
           <label>
@@ -443,25 +443,27 @@
             </select>
           </label>
 
+          {{> ownerRoomPlan }}
+          <fieldset class="room-plan-panel"><legend>Accepted payment methods</legend><label><input type="checkbox" name="paymentMethods" value="Cash"> Cash</label><label><input type="checkbox" name="paymentMethods" value="GCash"> GCash</label><label><input type="checkbox" name="paymentMethods" value="Bank Transfer"> Bank transfer</label><p class="room-plan-help">GCash checkout settles through the configured platform merchant. A profile number does not enable automatic per-owner payouts.</p></fieldset>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
             <label>
-              <span>Rooms Available <span class="req">*</span></span>
-              <input type="number" name="roomsAvailable" min="1" required placeholder="e.g. 5">
+              <span>Rooms with availability (calculated) <span class="req">*</span></span>
+              <input type="number" name="roomsAvailable" min="0" readonly required placeholder="e.g. 5">
             </label>
             <label>
               <span>Contact Number <span class="req">*</span></span>
-              <input type="tel" name="contactNumber" required placeholder="09XXXXXXXXX">
+              <input type="tel" name="contactNumber" value="{{authValues.contactNumber}}" required placeholder="09XXXXXXXXX">
             </label>
           </div>
 
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
             <label>
               <span>Owner GCash Number</span>
-              <input type="tel" name="gcashNumber" placeholder="e.g. 09171234567">
+              <input type="tel" name="gcashNumber" value="{{authValues.gcashNumber}}" placeholder="e.g. 09171234567">
             </label>
             <label>
               <span>Owner GCash Account Name</span>
-              <input type="text" name="gcashName" placeholder="e.g. Juan Dela Cruz">
+              <input type="text" name="gcashName" value="{{authValues.gcashName}}" placeholder="e.g. Juan Dela Cruz">
             </label>
           </div>
 
@@ -578,10 +580,10 @@
           </div>
 
           <div>
-            <p style="font-size:0.82rem;font-weight:700;color:#334155;margin-bottom:0.5rem;">Terms of Service</p>
+            <p style="font-size:0.82rem;font-weight:700;color:#334155;margin-bottom:0.5rem;" id="owner-terms">Terms of Service</p>
             <div class="terms-content">
               <h4>1. Eligibility</h4>
-              By registering as a Boarding House Owner on DorMap, you confirm that you are the legal owner or authorized representative of the registered property and are 18 years of age or older.
+              By registering as a Boarding House Owner on DormMap, you confirm that you are the legal owner or authorized representative of the registered property and are 18 years of age or older.
 
               <h4>2. Accurate Information</h4>
               You agree to provide complete, truthful, and up-to-date information about your boarding house. Misrepresentation may result in immediate account suspension or removal.
@@ -593,28 +595,28 @@
               You agree to comply with all applicable laws, ordinances, and regulations of Bongabong Municipality, Oriental Mindoro, including BPLO and barangay-level regulations on boarding houses.
 
               <h4>5. Approval Process</h4>
-              Registration is subject to review and approval by your assigned Barangay and the BPLO. You will not be able to access the dashboard until both have approved your application.
+              Registration is subject to review and approval by your assigned Barangay and the BPLO. Your barangay reviews the owner application. BPLO oversees compliance and permits. Each additional branch is reviewed by its own barangay before being listed; suspended or unapproved records remain restricted.
 
               <h4>6. Account Conduct</h4>
-              You agree not to engage in fraudulent activities or violate the rights of tenants registered through DorMap.
+              You agree not to engage in fraudulent activities or violate the rights of tenants registered through DormMap.
             </div>
 
-            <p style="font-size:0.82rem;font-weight:700;color:#334155;margin-bottom:0.5rem;">Privacy Policy</p>
+            <p style="font-size:0.82rem;font-weight:700;color:#334155;margin-bottom:0.5rem;" id="owner-privacy">Privacy Policy</p>
             <div class="terms-content">
               <h4>Data Collection</h4>
               We collect personal information (name, contact, address), property details, and uploaded documents to facilitate registration and permit verification.
 
               <h4>Data Usage</h4>
-              Your data is used solely for the DorMap boarding house management system, including sharing with authorized Barangay officials and BPLO for permit processing.
+              Your data is used solely for the DormMap boarding house management system, including sharing with authorized Barangay officials and BPLO for permit processing.
 
               <h4>Data Storage</h4>
-              All data is stored securely on DorMap servers managed by Mindoro State University. We do not sell or share your data with third parties outside the system.
+              The deployed application uses its configured hosting, database, and file storage providers. Authorized officials review the documents you submit. Public listings show property and availability information, not your identity documents or tenant names. Contact the operator for retention, access and deletion requests.
 
               <h4>Your Rights</h4>
-              You may request correction or deletion of your personal data by contacting the system administrator. Deletion may affect your access to the DorMap platform.
+              You may request correction or deletion of your personal data by contacting the system administrator. Deletion may affect your access to the DormMap platform.
 
               <h4>Cookies & Sessions</h4>
-              DorMap uses session cookies for authentication purposes only. No tracking or analytics cookies are used.
+              DormMap uses session cookies for authentication purposes only. Third-party sign-in, map and optional payment services may process information needed to provide their services.
             </div>
           </div>
 
@@ -622,7 +624,7 @@
             <label>
               <input type="checkbox" name="acceptTerms" value="on" required>
               <span>
-                I have read and I agree to the <a href="#" onclick="return false;">Terms of Service</a> and <a href="#" onclick="return false;">Privacy Policy</a> of the DorMap Boarding House Management System. I understand that submitting false documents may lead to account suspension.
+                I have read and I agree to the <a href="#owner-terms">Terms of Service</a> and <a href="#owner-privacy">Privacy Policy</a> of the DormMap Boarding House Management System. I understand that submitting false documents may lead to account suspension.
               </span>
             </label>
           </div>
@@ -642,7 +644,14 @@
     let mapInitialized = false;
     let map, marker;
 
+    let wizardStep = 1;
     function goToStep(step) {
+      if (step > wizardStep) {
+        const panel = document.getElementById('step'+wizardStep);
+        for (const input of panel.querySelectorAll('input,select,textarea')) if (!input.checkValidity()) { input.reportValidity(); return; }
+        if (wizardStep === 1 && !panel.querySelector('[data-room-plan]')?.validate?.()) return;
+      }
+      wizardStep = step;
       ['step1','step2','step3'].forEach((id, i) => {
         document.getElementById(id).style.display = (i + 1 === step) ? 'block' : 'none';
       });
@@ -682,6 +691,16 @@
         document.getElementById('lngInput').value = lng.toFixed(6);
       });
     }
+
+    document.getElementById('ownerWizardForm').addEventListener('submit', event => {
+      for (let step = 1; step <= 3; step++) {
+        const panel = document.getElementById('step'+step);
+        for (const input of panel.querySelectorAll('input,select,textarea')) {
+          if (!input.checkValidity()) { event.preventDefault(); goToStep(step); input.reportValidity(); return; }
+        }
+      }
+      if (!document.querySelector('[data-room-plan]').validate()) { event.preventDefault(); goToStep(1); }
+    });
 
     // Initialize map on page load for step 1
     window.addEventListener('load', () => {

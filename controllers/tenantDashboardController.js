@@ -696,7 +696,15 @@ export const applyBoardingHouse = async (req, res, next) => {
     }
 
     if (owner.accountType !== 'boarding_house_owner' || owner.isSuspended || owner.isArchived || owner.publicMapUnregistered || !['approved','approved_barangay'].includes(owner.applicationStatus)) return res.status(422).json({ error: 'Applications are available only for approved, registered establishments.' });
-    if (establishmentId && !await BoardingHouse.findOne({ where: { id: establishmentId, ownerId: owner.id } })) return res.status(422).json({ error: 'This boarding house does not belong to the selected owner.' });
+    if (establishmentId && !await BoardingHouse.findOne({ where: { id: establishmentId, ownerId: owner.id, approvalStatus: 'approved' } })) return res.status(422).json({ error: 'This boarding house does not belong to the selected owner.' });
+
+    if (!establishmentId) {
+      const houses = await BoardingHouse.findAll({ where: { ownerId: owner.id } });
+      if (houses.length && !houses.some(house => house.name === boardingHouseName && house.approvalStatus === 'approved')) return res.status(422).json({ error: 'Select an approved property from the current listings.' });
+      if (!houses.length && boardingHouseName !== owner.boardingHouseName) return res.status(422).json({ error: 'The selected property does not match this owner.' });
+    }
+
+    const selectedHouse = establishmentId ? await BoardingHouse.findOne({ where: { id: establishmentId, ownerId: owner.id, approvalStatus: 'approved' } }) : await BoardingHouse.findOne({ where: { ownerId: owner.id, name: boardingHouseName, approvalStatus: 'approved' } });
 
     // Check existing applications
     const existing = await TenantApplication.findOne({
@@ -722,7 +730,7 @@ export const applyBoardingHouse = async (req, res, next) => {
     const application = await TenantApplication.create({
       tenantId: user.id,
       ownerId: owner.id,
-      boardingHouseId: establishmentId ? parseInt(establishmentId, 10) : null,
+      boardingHouseId: selectedHouse?.id || null,
       boardingHouseName,
       requestedRoomType: requestedRoomType || null,
       message: message || `Inquired/Applied via DormMap Browse. Contact: ${user.contactNumber || 'N/A'}, Gender: ${user.gender || 'N/A'}${roomTypeInfo}`,

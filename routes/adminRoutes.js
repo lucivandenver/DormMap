@@ -13,6 +13,9 @@ router.get('/api/map-data', controller.adminMapData);
 router.get('/api/barangay-accounts', controller.listBarangayAccounts);
 router.patch('/api/barangay-accounts/:id/review', controller.reviewBarangayAccount);
 
+router.get('/api/branches', controller.listBranches);
+router.patch('/api/branches/:id/review', controller.reviewBranchApplication);
+
 // Owner Applications & Review
 router.patch('/api/owners/:id/map-status', controller.updatePublicMapStatus);
 router.get('/api/owners', controller.listOwners);
