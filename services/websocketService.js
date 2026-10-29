@@ -1,3 +1,4 @@
+import { pushUserUpdate } from './liveEventService.js';
 import { Server } from 'socket.io';
 import { User } from '../models/userModel.js';
 
@@ -26,6 +27,7 @@ export function initWebSocket(httpServer, sessionMiddleware) {
   });
 
   io.on('connection', (socket) => {
+    if (socket.data.userId) socket.join(`user_${socket.data.userId}`);
     // Room identity comes from the signed session, never a client-supplied ID.
     socket.on('join_user', (userId) => {
       if (socket.data.userId && String(userId) === String(socket.data.userId)) {
@@ -68,6 +70,7 @@ export function getIo() {
  * Emit event to a specific user
  */
 export function emitToUser(userId, event, data) {
+  if (userId) pushUserUpdate(userId, {kind:event});
   if (io && userId) {
     io.to(`user_${userId}`).emit(event, data);
   }

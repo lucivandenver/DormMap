@@ -370,6 +370,42 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       listings=await(await request('/api/boarding-houses')).json();assert.ok(!listings.some(item=>item.bhId===branch.id));
       assert.ok(listings.some(item=>item.bhId===house.id));
     });
+    await t.test('named messaging, private notification reads and authenticated SSE updates', async () => {
+      const { OwnerMessage, OwnerNotification } = await import('../../models/ownerModels.js');
+      const { BarangayNotification } = await import('../../models/adminModels.js');
+      assert.equal((await request('/api/portal/notifications')).status,401);
+      assert.equal((await request('/api/portal/events')).status,401);
+      const ownerCookie=await login(owner.email),secondCookie=await login(second.email);
+      await OwnerMessage.create({ownerId:owner.id,senderId:second.id,recipientId:owner.id,message:'Hello from tenant'});
+      const inbox=await(await request('/owner-dashboard/api/messages',ownerCookie)).json();
+      const named=inbox.data.find(row=>row.senderId===second.id);assert.equal(named.senderName,second.fullName);assert.equal(named.peerName,second.fullName);
+      const foreign=await OwnerNotification.create({ownerId:owner.id,title:'Private owner notice',body:'Owner only',type:'application'});
+      await request('/api/portal/notifications/read',secondCookie,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:foreign.id})});
+      await foreign.reload();assert.equal(foreign.isRead,false);
+      const legacyNotice=await BarangayNotification.create({userId:owner.id,title:'Barangay review note',body:'Please update the permit copy',type:'application_update'});
+      const combined=await(await request('/api/portal/notifications',ownerCookie)).json();assert.ok(combined.items.some(item=>item.id===legacyNotice.id&&item.source==='barangay'&&item.url==='/owner-dashboard#my-profile'));
+      await request('/api/portal/notifications/read',ownerCookie,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:legacyNotice.id,source:'barangay'})});await legacyNotice.reload();assert.equal(legacyNotice.isRead,true);await foreign.reload();assert.equal(foreign.isRead,false);
+      await legacyNotice.destroy();
+
+      const abort=new AbortController();const response=await request('/api/portal/events',secondCookie,{signal:abort.signal});assert.match(response.headers.get('content-type'),/event-stream/);
+      const reader=response.body.getReader();await reader.read();
+      const result=await request('/owner-dashboard/api/messages',ownerCookie,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({recipientId:second.id,message:'Your room update is ready'})});assert.equal(result.status,201);
+      let streamText='';const decoder=new TextDecoder();const timeout=setTimeout(()=>abort.abort(),5000);
+      try{while(!streamText.includes('portal_update')){const chunk=await reader.read();assert.equal(chunk.done,false);streamText+=decoder.decode(chunk.value);}}finally{clearTimeout(timeout);abort.abort();await reader.cancel().catch(()=>{});}
+      assert.ok(!streamText.includes('Your room update')); // invalidation only, no message payload
+      const notices=await(await request('/api/portal/notifications',secondCookie)).json();const notice=notices.items.find(item=>item.body==='Your room update is ready');assert.ok(notice);assert.equal(notice.url,'/tenant-dashboard#messaging');assert.ok(notices.unread>0);
+      await request('/api/portal/notifications/read',secondCookie,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:notice.id})});
+      assert.equal((await BarangayNotification.findByPk(notice.id)).isRead,true);
+      const blocked=await request('/owner-dashboard/api/messages',ownerCookie,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({recipientId:second.id,message:'',isRead:true})});assert.equal(blocked.status,422);
+      const { MaintenanceRequest } = await import('../../models/tenantModels.js');
+      const repair=await MaintenanceRequest.create({tenantId:second.id,ownerId:owner.id,title:'Leaking tap',description:'Kitchen tap needs repair'});
+      const repairList=await(await request('/owner-dashboard/api/maintenance',ownerCookie)).json();assert.equal(repairList.data.find(item=>item.id===repair.id).tenantName,second.fullName);
+      assert.equal((await request(`/owner-dashboard/api/maintenance/${repair.id}`,secondCookie,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'resolved',ownerResponse:'Fixed today'})})).status,403);
+      assert.equal((await request(`/owner-dashboard/api/maintenance/${repair.id}`,ownerCookie,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'resolved',ownerResponse:'Fixed today'})})).status,200);
+      const repairNotices=await(await request('/api/portal/notifications',secondCookie)).json();assert.ok(repairNotices.items.some(item=>item.type==='maintenance'&&item.url==='/tenant-dashboard#maintenance'));
+      await repair.destroy();
+      await OwnerMessage.destroy({where:{ownerId:owner.id}});await OwnerNotification.destroy({where:{ownerId:owner.id}});await BarangayNotification.destroy({where:{userId:second.id}});
+    });
     await request(`/tenant-dashboard/api/saved-dorms/${key}`, cookie, { method: 'DELETE' });
     assert.equal(await SavedDorm.count({ where: { tenantId: tenant.id } }), 0);
     assert.ok(room.id);

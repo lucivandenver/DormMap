@@ -2,7 +2,19 @@
 
 Prepared: 29 October 2026, Manila
 
-**Current review branch:** `codex/owner-room-registration`, based on main `456b0dd6824909b6fdb714ce4ccc638aaf193d0a`. PR #1 and #2 are already merged. This change is for review; it does not deploy Render.
+**Current review branch:** `codex/live-notifications-navigation`, based on main `9c34d0c64b4e188bc3ba7adc170c7dbb18a0288d`. PRs #1–#3 are already merged. This change does not deploy Render.
+
+## Live notifications, messaging and registration usability
+
+- All four portals use an authenticated notification bell with exact unread counts, local destination links, individual/read-all acknowledgement, pending-work sidebar badges, and English empty/error feedback. Notification read updates are scoped to the signed-in identity.
+- Authenticated SSE (`/api/portal/events`) delivers invalidation signals after commits. REST supplies authorized data; no message bodies or tenant names travel in event payloads. Connections heartbeat, reconnect and revalidate on a five-minute rotation. A 30-second resync and tab-visibility refresh recover missed events. Existing Socket.IO remains available for public maps and prior payment flows.
+- Relevant visible portal sections refresh automatically; active modal forms and input editing are protected from background replacement. This improves freshness, not database/network processing speed. SSE clients are process local, suitable for the current single app instance; multi-instance deployments need shared event distribution. No new environment variables or migrations are required by this PR.
+- Owner and barangay inboxes resolve real user names. Owner conversations correctly include outgoing messages and barangay replies. Message bodies are escaped in owner and tenant views; owner sends validate the recipient against existing conversations/linked tenants and whitelist writable fields.
+- New notifications cover reviewer account/branch applications, messages, rent bills, maintenance responses and scoped announcements; existing application/payment/review notifications also flow through the shared bell. English notification titles avoid four-byte emoji failures in legacy database tables.
+- Owner maintenance requests now have a scoped review panel and status/response action connected to the tenant's request and notification. Review and room actions retain existing permission checks. A broken owner Manage Rooms navigation call is corrected; action buttons have clearer touch/focus feedback.
+- Room registration shows one room editor at a time, with previous/next, direct room selection and precise validation. All rooms remain in the submitted payload. The mobile editor scrolls within a bounded area. Step 3 terms and checkbox sizing are compact. Unknown Google-account feedback is an inline red login notice without a SweetAlert popup. Remaining Tagalog instructions in the touched portals are replaced with English.
+
+Validation for this revision: 28 unit tests and 17 database scenarios plus their parent runner, including named messaging, notification read isolation, authenticated SSE and owner/tenant maintenance permissions. Browser checks exercise password/Google-style registration, room switching, unknown-account feedback, live message-to-bell-to-inbox navigation, replies, mobile overflow and static action-handler resolution across all four roles. External Google OAuth, real payment collection and Render deployment are not claimed.
 
 ## Owner registration and inventory enhancement
 

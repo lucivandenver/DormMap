@@ -41,6 +41,7 @@
             <h2 class="text-2xl font-bold">Login</h2>
             <p class="text-xs text-slate-500 mt-1">Your role is automatically detected from your account</p>
           </div>
+          {{#if googleNotRegistered}}<div role="alert" class="auth-inline-error">This account is not yet registered. Please create an account to continue. BPLO accounts must be provisioned by the system administrator.</div>{{/if}}
           {{#if authError}}
             <div class="card-alt text-red-700 mb-4 leading-relaxed">{{{ authError }}}</div>
           {{/if}}
@@ -72,60 +73,6 @@
       </div>
     </div>
   </div>
-  <script>
-    {{#if googleNotRegistered}}
-    if (typeof Swal !== 'undefined') {
-      const email = '{{googleNotRegisteredEmail}}';
-      const emailBadge = email
-        ? `<div class="my-2.5 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3.5 py-1 text-xs font-bold text-emerald-800"><i class="fa-solid fa-envelope"></i> ${email}</div>`
-        : '';
 
-      Swal.fire({
-        icon: 'warning',
-        title: 'Account Not Registered Yet',
-        html: `
-          <div class="text-slate-600 text-sm leading-relaxed text-center">
-            <p>Ang Google account na ginamit mo sa pag-sign in ay <strong>hindi pa nakarehistro</strong> sa DorMap.</p>
-            ${emailBadge}
-            <p class="mt-2 text-xs text-slate-500">
-              Kailangan mo munang gumawa ng account upang makapaghanap ng dorm o makapag-post ng iyong boarding house. Piliin ang iyong account type:
-            </p>
-            <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
-              <div class="p-2.5 rounded-xl border border-emerald-100 bg-emerald-50/60 text-xs">
-                <span class="font-bold text-emerald-950 block">🏠 Tenant / Student</span>
-                <span class="text-slate-500">Maghanap ng verified dorms, mag-inquire, at mag-reserve ng kwarto.</span>
-              </div>
-              <div class="p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs">
-                <span class="font-bold text-slate-900 block">🏢 House Owner</span>
-                <span class="text-slate-500">Ilista ang boarding house at pamahalaan ang mga boarders at kwarto.</span>
-              </div>
-            </div>
-          </div>
-        `,
-        showCancelButton: true,
-        showDenyButton: true,
-        confirmButtonText: '🏠 Register as Tenant',
-        denyButtonText: '🏢 Register as Owner',
-        cancelButtonText: 'Cancel',
-        confirmButtonColor: '#047857',
-        denyButtonColor: '#023020',
-        cancelButtonColor: '#94a3b8',
-        customClass: {
-          popup: 'rounded-3xl p-5 sm:p-6 shadow-2xl max-w-md',
-          title: 'text-lg sm:text-xl font-black text-slate-900',
-          confirmButton: 'rounded-full px-4 py-2.5 text-xs sm:text-sm font-bold shadow-md',
-          denyButton: 'rounded-full px-4 py-2.5 text-xs sm:text-sm font-bold shadow-md',
-          cancelButton: 'rounded-full px-4 py-2.5 text-xs sm:text-sm font-semibold'
-        }
-      }).then((result) => {
-        if (result.isConfirmed) {
-          window.location.href = '/auth/google?accountType=tenant';
-        } else if (result.isDenied) {
-          window.location.href = '/auth/google?accountType=boarding_house_owner';
-        }
-      });
-    }
-    {{/if}}
-  </script>
 
 {{> footer }}

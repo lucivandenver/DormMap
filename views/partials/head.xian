@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DormMap</title>
+  <link rel="stylesheet" href="/css/portal-updates.css">
+  <script src="/js/portal-updates.js" defer></script>
 
   <link rel="stylesheet" href="/css/adaptive-navigation.css">
   <script src="/js/adaptive-navigation.js" defer></script>

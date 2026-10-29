@@ -1,3 +1,4 @@
+import { namedMessages } from '../services/messageIdentityService.js';
 import { listBranchApplications, reviewBranch } from '../services/branchReviewService.js';
 import { OwnerTenant, OwnerRoom, BoardingHouse } from '../models/ownerModels.js';
 import { inventorySummary } from '../services/inventorySummaryService.js';
@@ -789,7 +790,7 @@ export const messages = async (req, res, next) => {
       order: [['createdAt', 'DESC']] 
     }); 
     await BarangayMessage.update({ isRead: true }, { where: { recipientId: req.session.userId, isRead: false } }); 
-    res.json({ data }); 
+    res.json({ data: await namedMessages(data, req.session.userId) });
   } catch (e) { next(e); } 
 };
 

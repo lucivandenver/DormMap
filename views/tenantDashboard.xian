@@ -289,7 +289,7 @@
                   <span id="pendingApplicationsCountBadge" class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">0 Pending</span>
                 </div>
                 <p class="text-xs text-amber-900/90 leading-relaxed mt-0.5">
-                  Maaari kang mag-browse at mag-inquire sa iba't ibang boarding houses. Kapag in-accept ka ng may-ari, <strong>i-click ang "Accept Back"</strong> para pormal na maging tenant ka at ma-unlock ang iyong buong features!
+                  Browse boarding houses and send inquiries. When an owner sends an offer, <strong>confirm the room offer</strong> to become an active tenant and unlock your tenancy features.
                 </p>
               </div>
             </div>
@@ -1007,48 +1007,6 @@
     </div>
   </div>
 
-  <!-- GCash Payment Breakdown Modal -->
-  <div id="gcashPayModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-    <div class="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 border border-slate-100 shadow-2xl">
-      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-        <div class="flex items-center gap-2">
-          <span class="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-extrabold text-xs shadow-xs">GC</span>
-          <div>
-            <h3 class="font-bold text-slate-900 text-sm">Pay Rent via GCash</h3>
-            <p class="text-[10px] text-slate-500">Powered by PayMongo Gateway</p>
-          </div>
-        </div>
-        <button onclick="closeGcashPayModal()" class="text-slate-400 hover:text-slate-600 font-bold p-1">✕</button>
-      </div>
-
-      <!-- Landlord GCash Info Box -->
-      <div class="p-3 bg-emerald-50/80 rounded-2xl border border-emerald-100 space-y-1 text-xs">
-        <p class="font-bold text-emerald-950 text-[11px] uppercase tracking-wider">🏡 Landlord Payment Destination</p>
-        <div class="flex justify-between"><span class="text-slate-500">Boarding House:</span><span id="gcashLandlordBH" class="font-bold text-slate-800">—</span></div>
-        <div class="flex justify-between"><span class="text-slate-500">Landlord Name:</span><span id="gcashLandlordName" class="font-bold text-slate-800">—</span></div>
-        <div class="flex justify-between"><span class="text-slate-500">GCash Account #:</span><span id="gcashLandlordNumber" class="font-bold text-emerald-700">—</span></div>
-      </div>
-
-      <div class="p-3.5 bg-blue-50/60 rounded-2xl border border-blue-100/80 space-y-1.5 text-xs">
-        <div class="flex justify-between"><span class="text-slate-500 font-medium">Billing Period:</span><span id="gcashModalMonth" class="font-bold text-slate-800">—</span></div>
-        <div class="flex justify-between"><span class="text-slate-500 font-medium">Monthly Rent Base:</span><span id="gcashModalBase" class="font-bold text-slate-800">₱0.00</span></div>
-        <div class="flex justify-between"><span class="text-slate-500 font-medium">Late Penalty:</span><span id="gcashModalPenalty" class="font-bold text-rose-600">₱0.00</span></div>
-        <div class="border-t border-blue-200/60 pt-2 flex justify-between text-sm"><span class="font-bold text-blue-950">Total Amount Due:</span><span id="gcashModalTotal" class="font-black text-blue-700 text-base">₱0.00</span></div>
-      </div>
-
-      <div class="text-[11px] text-slate-500 space-y-1 bg-slate-50 p-3 rounded-xl leading-relaxed">
-        <p>🔒 <strong>PayMongo Instant GCash Checkout:</strong> You will be redirected to the secure PayMongo GCash portal to authorize payment. Your rent updates after PayMongo confirms the payment. Checkout settles to the platform’s configured PayMongo merchant account; the owner’s displayed GCash number is contact information, not an automatic payout destination.</p>
-      </div>
-
-      <div class="flex justify-end gap-2 pt-1">
-        <button type="button" onclick="closeGcashPayModal()" class="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-200 transition">Cancel</button>
-        <button id="btnSubmitGcashPay" onclick="confirmAndPayGcash()" class="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs hover:bg-blue-700 transition flex items-center gap-2 shadow-md active:scale-95">
-          <span>Continue to PayMongo GCash</span> ➔
-        </button>
-      </div>
-    </div>
-  </div>
-
   <!-- Inquiry & Multi-Application Modal -->
   <div id="inquiryModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
     <div class="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 border border-slate-100 shadow-2xl">
@@ -1404,8 +1362,6 @@
     } catch (err) { console.error('Error loading payment history:', err); }
   }
 
-  let currentGcashTarget = null;
-
   const paymentEscape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
   async function openGcashPayModal(tenantPaymentId, amount, penalty, month) {
     const base = Number(amount) - Number(penalty || 0);
@@ -1668,7 +1624,7 @@
     const result = await Swal.fire({
       icon: 'question',
       title: '✅ Confirm Tenancy',
-      html: `Sigurado ka bang gusto mong i-confirm ang tenancy mo sa <strong>${bhName}</strong>?<br><br><span class="text-sm text-rose-700">⚠️ Lahat ng iyong ibang pending applications sa ibang boarding houses ay awtomatikong maka-cancel.</span>`,
+      html: `Confirm your tenancy at <strong>${bhName}</strong>?<br><br><span class="text-sm text-rose-700">Your other pending boarding house applications will be cancelled automatically.</span>`,
       confirmButtonColor: '#023020',
       confirmButtonText: 'Yes, Confirm My Room!',
       cancelButtonText: 'Not yet',
@@ -1695,7 +1651,7 @@
     const result = await Swal.fire({
       icon: 'warning',
       title: '❌ Cancel Application',
-      html: `Cancel ang iyong application sa <strong>${bhName}</strong>?<br><small class="text-slate-500">Maabisuhan ang may-ari na ang application mo ay na-cancel.</small>`,
+      html: `Cancel your application at <strong>${bhName}</strong>?<br><small class="text-slate-500">The owner will be notified that you cancelled this application.</small>`,
       confirmButtonColor: '#dc2626',
       confirmButtonText: 'Yes, Cancel It',
       cancelButtonText: 'Go Back',
@@ -1828,11 +1784,11 @@
           </div>
           <div class="flex-1 min-w-0">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-slate-900 text-xs truncate">${c.ownerName || 'Landlord'} ${statusIcon}</span>
+              <span class="font-bold text-slate-900 text-xs truncate">${escapeMessage(c.ownerName || 'Landlord')} ${statusIcon}</span>
               <span class="text-[10px] text-slate-400 shrink-0 ml-1">${timeStr}</span>
             </div>
-            <p class="text-[11px] text-emerald-800 font-medium truncate">${c.boardingHouseName || ''}</p>
-            <p class="text-[11px] text-slate-500 truncate ${ unread ? 'font-bold text-slate-800' : '' }">${c.lastMessage || 'No messages yet'}</p>
+            <p class="text-[11px] text-emerald-800 font-medium truncate">${escapeMessage(c.boardingHouseName || '')}</p>
+            <p class="text-[11px] text-slate-500 truncate ${ unread ? 'font-bold text-slate-800' : '' }">${escapeMessage(c.lastMessage || 'No messages yet')}</p>
           </div>
         </div>
       `;
@@ -1911,7 +1867,7 @@
         return `
           <div class="flex flex-col ${ isMe ? 'items-end' : 'items-start' }">
             <div class="max-w-[78%] px-4 py-2.5 rounded-2xl ${ isMe ? 'bg-emerald-950 text-white rounded-br-sm shadow-xs' : 'bg-slate-100 text-slate-900 rounded-bl-sm' }">
-              <p class="text-xs leading-relaxed">${m.message}</p>
+              <p class="text-xs leading-relaxed">${escapeMessage(m.message)}</p>
             </div>
             <span class="text-[10px] text-slate-400 mt-0.5">${time}</span>
           </div>
@@ -2046,7 +2002,9 @@
     }
   }
 
-  async function loadNotifications() {
+  const escapeMessage = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  async function loadNotifications() { return window.DormMapPortal?.refresh(); }
+async function loadLegacyNotifications() {
     try {
       const res = await fetch('/tenant-dashboard/api/notifications');
       const data = await res.json();
