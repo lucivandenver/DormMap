@@ -883,7 +883,7 @@
       .then(r => r.json())
       .then(houses => {
         if (!Array.isArray(houses)) return;
-        authMapHouseData = houses.map(h => ({
+        authMapHouseData = houses.filter(h => h.registrationStatus !== 'unregistered').map(h => ({
           name: h.boardingHouseName || h.fullName || 'Boarding House',
           type: Array.isArray(h.roomTypes) ? h.roomTypes[0] : 'N/A',
           lat: h.latitude === null ? null : Number(h.latitude),
@@ -1227,7 +1227,7 @@
             <p>The Google account you signed in with is <strong>not yet registered</strong> on DorMap.</p>
             ${emailBadge}
             <p class="mt-2 text-xs text-slate-500">
-              Please create an account first to browse dorms or manage your boarding house. Choose your account type:
+              Tenants and owners can register below. BPLO administrators must be provisioned by the deployment administrator; do not register an admin email as a tenant.
             </p>
             <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
               <div class="p-2.5 rounded-xl border border-emerald-100 bg-emerald-50/60 text-xs">

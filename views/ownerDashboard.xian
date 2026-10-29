@@ -389,11 +389,11 @@
             <div class="grid grid-cols-2 gap-2">
               <div>
                 <label class="block text-xs font-bold text-slate-500 mb-1">Min Price (₱)</label>
-                <input type="number" name="rentalPriceMin" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 outline-none">
+                <input type="number" step="0.01" min="0" name="rentalPriceMin" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 outline-none">
               </div>
               <div>
                 <label class="block text-xs font-bold text-slate-500 mb-1">Max Price (₱)</label>
-                <input type="number" name="rentalPriceMax" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 outline-none">
+                <input type="number" step="0.01" min="0" name="rentalPriceMax" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 outline-none">
               </div>
             </div>
           </div>
@@ -719,6 +719,11 @@
             <tbody id="paymentsTable"></tbody>
           </table>
         </div>
+
+        <div class="rounded-2xl border border-emerald-100 bg-white p-5 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-3"><div><h3 class="font-bold text-slate-900">GCash checkout collections</h3><p class="text-xs text-slate-500">Provider-confirmed payments and receipts. Funds settle to the configured PayMongo merchant.</p></div><button class="rounded-full border px-4 py-2 text-sm" onclick="loadOnlinePayments()">Refresh</button></div>
+          <div id="onlinePaymentsList" class="space-y-3 text-sm text-slate-600">Loading checkout records…</div>
+        </div>
       </section>
 
       <!-- PANEL 7: INQUIRIES -->
@@ -1035,7 +1040,7 @@
 
 <!-- Modal Dialogs -->
 <div id="roomModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
-  <div class="bg-white rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl">
+  <div class="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-2xl">
     <div class="flex items-center justify-between border-b border-slate-100 pb-3">
       <h3 class="text-base font-bold text-slate-800" id="roomModalTitle">Add New Room</h3>
       <button onclick="closeRoomModal()" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
@@ -1075,7 +1080,7 @@
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-500 mb-1">Rental Price (₱) *</label>
-          <input type="number" name="rentalPrice" required min="0" placeholder="e.g. 3000" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
+          <input type="number" step="0.01" min="0" name="rentalPrice" required placeholder="e.g. 3000" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-500 mb-1">Capacity (persons) *</label>
@@ -1095,6 +1100,9 @@
         </div>
       </div>
       <div>
+        <label class="block text-xs font-bold text-slate-500 mb-1">Room availability</label>
+        <select name="status" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm"><option value="available">Open for occupancy (slots checked automatically)</option><option value="occupied">Occupied (slots checked automatically)</option><option value="maintenance">Unavailable / maintenance</option></select>
+        <p class="mt-1 text-xs text-slate-500">Available slots cannot exceed capacity minus active tenants. Reducing the free slots reserves the remaining beds.</p>
         <label class="block text-xs font-bold text-slate-500 mb-1">Description (optional)</label>
         <textarea name="description" rows="2" placeholder="Room features, inclusions..." class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none"></textarea>
       </div>
@@ -1150,6 +1158,9 @@
       <div>
         <label class="block text-xs font-bold text-slate-600 mb-1">Description</label>
         <textarea id="bhModalDescription" name="description" rows="2" class="w-full rounded-xl border border-slate-200 p-2.5 text-xs font-semibold focus:border-emerald-600 outline-none" placeholder="Describe this boarding house branch, amenities, or features..."></textarea>
+        <label class="mt-3 block text-xs font-bold text-slate-600">Amenities for this property</label><textarea id="bhModalAmenities" class="w-full rounded-xl border border-slate-200 p-2.5 text-sm" placeholder="Wi-Fi, water, study area..."></textarea>
+        <label class="mt-3 block text-xs font-bold text-slate-600">House rules for this property</label><textarea id="bhModalRules" class="w-full rounded-xl border border-slate-200 p-2.5 text-sm" placeholder="Quiet hours, visitors, house rules..."></textarea>
+
       </div>
 
       <!-- OpenStreetMap Pinpoint Map Picker -->
@@ -1185,7 +1196,7 @@
 </div>
 
 <div id="tenantModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
-  <div class="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+  <div class="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-2xl">
     <div class="flex items-center justify-between border-b border-slate-100 pb-3">
       <h3 class="text-base font-bold text-slate-800">Register Tenant Manually</h3>
       <button onclick="closeTenantModal()" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
@@ -1211,10 +1222,12 @@
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-500 mb-1">Monthly Rent (₱) *</label>
-          <input type="number" name="monthlyRent" required class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
+          <input type="number" step="0.01" min="0" name="monthlyRent" required class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
         </div>
         <div>
-          <label class="block text-xs font-bold text-slate-500 mb-1">Move-in Date</label>
+          <label class="block text-xs font-bold text-slate-500 mb-1">Tenancy status</label>
+          <select name="status" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm"><option value="active">Active</option><option value="moved_out">Moved out</option><option value="inactive">Inactive</option><option value="evicted">Evicted</option></select>
+          <label class="mt-3 block text-xs font-bold text-slate-500 mb-1">Move-in Date</label>
           <input type="date" name="moveInDate" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
         </div>
       </div>
@@ -1228,7 +1241,7 @@
 
 <!-- Accept Application Modal -->
 <div id="acceptAppModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
-  <div class="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+  <div class="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-2xl">
     <div class="flex items-center justify-between border-b border-slate-100 pb-3">
       <div>
         <h3 class="text-base font-bold text-slate-800">Accept Tenant Application & Send Offer</h3>
@@ -1250,7 +1263,7 @@
 
     <div class="space-y-3">
       <div>
-        <label class="block text-xs font-bold text-slate-500 mb-1">Assign to Room (optional)</label>
+        <label class="block text-xs font-bold text-slate-500 mb-1">Room to offer (required)</label>
         <select id="acceptAppRoomSelect" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none"></select>
       </div>
       <div>
@@ -1270,7 +1283,7 @@
 </div>
 
 <div id="paymentModal" class="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4 hidden">
-  <div class="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-xl">
+  <div class="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-xl">
     <h3 class="text-lg font-bold text-slate-800">Generate Invoice</h3>
     <form id="paymentForm" class="space-y-3">
       <div>
@@ -1279,7 +1292,7 @@
       </div>
       <div>
         <label class="block text-xs font-bold text-slate-500 mb-1">Amount (₱)</label>
-        <input type="number" name="amount" required class="w-full rounded-lg border border-slate-200 p-2.5 text-sm">
+        <input type="number" step="0.01" min="0" name="amount" required class="w-full rounded-lg border border-slate-200 p-2.5 text-sm">
       </div>
       <div>
         <label class="block text-xs font-bold text-slate-500 mb-1">Due Date</label>
@@ -1301,6 +1314,14 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
 <script>
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+  async function ownerRequest(url, options = {}) {
+    const response = await fetch(url, options);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Unable to save changes.');
+    return data;
+  }
+
   let charts = {};
   let currentTab = 'overview';
   let osmMap = null;
@@ -1862,7 +1883,7 @@
     `).join('');
   }
 
-  function openBoardingHouseModal(bhId = null) {
+  async function openBoardingHouseModal(bhId = null) {
     const modal = document.getElementById('boardingHouseModal');
     const form = document.getElementById('boardingHouseForm');
     form.reset();
@@ -1880,14 +1901,23 @@
       document.getElementById('bhModalBarangay').value = targetBh.barangay || '';
       document.getElementById('bhModalAddress').value = targetBh.address || '';
       document.getElementById('bhModalDescription').value = targetBh.description || '';
-      document.getElementById('bhModalLat').value = targetBh.latitude || '12.7192';
-      document.getElementById('bhModalLng').value = targetBh.longitude || '121.4719';
+      document.getElementById('bhModalAmenities').value = targetBh.amenities || '';
+      document.getElementById('bhModalRules').value = targetBh.houseRules || '';
+      document.getElementById('bhModalLat').value = targetBh.latitude || '';
+      document.getElementById('bhModalLng').value = targetBh.longitude || '';
     } else {
       document.getElementById('bhModalTitle').textContent = 'Add Boarding House Establishment';
-      document.getElementById('bhModalLat').value = '12.7192';
-      document.getElementById('bhModalLng').value = '121.4719';
+      document.getElementById('bhModalLat').value = '';
+      document.getElementById('bhModalLng').value = '';
     }
 
+    try {
+      const profile = await ownerRequest('/owner-dashboard/api/profile');
+      const assigned = profile.data.barangay;
+      const select = document.getElementById('bhModalBarangay');
+      for (const option of select.options) option.disabled = Boolean(option.value && option.value !== assigned && option.value !== targetBh?.barangay);
+      if (!targetBh) select.value = assigned || '';
+    } catch (error) { ownerToast(error.message, true); return; }
     modal.classList.remove('hidden');
 
     setTimeout(() => {
@@ -1942,8 +1972,10 @@
     const latitude = document.getElementById('bhModalLat').value;
     const longitude = document.getElementById('bhModalLng').value;
 
+    if (!latitude || !longitude) { ownerToast('Click the map or drag the pin to select the property’s actual location first.', true); return; }
     const payload = {
       name, barangay, address, description, latitude, longitude,
+      amenities: document.getElementById('bhModalAmenities').value, houseRules: document.getElementById('bhModalRules').value,
       mapPin: `Coordinates: ${latitude}, ${longitude}`
     };
 
@@ -2054,17 +2086,17 @@
 
     tbody.innerHTML = floorRooms.map(r => `
       <tr class="border-b border-slate-100 hover:bg-slate-50/50 transition">
-        <td class="p-4 font-bold text-slate-800">${r.roomNumber}</td>
+        <td class="p-4 font-bold text-slate-800">${esc(r.roomNumber)}</td>
         <td class="p-4"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${floorBadge[r.floor] || 'bg-slate-100 text-slate-600'}">${r.floor || '1st Floor'}</span></td>
-        <td class="p-4 text-xs">${r.roomType}</td>
+        <td class="p-4 text-xs">${esc(r.roomType)}</td>
         <td class="p-4 font-semibold text-emerald-700">₱${Number(r.rentalPrice).toLocaleString()}</td>
-        <td class="p-4">${r.availableSlots} / ${r.capacity}</td>
+        <td class="p-4">${r.availableSlots} free / ${r.capacity}<p class="mt-1 text-xs text-slate-500">${(r.occupants || []).map(t => esc(t.fullName)).join(", ") || "No active occupants"}</p></td>
         <td class="p-4"><span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${
           r.status === 'available' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
         }">${r.status}</span></td>
         <td class="p-4">
           <div class="flex gap-2">
-            <button onclick='editRoom(${JSON.stringify(r)})' class="text-xs text-slate-700 font-semibold hover:text-emerald-700 transition flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Edit</button>
+            <button onclick='editRoom(${esc(JSON.stringify(r))})' class="text-xs text-slate-700 font-semibold hover:text-emerald-700 transition flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Edit</button>
             <button onclick="deleteRoom(${r.id})" class="text-xs text-slate-500 font-semibold hover:text-rose-600 transition flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete</button>
           </div>
         </td>
@@ -2105,7 +2137,7 @@
     try {
       const formData = new FormData(e.target);
       const body = Object.fromEntries(formData.entries());
-      if (!body.availableSlots) body.availableSlots = body.capacity;
+      if (body.availableSlots === '') delete body.availableSlots;
       const id = body.id;
       const url = id ? `/owner-dashboard/api/rooms/${id}` : '/owner-dashboard/api/rooms';
       const res = await fetch(url, {
@@ -2135,7 +2167,7 @@
     try {
       const res = await fetch(`/owner-dashboard/api/rooms/${id}`, { method: 'DELETE' });
       if (res.ok) { ownerToast('Room deleted.'); loadRooms(); }
-      else ownerToast('Failed to delete room.', true);
+      else { const data = await res.json(); ownerToast(data.error || 'Failed to delete room.', true); }
     } catch (err) { ownerToast('Network error.', true); }
   }
 
@@ -2157,16 +2189,16 @@
       } else {
         tbody.innerHTML = data.map(t => `
           <tr class="border-b border-slate-100 hover:bg-slate-50/50 transition">
-            <td class="p-4 font-bold text-slate-800">${t.fullName}</td>
+            <td class="p-4 font-bold text-slate-800">${esc(t.fullName)}<p class="text-xs font-medium text-slate-500">${esc(t.status)}</p></td>
             <td class="p-4 text-xs text-slate-500">${t.contactNumber || t.email || '—'}</td>
-            <td class="p-4">${t.roomId ? 'Room ' + t.roomId : '<span class="text-slate-400 text-xs">Unassigned</span>'}</td>
+            <td class="p-4">${t.roomId ? 'Room ' + esc(t.roomNumber || t.roomId) : '<span class="text-slate-400 text-xs">Unassigned</span>'}<p class="text-xs text-slate-500">${esc(t.boardingHouseName || '')}</p></td>
             <td class="p-4 font-semibold text-emerald-700">₱${Number(t.monthlyRent || 0).toLocaleString()}</td>
             <td class="p-4">
               <span class="font-bold ${Number(t.balance) > 0 ? 'text-rose-600' : 'text-slate-700'}">₱${Number(t.balance).toLocaleString()}</span>
             </td>
             <td class="p-4">
               <div class="flex gap-2">
-                <button onclick='editTenant(${JSON.stringify(t)})' class="text-xs text-slate-700 font-semibold hover:text-emerald-700 transition flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Edit</button>
+                <button onclick='editTenant(${esc(JSON.stringify(t))})' class="text-xs text-slate-700 font-semibold hover:text-emerald-700 transition flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Edit</button>
                 <button onclick="deleteTenant(${t.id})" class="text-xs text-slate-500 font-semibold hover:text-rose-600 transition flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2 2v2"/></svg> Remove</button>
               </div>
             </td>
@@ -2178,7 +2210,7 @@
       const roomsRes = await fetch('/owner-dashboard/api/rooms');
       const roomsData = await roomsRes.json();
       const roomOptions = '<option value="">No Room Assigned</option>' + (roomsData.data || []).map(r =>
-        `<option value="${r.id}">Room ${r.roomNumber} (${r.roomType}) - ₱${Number(r.rentalPrice).toLocaleString()}</option>`
+        `<option value="${r.id}">${esc(r.boardingHouseName || 'Boarding house')} — Room ${esc(r.roomNumber)} (${esc(r.roomType)}) · ${r.availableSlots} free - ₱${Number(r.rentalPrice).toLocaleString()}</option>`
       ).join('');
       document.getElementById('tenantRoomSelect').innerHTML = roomOptions;
       document.getElementById('acceptAppRoomSelect').innerHTML = roomOptions;
@@ -2351,31 +2383,38 @@
     const body = Object.fromEntries(formData.entries());
     const id = body.id;
     const url = id ? `/owner-dashboard/api/tenants/${id}` : '/owner-dashboard/api/tenants';
-    await fetch(url, {
-      method: id ? 'PATCH' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    closeTenantModal();
-    loadTenants();
+    try {
+      await ownerRequest(url, { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      closeTenantModal(); ownerToast('Tenant and room occupancy updated.'); loadTenants(); loadRooms(); loadOverview();
+    } catch (error) { ownerToast(error.message, true); }
   });
 
   async function deleteTenant(id) {
-    if (confirm('Remove tenant from registration?')) {
-      await fetch(`/owner-dashboard/api/tenants/${id}`, { method: 'DELETE' });
-      loadTenants();
-    }
+    if (!confirm('Remove this tenant record? Records with history must be moved out instead.')) return;
+    try { await ownerRequest(`/owner-dashboard/api/tenants/${id}`, { method: 'DELETE' }); loadTenants(); loadRooms(); loadOverview(); }
+    catch (error) { ownerToast(error.message, true); }
   }
 
   // ─── Payments ───
+  async function loadOnlinePayments() {
+    try {
+      const data = await ownerRequest('/api/payments/owner/list');
+      document.getElementById('onlinePaymentsList').innerHTML = data.payments.length ? data.payments.map(payment => `<div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 p-3"><div><b>${esc(payment.tenant?.fullName || 'Tenant')}</b><p class="text-xs">${esc(payment.internalReference)} · ${esc(payment.billingMonth)} · ₱${Number(payment.amount).toLocaleString()}</p><span class="font-semibold ${payment.status === 'SUCCEEDED' ? 'text-emerald-700' : 'text-amber-700'}">${esc(payment.status)}</span></div><div>${payment.status === 'SUCCEEDED' ? `<a class="text-emerald-700 underline" href="/api/payments/${payment.id}/receipt/download" target="_blank" rel="noopener">Receipt</a>` : `<button class="rounded-full border px-3 py-2" onclick="syncOnlinePayment(${payment.id})">Sync provider status</button>`}</div></div>`).join('') : 'No online checkout records yet.';
+    } catch (error) { document.getElementById('onlinePaymentsList').textContent = error.message; }
+  }
+  async function syncOnlinePayment(id) {
+    try { const data = await ownerRequest(`/api/payments/${id}/status`); ownerToast(`Provider status: ${data.status}`); loadOnlinePayments(); loadPayments(); loadTenants(); }
+    catch (error) { ownerToast(error.message, true); }
+  }
   async function loadPayments() {
+    loadOnlinePayments();
     const res = await fetch('/owner-dashboard/api/payments');
     const { data } = await res.json();
     const tbody = document.getElementById('paymentsTable');
     tbody.innerHTML = data.map(p => `
       <tr class="border-b border-slate-100 hover:bg-slate-50/50">
-        <td class="p-4 font-bold text-slate-800">${p.tenantName || 'Tenant #' + p.tenantId}</td>
-        <td class="p-4">₱${p.amount}</td>
+        <td class="p-4 font-bold text-slate-800">${esc(p.tenantName || 'Tenant #' + p.tenantId)}<p class="text-xs font-normal text-slate-500">${esc(p.method || 'Unpaid')} ${esc(p.reference || '')}</p></td>
+        <td class="p-4">₱${Number(p.totalAmount ?? p.amount).toLocaleString()}</td>
         <td class="p-4 text-xs">${p.dueDate}</td>
         <td class="p-4"><span class="px-2 py-1 rounded-full text-xs font-semibold ${p.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}">${p.status}</span></td>
         <td class="p-4 text-xs">${p.paidDate || '-'}</td>
@@ -2406,31 +2445,24 @@
     e.preventDefault();
     const formData = new FormData(e.target);
     const body = Object.fromEntries(formData.entries());
-    await fetch('/owner-dashboard/api/payments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    closePaymentModal();
-    loadPayments();
+    try {
+      await ownerRequest('/owner-dashboard/api/payments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      closePaymentModal(); ownerToast('Rent bill created.'); loadPayments(); loadTenants(); loadOverview();
+    } catch (error) { ownerToast(error.message, true); }
   });
 
   async function markPaymentPaid(id) {
-    if (confirm('Mark invoice as fully paid?')) {
-      await fetch(`/owner-dashboard/api/payments/${id}/pay`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ method: 'Cash' })
-      });
-      loadPayments();
-    }
+    const method = prompt('Payment received through Cash, GCash, Bank Transfer, or Other:', 'Cash');
+    if (!method) return;
+    const reference = method === 'Cash' ? '' : prompt('Enter the verified payment reference:');
+    if (reference === null) return;
+    try { await ownerRequest(`/owner-dashboard/api/payments/${id}/pay`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ method, reference }) }); loadPayments(); loadTenants(); loadOverview(); }
+    catch (error) { ownerToast(error.message, true); }
   }
-
   async function deletePayment(id) {
-    if (confirm('Delete invoice record?')) {
-      await fetch(`/owner-dashboard/api/payments/${id}`, { method: 'DELETE' });
-      loadPayments();
-    }
+    if (!confirm('Remove this unpaid bill? Paid bills and online payment history are retained.')) return;
+    try { await ownerRequest(`/owner-dashboard/api/payments/${id}`, { method: 'DELETE' }); loadPayments(); loadTenants(); }
+    catch (error) { ownerToast(error.message, true); }
   }
 
   // ─── Inquiries ───

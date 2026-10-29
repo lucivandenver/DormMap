@@ -32,18 +32,7 @@ export const createPaymongoCheckoutSession = async ({
   const defaultSuccessUrl = successReturnUrl || `${getAppBaseUrl()}/payments/processing?ref=${reference}`;
   const defaultCancelUrl = failureReturnUrl || `${getAppBaseUrl()}/payments/failure?ref=${reference}`;
 
-  if (isDummyKey()) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('Online payments are not configured. Please contact the administrator.');
-    }
-    console.log('[PayMongo Service] Using Sandbox Simulation Mode (set real PAYMONGO_SECRET_KEY in .env for live API calls)');
-    return {
-      id: `cs_sim_${Date.now()}`,
-      reference_number: reference,
-      checkout_url: `${getAppBaseUrl()}/payments/processing?ref=${reference}&simulated=true`,
-      payments: []
-    };
-  }
+  if (isDummyKey()) throw new Error('Online GCash payments are not configured. Set a valid PayMongo secret key on the server.');
 
   const secretKey = getPaymongoSecretKey();
   const authHeader = `Basic ${Buffer.from(`${secretKey}:`).toString('base64')}`;
@@ -91,6 +80,7 @@ export const createPaymongoCheckoutSession = async ({
 
     const response = await fetch(apiUrl, {
       method: 'POST',
+      signal: AbortSignal.timeout(15000),
       headers: {
         'Authorization': authHeader,
         'Content-Type': 'application/json',
@@ -107,18 +97,6 @@ export const createPaymongoCheckoutSession = async ({
         || data.message
         || `PayMongo API returned HTTP ${response.status}`;
 
-      // If the API key is unauthorized or rejected by PayMongo gateway (e.g. 401 Received non-200: 404):
-      // Seamlessly route to the GCash Payment Portal so tenant can sign in with GCash and pay
-      if (process.env.NODE_ENV !== 'production' && (response.status === 401 || response.status === 403 || (detailError && detailError.includes('404')))) {
-        console.warn(`[PayMongo Warning] Key in .env is unverified (${detailError}). Opening GCash Payment Portal for tenant.`);
-        return {
-          id: `cs_gcash_${Date.now()}`,
-          reference_number: reference,
-          checkout_url: `${getAppBaseUrl()}/payments/gcash-portal?ref=${reference}`,
-          payments: []
-        };
-      }
-
       throw new Error(`PayMongo Checkout Error: ${detailError}`);
     }
 
@@ -130,16 +108,7 @@ export const createPaymongoCheckoutSession = async ({
       payments: sessionData.attributes.payments || []
     };
   } catch (err) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('Payment provider unavailable. Please try again later.');
-    }
-    console.warn('[PayMongo Notice] Routing to GCash Payment Portal:', err.message);
-    return {
-      id: `cs_gcash_${Date.now()}`,
-      reference_number: reference,
-      checkout_url: `${getAppBaseUrl()}/payments/gcash-portal?ref=${reference}`,
-      payments: []
-    };
+    throw new Error('PayMongo checkout is unavailable. Verify the API key, enabled GCash payment channel, and connection, then retry.');
   }
 };
 
@@ -161,6 +130,7 @@ export const getPaymongoCheckoutStatus = async (checkoutSessionId) => {
   try {
     const response = await fetch(`${getPaymongoBaseUrl()}/checkout_sessions/${checkoutSessionId}`, {
       method: 'GET',
+      signal: AbortSignal.timeout(10000),
       headers: {
         'Authorization': authHeader,
         'Accept': 'application/json'
@@ -178,7 +148,7 @@ export const getPaymongoCheckoutStatus = async (checkoutSessionId) => {
 
     return {
       id: data.data.id,
-      status: hasPaidPayment ? 'SUCCEEDED' : 'PENDING',
+      status: hasPaidPayment ? 'SUCCEEDED' : attributes.status === 'expired' ? 'EXPIRED' : 'PENDING',
       payments,
       reference: attributes.reference_number
     };

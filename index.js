@@ -47,6 +47,7 @@ hbs.registerHelper('eq', (a, b) => a === b);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+import { resolveGoogleAccount } from "./services/googleAccountService.js";
 import { installLandingUpdates } from "./services/landingService.js";
 import { initWebSocket } from "./services/websocketService.js";
 
@@ -119,57 +120,10 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET &&
     passReqToCallback: true,
   }, async (req, accessToken, refreshToken, profile, done) => {
   try {
-    const rawEmail = profile.emails?.[0]?.value;
-    if (!rawEmail) return done(null, false, { message: "No email returned from Google." });
-    const email = rawEmail.toLowerCase().trim();
-
-    const existingUser = await User.findOne({
-      where: sequelize.where(
-        sequelize.fn("LOWER", sequelize.col("email")),
-        email
-      ),
-    });
-    const rawOauthAccountType = req.session.oauthAccountType || req.query.accountType;
-    const isLoginOnly = rawOauthAccountType === "login_only" || !rawOauthAccountType;
-    const oauthAccountType = isLoginOnly ? "tenant" : normalizeAccountType(rawOauthAccountType);
-
-    if (existingUser) {
-      const existingRole = normalizeAccountType(existingUser.accountType);
-
-      // Only enforce role conflict when the user explicitly chose a role (register/register-google flow)
-      if (!isLoginOnly && existingRole !== oauthAccountType) {
-        return done(null, false, { message: "role_conflict", existingRole });
-      }
-      existingUser.googleId = profile.id;
-      existingUser.oauthProvider = "google";
-      if (!existingUser.emailVerified) {
-        existingUser.emailVerified = true;
-      }
-      await existingUser.save();
-      return done(null, existingUser);
-    }
-
-    // login_only but no account found — can't create a new user without a role
-    if (isLoginOnly) {
-      return done(null, false, { message: "no_account", email });
-    }
-
-    if (!['tenant', 'barangay', 'boarding_house_owner'].includes(oauthAccountType)) return done(null, false, { message: 'invalid_registration_role' });
-    const name = profile.displayName || profile.name?.givenName || "Google User";
-    const newUser = await User.create({
-      accountType: oauthAccountType,
-      applicationStatus: ['barangay', 'boarding_house_owner'].includes(oauthAccountType) ? 'pending' : 'approved',
-      fullName: name,
-      email,
-      password: await bcrypt.hash(Math.random().toString(36).slice(2), 10),
-      emailVerified: true,
-      verificationToken: null,
-      googleId: profile.id,
-      oauthProvider: "google",
-      profilePicture: profile.photos?.[0]?.value || null,
-    });
-    req.session.oauthNewUser = true;
-    return done(null, newUser);
+    const result = await resolveGoogleAccount(profile, req.session.oauthAccountType || 'login_only');
+    if (result.error) return done(null, false, { message: result.error, email: result.email, existingRole: result.existingRole });
+    req.session.oauthNewUser = result.isNew;
+    return done(null, result.user);
   } catch (err) {
     done(err);
   }

@@ -1037,7 +1037,7 @@
       </div>
 
       <div class="text-[11px] text-slate-500 space-y-1 bg-slate-50 p-3 rounded-xl leading-relaxed">
-        <p>🔒 <strong>PayMongo Instant GCash Checkout:</strong> You will be redirected to the secure PayMongo GCash portal to authorize payment. Your payment will automatically update your rent balance upon completion.</p>
+        <p>🔒 <strong>PayMongo Instant GCash Checkout:</strong> You will be redirected to the secure PayMongo GCash portal to authorize payment. Your rent updates after PayMongo confirms the payment. Checkout settles to the platform’s configured PayMongo merchant account; the owner’s displayed GCash number is contact information, not an automatic payout destination.</p>
       </div>
 
       <div class="flex justify-end gap-2 pt-1">
@@ -1406,6 +1406,7 @@
 
   let currentGcashTarget = null;
 
+  const paymentEscape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
   async function openGcashPayModal(tenantPaymentId, amount, penalty, month) {
     const base = Number(amount) - Number(penalty || 0);
     const total = Number(amount);
@@ -1439,12 +1440,12 @@
       icon: 'info',
       html: `
         <div class="text-left space-y-3 text-xs pt-2">
-          <!-- Landlord GCash Destination Box -->
+          <!-- Landlord contact information -->
           <div class="p-3 bg-emerald-50 rounded-2xl border border-emerald-100 space-y-1">
             <p class="font-bold text-emerald-950 text-[11px] uppercase tracking-wider">🏡 Landlord Payment Destination</p>
-            <div class="flex justify-between"><span class="text-slate-500">Boarding House:</span><span class="font-bold text-slate-800">${landlordBH}</span></div>
-            <div class="flex justify-between"><span class="text-slate-500">Landlord Name:</span><span class="font-bold text-slate-800">${landlordName}</span></div>
-            <div class="flex justify-between"><span class="text-slate-500">GCash Account #:</span><span class="font-bold text-emerald-700">${landlordNumber}</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">Boarding House:</span><span class="font-bold text-slate-800">${paymentEscape(landlordBH)}</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">Landlord Name:</span><span class="font-bold text-slate-800">${paymentEscape(landlordName)}</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">GCash Account #:</span><span class="font-bold text-emerald-700">${paymentEscape(landlordNumber)}</span></div>
           </div>
 
           <!-- Billing Breakdown -->
@@ -1456,7 +1457,7 @@
           </div>
 
           <p class="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-xl leading-relaxed">
-            🔒 <strong>PayMongo Instant GCash Checkout:</strong> You will be redirected to the secure PayMongo GCash portal to authorize payment. Your payment will automatically update your rent balance upon completion.
+            🔒 <strong>PayMongo Instant GCash Checkout:</strong> You will be redirected to the secure PayMongo GCash portal to authorize payment. Your rent updates after PayMongo confirms the payment. Checkout settles to the platform’s configured PayMongo merchant account; the owner’s displayed GCash number is contact information, not an automatic payout destination.
           </p>
         </div>
       `,

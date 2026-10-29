@@ -9,10 +9,10 @@ export const requireApprovedOwner = async (req, res, next) => {
 
   try {
     const user = await User.findByPk(req.session.userId, {
-      attributes: ['applicationStatus', 'isSuspended', 'isArchived', 'boardingHouseName', 'barangay', 'mapPin'],
+      attributes: ['accountType', 'applicationStatus', 'isSuspended', 'isArchived', 'boardingHouseName', 'barangay', 'mapPin'],
     });
 
-    if (!user || user.isArchived) {
+    if (!user || user.accountType !== 'boarding_house_owner' || user.isArchived) {
       return res.redirect('/login');
     }
 
@@ -46,6 +46,6 @@ export const requireApprovedOwner = async (req, res, next) => {
     next();
   } catch (err) {
     console.error('requireApprovedOwner error:', err);
-    next();
+    return res.status(503).json({ error: 'Unable to verify owner approval. Please retry.' });
   }
 };

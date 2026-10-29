@@ -1,7 +1,8 @@
 # DormMap: Render + Aiven MySQL + VS Code
 
 Render/Aiven deployment support and the upload-storage fix are already on `main`.
-The live landing-page and approval changes are prepared separately in `codex/live-landing-approvals` for review.
+The live landing-page and approval changes were merged in PR #1.
+Google admin, property/tenant/room and payment fixes are prepared in `codex/admin-owner-gcash` for review.
 
 ## 1. Ano talaga ang ide-deploy?
 
@@ -376,3 +377,46 @@ Remove-Item Env:DB_NAME
 Mapping alternatives: keep Leaflet/OpenStreetMap for the current implementation; MapTiler supports Leaflet if a different tile style is wanted. Google Maps JavaScript API supports custom markers and Places, but requires a separate integration and Google project/API setup. Review provider billing/quotas before switching. Changing a provider should preserve the DormMap database search and approval logic.
 
 References: https://github.com/komoot/photon · https://docs.maptiler.com/leaflet/ · https://developers.google.com/maps/documentation/javascript/overview
+
+## Google BPLO admin, property/room management, and GCash fixes
+
+### Google admin account not registered
+
+The production Aiven database is separate from your old localhost database. A Google sign-in does not automatically create a BPLO admin. Either create the account using `npm run admin:create`, or explicitly authorize its Google email in the private Render Environment:
+
+```env
+ADMIN_GOOGLE_EMAILS=your-approved-admin@gmail.com
+```
+
+This is a comma-separated operator-controlled list. After deploying this code, save/redeploy, then use **Login → Continue with Google**, with the exact listed account. Google must return a verified email. The setting can create the missing admin or correct an existing account's role (an upgraded account receives a random replacement password; use verified Google sign-in);  never add tenant/owner emails casually. Existing administrator accounts work without being listed. Suspended/archived accounts remain blocked. Public registration and role selectors cannot create administrators. This code does not change Render environment settings remotely.
+
+### Property, rooms and tenants
+
+- A property belongs to its owner. Additional properties use the owner's approved barangay jurisdiction. Transferring an establishment to another barangay requires administrative review rather than changing a street address to bypass jurisdiction.
+- Primary property name/address/location/photo/amenities/rules stay synchronized with the owner's profile. Additional properties have their own description, amenities, rules and pins. Empty coordinates are not replaced with a fabricated location.
+- Rooms require an owned establishment, valid capacity/rent, and a unique room number within that establishment. Available beds are checked against active tenants. Lowering the free slots reserves the remaining unoccupied beds. Maintenance rooms cannot accept tenants.
+- Owner offer → tenant confirmation → active tenancy. An offer alone does not create a resident or consume a bed. Confirmation rechecks capacity inside a transaction. Tenancy links use User IDs or unambiguous legacy email, never a shared name/phone number.
+- Transfers and move-out update both rooms' availability and linked application/property records. Historical room/tenant/billing records cannot be deleted when they still have references. Use move-out or maintenance status where appropriate. Existing over-capacity data must be corrected by moving tenants before reducing capacity; no existing resident is silently deleted.
+- Tenant tables show room/property names and tenancy status. BPLO and barangay overview/tenant lists use actual owner inventory; historical occupancy is not fabricated. BPLO owner applications now have working pagination.
+
+### Publish an unregistered establishment
+
+In **Barangay → Boarding Houses**, use **Mark unregistered**, then **Publish red pin**. The establishment needs an actual Bongabong map pin, and the barangay official must belong to that owner's jurisdiction. BPLO has the corresponding controls in owner applications. Public details show **UNREGISTERED**, with a red pin and warning. It is excluded from registered totals, featured verified listings, tenant shortlist/application eligibility, and online rent collection. **Hide red pin** removes the public notice. Marking an establishment registered requires prior approval; publication never grants an owner account approval. Suspended/archived establishments stay off the public map. This feature applies to recorded owner accounts, not fictitious placeholder owners.
+
+### GCash payments
+
+Configure a real PayMongo secret key and matching webhook signing secret; enable GCash in the PayMongo merchant account. No live key is committed. Test credentials can exercise provider test mode; real collections require an activated merchant/live configuration. Set the webhook to:
+
+```text
+https://YOUR-SERVICE.onrender.com/api/payments/paymongo/webhook
+```
+
+Subscribe to `checkout_session.payment.paid`. Only the correct tenant can pay a matching rent bill. Checkout is serialized/idempotent; signed provider webhooks or authenticated server retrieval reconcile the amount/currency, bill, correct tenant balance, and receipt in one transaction. Duplicate events do not debit the balance twice. Status and receipt endpoints require the owner/tenant/admin session. The old simulated GCash authorization portal is disabled.
+
+**Settlement:** hosted checkout settles through the configured PayMongo merchant. An owner's displayed GCash number/QR is not automatic per-owner settlement routing. For a direct transfer made outside checkout, the owner can verify the actual GCash transaction and record **Mark Paid → GCash → reference number**. That is manual verification, not automatic gateway confirmation. Automatic settlement to separate owners requires a separate linked-account/marketplace onboarding arrangement with PayMongo.
+
+Deployment still uses `npm ci --omit=dev` and `npm run start:render`. Migration is additive and creates the new linkage/publication columns. No local database export is necessary for a fresh deployment. After merge, use Render **Manual Deploy → Deploy latest commit**; this review branch is not automatically deployed.
+
+Validation: 23 unit tests; 13 database scenarios plus the parent runner; endpoint load checks for owner/barangay/BPLO modules; real browser checks for owner room/tenant create, move-out, red-pin publication/details and previous landing workflows. PayMongo checkout requests are mocked in integration tests and a real HMAC-signed HTTP webhook is exercised. No real-money GCash transfer or live Google/Render account session was performed by these checks.
+
+Owner payments also expose an authenticated checkout collections panel with provider-status synchronization and receipt links. Additional-property registration requires an explicit map click/drag; property amenities and rules are saved separately. The admin-email setting provisions a persistent role; removing an email from the environment does not revoke a role already granted.

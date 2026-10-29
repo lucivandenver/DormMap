@@ -367,6 +367,7 @@
             <tbody id="ownersTable"></tbody>
           </table>
         </div>
+        <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-white p-4"><p id="ownerPaginationLabel" class="text-sm text-slate-600"></p><div class="flex gap-2"><button id="ownerPrevPage" class="button secondary" onclick="loadOwners(ownerCurrentPage-1)">Previous</button><button id="ownerNextPage" class="button secondary" onclick="loadOwners(ownerCurrentPage+1)">Next</button></div></div>
       </section>
 
       <!-- VIEW 5: PERMIT RENEWALS -->
@@ -1592,10 +1593,15 @@ async function reviewBarangayAccount(id, action) {
 }
 
 // 4. OWNERS
-async function loadOwners() {
+let ownerCurrentPage = 1;
+async function loadOwners(page = 1) {
+  ownerCurrentPage = Math.max(1, Number(page) || 1);
   try {
-    const q = new URLSearchParams({ search: document.getElementById('ownerSearch').value, status: document.getElementById('ownerStatus').value });
+    const q = new URLSearchParams({ page: ownerCurrentPage, search: document.getElementById('ownerSearch').value, status: document.getElementById('ownerStatus').value });
     const d = await request(api + '/owners?' + q);
+    document.getElementById('ownerPaginationLabel').textContent = `Page ${d.pagination.page} of ${Math.max(1,d.pagination.pages)} · ${d.pagination.total} applications`;
+    document.getElementById('ownerPrevPage').disabled = ownerCurrentPage <= 1;
+    document.getElementById('ownerNextPage').disabled = ownerCurrentPage >= d.pagination.pages;
     document.getElementById('ownersTable').innerHTML = d.data.length ? d.data.map(x => `
       <tr>
         <td><b>${esc(x.fullName)}</b><br><span class="text-xs text-slate-500">${esc(x.boardingHouseName || 'No Property')} · ${esc(x.email)}</span></td>
@@ -1604,6 +1610,8 @@ async function loadOwners() {
         <td><span class="badge status-${esc(x.applicationStatus)}">${esc(x.applicationStatus)}</span></td>
         <td>${new Date(x.createdAt).toLocaleDateString()}</td>
         <td class="space-x-1 text-xs">
+          <button class="text-red-700 font-bold" onclick="reviewOwnerMap(${x.id}, '${x.publicMapUnregistered ? 'registered' : 'unregistered'}')">${x.publicMapUnregistered ? 'Mark registered' : 'Mark unregistered'}</button>
+          ${x.publicMapUnregistered ? `<button onclick="reviewOwnerMap(${x.id}, '${x.publicMapPublished ? 'hide' : 'publish'}')">${x.publicMapPublished ? 'Hide red pin' : 'Publish red pin'}</button>` : ''}
           <button class="text-emerald-700 font-bold" onclick="reviewOwner(${x.id}, 'approve')">Approve</button>
           <button class="text-amber-700 font-bold" onclick="reviewOwner(${x.id}, 'revision')">Revision</button>
           <button class="text-rose-700 font-bold" onclick="reviewOwner(${x.id}, 'reject')">Reject</button>
@@ -1613,6 +1621,11 @@ async function loadOwners() {
   } catch (e) { toast(e.message, true); }
 }
 
+async function reviewOwnerMap(id, action) {
+  if (!confirm(`Apply ${action} to the public map listing?`)) return;
+  try { await request(`${api}/owners/${id}/map-status`, { method: 'PATCH', body: JSON.stringify({ action }) }); loadOwners(ownerCurrentPage); toast('Map status updated.'); }
+  catch (e) { toast(e.message, true); }
+}
 async function reviewOwner(id, action) {
   const note = action === 'approve' ? 'Approved by BPLO.' : prompt('Review note (required for rejection/revision):');
   if (note === null) return;

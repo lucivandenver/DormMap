@@ -15,10 +15,10 @@ function parseList(value) {
 }
 
 export async function publicDormListings() {
-  const listings = await listTenantDorms(null);
+  const listings = await listTenantDorms(null, {}, { includeUnregistered: true });
   const gallery = listings.length ? await OwnerGallery.findAll({ where: { ownerId: { [Op.in]: [...new Set(listings.map(item => item.ownerId))] } }, order: [['sortOrder', 'ASC']] }) : [];
   return listings.map(item => ({
-    id: item.id, bhId: item.establishmentId, ownerId: item.ownerId,
+    id: item.id, registrationStatus: item.registrationStatus, bhId: item.establishmentId, ownerId: item.ownerId,
     boardingHouseName: item.name, boardingHouseAddress: item.address, barangay: item.barangay,
     fullName: item.ownerName, contactNumber: item.ownerContact,
     boardingHousePicture: item.picture, latitude: item.latitude, longitude: item.longitude,
@@ -27,7 +27,7 @@ export async function publicDormListings() {
     roomTypes: item.roomTypes.length ? item.roomTypes : parseList(item.legacyRoomTypes),
     paymentMethods: parseList(item.paymentMethods), amenities: item.amenities, houseRules: item.houseRules,
     description: item.description, createdAt: item.createdAt,
-    galleryImages: [...new Set([item.picture, ...parseList(item.legacyGalleryImages), ...gallery.filter(g => g.ownerId === item.ownerId && (g.boardingHouseId === item.establishmentId || (!g.boardingHouseId && item.legacyGalleryImages !== null))).map(g => g.imageUrl)].filter(Boolean))],
+    galleryImages: [...new Set([item.picture, ...parseList(item.legacyGalleryImages), ...gallery.filter(g => g.ownerId === item.ownerId && (g.boardingHouseId === item.establishmentId || (!g.boardingHouseId && item.isPrimary))).map(g => g.imageUrl)].filter(Boolean))],
   }));
 }
 
@@ -43,8 +43,8 @@ export async function landingSnapshot() {
   const ph = new Date(now.getTime() + 8 * 3600000);
   const start = Date.UTC(ph.getUTCFullYear(), ph.getUTCMonth(), 1) - 8 * 3600000;
   return { listings, stats: {
-    registeredHouses: listings.length,
-    newHousesThisMonth: listings.filter(item => new Date(item.createdAt).getTime() >= start).length,
+    registeredHouses: listings.filter(item => item.registrationStatus === 'registered').length,
+    newHousesThisMonth: listings.filter(item => item.registrationStatus === 'registered' && new Date(item.createdAt).getTime() >= start).length,
     activeTenants, institutions,
     barangays: new Set(officials.map(user => user.barangay).filter(Boolean)).size,
   }, updatedAt: now.toISOString() };

@@ -11,6 +11,8 @@ export const Payment = sequelize.define('Payment', {
   tenantPaymentId: { type: DataTypes.INTEGER, allowNull: true }, // Linked to OwnerPayment record
   billingMonth: { type: DataTypes.STRING, allowNull: false }, // e.g. "2026-08"
   billingYear: { type: DataTypes.INTEGER, allowNull: false },
+  checkoutKey: { type: DataTypes.STRING, allowNull: true, unique: true },
+  ownerTenantId: { type: DataTypes.INTEGER, allowNull: true },
   internalReference: { type: DataTypes.STRING, allowNull: false, unique: true }, // e.g. DM-RENT-202608-000001
   paymongoCheckoutId: { type: DataTypes.STRING, allowNull: true },
   paymongoPaymentId: { type: DataTypes.STRING, allowNull: true },
