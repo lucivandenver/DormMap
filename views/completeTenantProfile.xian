@@ -116,7 +116,7 @@
         <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 text-xs text-slate-700">
           <label class="flex items-start gap-2.5 cursor-pointer">
             <input type="checkbox" name="acceptTerms" value="on" required class="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-900 focus:ring-emerald-800">
-            <span>I agree to the <a href="#" onclick="Swal.fire('Terms of Service', 'By registering, you agree to follow DorMap guidelines and submit accurate rental application info.', 'info'); return false;" class="font-bold underline text-emerald-900">Terms of Service</a> and <a href="#" onclick="Swal.fire('Privacy Policy', 'Your personal data is protected and used strictly for tenant verification.', 'info'); return false;" class="font-bold underline text-emerald-900">Privacy Policy</a>.</span>
+            <span>I understand and agree with the <a href="#" onclick="Swal.fire('Terms of Service', 'By registering, you agree to follow DorMap guidelines and submit accurate rental application info.', 'info'); return false;" class="font-bold underline text-emerald-900">Terms of Service</a> and <a href="#" onclick="Swal.fire('Privacy Policy', 'Your personal data is protected and used strictly for tenant verification.', 'info'); return false;" class="font-bold underline text-emerald-900">Privacy Policy</a>.</span>
           </label>
         </div>
 

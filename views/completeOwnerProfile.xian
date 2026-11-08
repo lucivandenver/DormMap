@@ -387,8 +387,8 @@
       </div>
       <div class="step-label-row">
         <span class="step-label active" id="lbl1">Property Info</span>
-        <span class="step-label" id="lbl2">Documents</span>
-        <span class="step-label" id="lbl3">Terms & Submit</span>
+        <span class="step-label" id="lbl2">Location &amp; Photos</span>
+        <span class="step-label" id="lbl3">Documents &amp; Submit</span>
       </div>
 
       <form novalidate method="POST" action="/complete-owner-profile" enctype="multipart/form-data" id="ownerWizardForm">
@@ -400,6 +400,10 @@
             <input type="text" name="boardingHouseName" value="{{authValues.boardingHouseName}}" required placeholder="e.g. Green Haven Residence">
           </label>
 
+          {{> ownerRegistrationCounts }}
+          <button type="button" class="btn-primary" onclick="goToStep(2)">Next: Location and photos</button>
+        </div>
+        <div id="step2" class="space-y-3.5" style="display:none;">
           <label>
             <span>Location Barangay — Bongabong, Oriental Mindoro <span class="req">*</span></span>
             <select name="boardingHouseAddress" required>
@@ -443,50 +447,35 @@
             </select>
           </label>
 
-          {{> ownerRoomPlan }}
-          <fieldset class="room-plan-panel"><legend>Accepted payment methods</legend><label><input type="checkbox" name="paymentMethods" value="Cash"> Cash</label><label><input type="checkbox" name="paymentMethods" value="GCash"> GCash</label><label><input type="checkbox" name="paymentMethods" value="Bank Transfer"> Bank transfer</label><p class="room-plan-help">GCash checkout settles through the configured platform merchant. A profile number does not enable automatic per-owner payouts.</p></fieldset>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
-            <label>
-              <span>Rooms with availability (calculated) <span class="req">*</span></span>
-              <input type="number" name="roomsAvailable" min="0" readonly required placeholder="e.g. 5">
-            </label>
-            <label>
-              <span>Contact Number <span class="req">*</span></span>
-              <input type="tel" name="contactNumber" value="{{authValues.contactNumber}}" required placeholder="09XXXXXXXXX">
-            </label>
-          </div>
-
-
-
           <!-- Gallery Photos (5 Required) -->
           <div style="background:#f0fdf4;border:1.5px solid #a7f3d0;border-radius:16px;padding:1rem 1.1rem;">
-            <p style="font-size:0.82rem;font-weight:700;color:#065f46;margin:0 0 0.3rem;">📷 Property Gallery — Optional listing photos</p>
-            <p style="font-size:0.75rem;color:#047857;margin:0 0 0.9rem;line-height:1.6;">You can add photos now or later from your dashboard. These will appear in the carousel when tenants browse your listing.</p>
+            <p style="font-size:0.82rem;font-weight:700;color:#065f46;margin:0 0 0.3rem;">📷 Property Gallery — Five required listing photos</p>
+            <p style="font-size:0.75rem;color:#047857;margin:0 0 0.9rem;line-height:1.6;">Upload one photo for each category. These will appear in the carousel when tenants browse your listing.</p>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;">
               <label>
                 <span>1. Outdoor Spaces <span class="req">*</span></span>
                 <div style="font-size:0.72rem;color:#94a3b8;margin-bottom:0.35rem;">Front view, gate, compound exterior</div>
-                <input type="file" name="galleryOutdoor" accept="image/*">
+                <input type="file" name="galleryOutdoor" accept="image/*" required>
               </label>
               <label>
                 <span>2. Living Area <span class="req">*</span></span>
                 <div style="font-size:0.72rem;color:#94a3b8;margin-bottom:0.35rem;">Common room, sala, lounge area</div>
-                <input type="file" name="galleryLivingArea" accept="image/*">
+                <input type="file" name="galleryLivingArea" accept="image/*" required>
               </label>
               <label>
                 <span>3. Bedroom(s) <span class="req">*</span></span>
                 <div style="font-size:0.72rem;color:#94a3b8;margin-bottom:0.35rem;">Typical room offered to tenants</div>
-                <input type="file" name="galleryBedroom" accept="image/*">
+                <input type="file" name="galleryBedroom" accept="image/*" required>
               </label>
               <label>
                 <span>4. Dining / Kitchenette <span class="req">*</span></span>
                 <div style="font-size:0.72rem;color:#94a3b8;margin-bottom:0.35rem;">Kitchen, dining area, cooking space</div>
-                <input type="file" name="galleryDining" accept="image/*">
+                <input type="file" name="galleryDining" accept="image/*" required>
               </label>
               <label style="grid-column:span 2;">
                 <span>5. Bathroom <span class="req">*</span></span>
                 <div style="font-size:0.72rem;color:#94a3b8;margin-bottom:0.35rem;">CR, comfort room, shower area</div>
-                <input type="file" name="galleryBathroom" accept="image/*">
+                <input type="file" name="galleryBathroom" accept="image/*" required>
               </label>
             </div>
             <p style="font-size:0.72rem;color:#94a3b8;margin-top:0.6rem;">✓ JPG, PNG, or WEBP accepted. Max 5MB per photo. These replace the old single photo requirement.</p>
@@ -507,12 +496,13 @@
           </div>
 
           <div style="margin-top:1.2rem;">
-            <button type="button" class="btn-primary" onclick="goToStep(2)">Next: Upload Documents →</button>
+            <button type="button" class="btn-secondary" onclick="goToStep(1)">Back</button>
+            <button type="button" class="btn-primary" onclick="goToStep(3)">Next: Upload Documents →</button>
           </div>
         </div>
 
         <!-- =========== STEP 2: Required Documents =========== -->
-        <div id="step2" class="space-y-3.5" style="display:none;">
+        <div id="step3" class="space-y-3.5" style="display:none;">
           <div class="info-banner">
             <svg class="icon-bw" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
             <span>Upload all <strong>3 required documents</strong> below. Files must be JPG, PNG, WEBP, or PDF (max 5MB each). These documents will be reviewed by your Barangay and BPLO.</span>
@@ -542,14 +532,6 @@
 
           </div>
 
-          <div style="display:flex;gap:0.75rem;margin-top:1.2rem;">
-            <button type="button" class="btn-secondary" onclick="goToStep(1)">← Back</button>
-            <button type="button" class="btn-primary" onclick="goToStep(3)">Next: Review Terms →</button>
-          </div>
-        </div>
-
-        <!-- =========== STEP 3: Terms & Submit =========== -->
-        <div id="step3" class="space-y-3.5" style="display:none;">
           <div class="info-banner">
             <svg class="icon-bw" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
             <span>Almost done! Please read and accept the Terms of Service and Privacy Policy before submitting your registration.</span>
@@ -600,7 +582,7 @@
             <label>
               <input type="checkbox" name="acceptTerms" value="on" required>
               <span>
-                I have read and I agree to the <a href="#owner-terms">Terms of Service</a> and <a href="#owner-privacy">Privacy Policy</a> of the DormMap Boarding House Management System. I understand that submitting false documents may lead to account suspension.
+                I understand and agree with the <a href="#owner-terms">Terms of Service</a> and <a href="#owner-privacy">Privacy Policy</a> of the DormMap Boarding House Management System. I understand that submitting false documents may lead to account suspension.
               </span>
             </label>
           </div>
@@ -625,7 +607,10 @@
       if (step > wizardStep) {
         const panel = document.getElementById('step'+wizardStep);
         for (const input of panel.querySelectorAll('input,select,textarea')) if (!input.checkValidity()) { input.reportValidity(); return; }
-        if (wizardStep === 1 && !panel.querySelector('[data-room-plan]')?.validate?.()) return;
+        if (wizardStep === 2 && !document.getElementById('mapPinInput').value) {
+          alert('Pick the boarding house location on the map before continuing.');
+          return;
+        }
       }
       wizardStep = step;
       ['step1','step2','step3'].forEach((id, i) => {
@@ -646,7 +631,7 @@
         else if (i + 1 === step) lbl.classList.add('active');
       });
 
-      if (step === 1 && !mapInitialized) {
+      if (step === 2 && !mapInitialized) {
         setTimeout(initMap, 200);
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -675,13 +660,8 @@
           if (!input.checkValidity()) { event.preventDefault(); goToStep(step); input.reportValidity(); return; }
         }
       }
-      if (!document.querySelector('[data-room-plan]').validate()) { event.preventDefault(); goToStep(1); }
     });
 
-    // Initialize map on page load for step 1
-    window.addEventListener('load', () => {
-      setTimeout(initMap, 400);
-    });
 
     document.getElementById('openFullMapBtn')?.addEventListener('click', () => {
       const lat = document.getElementById('latInput')?.value || 12.7192;

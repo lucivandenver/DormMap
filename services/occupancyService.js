@@ -156,9 +156,17 @@ function requireOwnerGcash(owner) {
   }
 }
 
+function requirePropertySetup(owner, house, room) {
+  if (!house?.declaredRooms) return;
+  if (!owner.contactNumber?.trim() || !house.address?.trim() || house.address.trim() === house.barangay || !(Number(room?.rentalPrice) > 0)) {
+    fail('Before accepting tenants, add your contact number, the property street address, and a positive monthly rent for the room in the owner dashboard.');
+  }
+}
+
 export async function offerApplication(ownerId, tenantUserId, body) {
   return sequelize.transaction(async transaction => {
-    requireOwnerGcash(await ownerLock(ownerId, transaction));
+    const owner = await ownerLock(ownerId, transaction);
+    requireOwnerGcash(owner);
     const app = await TenantApplication.findOne({ where: { ownerId, tenantId: tenantUserId, ...(body.applicationId ? { id: body.applicationId } : {}), status: { [Op.in]: ['pending_owner','accepted_by_owner'] } }, order: [['createdAt','DESC']], transaction, lock: transaction.LOCK.UPDATE });
     if (!app) fail('No pending application from this tenant to this owner.', 404);
     if (!body.roomId) fail('Choose a room to offer.');
@@ -169,6 +177,7 @@ export async function offerApplication(ownerId, tenantUserId, body) {
     if (!room.availableSlots || room.status === 'maintenance') fail('This room is full or unavailable.', 409);
     const house = await BoardingHouse.findByPk(room.boardingHouseId, { transaction });
     if (house?.approvalStatus !== 'approved') fail('This branch must be approved before offering rooms.');
+    requirePropertySetup(owner, house, room);
     const occupantCount = integer(body.occupantCount || 1, 1, 'Household occupants');
     if (occupantCount > room.capacity || (room.rentalBasis === 'bed' && occupantCount !== 1)) fail('The offered household size does not match this room.');
     await app.update({ occupantCount, status: 'accepted_by_owner', roomId: room.id, boardingHouseId: house.id, boardingHouseName: house.name, monthlyRent: money(body.monthlyRent ?? Number(room.rentalPrice)*(room.rentalBasis === 'person' ? occupantCount : 1)), moveInDate: body.moveInDate || null, ownerNotes: String(body.notes || '').slice(0,2000), acceptedAt: new Date() }, { transaction });
@@ -187,6 +196,7 @@ export async function confirmOffer(userId, applicationId) {
     requireOwnerGcash(owner);
     const branch = app.boardingHouseId ? await BoardingHouse.findByPk(app.boardingHouseId, { transaction }) : null;
     if (branch?.approvalStatus !== 'approved') fail('This branch is not currently approved.');
+    if (branch.declaredRooms) requirePropertySetup(owner, branch, await ownedRoom(owner.id, app.roomId, transaction));
     if (app.status !== 'accepted_by_owner') fail('This offer is not available for confirmation.');
     const otherActive = await OwnerTenant.findOne({ where: { tenantUserId: userId, status: 'active' }, transaction });
     if (otherActive) fail('You already have an active tenancy. Arrange move-out before confirming another.', 409);

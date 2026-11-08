@@ -328,7 +328,7 @@
             <label>
               <input type="checkbox" name="acceptTerms" value="on" id="acceptTerms" required>
               <span>
-                I have read and agree to the
+                I understand and agree with the
                 <a href="#" id="termsLink">Terms of Service</a>
                 and
                 <a href="#" id="policyLink">Privacy Policy</a>

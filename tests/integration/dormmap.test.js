@@ -330,17 +330,17 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.equal((await request(`/api/payments/status/by-ref?ref=${checkout.payment.internalReference}`, cookie)).status, 403);
       assert.equal((await request(`/api/payments/${checkout.payment.id}/receipt/download`, secondCookie)).status, 200);
     });
-    await t.test('owner signup atomically creates a property and detailed floor/bed inventory', async () => {
+    await t.test('owner signup records property counts and defers room inventory', async () => {
       const form = new FormData();
-      const data = { accountType:'boarding_house_owner', fullName:'Registered Room Owner', email:`layout-${suffix}@example.test`, password:'test-password-123',confirmPassword:'test-password-123',acceptTerms:'on',boardingHouseName:'Layout Main',boardingHouseAddress:'Orconuma',streetAddress:'Purok 2, Main Street',roomsAvailable:'1',contactNumber:'09171234567',mapPin:'Lat 12.668945, Lon 121.491777',boardingHouseLatitude:'12.668945',boardingHouseLongitude:'121.491777',propertyType:'Mixed',floorCount:'2',roomPlan:JSON.stringify([{roomNumber:'101',floor:1,roomType:'Bedspace',capacity:6,bedCount:6,rentalBasis:'bed',unavailable:2,rentalPrice:1500},{roomNumber:'201',floor:2,roomType:'Family Room',capacity:4,bedCount:2,rentalBasis:'room',unavailable:0,rentalPrice:6000}]) };
+      const data = { accountType:'boarding_house_owner', fullName:'Registered Room Owner', email:`layout-${suffix}@example.test`, password:'test-password-123',confirmPassword:'test-password-123',acceptTerms:'on',boardingHouseName:'Layout Main',boardingHouseAddress:'Orconuma',streetAddress:'Purok 2, Main Street',roomsAvailable:'2',declaredBranches:'1',contactNumber:'09171234567',mapPin:'Lat 12.668945, Lon 121.491777',boardingHouseLatitude:'12.668945',boardingHouseLongitude:'121.491777',propertyType:'Mixed',floorCount:'2' };
       for (const [key,value] of Object.entries(data)) form.set(key,value);
       const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5X8AAAAASUVORK5CYII=','base64');
-      for (const name of ['validIdPicture','businessPermit','barangayClearance']) form.set(name,new Blob([png],{type:'image/png'}),name+'.png');
+      for (const name of ['galleryOutdoor','galleryLivingArea','galleryBedroom','galleryDining','galleryBathroom','validIdPicture','businessPermit','barangayClearance']) form.set(name,new Blob([png],{type:'image/png'}),name+'.png');
       const response=await request('/register',null,{method:'POST',body:form});assert.equal(response.status,302,await response.clone().text());
       const created=await User.findOne({where:{email:data.email}});assert.ok(created);ids.push(created.id);
       for(const value of [created.profilePicture,created.boardingHousePicture,created.validIdPicture,created.businessPermit,created.barangayClearance,created.rentalPermit,...JSON.parse(created.galleryImages || '[]'),...Object.values(JSON.parse(created.supportingDocuments || '{}'))]) if(typeof value==='string'&&value.startsWith('/uploads/'))uploadedFiles.push(new URL('../../public'+value,import.meta.url));
       const primary=await BoardingHouse.findOne({where:{ownerId:created.id,isPrimary:true}});assert.equal(primary.floorCount,2);assert.equal(primary.address,'Purok 2, Main Street');
-      const rooms=await OwnerRoom.findAll({where:{ownerId:created.id},order:[['roomNumber','ASC']]});assert.equal(rooms.length,2);assert.equal(rooms[0].availableSlots,4);assert.equal(rooms[1].bedCount,2);assert.equal(rooms[1].rentalBasis,'room');assert.equal(created.roomsAvailable,2);assert.equal(created.applicationStatus,'pending');
+      const rooms=await OwnerRoom.findAll({where:{ownerId:created.id},order:[['roomNumber','ASC']]});assert.equal(rooms.length,0);assert.equal(primary.declaredRooms,2);assert.equal(primary.declaredBranches,1);assert.equal(created.roomsAvailable,0);assert.equal(created.applicationStatus,'pending');
     });
     await t.test('bed numbers, reported occupancy and whole-room household leases stay consistent', async () => {
       await house.update({ floorCount:4 });

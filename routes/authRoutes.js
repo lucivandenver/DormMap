@@ -204,7 +204,6 @@ router.post("/complete-owner-profile", cleanFailedRegistration, registerUpload, 
     boardingHouseName,
     boardingHouseAddress,
     roomsAvailable,
-    contactNumber,
     mapPin,
     boardingHouseLatitude,
     boardingHouseLongitude,
@@ -217,7 +216,7 @@ router.post("/complete-owner-profile", cleanFailedRegistration, registerUpload, 
     error
   });
 
-  if (!boardingHouseName || !boardingHouseAddress || !roomsAvailable || !contactNumber || !mapPin) {
+  if (!boardingHouseName || !boardingHouseAddress || !roomsAvailable || !mapPin) {
     return renderError("Please fill out all required property fields.");
   }
   if (acceptTerms !== "on") {
@@ -267,7 +266,6 @@ router.post("/complete-owner-profile", cleanFailedRegistration, registerUpload, 
     user.boardingHouseAddress = boardingHouseAddress;
     user.barangay = boardingHouseAddress; // Sort by barangay
     user.roomsAvailable = Number(roomsAvailable) || 1;
-    user.contactNumber = contactNumber;
     user.paymentMethods = JSON.stringify([].concat(req.body.paymentMethods || []).filter(method => ['Cash','GCash','Bank Transfer'].includes(method)));
     user.mapPin = mapPin;
     user.boardingHouseLatitude = boardingHouseLatitude || null;
