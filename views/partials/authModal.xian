@@ -46,8 +46,8 @@
     flex-shrink: 0 !important;
     stroke-width: 2 !important;
   }
-  .dormmap-auth-shell > div.relative {max-width:580px;border-radius:18px;}
-  [data-mode="login"] .dormmap-auth-panel {background:white;padding:clamp(1.25rem,6vw,3rem);}
+  .dormmap-auth-shell > div.relative {max-width:462px;border-radius:18px;}
+  [data-mode="login"] .dormmap-auth-panel {background:white;padding:1rem;}
   [data-mode="login"] .dormmap-auth-scroll > div:has(.auth-tab),
   [data-mode="login"] .dormmap-auth-scroll > div:first-child p {display:none;}
   [data-mode="login"] .dormmap-auth-scroll h3 {font-size:2.2rem;}
@@ -324,17 +324,18 @@
                 <input type="text" name="contactNumber" placeholder="09xxxxxxxxx" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
               </label>
             </div>
+            <div class="mt-3 flex justify-center">
+              <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-full px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-950/20 hover:scale-[1.02] active:scale-[0.98] transition" style="background: var(--dormmap-primary);">
+                <i data-lucide="landmark" class="h-4 w-4"></i>
+                <span>Create Barangay Account</span>
+              </button>
+            </div>
+            <p class="my-3 text-center text-sm">Already have an account? <button type="button" class="font-bold text-emerald-800 underline" onclick="window._setDormmapAuthMode('login')">Log in</button></p>
             <div class="mt-3 rounded-2xl border border-slate-200/80 bg-slate-50 px-3 py-2.5 text-xs text-slate-700">
               <label class="flex items-start gap-2 cursor-pointer">
                 <input type="checkbox" name="acceptTerms" value="on" required class="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600">
                 <span>I understand and agree with the <a class="font-bold underline text-emerald-800" href="https://bstm-9m6x.onrender.com/terms" target="_blank" rel="noopener">Terms &amp; Conditions</a> and <a class="font-bold underline text-emerald-800" href="https://bstm-9m6x.onrender.com/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
               </label>
-            </div>
-            <div class="mt-3 flex justify-end">
-              <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-full px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-950/20 hover:scale-[1.02] active:scale-[0.98] transition" style="background: var(--dormmap-primary);">
-                <i data-lucide="landmark" class="h-4 w-4"></i>
-                <span>Create Barangay Account</span>
-              </button>
             </div>
           </div>
 
@@ -480,20 +481,21 @@
 
               </div>
               <div class="grid gap-3 sm:grid-cols-2"><label class="text-xs font-semibold">Government-issued ID<input type="file" name="validIdPicture" required accept="image/jpeg,image/png,image/webp,application/pdf" class="mt-2 block w-full text-xs"></label><label class="text-xs font-semibold">Barangay clearance<input type="file" name="barangayClearance" required accept="image/jpeg,image/png,image/webp,application/pdf" class="mt-2 block w-full text-xs"></label></div>
+              <button type="button" class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition" data-owner-back="2">
+                  ← Previous Step
+                </button>
+              <div class="mt-3 flex justify-center">
+                <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-full px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-950/20 hover:scale-[1.02] active:scale-[0.98] transition" style="background: var(--dormmap-primary);">
+                  <i data-lucide="check-circle-2" class="h-4 w-4"></i>
+                  <span>Create account</span>
+                </button>
+              </div>
+              <p class="my-3 text-center text-sm">Already have an account? <button type="button" class="font-bold text-emerald-800 underline" onclick="window._setDormmapAuthMode('login')">Log in</button></p>
               <div class="rounded-2xl border border-slate-200/80 bg-slate-50 px-3 py-2.5 text-xs text-slate-700">
                 <label class="flex items-start gap-2 cursor-pointer">
                   <input type="checkbox" name="acceptTerms" value="on" required class="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600">
                   <span>I understand and agree with the <a class="font-bold underline text-emerald-800" href="https://bstm-9m6x.onrender.com/terms" target="_blank" rel="noopener">Terms &amp; Conditions</a> and <a class="font-bold underline text-emerald-800" href="https://bstm-9m6x.onrender.com/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
                 </label>
-              </div>
-              <div class="flex justify-between gap-3 pt-1">
-                <button type="button" class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition" data-owner-back="2">
-                  ← Previous Step
-                </button>
-                <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-full px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-950/20 hover:scale-[1.02] active:scale-[0.98] transition" style="background: var(--dormmap-primary);">
-                  <i data-lucide="check-circle-2" class="h-4 w-4"></i>
-                  <span>Create account</span>
-                </button>
               </div>
             </div>
           </div>
@@ -554,23 +556,20 @@
               </label>
 
             </div>
+            <div class="mt-3 flex justify-center">
+              <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-full px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-950/20 hover:scale-[1.02] active:scale-[0.98] transition" style="background: var(--dormmap-primary);">
+                <i data-lucide="user-plus" class="h-4 w-4"></i>
+                <span>Create Tenant Account</span>
+              </button>
+            </div>
+            <p class="my-3 text-center text-sm">Already have an account? <button type="button" class="font-bold text-emerald-800 underline" onclick="window._setDormmapAuthMode('login')">Log in</button></p>
             <div class="mt-3 rounded-2xl border border-slate-200/80 bg-slate-50 px-3 py-2.5 text-xs text-slate-700">
               <label class="flex items-start gap-2 cursor-pointer">
                 <input type="checkbox" name="acceptTerms" value="on" required class="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600">
                 <span>I understand and agree with the <a class="font-bold underline text-emerald-800" href="https://bstm-9m6x.onrender.com/terms" target="_blank" rel="noopener">Terms &amp; Conditions</a> and <a class="font-bold underline text-emerald-800" href="https://bstm-9m6x.onrender.com/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
               </label>
             </div>
-            <div class="mt-3 flex justify-between gap-3 pt-1">
-              <button type="button" class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition" data-swap-auth>
-                ← Back
-              </button>
-              <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-full px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-950/20 hover:scale-[1.02] active:scale-[0.98] transition" style="background: var(--dormmap-primary);">
-                <i data-lucide="user-plus" class="h-4 w-4"></i>
-                <span>Create Tenant Account</span>
-              </button>
-            </div>
           </div>
-        <p class="text-center text-sm">Already have an account? <button type="button" class="font-bold text-emerald-800 underline" onclick="window._setDormmapAuthMode('login')">Log in</button></p>
         </form>
 
       </div>
