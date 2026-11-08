@@ -17,11 +17,11 @@ test('invalid capacities, floors, prices and duplicate room/floor identities are
  assert.throws(()=>parseRoomPlan([],1),/Add between/);
 });
 test('required photos/documents and a real map pin are enforced on the server',()=>{
- const body={roomPlan:JSON.stringify([bed]),floorCount:2,boardingHouseLatitude:'12.668945',boardingHouseLongitude:'121.491777'};
+ const body={declaredBranches:1,roomsAvailable:3,floorCount:2,boardingHouseLatitude:'12.668945',boardingHouseLongitude:'121.491777'};
  assert.throws(()=>validateOwnerSetup(body,{}),/upload/);
  const fields=['profilePicture','galleryOutdoor','galleryLivingArea','galleryBedroom','galleryDining','galleryBathroom','validIdPicture','businessPermit','barangayClearance','proofOfOwnership','rentalPermit'];
  const files=Object.fromEntries(fields.map(name=>[name,[{mimetype:'image/png',size:100}]]));
- assert.equal(validateOwnerSetup(body,files).rooms[0].availableSlots,4);
+ assert.equal(validateOwnerSetup(body,files).metadata.declaredRooms,3);
  files.galleryOutdoor[0].mimetype='application/pdf';assert.throws(()=>validateOwnerSetup(body,files),/Invalid file/);
  files.galleryOutdoor[0].mimetype='image/png';assert.throws(()=>validateOwnerSetup({...body,boardingHouseLatitude:''},files),/actual Bongabong/);
 });

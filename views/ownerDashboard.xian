@@ -354,6 +354,7 @@
             <h2 class="text-base font-bold text-slate-800">Main Property Profile Settings</h2>
             <span class="text-xs bg-emerald-50 text-emerald-700 font-bold px-3 py-1.5 rounded-full">Primary Property</span>
           </div>
+          <p class="text-sm text-slate-600">Before accepting tenants, save your contact and GCash details, set the property street address under Boarding Houses, and add priced rooms under Rooms.</p>
           <form id="profileForm" class="space-y-4">
           <div class="grid gap-4 md:grid-cols-2">
             <div>

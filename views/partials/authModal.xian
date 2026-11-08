@@ -46,15 +46,17 @@
     flex-shrink: 0 !important;
     stroke-width: 2 !important;
   }
-  .dormmap-auth-shell[data-mode="login"] > div.relative {max-width:550px;border-radius:18px;}
+  .dormmap-auth-shell > div.relative {max-width:580px;border-radius:18px;}
   [data-mode="login"] .dormmap-auth-panel {background:white;padding:clamp(1.25rem,6vw,3rem);}
   [data-mode="login"] .dormmap-auth-scroll > div:has(.auth-tab),
   [data-mode="login"] .dormmap-auth-scroll > div:first-child p {display:none;}
   [data-mode="login"] .dormmap-auth-scroll h3 {font-size:2.2rem;}
-  [data-mode="login"] img[alt="DormMap Logo"] {width:100%;height:100%;}
-  [data-mode="login"] div:has(> img[alt="DormMap Logo"]) {width:56px;height:56px;}
   #loginForm input,#loginForm button[type="submit"],#googleAuthBtn {min-height:52px;border-radius:18px;}
   #loginForm button[type="submit"] {width:100%;background:#006c42;}
+  #loginForm button[type="submit"]:hover {filter:brightness(.88);box-shadow:0 6px 16px #064e3b40;}
+  .auth-legal {display:none;text-align:center;color:#64748b;font-size:.8rem;margin-top:1rem;}
+  [data-mode="login"] .auth-legal {display:block;}
+  .auth-legal a {text-decoration:underline;}
   .auth-forgot:hover,.auth-forgot:focus-visible {color:#b91c1c;text-decoration:underline;}
   .auth-create,.auth-divider {display:none;}
   [data-mode="login"] .auth-create {display:block;text-align:center;margin:1.5rem 0 0;color:#475569;font-size:.9rem;}
@@ -233,6 +235,7 @@
 
         <p class="auth-create">New to DormMap? <button type="button" onclick="window._setDormmapAuthMode('register')">Create account</button></p>
 
+        <p class="auth-legal">By logging in, you agree to DormMap's <a href="https://bstm-9m6x.onrender.com/terms" target="_blank" rel="noopener">Terms</a> &amp; <a href="https://bstm-9m6x.onrender.com/privacy" target="_blank" rel="noopener">Data use</a>.</p>
         <form id="registerForm" class="mt-3 hidden space-y-3.5" method="POST" action="/register" enctype="multipart/form-data">
           <input type="hidden" name="accountType" id="registerAccountType" value="{{authAccountType}}">
 
@@ -324,7 +327,7 @@
             <div class="mt-3 rounded-2xl border border-slate-200/80 bg-slate-50 px-3 py-2.5 text-xs text-slate-700">
               <label class="flex items-start gap-2 cursor-pointer">
                 <input type="checkbox" name="acceptTerms" value="on" required class="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600">
-                <span>I agree to the <a href="#" onclick="alert('Property owners must provide accurate property, floor, room and document details. The assigned barangay reviews the application; additional branches have their own listing review.'); return false;" class="font-bold underline text-emerald-800">Terms of Service</a> and <a href="#" onclick="alert('Property contact details and room availability may be published. Identity documents are submitted for authorized review; do not include them in public gallery photos. Contact the operator for data-access or deletion requests.'); return false;" class="font-bold underline text-emerald-800">Privacy Policy</a>.</span>
+                <span>I understand and agree with the <a class="font-bold underline text-emerald-800" href="https://bstm-9m6x.onrender.com/terms" target="_blank" rel="noopener">Terms &amp; Conditions</a> and <a class="font-bold underline text-emerald-800" href="https://bstm-9m6x.onrender.com/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
               </label>
             </div>
             <div class="mt-3 flex justify-end">
@@ -348,16 +351,20 @@
             </div>
 
             <div class="mt-2.5 space-y-3" data-owner-step="1">
-              {{> ownerRoomPlan }}
               <div class="grid gap-2.5 sm:grid-cols-2">
-                <label class="text-xs font-semibold">Contact number<input type="tel" name="contactNumber" required placeholder="09XXXXXXXXX" class="mt-2 block w-full rounded-xl border p-3"></label>
                 <label class="sm:col-span-2">
                   <span class="mb-1 block text-[13px] font-semibold text-slate-700">Boarding house name</span>
-                  <input type="text" name="boardingHouseName" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
+                  <input type="text" name="boardingHouseName" value="{{authValues.boardingHouseName}}" required class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
                 </label>
+              </div>
+              {{> ownerRegistrationCounts }}
+              <button type="button" class="rounded-xl bg-emerald-800 px-4 py-2 text-white" data-owner-next="2">Next: Location and photos</button>
+            </div>
+            <div class="mt-2.5 hidden space-y-3" data-owner-step="2">
+              <div class="grid gap-2.5 sm:grid-cols-2">
                 <label class="sm:col-span-2">
                   <span class="mb-1 block text-[13px] font-semibold text-slate-700">Location address (Barangay)</span>
-                  <select name="boardingHouseAddress" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
+                  <select name="boardingHouseAddress" required class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
                     <option value="">Select Barangay</option>
                     <option>Anilao</option>
                     <option>Aplaya</option>
@@ -397,10 +404,7 @@
                     <option>Tawas</option>
                   </select>
                 </label>
-                <label>
-                  <span class="mb-1 block text-[13px] font-semibold text-slate-700">Rooms available</span>
-                  <input type="number" name="roomsAvailable" min="1" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
-                </label>
+
                 <label class="sm:col-span-2">
                   <div class="mb-1 flex items-center justify-between gap-3">
                     <span class="block text-[13px] font-semibold text-slate-700">Streetmap location</span>
@@ -423,11 +427,11 @@
                   </div>
                   <div id="ownerMap" class="h-52 w-full"></div>
                 </div>
-                <!-- Optional Category Photos for Boarding House -->
+                <!-- Required Category Photos for Boarding House -->
                 <div class="sm:col-span-2 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3.5 space-y-3">
                   <div>
                     <p class="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
-                      <span>📷 Optional property photos</span>
+                      <span>📷 Property photos (five required)</span>
                     </p>
                     <p class="text-[11px] text-emerald-800 mt-0.5 leading-snug">
                       Please upload 1 photo for each category below. Category 1 (Outdoor Spaces) will serve as your primary listing cover.
@@ -437,85 +441,49 @@
                     <label class="block bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs">
                       <span class="mb-0.5 block text-xs font-bold text-slate-800">1. Outdoor Spaces <span class="text-rose-500">*</span></span>
                       <span class="text-[10px] text-slate-500 block mb-1">Front view, gate, exterior</span>
-                      <input type="file" name="galleryOutdoor" accept="image/*" class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
+                      <input type="file" name="galleryOutdoor" accept="image/*" required class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
                     </label>
                     <label class="block bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs">
                       <span class="mb-0.5 block text-xs font-bold text-slate-800">2. Living Area <span class="text-rose-500">*</span></span>
                       <span class="text-[10px] text-slate-500 block mb-1">Common room, sala, lounge</span>
-                      <input type="file" name="galleryLivingArea" accept="image/*" class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
+                      <input type="file" name="galleryLivingArea" accept="image/*" required class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
                     </label>
                     <label class="block bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs">
                       <span class="mb-0.5 block text-xs font-bold text-slate-800">3. Bedroom <span class="text-rose-500">*</span></span>
                       <span class="text-[10px] text-slate-500 block mb-1">Tenant room space, beds</span>
-                      <input type="file" name="galleryBedroom" accept="image/*" class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
+                      <input type="file" name="galleryBedroom" accept="image/*" required class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
                     </label>
                     <label class="block bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs">
                       <span class="mb-0.5 block text-xs font-bold text-slate-800">4. Dining or kitchenette <span class="text-rose-500">*</span></span>
                       <span class="text-[10px] text-slate-500 block mb-1">Kitchen or dining facility</span>
-                      <input type="file" name="galleryDining" accept="image/*" class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
+                      <input type="file" name="galleryDining" accept="image/*" required class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
                     </label>
                     <label class="block bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs sm:col-span-2">
                       <span class="mb-0.5 block text-xs font-bold text-slate-800">5. Bathroom <span class="text-rose-500">*</span></span>
                       <span class="text-[10px] text-slate-500 block mb-1">CR, comfort room, shower</span>
-                      <input type="file" name="galleryBathroom" accept="image/*" class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
+                      <input type="file" name="galleryBathroom" accept="image/*" required class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
                     </label>
                   </div>
                 </div>
               </div>
-              <div class="flex justify-end pt-1">
-                <button type="button" class="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold text-white shadow-md hover:scale-[1.02] active:scale-[0.98] transition" style="background: var(--dormmap-primary);" data-owner-next="2">
-                  <span>Continue to Step 2</span>
-                  <i data-lucide="arrow-right" class="h-4 w-4"></i>
-                </button>
+              <div class="flex justify-between gap-2">
+                <button type="button" data-owner-back="1">Back</button>
+                <button type="button" class="rounded-xl bg-emerald-800 px-4 py-2 text-white" data-owner-next="3">Next: Documents</button>
               </div>
             </div>
-
-            <div class="mt-2.5 hidden space-y-3" data-owner-step="2">
+            <div class="mt-2.5 hidden space-y-3" data-owner-step="3">
               <div class="grid gap-2.5 sm:grid-cols-2">
-                <p class="sm:col-span-2 text-xs text-slate-500">Room types and availability come from your room inventory in Step 1.</p>
-                <fieldset class="sm:col-span-2">
-                  <legend class="mb-2 block text-[13px] font-semibold text-slate-700">Payment methods</legend>
-                  <div class="grid grid-cols-2 gap-2">
-                    <label class="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700"><input type="checkbox" name="paymentMethods" value="Cash"> Cash</label>
-                    <label class="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700"><input type="checkbox" name="paymentMethods" value="GCash"> GCash</label>
-                    <label class="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700"><input type="checkbox" name="paymentMethods" value="Maya"> Maya</label>
-                    <label class="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700"><input type="checkbox" name="paymentMethods" value="Bank Transfer"> Bank</label>
-                  </div>
-                </fieldset>
                 <label class="sm:col-span-2">
                   <span class="mb-1 block text-[13px] font-semibold text-slate-700">Business permit</span>
                   <input type="file" name="businessPermit" required accept="image/*,.pdf" class="w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-2.5 text-sm file:mr-4 file:rounded-full file:border-0 file:bg-[var(--dormmap-primary)] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white">
                 </label>
 
               </div>
-              <div class="grid gap-3 sm:grid-cols-2"><label class="text-xs font-semibold">Government-issued ID<input type="file" name="validIdPicture" required accept="image/jpeg,image/png,image/webp,application/pdf" class="mt-2 block w-full text-xs"></label><label class="text-xs font-semibold">Barangay clearance<input type="file" name="barangayClearance" required accept="image/jpeg,image/png,image/webp,application/pdf" class="mt-2 block w-full text-xs"></label></div><div class="flex justify-between gap-3 pt-1">
-                <button type="button" class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition" data-owner-back="1">
-                  ← Previous Step
-                </button>
-                <button type="button" class="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold text-white shadow-md hover:scale-[1.02] active:scale-[0.98] transition" style="background: var(--dormmap-primary);" data-owner-next="3">
-                  <span>Continue to Step 3</span>
-                  <i data-lucide="arrow-right" class="h-4 w-4"></i>
-                </button>
-              </div>
-            </div>
-
-            <div class="mt-2.5 hidden space-y-3" data-owner-step="3">
-              <div class="rounded-2xl bg-emerald-50 p-3 text-xs leading-5 text-emerald-900">
-                <p class="font-bold">Final checklist</p>
-                <ul class="mt-2 space-y-1 list-disc pl-5">
-                  <li>Provide clear and valid contact details.</li>
-                  <li>Upload the required permits and a recognizable property photo.</li>
-                  <li>Include room options, payment methods, and a valid map pin so tenants can verify the property quickly.</li>
-                </ul>
-              </div>
-              <label class="block">
-                <span class="mb-1 block text-[13px] font-semibold text-slate-700">Additional notes</span>
-                <textarea name="notes" rows="3" placeholder="Wi-Fi, water source, curfew rules" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10"></textarea>
-              </label>
+              <div class="grid gap-3 sm:grid-cols-2"><label class="text-xs font-semibold">Government-issued ID<input type="file" name="validIdPicture" required accept="image/jpeg,image/png,image/webp,application/pdf" class="mt-2 block w-full text-xs"></label><label class="text-xs font-semibold">Barangay clearance<input type="file" name="barangayClearance" required accept="image/jpeg,image/png,image/webp,application/pdf" class="mt-2 block w-full text-xs"></label></div>
               <div class="rounded-2xl border border-slate-200/80 bg-slate-50 px-3 py-2.5 text-xs text-slate-700">
                 <label class="flex items-start gap-2 cursor-pointer">
                   <input type="checkbox" name="acceptTerms" value="on" required class="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600">
-                  <span>I agree to the <a href="#" onclick="alert('Property owners must provide accurate property, floor, room and document details. The assigned barangay reviews the application; additional branches have their own listing review.'); return false;" class="font-bold underline text-emerald-800">Terms of Service</a> and <a href="#" onclick="alert('Property contact details and room availability may be published. Identity documents are submitted for authorized review; do not include them in public gallery photos. Contact the operator for data-access or deletion requests.'); return false;" class="font-bold underline text-emerald-800">Privacy Policy</a>.</span>
+                  <span>I understand and agree with the <a class="font-bold underline text-emerald-800" href="https://bstm-9m6x.onrender.com/terms" target="_blank" rel="noopener">Terms &amp; Conditions</a> and <a class="font-bold underline text-emerald-800" href="https://bstm-9m6x.onrender.com/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
                 </label>
               </div>
               <div class="flex justify-between gap-3 pt-1">
@@ -524,7 +492,7 @@
                 </button>
                 <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-full px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-950/20 hover:scale-[1.02] active:scale-[0.98] transition" style="background: var(--dormmap-primary);">
                   <i data-lucide="check-circle-2" class="h-4 w-4"></i>
-                  <span>Complete Owner Registration</span>
+                  <span>Create account</span>
                 </button>
               </div>
             </div>
@@ -589,7 +557,7 @@
             <div class="mt-3 rounded-2xl border border-slate-200/80 bg-slate-50 px-3 py-2.5 text-xs text-slate-700">
               <label class="flex items-start gap-2 cursor-pointer">
                 <input type="checkbox" name="acceptTerms" value="on" required class="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600">
-                <span>I agree to the <a href="#" onclick="alert('Property owners must provide accurate property, floor, room and document details. The assigned barangay reviews the application; additional branches have their own listing review.'); return false;" class="font-bold underline text-emerald-800">Terms of Service</a> and <a href="#" onclick="alert('Property contact details and room availability may be published. Identity documents are submitted for authorized review; do not include them in public gallery photos. Contact the operator for data-access or deletion requests.'); return false;" class="font-bold underline text-emerald-800">Privacy Policy</a>.</span>
+                <span>I understand and agree with the <a class="font-bold underline text-emerald-800" href="https://bstm-9m6x.onrender.com/terms" target="_blank" rel="noopener">Terms &amp; Conditions</a> and <a class="font-bold underline text-emerald-800" href="https://bstm-9m6x.onrender.com/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
               </label>
             </div>
             <div class="mt-3 flex justify-between gap-3 pt-1">
@@ -602,6 +570,7 @@
               </button>
             </div>
           </div>
+        <p class="text-center text-sm">Already have an account? <button type="button" class="font-bold text-emerald-800 underline" onclick="window._setDormmapAuthMode('login')">Log in</button></p>
         </form>
 
       </div>
@@ -796,6 +765,11 @@
       const invalidField = activeStep.querySelector('input:invalid, select:invalid, textarea:invalid');
       if (invalidField) {
         invalidField.reportValidity();
+        return false;
+      }
+      if (state.ownerStep === 2 && !activeStep.querySelector('[name="mapPin"]').value) {
+        activeStep.querySelector('[data-owner-map-hint]').textContent = 'Pick the boarding house location on the map before continuing.';
+        activeStep.querySelector('[data-owner-open-map]').focus();
         return false;
       }
       const plan = activeStep.querySelector('[data-room-plan]');
