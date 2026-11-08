@@ -256,8 +256,13 @@ export const getMyRoom = async (req, res, next) => {
       attributes: ['id', 'fullName', 'boardingHouseName', 'boardingHouseAddress', 'contactNumber', 'email', 'profilePicture', 'houseRules', 'amenities', 'boardingHousePicture', 'boardingHouseLatitude', 'boardingHouseLongitude', 'operatingHours']
     }) : null;
 
+    const roommates = room ? await OwnerTenant.findAll({
+      where: { ownerId: tenantRec.ownerId, roomId: room.id, status: 'active', id: { [Op.ne]: tenantRec.id } },
+      attributes: ['fullName'], order: [['fullName', 'ASC']]
+    }) : [];
     res.json({
       hasRoom: Boolean(room),
+      roommates: roommates.map(tenant => tenant.fullName),
       tenantRecord: tenantRec.get({ plain: true }),
       room: room ? room.get({ plain: true }) : null,
       boardingHouse: await propertyOwnerView(owner, room),

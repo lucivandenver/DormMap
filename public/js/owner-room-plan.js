@@ -60,6 +60,10 @@
       data.forEach(room => { capacity += Number(room.capacity || 0); const slots = room.rentalBasis === 'room' && Number(room.unavailable)>0 ? 0 : Math.max(0,Number(room.capacity || 0)-Number(room.unavailable || 0)); available += slots; if (slots) availableRooms++; if (room.rentalBasis === 'bed') freeBeds+=slots; if (room.rentalBasis === 'person') personSpaces+=slots; if (room.rentalBasis === 'room' && slots)wholeRooms++; });
       const counter = form.querySelector('[name="roomsAvailable"]'); if (counter) { counter.value = availableRooms; counter.readOnly = true; counter.min = '0'; }
       showRoom(activeIndex);
+      const floorTotals = new Map();
+      for (const room of data) floorTotals.set(Number(room.floor), (floorTotals.get(Number(room.floor)) || 0) + 1);
+      root.querySelector('[data-floor-summary]').textContent = [...floorTotals].sort(([a], [b]) => a-b)
+        .map(([floor, count]) => `Floor ${floor}: ${count} room${count === 1 ? '' : 's'}`).join(' · ');
       root.querySelector('[data-room-summary]').textContent = `${data.length} room${data.length===1?'':'s'} · Maximum ${capacity} people · ${freeBeds} bedspaces available · ${personSpaces} shared-person spaces available · ${wholeRooms} whole rooms available · ${availableRooms} rooms accepting tenants`;
       for (const row of rows.children) row.querySelector('[data-field="floor"]').max = floorCount.value || '1';
       return data;
@@ -84,7 +88,7 @@
       return true;
     };
     root.querySelector('[data-room-add]').addEventListener('click', () => addRoom());
-    root.querySelector('[data-room-generate]').addEventListener('click', () => { const count = Math.max(1,Math.min(25,Number(root.querySelector('[data-generate-count]').value)||1)); const previous = values().at(-1) || {}; for(let i=0;i<count;i++) addRoom({...previous,roomNumber:String(rows.children.length+1).padStart(3,'0')}); });
+    root.querySelector('[data-room-generate]').addEventListener('click', () => { const count = Math.max(1,Math.min(25,Number(root.querySelector('[data-generate-count]').value)||1)); const previous = values()[activeIndex] || {}; for(let i=0;i<count;i++) addRoom({...previous,roomNumber:String(rows.children.length+1).padStart(3,'0')}); });
     floorCount.addEventListener('input', serialize);
     form.addEventListener('submit', event => { if (!root.closest('[data-register-section]')?.classList.contains('hidden') && !root.validate()) event.preventDefault(); });
     if (root.dataset.initialFloors) floorCount.value = root.dataset.initialFloors;

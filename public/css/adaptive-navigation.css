@@ -2,3 +2,31 @@ html{scroll-padding-top:6rem}main,section,article{min-width:0}img,video,canvas{m
 .dormmap-skip-link{position:fixed;left:1rem;top:-5rem;z-index:9999;background:#064e3b;color:white;padding:.75rem 1rem;border-radius:.5rem}.dormmap-skip-link:focus{top:1rem}
 .table-scroll-hint{display:none}@media(max-width:767px){.overflow-x-auto>table{min-width:650px}.table-scroll-hint{display:block;color:#64748b;font-size:.75rem;margin:.5rem 0}}
 @media(max-width:1023px){#sidebar[class~="-translate-x-full"]{transform:translateX(-100%)!important}#sidebar:not([class~="-translate-x-full"]){transform:translateX(0)!important}#ownerApp header{padding-left:.5rem;padding-right:.5rem;gap:.4rem}#ownerApp header>div{gap:.4rem}#ownerApp header a[href="/"]{flex-shrink:0;white-space:nowrap;font-size:1rem;gap:.4rem}#ownerApp header a[href="/"]>span{flex-shrink:0}}@media(max-width:420px){#ownerApp header a[href="/"] .uppercase{display:none}#ownerApp header .border-l{padding-left:.4rem;gap:.4rem}}
+
+#sidebar {
+  bottom: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+#sidebar nav :is(a, button) {
+  min-height: 44px;
+  white-space: normal;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+#sidebar nav :is(svg, i) { flex-shrink: 0; }
+#sidebar nav > :last-child { margin-bottom: .5rem; }
+
+button[data-action-tone] {
+  border-radius: .65rem;
+  padding: .45rem .75rem;
+  font-weight: 650;
+}
+button[data-action-tone="add"] { background: #067047; color: white; }
+button[data-action-tone="edit"] { background: #fef3c7; color: #713f12; }
+button[data-action-tone="remove"] { background: #b91c1c; color: white; }
+button[data-action-tone]:hover { filter: brightness(.94); }

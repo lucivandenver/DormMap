@@ -4,9 +4,9 @@ import { parseRoomPlan, propertyMetadata } from './roomPlanService.js';
 export function validateOwnerSetup(body, files) {
   const metadata = propertyMetadata(body);
   const rooms = parseRoomPlan(body.roomPlan, metadata.floorCount);
-  const imageFields = ['profilePicture','galleryOutdoor','galleryLivingArea','galleryBedroom','galleryDining','galleryBathroom'];
-  const required = [...imageFields,'validIdPicture','businessPermit','barangayClearance','proofOfOwnership','rentalPermit'];
-  for (const field of required) {
+  const imageFields = ['galleryOutdoor','galleryLivingArea','galleryBedroom','galleryDining','galleryBathroom'];
+  const required = ['validIdPicture', 'businessPermit', 'barangayClearance'];
+  for (const field of [...required, ...imageFields.filter(field => files?.[field]?.length)]) {
     const file = files?.[field]?.[0];
     if (!file) throw Object.assign(new Error(`Please upload ${field.replace(/([A-Z])/g,' $1').toLowerCase()}.`), { status: 422 });
     const allowed = imageFields.includes(field) ? ['image/jpeg','image/png','image/webp'] : ['image/jpeg','image/png','image/webp','application/pdf'];

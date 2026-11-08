@@ -3,6 +3,20 @@
    const skip=document.createElement('a');skip.href='#dormmap-main-content';skip.textContent='Skip to main content';skip.className='dormmap-skip-link';
    const main=document.querySelector('main') || document.querySelector('.card-body');if(main){main.id=main.id || 'dormmap-main-content';skip.href='#'+main.id;main.tabIndex=-1;document.body.prepend(skip);}
    document.addEventListener('keydown',event=>{if(event.key==='Escape'){window.closeMobileSidebar?.();const menu=document.querySelector('#sidebar');if(window.innerWidth<1024&&menu){menu.classList.add('-translate-x-full');document.querySelector('#mobileOverlay')?.classList.add('hidden');}}});
+   if (document.getElementById('sidebar')) {
+     const updateActions = () => {
+       for (const button of document.querySelectorAll('main button, dialog button')) {
+         const label = button.getAttribute('aria-label') || button.textContent.trim();
+         const tone = /^(add|create|insert)\b/i.test(label) ? 'add'
+           : /^edit\b/i.test(label) ? 'edit'
+           : /^(remove|delete|suspend)\b/i.test(label) ? 'remove' : '';
+         if (tone) button.dataset.actionTone = tone;
+         else delete button.dataset.actionTone;
+       }
+     };
+     updateActions();
+     new MutationObserver(updateActions).observe(document.body, { childList: true, subtree: true });
+   }
    const portalButtons=[...document.querySelectorAll('#sidebar nav button')];
    if(portalButtons.length){
      const key=button=>button.dataset.view || button.dataset.panel || (button.id?.startsWith('btn-')?button.id.slice(4):'');

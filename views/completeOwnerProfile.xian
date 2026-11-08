@@ -456,46 +456,37 @@
             </label>
           </div>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
-            <label>
-              <span>Owner GCash Number</span>
-              <input type="tel" name="gcashNumber" value="{{authValues.gcashNumber}}" placeholder="e.g. 09171234567">
-            </label>
-            <label>
-              <span>Owner GCash Account Name</span>
-              <input type="text" name="gcashName" value="{{authValues.gcashName}}" placeholder="e.g. Juan Dela Cruz">
-            </label>
-          </div>
+
 
           <!-- Gallery Photos (5 Required) -->
           <div style="background:#f0fdf4;border:1.5px solid #a7f3d0;border-radius:16px;padding:1rem 1.1rem;">
-            <p style="font-size:0.82rem;font-weight:700;color:#065f46;margin:0 0 0.3rem;">📷 Property Gallery — 5 Photo Categories Required</p>
-            <p style="font-size:0.75rem;color:#047857;margin:0 0 0.9rem;line-height:1.6;">Upload at least <strong>1 clear photo</strong> for each of the 5 required categories below. These will appear in the carousel when tenants browse your listing.</p>
+            <p style="font-size:0.82rem;font-weight:700;color:#065f46;margin:0 0 0.3rem;">📷 Property Gallery — Optional listing photos</p>
+            <p style="font-size:0.75rem;color:#047857;margin:0 0 0.9rem;line-height:1.6;">You can add photos now or later from your dashboard. These will appear in the carousel when tenants browse your listing.</p>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;">
               <label>
                 <span>1. Outdoor Spaces <span class="req">*</span></span>
                 <div style="font-size:0.72rem;color:#94a3b8;margin-bottom:0.35rem;">Front view, gate, compound exterior</div>
-                <input type="file" name="galleryOutdoor" accept="image/*" required>
+                <input type="file" name="galleryOutdoor" accept="image/*">
               </label>
               <label>
                 <span>2. Living Area <span class="req">*</span></span>
                 <div style="font-size:0.72rem;color:#94a3b8;margin-bottom:0.35rem;">Common room, sala, lounge area</div>
-                <input type="file" name="galleryLivingArea" accept="image/*" required>
+                <input type="file" name="galleryLivingArea" accept="image/*">
               </label>
               <label>
                 <span>3. Bedroom(s) <span class="req">*</span></span>
                 <div style="font-size:0.72rem;color:#94a3b8;margin-bottom:0.35rem;">Typical room offered to tenants</div>
-                <input type="file" name="galleryBedroom" accept="image/*" required>
+                <input type="file" name="galleryBedroom" accept="image/*">
               </label>
               <label>
                 <span>4. Dining / Kitchenette <span class="req">*</span></span>
                 <div style="font-size:0.72rem;color:#94a3b8;margin-bottom:0.35rem;">Kitchen, dining area, cooking space</div>
-                <input type="file" name="galleryDining" accept="image/*" required>
+                <input type="file" name="galleryDining" accept="image/*">
               </label>
               <label style="grid-column:span 2;">
                 <span>5. Bathroom <span class="req">*</span></span>
                 <div style="font-size:0.72rem;color:#94a3b8;margin-bottom:0.35rem;">CR, comfort room, shower area</div>
-                <input type="file" name="galleryBathroom" accept="image/*" required>
+                <input type="file" name="galleryBathroom" accept="image/*">
               </label>
             </div>
             <p style="font-size:0.72rem;color:#94a3b8;margin-top:0.6rem;">✓ JPG, PNG, or WEBP accepted. Max 5MB per photo. These replace the old single photo requirement.</p>
@@ -524,7 +515,7 @@
         <div id="step2" class="space-y-3.5" style="display:none;">
           <div class="info-banner">
             <svg class="icon-bw" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
-            <span>Upload all <strong>6 required documents</strong> below. Files must be JPG, PNG, WEBP, or PDF (max 5MB each). These documents will be reviewed by your Barangay and BPLO.</span>
+            <span>Upload all <strong>3 required documents</strong> below. Files must be JPG, PNG, WEBP, or PDF (max 5MB each). These documents will be reviewed by your Barangay and BPLO.</span>
           </div>
 
           <div class="doc-grid">
@@ -546,24 +537,9 @@
               <div class="doc-hint">Issued by your local barangay</div>
               <input type="file" name="barangayClearance" accept="image/*,.pdf" required>
             </div>
-            <div class="doc-item">
-              <div class="doc-icon"><svg class="icon-bw" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8l2 2h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2z"/></svg></div>
-              <div class="doc-label">Proof of Ownership <span class="req" style="color:#dc2626;">*</span></div>
-              <div class="doc-hint">Title, deed, or lease agreement</div>
-              <input type="file" name="proofOfOwnership" accept="image/*,.pdf" required>
-            </div>
-            <div class="doc-item">
-              <div class="doc-icon"><svg class="icon-bw" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3.5"/></svg></div>
-              <div class="doc-label">Rental Permit <span class="req" style="color:#dc2626;">*</span></div>
-              <div class="doc-hint">BPLO / HLURB rental accreditation</div>
-              <input type="file" name="rentalPermit" accept="image/*,.pdf" required>
-            </div>
-            <div class="doc-item">
-              <div class="doc-icon"><svg class="icon-bw" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></div>
-              <div class="doc-label">Owner Profile Photo <span class="req" style="color:#dc2626;">*</span></div>
-              <div class="doc-hint">Recent 2x2 or portrait photo</div>
-              <input type="file" name="profilePicture" accept="image/*" required>
-            </div>
+
+
+
           </div>
 
           <div style="display:flex;gap:0.75rem;margin-top:1.2rem;">
