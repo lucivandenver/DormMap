@@ -954,22 +954,22 @@ async function loadOverview() {
     
     // 10 Dashboard Cards
     const cardsList = [
-      { key: 'houses', label: 'Total Boarding Houses' },
-      { key: 'pendingDataRequests', label: 'Pending BPLO Requests' },
-      { key: 'activeOwners', label: 'Active Owners' },
-      { key: 'pendingRenewalsCount', label: 'Pending Renewals' },
-      { key: 'expiredPermits', label: 'Expired Permits' },
-      { key: 'expiringPermits', label: 'Expiring in 30 Days' },
-      { key: 'tenants', label: 'Registered Tenants' },
-      { key: 'vacantRooms', label: 'Vacant Rooms' },
-      { key: 'occupiedRooms', label: 'Occupied Rooms' },
-      { key: 'unreadMessages', label: 'Unread Messages' }
+      { key: 'houses', label: 'Total Boarding Houses', icon: 'house' },
+      { key: 'pendingDataRequests', label: 'Pending BPLO Requests', icon: 'inbox' },
+      { key: 'activeOwners', label: 'Active Owners', icon: 'user-check' },
+      { key: 'pendingRenewalsCount', label: 'Pending Renewals', icon: 'refresh-cw' },
+      { key: 'expiredPermits', label: 'Expired Permits', icon: 'file-x' },
+      { key: 'expiringPermits', label: 'Expiring in 30 Days', icon: 'calendar-clock' },
+      { key: 'tenants', label: 'Registered Tenants', icon: 'users' },
+      { key: 'vacantRooms', label: 'Vacant Rooms', icon: 'door-open' },
+      { key: 'occupiedRooms', label: 'Occupied Rooms', icon: 'bed-double' },
+      { key: 'unreadMessages', label: 'Unread Messages', icon: 'message-circle' }
     ];
 
     document.getElementById('cards').innerHTML = cardsList.map(c => `
       <article class="rounded-2xl bg-white p-4 shadow-xs border border-slate-100 hover:border-slate-200 transition-all flex items-center gap-3.5">
         <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800 font-bold text-sm shrink-0">
-          ${c.label.substring(0, 2).toUpperCase()}
+          <i data-lucide="${c.icon}" class="h-5 w-5" aria-hidden="true"></i>
         </div>
         <div class="flex-1 min-w-0">
           <p class="text-xl font-bold text-slate-900 tracking-tight leading-none">${d.cards[c.key] ?? 0}</p>
@@ -977,6 +977,7 @@ async function loadOverview() {
         </div>
       </article>
     `).join('');
+    window.lucide?.createIcons();
 
     // Charts
     const mx = Math.max(1, ...(d.charts.monthly || []).map(x => +x.count));
@@ -1547,12 +1548,12 @@ async function loadTenants() {
     let d = await req(api + '/tenants?' + new URLSearchParams({ search: q }));
     document.getElementById('tenantRows').innerHTML = d.data.length ? d.data.map(x => `
       <tr>
-        <td><b>${esc(x.fullName)}</b></td>
+        <td><div class="flex items-center gap-2">${/^(https:\/\/|\/uploads\/)/i.test(x.profilePicture || '') ? `<img src="${esc(x.profilePicture)}" alt="" class="h-8 w-8 rounded-full object-cover" loading="lazy">` : ''}<b>${esc(x.fullName)}</b></div></td>
         <td class="text-xs">${esc(x.email)}</td>
         <td class="text-xs">${esc(x.contactNumber || '—')}</td>
-        <td class="text-xs font-semibold">${esc(x.selectedBoardingHouse || 'Unassigned')}</td>
+        <td class="text-xs font-semibold">${esc(x.selectedBoardingHouse || 'Unassigned')}${x.roomNumber ? ` · Room ${esc(x.roomNumber)}` : ''}</td>
         <td><span class="badge">${esc(x.status || '—')}</span></td>
-        <td class="text-xs">${new Date(x.createdAt).toLocaleDateString()}</td>
+        <td class="text-xs">${esc(x.moveInDate || new Date(x.createdAt).toLocaleDateString())}</td>
       </tr>
     `).join('') : '<tr><td colspan="6" class="text-slate-400 text-center py-4">No tenants found in system.</td></tr>';
   } catch (e) { toast(e.message, true); }

@@ -46,6 +46,21 @@
     flex-shrink: 0 !important;
     stroke-width: 2 !important;
   }
+  .dormmap-auth-shell[data-mode="login"] > div.relative {max-width:550px;border-radius:18px;}
+  [data-mode="login"] .dormmap-auth-panel {background:white;padding:clamp(1.25rem,6vw,3rem);}
+  [data-mode="login"] .dormmap-auth-scroll > div:has(.auth-tab),
+  [data-mode="login"] .dormmap-auth-scroll > div:first-child p {display:none;}
+  [data-mode="login"] .dormmap-auth-scroll h3 {font-size:2.2rem;}
+  [data-mode="login"] img[alt="DormMap Logo"] {width:100%;height:100%;}
+  [data-mode="login"] div:has(> img[alt="DormMap Logo"]) {width:56px;height:56px;}
+  #loginForm input,#loginForm button[type="submit"],#googleAuthBtn {min-height:52px;border-radius:18px;}
+  #loginForm button[type="submit"] {width:100%;background:#006c42;}
+  .auth-forgot:hover,.auth-forgot:focus-visible {color:#b91c1c;text-decoration:underline;}
+  .auth-create,.auth-divider {display:none;}
+  [data-mode="login"] .auth-create {display:block;text-align:center;margin:1.5rem 0 0;color:#475569;font-size:.9rem;}
+  .auth-create button {color:#006c42;font-weight:700;text-decoration:underline;}
+  [data-mode="login"] .auth-divider {display:flex;align-items:center;gap:1rem;color:#64748b;font-size:.8rem;margin:.5rem 0;}
+  .auth-divider::before,.auth-divider::after {content:"";height:1px;background:#e2e8f0;flex:1;}
 </style>
 
 <div id="dormmapAuthRoot" class="dormmap-auth-shell fixed inset-0 z-[80] items-center justify-center px-4 py-6 sm:px-6" data-open="false" data-initial-open="{{authOpen}}" data-initial-mode="{{authMode}}" data-initial-account-type="{{authAccountType}}" data-auth-error="{{authError}}" data-google-role-conflict="{{googleRoleConflict}}" data-google-role-conflict-existing="{{googleRoleConflictExisting}}" data-google-not-registered="{{googleNotRegistered}}" data-google-not-registered-email="{{googleNotRegisteredEmail}}">
@@ -56,7 +71,7 @@
         <div class="flex items-start justify-between gap-4">
           <div>
             <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">Access Portal</p>
-            <h3 class="font-display mt-1 text-[20px] font-bold leading-tight text-slate-950">Sign in or create your account</h3>
+            <h3 class="font-display mt-1 text-[20px] font-bold leading-tight text-slate-950">Sign In</h3>
           </div>
           <button type="button" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-[var(--dormmap-primary)] hover:text-[var(--dormmap-primary)]" data-auth-close aria-label="Close dialog">
             <i data-lucide="x" class="h-5 w-5"></i>
@@ -134,21 +149,21 @@
           <input type="hidden" name="accountType" id="loginAccountType" value="{{authAccountType}}">
           <div class="grid gap-3 sm:grid-cols-2">
             <label class="sm:col-span-2">
-              <span class="mb-1 block text-[13px] font-semibold text-slate-700">Email</span>
-              <input type="email" name="email" id="loginEmailInput" value="{{authValues.email}}" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10" required>
+              <span class="mb-1 block text-[13px] font-semibold text-slate-700">Email address</span>
+              <input type="email" name="email" id="loginEmailInput" autocomplete="email" placeholder="you@example.com" value="{{authValues.email}}" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10" required>
             </label>
             <label class="sm:col-span-2">
               <div class="flex items-center justify-between mb-1">
                 <span class="block text-[13px] font-semibold text-slate-700">Password</span>
-                <button type="button" onclick="showForgotPasswordModal()" class="text-xs font-semibold text-emerald-700 hover:underline">Forgot password?</button>
+                <button type="button" onclick="showForgotPasswordModal()" class="text-xs font-semibold text-emerald-700 hover:underline auth-forgot">Forgot Password?</button>
               </div>
-              <input type="password" name="password" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10" required>
+              <input type="password" name="password" autocomplete="current-password" placeholder="Enter your password" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10" required>
             </label>
           </div>
           <div class="flex flex-col gap-2 sm:flex-row">
             <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95" style="background: var(--dormmap-primary);">
               <i data-lucide="log-in" class="h-4 w-4"></i>
-              Sign In
+              Log in
             </button>
           </div>
         </form>
@@ -209,11 +224,14 @@
 
 
         <div class="mt-3 grid gap-3" id="googleAuthContainer">
+          <div class="auth-divider">OR</div>
           <a href="/auth/google" id="googleAuthBtn" class="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
             <img src="https://www.google.com/favicon.ico" alt="Google" class="h-4 w-4" />
-            Continue with Google
+            Sign in with Google
           </a>
         </div>
+
+        <p class="auth-create">New to DormMap? <button type="button" onclick="window._setDormmapAuthMode('register')">Create account</button></p>
 
         <form id="registerForm" class="mt-3 hidden space-y-3.5" method="POST" action="/register" enctype="multipart/form-data">
           <input type="hidden" name="accountType" id="registerAccountType" value="{{authAccountType}}">
@@ -243,12 +261,7 @@
                 <span class="mb-1 block text-[13px] font-semibold text-slate-700">Confirm password</span>
                 <input type="password" name="confirmPassword" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10" required>
               </label>
-              <div data-tenant-hide class="sm:col-span-2">
-                <label>
-                  <span class="mb-1 block text-[13px] font-semibold text-slate-700">Profile picture</span>
-                  <input type="file" name="profilePicture" accept="image/*" class="w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-2.5 text-sm file:mr-4 file:rounded-full file:border-0 file:bg-[var(--dormmap-primary)] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white">
-                </label>
-              </div>
+
             </div>
           </div>
 
@@ -338,8 +351,6 @@
               {{> ownerRoomPlan }}
               <div class="grid gap-2.5 sm:grid-cols-2">
                 <label class="text-xs font-semibold">Contact number<input type="tel" name="contactNumber" required placeholder="09XXXXXXXXX" class="mt-2 block w-full rounded-xl border p-3"></label>
-                <label class="text-xs font-semibold">Owner GCash number (optional)<input type="tel" name="gcashNumber" placeholder="09XXXXXXXXX" class="mt-2 block w-full rounded-xl border p-3"></label>
-                <label class="text-xs font-semibold sm:col-span-2">Owner GCash account name (optional)<input type="text" name="gcashName" class="mt-2 block w-full rounded-xl border p-3"></label>
                 <label class="sm:col-span-2">
                   <span class="mb-1 block text-[13px] font-semibold text-slate-700">Boarding house name</span>
                   <input type="text" name="boardingHouseName" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
@@ -412,11 +423,11 @@
                   </div>
                   <div id="ownerMap" class="h-52 w-full"></div>
                 </div>
-                <!-- 5 Required Category Photos for Boarding House -->
+                <!-- Optional Category Photos for Boarding House -->
                 <div class="sm:col-span-2 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3.5 space-y-3">
                   <div>
                     <p class="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
-                      <span>📷 Property Photos — 5 Required Categories</span>
+                      <span>📷 Optional property photos</span>
                     </p>
                     <p class="text-[11px] text-emerald-800 mt-0.5 leading-snug">
                       Please upload 1 photo for each category below. Category 1 (Outdoor Spaces) will serve as your primary listing cover.
@@ -426,27 +437,27 @@
                     <label class="block bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs">
                       <span class="mb-0.5 block text-xs font-bold text-slate-800">1. Outdoor Spaces <span class="text-rose-500">*</span></span>
                       <span class="text-[10px] text-slate-500 block mb-1">Front view, gate, exterior</span>
-                      <input type="file" name="galleryOutdoor" accept="image/*" required class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
+                      <input type="file" name="galleryOutdoor" accept="image/*" class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
                     </label>
                     <label class="block bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs">
                       <span class="mb-0.5 block text-xs font-bold text-slate-800">2. Living Area <span class="text-rose-500">*</span></span>
                       <span class="text-[10px] text-slate-500 block mb-1">Common room, sala, lounge</span>
-                      <input type="file" name="galleryLivingArea" accept="image/*" required class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
+                      <input type="file" name="galleryLivingArea" accept="image/*" class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
                     </label>
                     <label class="block bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs">
                       <span class="mb-0.5 block text-xs font-bold text-slate-800">3. Bedroom <span class="text-rose-500">*</span></span>
                       <span class="text-[10px] text-slate-500 block mb-1">Tenant room space, beds</span>
-                      <input type="file" name="galleryBedroom" accept="image/*" required class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
+                      <input type="file" name="galleryBedroom" accept="image/*" class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
                     </label>
                     <label class="block bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs">
                       <span class="mb-0.5 block text-xs font-bold text-slate-800">4. Dining or kitchenette <span class="text-rose-500">*</span></span>
                       <span class="text-[10px] text-slate-500 block mb-1">Kitchen or dining facility</span>
-                      <input type="file" name="galleryDining" accept="image/*" required class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
+                      <input type="file" name="galleryDining" accept="image/*" class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
                     </label>
                     <label class="block bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs sm:col-span-2">
                       <span class="mb-0.5 block text-xs font-bold text-slate-800">5. Bathroom <span class="text-rose-500">*</span></span>
                       <span class="text-[10px] text-slate-500 block mb-1">CR, comfort room, shower</span>
-                      <input type="file" name="galleryBathroom" accept="image/*" required class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
+                      <input type="file" name="galleryBathroom" accept="image/*" class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
                     </label>
                   </div>
                 </div>
@@ -475,12 +486,9 @@
                   <span class="mb-1 block text-[13px] font-semibold text-slate-700">Business permit</span>
                   <input type="file" name="businessPermit" required accept="image/*,.pdf" class="w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-2.5 text-sm file:mr-4 file:rounded-full file:border-0 file:bg-[var(--dormmap-primary)] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white">
                 </label>
-                <label class="sm:col-span-2">
-                  <span class="mb-1 block text-[13px] font-semibold text-slate-700">Supporting docs</span>
-                  <input type="file" name="proofOfOwnership" required accept="image/jpeg,image/png,image/webp,application/pdf" class="w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-2.5 text-sm file:mr-4 file:rounded-full file:border-0 file:bg-[var(--dormmap-primary)] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white">
-                </label>
+
               </div>
-              <div class="grid gap-3 sm:grid-cols-2"><label class="text-xs font-semibold">Government-issued ID<input type="file" name="validIdPicture" required accept="image/jpeg,image/png,image/webp,application/pdf" class="mt-2 block w-full text-xs"></label><label class="text-xs font-semibold">Barangay clearance<input type="file" name="barangayClearance" required accept="image/jpeg,image/png,image/webp,application/pdf" class="mt-2 block w-full text-xs"></label><label class="text-xs font-semibold">Rental permit<input type="file" name="rentalPermit" required accept="image/jpeg,image/png,image/webp,application/pdf" class="mt-2 block w-full text-xs"></label></div><div class="flex justify-between gap-3 pt-1">
+              <div class="grid gap-3 sm:grid-cols-2"><label class="text-xs font-semibold">Government-issued ID<input type="file" name="validIdPicture" required accept="image/jpeg,image/png,image/webp,application/pdf" class="mt-2 block w-full text-xs"></label><label class="text-xs font-semibold">Barangay clearance<input type="file" name="barangayClearance" required accept="image/jpeg,image/png,image/webp,application/pdf" class="mt-2 block w-full text-xs"></label></div><div class="flex justify-between gap-3 pt-1">
                 <button type="button" class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition" data-owner-back="1">
                   ← Previous Step
                 </button>
@@ -576,10 +584,7 @@
                 <span class="mb-1 block text-[13px] font-semibold text-slate-700">Valid ID picture <span class="text-slate-400 font-normal">(optional — can upload later)</span></span>
                 <input type="file" name="validIdPicture" accept="image/*" class="w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-2.5 text-sm file:mr-4 file:rounded-full file:border-0 file:bg-[var(--dormmap-primary)] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white">
               </label>
-              <label class="sm:col-span-2">
-                <span class="mb-1 block text-[13px] font-semibold text-slate-700">Profile picture <span class="text-slate-400 font-normal">(optional)</span></span>
-                <input type="file" name="profilePicture" accept="image/*" class="w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-2.5 text-sm file:mr-4 file:rounded-full file:border-0 file:bg-[var(--dormmap-primary)] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white">
-              </label>
+
             </div>
             <div class="mt-3 rounded-2xl border border-slate-200/80 bg-slate-50 px-3 py-2.5 text-xs text-slate-700">
               <label class="flex items-start gap-2 cursor-pointer">
@@ -672,6 +677,7 @@
 
     const setMode = (mode, updateUrl = true) => {
       state.mode = mode;
+      authRoot.dataset.mode = mode;
       if (mode === 'register' && state.role === 'bplo_admin') {
         state.role = 'boarding_house_owner';
       }
@@ -744,8 +750,6 @@
         });
       }
 
-      const profile = registerForm.querySelector('[name="profilePicture"]');
-      if (profile) profile.required = state.mode === 'register' && role === 'boarding_house_owner';
       state.ownerStep = 1;
       updateOwnerWizard();
     };

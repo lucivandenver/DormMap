@@ -262,6 +262,10 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
     await t.test('room offers consume a slot only on tenant confirmation and cannot overbook', async () => {
       const offeredRoom = await saveRoom(owner.id, null, { boardingHouseId: house.id, roomNumber: 'Offered', capacity: 1, rentalPrice: 1500 });
       const app = await TenantApplication.create({ tenantId: second.id, ownerId: owner.id, boardingHouseId: house.id, boardingHouseName: house.name });
+      const offer = { applicationId: app.id, roomId: offeredRoom.id, monthlyRent: 1500 };
+      await owner.update({ gcashNumber: null, gcashName: null });
+      await assert.rejects(offerApplication(owner.id, second.id, offer), /Set a valid GCash/);
+      await owner.update({ gcashNumber: '09171234567', gcashName: 'Test Owner' });
       await offerApplication(owner.id, second.id, { applicationId: app.id, roomId: offeredRoom.id, monthlyRent: 1500 });
       assert.equal((await OwnerRoom.findByPk(offeredRoom.id)).availableSlots, 1);
       assert.equal(await OwnerTenant.count({ where: { tenantUserId: second.id } }), 0);
@@ -331,7 +335,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const data = { accountType:'boarding_house_owner', fullName:'Registered Room Owner', email:`layout-${suffix}@example.test`, password:'test-password-123',confirmPassword:'test-password-123',acceptTerms:'on',boardingHouseName:'Layout Main',boardingHouseAddress:'Orconuma',streetAddress:'Purok 2, Main Street',roomsAvailable:'1',contactNumber:'09171234567',mapPin:'Lat 12.668945, Lon 121.491777',boardingHouseLatitude:'12.668945',boardingHouseLongitude:'121.491777',propertyType:'Mixed',floorCount:'2',roomPlan:JSON.stringify([{roomNumber:'101',floor:1,roomType:'Bedspace',capacity:6,bedCount:6,rentalBasis:'bed',unavailable:2,rentalPrice:1500},{roomNumber:'201',floor:2,roomType:'Family Room',capacity:4,bedCount:2,rentalBasis:'room',unavailable:0,rentalPrice:6000}]) };
       for (const [key,value] of Object.entries(data)) form.set(key,value);
       const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5X8AAAAASUVORK5CYII=','base64');
-      for (const name of ['profilePicture','galleryOutdoor','galleryLivingArea','galleryBedroom','galleryDining','galleryBathroom','validIdPicture','businessPermit','barangayClearance','proofOfOwnership','rentalPermit']) form.set(name,new Blob([png],{type:'image/png'}),name+'.png');
+      for (const name of ['validIdPicture','businessPermit','barangayClearance']) form.set(name,new Blob([png],{type:'image/png'}),name+'.png');
       const response=await request('/register',null,{method:'POST',body:form});assert.equal(response.status,302,await response.clone().text());
       const created=await User.findOne({where:{email:data.email}});assert.ok(created);ids.push(created.id);
       for(const value of [created.profilePicture,created.boardingHousePicture,created.validIdPicture,created.businessPermit,created.barangayClearance,created.rentalPermit,...JSON.parse(created.galleryImages || '[]'),...Object.values(JSON.parse(created.supportingDocuments || '{}'))]) if(typeof value==='string'&&value.startsWith('/uploads/'))uploadedFiles.push(new URL('../../public'+value,import.meta.url));

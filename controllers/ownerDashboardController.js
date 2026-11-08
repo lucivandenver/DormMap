@@ -307,18 +307,37 @@ export const createPayment = async (req, res, next) => {
   try {
     const data = await sequelize.transaction(async transaction => {
       const ownerId = oid(req); await ownerLock(ownerId, transaction);
-      const tenant = await OwnerTenant.findOne({ where: { id: req.body.tenantId, ownerId, status: 'active' }, transaction, lock: transaction.LOCK.UPDATE });
-      if (!tenant) fail('Select an active tenant belonging to this owner.');
+      const roomBatch = Boolean(req.body.roomId);
+      const tenants = await OwnerTenant.findAll({
+        where: { ownerId, status: 'active', ...(roomBatch ? { roomId: req.body.roomId } : { id: req.body.tenantId || 0 }) },
+        order: [['id', 'ASC']], transaction, lock: transaction.LOCK.UPDATE
+      });
+      if (!tenants.length) fail('Select an active tenant or a room with active tenants.');
       const amount = Number(req.body.amount), penalty = Number(req.body.penalty || 0);
       if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(penalty) || penalty < 0) fail('Enter a valid positive amount and non-negative penalty.');
       const dueDate = req.body.dueDate;
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate || '') || (!Number.isFinite(Date.parse(dueDate)) || new Date(dueDate).toISOString().slice(0,10) !== dueDate)) fail('A valid due date is required.');
       const month = req.body.month || dueDate.slice(0,7);
       if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) fail('Invalid billing month.');
-      if (await OwnerPayment.findOne({ where: { ownerId, tenantId: tenant.id, month }, transaction })) fail('A bill already exists for this tenant and month.', 409);
-      const bill = await OwnerPayment.create({ ownerId, tenantId: tenant.id, roomId: tenant.roomId, amount, penalty, dueDate, month, status: 'pending', notes: String(req.body.notes || '').slice(0,2000) }, { transaction });
-      await tenant.update({ balance: Number(tenant.balance) + amount + penalty }, { transaction });
-      return bill;
+      if (await OwnerPayment.findOne({ where: { ownerId, tenantId: { [Op.in]: tenants.map(tenant => tenant.id) }, month }, transaction })) {
+        fail('A bill already exists for a selected tenant and month.', 409);
+      }
+      const amountCents = Math.round(amount * 100);
+      const penaltyCents = Math.round(penalty * 100);
+      if (!Number.isSafeInteger(amountCents) || !Number.isSafeInteger(penaltyCents) || amountCents < tenants.length ||
+          Math.abs(amount * 100 - amountCents) > 0.00001 || Math.abs(penalty * 100 - penaltyCents) > 0.00001) {
+        fail('Enter valid amounts with up to two decimal places and at least one centavo per tenant.');
+      }
+      const share = (cents, index) => (Math.floor(cents / tenants.length) + Number(index < cents % tenants.length)) / 100;
+      const bills = [];
+      for (const [index, tenant] of tenants.entries()) {
+        const rent = share(amountCents, index);
+        const fee = share(penaltyCents, index);
+        const bill = await OwnerPayment.create({ ownerId, tenantId: tenant.id, roomId: tenant.roomId, amount: rent, penalty: fee, dueDate, month, status: 'pending', notes: String(req.body.notes || '').slice(0,2000) }, { transaction });
+        await tenant.update({ balance: Number(tenant.balance) + rent + fee }, { transaction });
+        bills.push(bill);
+      }
+      return roomBatch ? bills : bills[0];
     });
     res.status(201).json({ data, message: 'Rent bill created and tenant balance updated.' });
   } catch (error) { next(error); }

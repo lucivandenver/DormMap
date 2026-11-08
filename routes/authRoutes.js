@@ -205,8 +205,6 @@ router.post("/complete-owner-profile", cleanFailedRegistration, registerUpload, 
     boardingHouseAddress,
     roomsAvailable,
     contactNumber,
-    gcashNumber,
-    gcashName,
     mapPin,
     boardingHouseLatitude,
     boardingHouseLongitude,
@@ -252,12 +250,9 @@ router.post("/complete-owner-profile", cleanFailedRegistration, registerUpload, 
     // Legacy single photo fallback (kept for backward compatibility)
     const boardingHousePicture = galleryOutdoor || getUploadUrl('boardingHousePicture');
 
-    const profilePicture = getUploadUrl('profilePicture');
     const validIdPicture = getUploadUrl('validIdPicture');
     const businessPermit = getUploadUrl('businessPermit');
     const barangayClearance = getUploadUrl('barangayClearance');
-    const proofOfOwnership = getUploadUrl('proofOfOwnership');
-    const rentalPermit = getUploadUrl('rentalPermit');
 
     // Build gallery images array preserving the 5 required category positions (Outdoor, Living, Bedroom, Dining, Bathroom)
     const galleryImagesArr = [
@@ -274,19 +269,14 @@ router.post("/complete-owner-profile", cleanFailedRegistration, registerUpload, 
     user.roomsAvailable = Number(roomsAvailable) || 1;
     user.contactNumber = contactNumber;
     user.paymentMethods = JSON.stringify([].concat(req.body.paymentMethods || []).filter(method => ['Cash','GCash','Bank Transfer'].includes(method)));
-    if (gcashNumber) user.gcashNumber = gcashNumber;
-    if (gcashName) user.gcashName = gcashName;
     user.mapPin = mapPin;
     user.boardingHouseLatitude = boardingHouseLatitude || null;
     user.boardingHouseLongitude = boardingHouseLongitude || null;
     user.applicationStatus = 'pending'; // Pending until Barangay/BPLO approval
     if (boardingHousePicture) user.boardingHousePicture = boardingHousePicture;
-    if (profilePicture) user.profilePicture = profilePicture;
     if (validIdPicture) user.validIdPicture = validIdPicture;
     if (businessPermit) user.businessPermit = businessPermit;
     if (barangayClearance) user.barangayClearance = barangayClearance;
-    if (proofOfOwnership) user.proofOfOwnership = proofOfOwnership;
-    if (rentalPermit) user.rentalPermit = rentalPermit;
     // Save gallery photos JSON string
     if (galleryImagesArr.some(Boolean)) {
       user.galleryImages = JSON.stringify(galleryImagesArr);

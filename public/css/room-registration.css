@@ -6,3 +6,9 @@
 .room-plan-row[hidden]{display:none!important}.room-plan-navigation{display:flex;gap:.5rem;align-items:end;margin:.75rem 0}.room-plan-navigation label{flex:1;min-width:0;font-size:.75rem;font-weight:700}.room-plan-navigation select{display:block;width:100%;padding:.65rem;border:1px solid #cbd5e1;border-radius:.6rem;background:#fff}.room-plan-navigation button{padding:.65rem;border:1px solid #cbd5e1;border-radius:.6rem;font-size:.75rem;background:white;min-height:44px}.room-plan-row{max-height:560px;overflow:auto;scrollbar-gutter:stable}.room-plan-row legend{padding:.25rem;background:#fff}.room-plan-navigation button:disabled{opacity:.4}.terms-content{max-height:180px!important;font-size:.8rem!important;line-height:1.6!important}.terms-box label{font-size:.8rem!important;line-height:1.6!important}.terms-box input[type=checkbox]{width:18px!important;height:18px!important;flex:none}.wizard-step h2{font-size:1.15rem!important}@media(max-width:480px){.room-plan-navigation{flex-wrap:wrap}.room-plan-navigation label{order:-1;flex-basis:100%}.room-plan-navigation button{flex:1}.room-plan-row{max-height:430px}}
 
 #step3 .info-banner{align-items:flex-start;padding:.8rem;font-size:.8rem;line-height:1.6}#step3 .info-banner svg{width:20px;height:20px;flex:0 0 20px}#step3 .terms-content h4{font-size:.8rem}#step3 .terms-box{padding:.8rem}#step3 .terms-box label{display:flex;align-items:flex-start;gap:.6rem}#step3 .terms-box input{margin-top:.2rem}#step3 .terms-content{max-height:160px!important}
+
+.room-plan-grid { align-items: start; gap: .85rem; }
+.room-plan-grid > label { min-width: 0; }
+.room-plan-grid :is(input, select) { width: 100%; min-height: 44px; }
+.room-plan-navigation, .room-plan-actions { flex-wrap: wrap; }
+.room-plan-navigation select { min-width: 0; max-width: 100%; }

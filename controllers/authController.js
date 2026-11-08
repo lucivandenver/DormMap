@@ -705,14 +705,6 @@ export const registerUser = async (req, res) => {
     const governmentId = getUploadedPath(req.files, "governmentId");
     const barangayCertificate = getUploadedPath(req.files, "barangayCertificate");
 
-    // Profile picture: required for owners, optional for tenants (they can upload later)
-    if (normalizedAccountType === "boarding_house_owner" && !profilePicture) {
-      return renderRegisterPage(res, {
-        authAccountType: normalizedAccountType,
-        authError: "Profile picture is required for boarding house owners.",
-        authValues: req.body,
-      });
-    }
 
     if (normalizedAccountType === "barangay" && !barangay) {
       return renderRegisterPage(res, {
@@ -723,7 +715,7 @@ export const registerUser = async (req, res) => {
     }
 
     if (normalizedAccountType === "boarding_house_owner") {
-      if (!boardingHouseName || !boardingHouseAddress || !roomsAvailable || !boardingHousePicture || !businessPermit || !mapPin) {
+      if (!boardingHouseName || !boardingHouseAddress || !roomsAvailable || !businessPermit || !mapPin) {
         return renderRegisterPage(res, {
           authAccountType: normalizedAccountType,
           authError: "Boarding house owner registration needs the required property and business documents plus a street map pin.",
@@ -786,8 +778,6 @@ export const registerUser = async (req, res) => {
       validIdPicture: validIdPicture,
       barangayClearance: getUploadedPath(req.files, "barangayClearance"),
       rentalPermit: getUploadedPath(req.files, "rentalPermit"),
-      gcashNumber: normalizedAccountType === "boarding_house_owner" ? String(req.body.gcashNumber || "").trim().slice(0,30) || null : null,
-      gcashName: normalizedAccountType === "boarding_house_owner" ? String(req.body.gcashName || "").trim().slice(0,255) || null : null,
       contactNumber: contactNumber || null,
       notes: notes || null,
     }, { transaction });

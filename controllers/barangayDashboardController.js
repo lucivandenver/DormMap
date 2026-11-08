@@ -855,7 +855,19 @@ async function scopedTenantRows(barangay, search = '') {
   });
 }
 export const tenants = async (req, res, next) => {
-  try { res.json({ data: await scopedTenantRows(await barangayOf(req), req.query.search) }); }
+  try {
+    const rows = await scopedTenantRows(await barangayOf(req), req.query.search);
+    const users = await User.findAll({
+      where: { id: { [Op.in]: rows.map(row => row.tenantUserId).filter(Boolean) }, accountType: 'tenant' },
+      attributes: ['id', 'profilePicture']
+    });
+    const photos = new Map(users.map(user => [user.id, user.profilePicture]));
+    res.json({ data: rows.map(row => ({
+      fullName: row.fullName, email: row.email, contactNumber: row.contactNumber,
+      status: row.status, roomNumber: row.roomNumber, selectedBoardingHouse: row.selectedBoardingHouse,
+      moveInDate: row.moveInDate, createdAt: row.createdAt, profilePicture: photos.get(row.tenantUserId) || null
+    })) });
+  }
   catch (error) { next(error); }
 };
 

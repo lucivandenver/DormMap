@@ -9,7 +9,8 @@
   <div class="room-plan-grid"><label>Property amenities<textarea name="amenities" rows="2" placeholder="Wi-Fi, water, study area"></textarea></label><label>House rules<textarea name="houseRules" rows="2" placeholder="Quiet hours, visitors, cooking"></textarea></label></div>
   <p class="room-plan-help">Bedspace = one person per bed. A whole-room rental has one lease, with a household count. Prices below are monthly and show their basis.</p>
   <div data-room-rows></div>
-  <div class="room-plan-actions"><button type="button" data-room-add>Add a room</button><label>Generate rooms<input type="number" data-generate-count min="1" max="25" value="1" aria-label="Number of rooms to generate"></label><button type="button" data-room-generate>Add copies of last room</button></div>
+  <div class="room-plan-actions"><button type="button" data-room-add>Add a room</button><label>Rooms to add<input type="number" data-generate-count min="1" max="25" value="1" aria-label="Number of rooms to generate"></label><button type="button" data-room-generate>Add rooms to selected floor</button></div>
+  <p data-floor-summary class="room-plan-help"></p>
   <p data-room-summary role="status" aria-live="polite"></p>
   <p data-room-error role="alert" class="room-plan-error"></p>
   <input type="hidden" name="roomPlan" value="[]">

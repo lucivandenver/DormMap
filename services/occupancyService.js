@@ -88,6 +88,10 @@ export async function saveTenant(ownerId, id, body, { transaction: suppliedTrans
     if (!(values.fullName ?? tenant?.fullName)?.trim()) fail('Tenant name is required.');
     values.status = body.status ?? tenant?.status ?? 'active';
     if (!['active','moved_out','inactive','evicted'].includes(values.status)) fail('Invalid tenant status.');
+    if (tenant?.status === 'active' && values.status !== 'active' && !values.moveOutDate) {
+      values.moveOutDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Manila' }).format(new Date());
+    }
+    if (tenant && tenant.status !== 'active' && values.status === 'active') values.moveOutDate = null;
     values.roomId = body.roomId === undefined ? tenant?.roomId || null : body.roomId ? integer(body.roomId, 1, 'Room') : null;
     values.occupantCount = integer(body.occupantCount ?? tenant?.occupantCount ?? 1, 1, 'Household occupants');
     if (values.occupantCount > 100) fail('Household occupants cannot exceed 100.');
@@ -146,9 +150,15 @@ export async function removeRoom(ownerId, id) {
   });
 }
 
+function requireOwnerGcash(owner) {
+  if (!/^(?:09\d{9}|\+639\d{9})$/.test(String(owner.gcashNumber || '').trim()) || !owner.gcashName?.trim()) {
+    fail('Set a valid GCash number and account name in your owner dashboard before accepting tenants.');
+  }
+}
+
 export async function offerApplication(ownerId, tenantUserId, body) {
   return sequelize.transaction(async transaction => {
-    await ownerLock(ownerId, transaction);
+    requireOwnerGcash(await ownerLock(ownerId, transaction));
     const app = await TenantApplication.findOne({ where: { ownerId, tenantId: tenantUserId, ...(body.applicationId ? { id: body.applicationId } : {}), status: { [Op.in]: ['pending_owner','accepted_by_owner'] } }, order: [['createdAt','DESC']], transaction, lock: transaction.LOCK.UPDATE });
     if (!app) fail('No pending application from this tenant to this owner.', 404);
     if (!body.roomId) fail('Choose a room to offer.');
@@ -174,6 +184,7 @@ export async function confirmOffer(userId, applicationId) {
     const user = await User.findByPk(userId, { transaction, lock: transaction.LOCK.UPDATE });
     const app = await TenantApplication.findByPk(applicationId, { transaction, lock: transaction.LOCK.UPDATE });
     if (app.status === 'confirmed') return app;
+    requireOwnerGcash(owner);
     const branch = app.boardingHouseId ? await BoardingHouse.findByPk(app.boardingHouseId, { transaction }) : null;
     if (branch?.approvalStatus !== 'approved') fail('This branch is not currently approved.');
     if (app.status !== 'accepted_by_owner') fail('This offer is not available for confirmation.');

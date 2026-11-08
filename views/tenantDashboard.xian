@@ -427,6 +427,7 @@
 
       <!-- TAB 2: MY ROOM -->
       <div id="tab-my-room" class="tab-content hidden space-y-6">
+        <section class="rounded-xl bg-white p-4"><h3 class="font-bold">Roommates</h3><p id="roommates-text" class="text-sm text-slate-600"></p></section>
         <div class="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
           <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-100 pb-6">
             <div>
@@ -1302,6 +1303,7 @@
       const res = await fetch('/tenant-dashboard/api/my-room');
       const data = await res.json();
 
+      document.getElementById('roommates-text').textContent = data.roommates?.join(', ') || 'No other active tenants listed.';
       if (!data.hasRoom) {
         document.getElementById('room-title').innerText = 'No Room Assigned';
         return;
@@ -1309,7 +1311,7 @@
 
       document.getElementById('room-title').innerText = `Room ${data.room?.roomNumber || '—'} Details`;
       document.getElementById('room-type-text').innerText = data.room?.roomType || 'Standard';
-      document.getElementById('room-capacity-text').innerText = `${data.room?.capacity || 1} Persons`;
+      document.getElementById('room-capacity-text').innerText = `${data.room?.capacity || 1} capacity · ${data.room?.availableSlots ?? 0} available spaces`;
       document.getElementById('room-price-text').innerText = `₱${Number(data.room?.rentalPrice || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}`;
       document.getElementById('room-movein-text').innerText = data.tenantRecord?.moveInDate || 'N/A';
       document.getElementById('bh-name-text').innerText = data.boardingHouse?.boardingHouseName || 'Boarding House';

@@ -17,7 +17,7 @@ export async function resolveGoogleAccount(profile, requestedRole = 'login_only'
     const role = user.accountType === 'bplo_admin' ? 'super_admin' : user.accountType;
     if (requestedRole !== 'login_only' && requestedRole && requestedRole !== role) return { error: 'role_conflict', existingRole: role };
     if (!verified) return { error: 'unverified_google_email' };
-    await user.update({ googleId: profile.id, oauthProvider: 'google', emailVerified: true });
+    await user.update({ ...(profile.photos?.[0]?.value ? { profilePicture: profile.photos[0].value } : {}), googleId: profile.id, oauthProvider: 'google', emailVerified: true });
     return { user, isNew: false };
   }
   if (admins.has(email)) {
