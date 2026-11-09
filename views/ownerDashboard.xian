@@ -779,7 +779,7 @@
             <h2 class="text-lg font-bold text-slate-800">Pin Location on OpenStreetMap</h2>
             <p class="text-xs text-slate-500">Drag the marker on the map to pin your boarding house's location. The changes will save automatically.</p>
           </div>
-          <button type="button" onclick="window.open('https://www.openstreetmap.org/#map=16/12.7192/121.4719', '_blank')" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 transition">
+          <button type="button" onclick="initOsmMap(); openOwnerFullMap(this)" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 transition">
             <svg class="w-3.5 h-3.5 text-emerald-700 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 15 22 22 18 22 2 15 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="15" y1="6" x2="15" y2="22"/></svg> Open Full Map
           </button>
         </div>
@@ -1936,7 +1936,7 @@
     }
 
     bhOsmMap = L.map('bhOsmMap').setView([lat, lng], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(bhOsmMap);
+    const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(bhOsmMap);
 
     bhOsmMarker = L.marker([lat, lng], { draggable: true, icon: dormMapPropertyPin(L) }).addTo(bhOsmMap);
 
@@ -1950,9 +1950,17 @@
       updateCoords(p.lat, p.lng);
     });
 
-    bhOsmMap.on('click', (e) => {
-      bhOsmMarker.setLatLng(e.latlng);
-      updateCoords(e.latlng.lat, e.latlng.lng);
+    const setPropertyPoint = point => {
+      bhOsmMarker.setLatLng(point);
+      updateCoords(point.lat, point.lng);
+    };
+    dormMapFullMap(L, bhOsmMap, street, {
+      current: () => bhOsmMarker.getLatLng(),
+      commit: setPropertyPoint,
+      existingMarker: bhOsmMarker
+    });
+    bhOsmMap.on('click', event => {
+      if (!dormMapIsExpanded(bhOsmMap)) setPropertyPoint(event.latlng);
     });
   }
 
@@ -2609,10 +2617,11 @@ async function loadLegacyNotifications() {
   }
 
   // ─── OpenStreetMap ───
+  let openOwnerFullMap;
   function initOsmMap() {
     if (osmMap) return;
     osmMap = L.map('ownerOsmMap').setView([12.7192, 121.4719], 14);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(osmMap);
+    openOwnerFullMap = dormMapFullMap(L, osmMap, L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(osmMap));
     
     // Set marker if coords already exist
     fetch('/owner-dashboard/api/profile')

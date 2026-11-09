@@ -30,3 +30,19 @@
   font-weight: 700;
 }
 .registration-step:hover { background: #065f46; }
+.dormmap-registration-exit {
+  position: fixed;
+  top: max(.75rem, env(safe-area-inset-top));
+  right: max(.75rem, env(safe-area-inset-right));
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: white;
+  color: #064e3b;
+  font-size: 1.5rem;
+  text-decoration: none;
+}

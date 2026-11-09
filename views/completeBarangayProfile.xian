@@ -200,6 +200,7 @@
   </style>
 </head>
 <body>
+  <a href="/" class="dormmap-registration-exit" aria-label="Exit registration and return home">×</a>
 
   <div class="card">
 

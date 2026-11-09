@@ -347,6 +347,7 @@
   </style>
 </head>
 <body>
+  <a href="/" class="dormmap-registration-exit" aria-label="Exit registration and return home">×</a>
 
   <div class="card">
     <div class="card-header">
@@ -637,19 +638,27 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
+    let openWizardMap;
     function initMap() {
       if (mapInitialized) return;
       mapInitialized = true;
       map = L.map('wizardMap').setView([12.7192, 121.4719], 14);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+      const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(map);
 
-      map.on('click', (e) => {
-        const { lat, lng } = e.latlng;
+      const selectLocation = ({ lat, lng }) => {
         if (marker) map.removeLayer(marker);
         marker = L.marker([lat, lng], { icon: dormMapPropertyPin(L) }).addTo(map);
         document.getElementById('mapPinInput').value = `Lat ${lat.toFixed(6)}, Lon ${lng.toFixed(6)}`;
         document.getElementById('latInput').value = lat.toFixed(6);
         document.getElementById('lngInput').value = lng.toFixed(6);
+      };
+      openWizardMap = dormMapFullMap(L, map, street, {
+        current: () => marker?.getLatLng(),
+        commit: selectLocation
+      });
+      dormMapReferencePins(L, map);
+      map.on('click', event => {
+        if (!dormMapIsExpanded(map)) selectLocation(event.latlng);
       });
     }
 
@@ -663,10 +672,9 @@
     });
 
 
-    document.getElementById('openFullMapBtn')?.addEventListener('click', () => {
-      const lat = document.getElementById('latInput')?.value || 12.7192;
-      const lng = document.getElementById('lngInput')?.value || 121.4719;
-      window.open(`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=16/${lat}/${lng}`, '_blank');
+    document.getElementById('openFullMapBtn')?.addEventListener('click', event => {
+      initMap();
+      openWizardMap(event.currentTarget);
     });
   </script>
 </body>

@@ -108,7 +108,7 @@
     }
     if (!map) {
       map = window.L.map('tenantBrowseMap').setView([12.7192, 121.4719], 13);
-      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map);
+      dormMapFullMap(window.L, map, window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map));
       markerLayer = window.L.layerGroup().addTo(map);
     }
     markerLayer.clearLayers();
