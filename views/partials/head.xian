@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta name="dormmap-maptiler-key" content="{{mapTilerKey}}">
+  <link rel="stylesheet" href="/css/full-map.css">
+  <script src="/js/full-map.js"></script>
   <link rel="stylesheet" href="/css/registration-layout.css">
   <script src="/js/property-pin.js"></script>
   <script src="/js/owner-registration-counts.js" defer></script>
@@ -36,32 +39,7 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/dormmap-sockets.js"></script>
   <script src="/js/pwa-register.js" defer></script>
-  <script src="/js/global-language-sync.js" defer></script>
   <style>
-    /* Suppress default Google Translate banners and tooltips globally */
-    .goog-te-banner-frame.skiptranslate,
-    .goog-te-banner-frame,
-    #goog-gt-tt,
-    .goog-te-balloon-frame {
-      display: none !important;
-    }
-    body {
-      top: 0px !important;
-    }
-    .goog-tooltip,
-    .goog-tooltip:hover {
-      display: none !important;
-    }
-    .goog-text-highlight {
-      background-color: transparent !important;
-      box-shadow: none !important;
-    }
-    #google_translate_element,
-    #google_translate_global_element,
-    .goog-te-gadget {
-      display: none !important;
-    }
-
     :root {
       font-family: Inter, system-ui, sans-serif;
       font-family: Inter, system-ui, sans-serif;

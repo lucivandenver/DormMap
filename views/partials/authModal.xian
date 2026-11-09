@@ -21,6 +21,8 @@
     outline: none;
   }
 
+  .dormmap-auth-heading { position: sticky; top: 0; z-index: 20; background: #fff; padding-bottom: .4rem; }
+
   .dormmap-auth-panel {
     max-height: min(90vh, 760px);
   }
@@ -70,7 +72,7 @@
   <div class="relative z-10 w-full max-w-[370px] overflow-hidden rounded-[24px] bg-white shadow-2xl ring-1 ring-black/5">
     <section class="dormmap-auth-panel relative flex flex-col overflow-hidden bg-slate-50/80 px-3 py-3 sm:px-4 sm:py-4">
       <div class="dormmap-auth-scroll overflow-y-auto pr-0.5">
-        <div class="flex items-start justify-between gap-4">
+        <div class="dormmap-auth-heading flex items-start justify-between gap-4">
           <div>
             <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">Access Portal</p>
             <h3 class="font-display mt-1 text-[20px] font-bold leading-tight text-slate-950">Sign In</h3>
@@ -752,7 +754,7 @@
       authRoot.dataset.open = 'false';
       document.body.classList.remove('overflow-hidden');
       if (updateUrl) {
-        history.pushState({}, '', '/');
+        window.location.assign('/');
       }
     };
 
@@ -909,29 +911,31 @@
       const ownerMapElement = document.getElementById('ownerMap');
       if (ownerMapElement) {
         const ownerMap = L.map(ownerMapElement, { scrollWheelZoom: false }).setView([12.7192, 121.4719], 14);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(ownerMap);
+        const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(ownerMap);
 
         let ownerPin;
-        const pickOwnerLocation = (event) => {
-            const { lat, lng } = event.latlng;
+        const pickOwnerLocation = ({ lat, lng }) => {
             const locationLabel = `Lat ${lat.toFixed(6)}, Lon ${lng.toFixed(6)}`;
             setOwnerLocationValue(locationLabel, lat, lng);
             if (ownerPin) ownerPin.remove();
             ownerPin = L.marker([lat, lng], { icon: dormMapPropertyPin(L) }).addTo(ownerMap);
             ownerPin.bindPopup('Selected boarding house location').openPopup();
         };
-        window.startOwnerLocationPick = () => {
+        const open = dormMapFullMap(L, ownerMap, street, {
+          current: () => ownerPin?.getLatLng(),
+          commit: pickOwnerLocation
+        });
+        dormMapReferencePins(L, ownerMap);
+        window.startOwnerLocationPick = (trigger) => {
           showAuthMap('owner');
-          ownerMapElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          setTimeout(() => ownerMap.invalidateSize(), 200);
-          ownerMap.off('click', pickOwnerLocation).once('click', pickOwnerLocation);
+          open(trigger);
         };
       }
 
       const tenantMapElement = document.getElementById('tenantMap');
       if (tenantMapElement) {
         const tenantMap = L.map(tenantMapElement, { scrollWheelZoom: false }).setView([12.7192, 121.4719], 14);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(tenantMap);
+        dormMapFullMap(L, tenantMap, L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(tenantMap));
 
         let tenantMarkers = [];
 
@@ -1013,20 +1017,14 @@
     if (ownerMapButton) {
       ownerMapButton.addEventListener('click', () => {
         if (window.startOwnerLocationPick) {
-          window.startOwnerLocationPick();
+          window.startOwnerLocationPick(ownerMapButton);
         }
       });
     }
 
     const authOwnerFullMapBtn = document.getElementById('authOwnerFullMapBtn');
     if (authOwnerFullMapBtn) {
-      authOwnerFullMapBtn.addEventListener('click', () => {
-        const latInput = document.querySelector('input[name="boardingHouseLatitude"]');
-        const lngInput = document.querySelector('input[name="boardingHouseLongitude"]');
-        const lat = latInput?.value || 12.7192;
-        const lng = lngInput?.value || 121.4719;
-        window.open(`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=16/${lat}/${lng}`, '_blank');
-      });
+      authOwnerFullMapBtn.addEventListener('click', () => window.startOwnerLocationPick?.(authOwnerFullMapBtn));
     }
 
     initAuthMaps();

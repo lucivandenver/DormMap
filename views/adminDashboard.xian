@@ -974,10 +974,10 @@ async function loadGisMap() {
     if (!gisMap) {
       const center = gisRawData.center || { lat: 12.7563, lng: 121.4920 };
       gisMap = L.map('adminGisMap').setView([center.lat, center.lng], 13);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      dormMapFullMap(L, gisMap, L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution: '&copy; OpenStreetMap contributors'
-      }).addTo(gisMap);
+      }).addTo(gisMap));
       gisMarkersLayer = L.layerGroup().addTo(gisMap);
 
       // Event listener on search input for real-time responsiveness
