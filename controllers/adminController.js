@@ -983,7 +983,7 @@ export const adminMapData = async (req, res, next) => {
           'boardingHouseName', 'boardingHouseAddress', 'boardingHousePicture',
           'profilePicture', 'roomsAvailable', 'occupiedRooms', 'mapPin',
           'boardingHouseLatitude', 'boardingHouseLongitude', 'applicationStatus',
-          'isSuspended', 'paymentMethods', 'gender', 'budgetRange', 'createdAt'
+          'isSuspended', 'publicMapUnregistered', 'paymentMethods', 'gender', 'budgetRange', 'createdAt'
         ],
         order: [['boardingHouseName', 'ASC']]
       }),

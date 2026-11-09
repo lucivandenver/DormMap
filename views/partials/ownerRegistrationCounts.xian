@@ -1,6 +1,11 @@
-<div class="room-plan-grid">
-  <label>Number of branches (including main)<input type="number" name="declaredBranches" min="1" max="100" required value="{{authValues.declaredBranches}}"></label>
-  <label>Floors in the main property<input type="number" name="floorCount" min="1" max="50" required value="{{authValues.floorCount}}"></label>
-  <label>Rooms in the main property<input type="number" name="roomsAvailable" min="1" max="100" required value="{{authValues.roomsAvailable}}"></label>
+<div data-owner-counts>
+  <label>Branches including the main property<input type="number" name="declaredBranches" min="1" max="100" required value="{{authValues.declaredBranches}}"></label>
+  <fieldset>
+    <legend>Main property</legend>
+    <div class="owner-count-grid">
+      <label>Floors<input type="number" name="floorCount" min="1" max="50" required value="{{authValues.floorCount}}"></label>
+      <label>Rooms<input type="number" name="roomsAvailable" min="1" max="100" required value="{{authValues.roomsAvailable}}"></label>
+    </div>
+  </fieldset>
+  <div data-additional-branches></div>
 </div>
-<p class="text-sm text-slate-600">Set up individual rooms and any additional branches in the owner dashboard.</p>

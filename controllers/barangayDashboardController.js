@@ -619,30 +619,24 @@ export const applications = async (req, res, next) => {
     if (req.query.search) {
       where[Op.or] = ['fullName', 'email', 'boardingHouseName'].map((field) => ({ [field]: { [Op.like]: `%${req.query.search}%` } }));
     }
-    const rawData = await User.findAll({ 
-      where, 
-      attributes: { exclude: ['password', 'verificationToken'] }, 
-      order: [['createdAt', 'DESC']] 
+    const owners = await User.findAll({
+      where, order: [['createdAt', 'DESC']],
+      attributes: ['id', 'fullName', 'email', 'boardingHouseName', 'barangay', 'mapPin', 'galleryImages',
+        'validIdPicture', 'businessPermit', 'barangayClearance', 'applicationStatus', 'applicationReviewNote', 'createdAt']
     });
-    
-    const data = rawData.map(userItem => {
-      const u = userItem.get({ plain: true });
-      let extraDocs = {};
-      try {
-        if (u.supportingDocuments) {
-          extraDocs = typeof u.supportingDocuments === 'string' ? JSON.parse(u.supportingDocuments) : u.supportingDocuments;
-        }
-      } catch (e) {}
-
-      return {
-        ...u,
-        validIdPicture: u.validIdPicture || extraDocs.governmentId || extraDocs.validIdPicture || null,
-        businessPermit: u.businessPermit || extraDocs.businessPermit || null,
-        barangayClearance: u.barangayClearance || extraDocs.barangayClearance || null,
-        proofOfOwnership: u.proofOfOwnership || extraDocs.proofOfOwnership || null,
-        rentalPermit: u.rentalPermit || extraDocs.rentalPermit || null,
-        profilePicture: u.profilePicture || extraDocs.profilePicture || null,
+    const houses = await BoardingHouse.findAll({
+      where: { ownerId: owners.map(owner => owner.id), isPrimary: true },
+      attributes: ['ownerId', 'registrationSubmission', 'declaredRooms', 'floorCount']
+    });
+    const byOwner = new Map(houses.map(house => [house.ownerId, house]));
+    const data = owners.map(owner => {
+      const { id, applicationStatus, applicationReviewNote, createdAt, ...legacy } = owner.get({ plain: true });
+      const house = byOwner.get(id);
+      const submission = house?.registrationSubmission || {
+        ...legacy,
+        branches: house?.declaredRooms ? [{ floors: house.floorCount, rooms: house.declaredRooms }] : []
       };
+      return { ...submission, id, applicationStatus, applicationReviewNote, createdAt };
     });
 
     res.json({ data });
@@ -777,7 +771,7 @@ export const mapHouses = async (req, res, next) => {
         boardingHouseLatitude: { [Op.ne]: null }, 
         boardingHouseLongitude: { [Op.ne]: null } 
       }, 
-      attributes: ['id', 'fullName', 'boardingHouseName', 'boardingHouseAddress', 'boardingHouseLatitude', 'boardingHouseLongitude', 'roomsAvailable', 'occupiedRooms', 'contactNumber', 'applicationStatus', 'isSuspended'] 
+      attributes: ['id', 'fullName', 'boardingHouseName', 'boardingHouseAddress', 'boardingHouseLatitude', 'boardingHouseLongitude', 'roomsAvailable', 'occupiedRooms', 'contactNumber', 'applicationStatus', 'isSuspended', 'publicMapUnregistered']
     }); 
     res.json({ data }); 
   } catch (e) { next(e); } 

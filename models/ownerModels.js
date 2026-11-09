@@ -15,6 +15,7 @@ export const BoardingHouse = sequelize.define('BoardingHouse', {
   houseRules:   { type: DataTypes.TEXT,    allowNull: true },
   propertyType: { type: DataTypes.STRING, allowNull: false, defaultValue: 'Boarding House' },
   declaredBranches: { type: DataTypes.INTEGER, allowNull: true },
+  registrationSubmission: { type: DataTypes.JSON, allowNull: true },
   declaredRooms: { type: DataTypes.INTEGER, allowNull: true },
   floorCount: { type: DataTypes.INTEGER, allowNull: true },
   approvalStatus: { type: DataTypes.STRING, allowNull: false, defaultValue: 'approved' },
@@ -143,6 +144,7 @@ export const ensureOwnerSchema = async () => {
   // Add extra columns to OwnerGallery if needed
   const queryInterface = sequelize.getQueryInterface();
   const houseColumns = await queryInterface.describeTable('BoardingHouses');
+  if (!houseColumns.registrationSubmission) await queryInterface.addColumn('BoardingHouses', 'registrationSubmission', { type: DataTypes.JSON, allowNull: true });
   for (const column of ['declaredBranches', 'declaredRooms']) {
     if (!houseColumns[column]) await queryInterface.addColumn('BoardingHouses', column, { type: DataTypes.INTEGER, allowNull: true });
   }

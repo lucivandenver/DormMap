@@ -125,7 +125,7 @@
       button.textContent = activeApplication(item) ? 'Message owner' : 'Inquire & Apply';
       button.addEventListener('click', () => activeApplication(item) ? window.openConversationWith(item.ownerId) : inquire(item));
       popup.append(button);
-      const marker = window.L.marker([item.latitude, item.longitude]).addTo(markerLayer).bindPopup(popup);
+      const marker = window.L.marker([item.latitude, item.longitude], { icon: window.dormMapPropertyPin(window.L, item.registrationStatus === 'unregistered') }).addTo(markerLayer).bindPopup(popup);
       markers.set(item.id, marker);
     });
     map.invalidateSize();

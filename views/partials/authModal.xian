@@ -47,7 +47,7 @@
     stroke-width: 2 !important;
   }
   .dormmap-auth-shell > div.relative {max-width:462px;border-radius:18px;}
-  [data-mode="login"] .dormmap-auth-panel {background:white;padding:1rem;}
+  [data-mode="login"] .dormmap-auth-panel {background:white;padding:clamp(1.25rem, 5vw, 2.5rem);}
   [data-mode="login"] .dormmap-auth-scroll > div:has(.auth-tab),
   [data-mode="login"] .dormmap-auth-scroll > div:first-child p {display:none;}
   [data-mode="login"] .dormmap-auth-scroll h3 {font-size:2.2rem;}
@@ -359,7 +359,7 @@
                 </label>
               </div>
               {{> ownerRegistrationCounts }}
-              <button type="button" class="rounded-xl bg-emerald-800 px-4 py-2 text-white" data-owner-next="2">Next: Location and photos</button>
+              <button type="button" class="registration-step" data-owner-next="2">Next</button>
             </div>
             <div class="mt-2.5 hidden space-y-3" data-owner-step="2">
               <div class="grid gap-2.5 sm:grid-cols-2">
@@ -468,8 +468,8 @@
                 </div>
               </div>
               <div class="flex justify-between gap-2">
-                <button type="button" data-owner-back="1">Back</button>
-                <button type="button" class="rounded-xl bg-emerald-800 px-4 py-2 text-white" data-owner-next="3">Next: Documents</button>
+                <button type="button" class="registration-step" data-owner-back="1">← Previous Step</button>
+                <button type="button" class="registration-step" data-owner-next="3">Next</button>
               </div>
             </div>
             <div class="mt-2.5 hidden space-y-3" data-owner-step="3">
@@ -481,9 +481,7 @@
 
               </div>
               <div class="grid gap-3 sm:grid-cols-2"><label class="text-xs font-semibold">Government-issued ID<input type="file" name="validIdPicture" required accept="image/jpeg,image/png,image/webp,application/pdf" class="mt-2 block w-full text-xs"></label><label class="text-xs font-semibold">Barangay clearance<input type="file" name="barangayClearance" required accept="image/jpeg,image/png,image/webp,application/pdf" class="mt-2 block w-full text-xs"></label></div>
-              <button type="button" class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition" data-owner-back="2">
-                  ← Previous Step
-                </button>
+              <button type="button" class="registration-step" data-owner-back="2">← Previous Step</button>
               <div class="mt-3 flex justify-center">
                 <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-full px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-950/20 hover:scale-[1.02] active:scale-[0.98] transition" style="background: var(--dormmap-primary);">
                   <i data-lucide="check-circle-2" class="h-4 w-4"></i>
@@ -895,7 +893,7 @@
         if (house.lat === null || house.lng === null || !Number.isFinite(house.lat) || !Number.isFinite(house.lng)) return;
         const lat = Number(house.lat) || 12.7192;
         const lng = Number(house.lng) || 121.4719;
-        const marker = L.marker([lat, lng]).addTo(map).bindPopup(`
+        const marker = L.marker([lat, lng], { icon: dormMapPropertyPin(L, house.registrationStatus === 'unregistered') }).addTo(map).bindPopup(`
           <div style="min-width:140px">
             <strong style="font-size:12px">${house.name}</strong><br>
             <span style="font-size:11px;color:#64748b">${house.address || house.type}</span><br>
@@ -913,20 +911,20 @@
         const ownerMap = L.map(ownerMapElement, { scrollWheelZoom: false }).setView([12.7192, 121.4719], 14);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(ownerMap);
 
+        let ownerPin;
+        const pickOwnerLocation = (event) => {
+            const { lat, lng } = event.latlng;
+            const locationLabel = `Lat ${lat.toFixed(6)}, Lon ${lng.toFixed(6)}`;
+            setOwnerLocationValue(locationLabel, lat, lng);
+            if (ownerPin) ownerPin.remove();
+            ownerPin = L.marker([lat, lng], { icon: dormMapPropertyPin(L) }).addTo(ownerMap);
+            ownerPin.bindPopup('Selected boarding house location').openPopup();
+        };
         window.startOwnerLocationPick = () => {
           showAuthMap('owner');
           ownerMapElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
           setTimeout(() => ownerMap.invalidateSize(), 200);
-          ownerMap.on('click', (event) => {
-            const { lat, lng } = event.latlng;
-            const locationLabel = `Lat ${lat.toFixed(6)}, Lon ${lng.toFixed(6)}`;
-            setOwnerLocationValue(locationLabel, lat, lng);
-            const ownerPin = L.circleMarker([lat, lng], {
-              radius: 8, color: '#023020', fillColor: '#023020', fillOpacity: 1, weight: 3,
-            }).addTo(ownerMap);
-            ownerPin.bindPopup('Selected boarding house location').openPopup();
-            ownerMap.off('click');
-          });
+          ownerMap.off('click', pickOwnerLocation).once('click', pickOwnerLocation);
         };
       }
 
