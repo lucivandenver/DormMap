@@ -150,7 +150,7 @@ app.engine("xian", async (filePath, options, callback) => {
   }
 });
 app.use((req, res, next) => {
-  res.locals.mapTilerKey = process.env.MAPTILER_PUBLIC_KEY || "";
+  res.locals.mapTilerKey = process.env.MAPTILER_PUBLIC_KEY?.trim() || "";
   res.locals.success_msg = req.flash("success_msg");
   res.locals.error_msg = req.flash("error_msg");
   next();

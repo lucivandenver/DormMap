@@ -87,12 +87,12 @@
     }
 
     .map-frame {
-      min-height: 420px;
+      height: 420px;
     }
 
     @media (max-width: 768px) {
       .map-frame {
-        min-height: 340px;
+        height: 340px;
       }
     }
 
@@ -488,7 +488,7 @@
           </button>
         </div>
       </div>
-      <div class="mt-5 grid gap-6 xl:grid-cols-[1.6fr_1fr]">
+      <div class="mt-5 grid items-start gap-6 xl:grid-cols-[1.6fr_1fr]">
         <div class="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
           <div id="landingMap" class="map-frame w-full"></div>
         </div>
@@ -500,8 +500,8 @@
             </div>
             <span id="listingCount" class="rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-900">0 listings</span>
           </div>
-          <div id="boardingHouseList" class="space-y-4" aria-live="polite">
-            <p class="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">Loading verified boarding house locations from the DormMap network...</p>
+          <div id="boardingHouseList" class="max-h-72 space-y-4 overflow-y-auto" aria-live="polite">
+            <p class="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">Select a boarding house pin on the map to see its details.</p>
           </div>
         </div>
       </div>
@@ -1492,7 +1492,15 @@
       window.landingMapMarkers = [];
     };
 
+    let selectedListingId = null;
+    const clearSelectedListing = () => {
+      selectedListingId = null;
+      boardingHouseList.innerHTML = '<p class="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">Select a boarding house pin on the map to see its details.</p>';
+      setListingCount(0);
+    };
+
     const renderSingleHouseCard = (house) => {
+      selectedListingId = String(house.id);
       boardingHouseList.innerHTML = createHouseCard(house);
       setListingCount(1);
       boardingHouseList.querySelectorAll('.focus-listing').forEach((button) => {
@@ -1507,17 +1515,13 @@
       });
     };
 
-    const renderBoardingHouseMarkers = (houses, populateList = false, fitMap = false) => {
+    const renderBoardingHouseMarkers = (houses) => {
       clearLandingMapMarkers();
-      if (populateList) boardingHouseList.innerHTML = '';
-      if (populateList) setListingCount(houses.length);
-
-      if (populateList && houses.length === 0) {
-        boardingHouseList.innerHTML = '<p class="text-sm text-slate-600 p-4 bg-slate-50 rounded-2xl border border-slate-200">No boarding houses match your search criteria. Try adjusting your filters.</p>';
-        return;
+      if (selectedListingId !== null) {
+        const selected = houses.find(house => String(house.id) === selectedListingId);
+        if (selected) renderSingleHouseCard(selected);
+        else clearSelectedListing();
       }
-
-      const bounds = L.latLngBounds();
 
       houses.forEach((house, idx) => {
         const latitude = Number(house.latitude);
@@ -1555,30 +1559,9 @@
           });
 
           window.landingMapMarkers.push(marker);
-          bounds.extend([latitude, longitude]);
         }
 
-        if (populateList) {
-          boardingHouseList.insertAdjacentHTML('beforeend', createHouseCard(house));
-        }
       });
-
-      if (fitMap && window.landingMapMarkers.length > 0) {
-        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
-      }
-
-      if (populateList) {
-        boardingHouseList.querySelectorAll('.focus-listing').forEach((button) => {
-          button.addEventListener('click', () => {
-            const latitude = Number(button.dataset.lat);
-            const longitude = Number(button.dataset.lng);
-            if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-              map.setView([latitude, longitude], 17);
-              document.getElementById('landingMap').scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-          });
-        });
-      }
     };
 
     async function resolvePlace(name, kind) {
@@ -1592,7 +1575,7 @@
 
     function displaySearch(focusMap = true) {
       const houses = DormMapSearch.filter(window.allBoardingHousesCache || [], activeCriteria || {});
-      renderBoardingHouseMarkers(houses, true, false);
+      renderBoardingHouseMarkers(houses);
       if (!focusMap) return houses;
       map.stop();
       if (window.institutionMarker) { map.removeLayer(window.institutionMarker); window.institutionMarker = null; }
@@ -1649,6 +1632,7 @@
     // Refresh Map & Filters: Auto center to user's current GPS location & reset listings panel
     window.resetMapAndFilters = function() {
       ++searchVersion; activeCriteria = null; activePlace = null;
+      clearSelectedListing();
       if (searchRadiusLayer) { map.removeLayer(searchRadiusLayer); searchRadiusLayer = null; }
       searchStatus.textContent = 'Filters cleared. Showing all verified boarding house pins.';
       const qInput = document.getElementById('quickSearchQuery');
@@ -1672,7 +1656,7 @@
 
       // 2. Restore all pins on map and default empty state in live listings panel
       if (window.allBoardingHousesCache) {
-        renderBoardingHouseMarkers(window.allBoardingHousesCache, true, false);
+        renderBoardingHouseMarkers(window.allBoardingHousesCache);
       }
     };
 
@@ -1715,7 +1699,7 @@
           const matches = displaySearch(false);
           searchStatus.textContent = `${matches.length} matching listing(s)${searchScope}. ${searchWarning}`;
         } else {
-          renderBoardingHouseMarkers(data.listings, true, false);
+          renderBoardingHouseMarkers(data.listings);
           searchStatus.textContent = `${data.listings.length} listed boarding house(s). Select a school or barangay to explore.`;
         }
         renderTopVerifiedListings(data.listings);
