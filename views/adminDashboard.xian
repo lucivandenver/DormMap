@@ -1048,19 +1048,7 @@ function applyGisFilters() {
         statusLabel = 'Pending Review';
       }
 
-      const houseIcon = L.divIcon({
-        className: 'gis-custom-pin',
-        html: `
-          <div class="gis-pin-wrapper" title="${esc(o.boardingHouseName || o.fullName)}">
-            <div style="background: ${pinColor}; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2.5px solid white; box-shadow: 0 4px 12px rgba(0,0,0,0.35); font-size: 15px;">
-              🏠
-            </div>
-          </div>
-        `,
-        iconSize: [34, 34],
-        iconAnchor: [17, 17],
-        popupAnchor: [0, -18]
-      });
+      const houseIcon = dormMapPropertyPin(L, o.publicMapUnregistered);
 
       const marker = L.marker([o.lat, o.lng], { icon: houseIcon });
       boundsPoints.push([o.lat, o.lng]);

@@ -22,6 +22,9 @@ test('required photos/documents and a real map pin are enforced on the server',(
  const fields=['profilePicture','galleryOutdoor','galleryLivingArea','galleryBedroom','galleryDining','galleryBathroom','validIdPicture','businessPermit','barangayClearance','proofOfOwnership','rentalPermit'];
  const files=Object.fromEntries(fields.map(name=>[name,[{mimetype:'image/png',size:100}]]));
  assert.equal(validateOwnerSetup(body,files).metadata.declaredRooms,3);
+ assert.throws(() => validateOwnerSetup({...body, declaredBranches:2},files), /branch 2/);
+ assert.deepEqual(validateOwnerSetup({...body, declaredBranches:2, branchFloors2:4, branchRooms2:9},files).branches,
+   [{floors:2, rooms:3}, {floors:4, rooms:9}]);
  files.galleryOutdoor[0].mimetype='application/pdf';assert.throws(()=>validateOwnerSetup(body,files),/Invalid file/);
  files.galleryOutdoor[0].mimetype='image/png';assert.throws(()=>validateOwnerSetup({...body,boardingHouseLatitude:''},files),/actual Bongabong/);
 });

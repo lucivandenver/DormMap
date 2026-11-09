@@ -188,7 +188,7 @@
         const lng = Number(h.longitude);
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
-        const marker = L.marker([lat, lng]).addTo(miniMap)
+        const marker = L.marker([lat, lng], { icon: dormMapPropertyPin(L, h.registrationStatus === 'unregistered') }).addTo(miniMap)
           .bindPopup(`
             <div class="text-xs space-y-1">
               <strong class="text-slate-900 font-bold block">${h.boardingHouseName || 'Boarding House'}</strong>

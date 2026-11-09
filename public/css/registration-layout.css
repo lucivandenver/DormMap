@@ -1,0 +1,32 @@
+[data-owner-counts] fieldset {
+  margin: .75rem 0;
+  padding: .75rem;
+  border: 1px solid #dbe5e0;
+  border-radius: .8rem;
+}
+[data-owner-counts] legend { padding: 0 .3rem; font-weight: 700; }
+[data-owner-counts] label { display: block; min-width: 0; font-size: .875rem; font-weight: 600; }
+[data-owner-counts] input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  margin-top: .35rem;
+  padding: .65rem .85rem;
+  border: 1px solid #cbd5e1;
+  border-radius: .8rem;
+  background: white;
+}
+.owner-count-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.registration-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #047857;
+  border-radius: 999px;
+  padding: .65rem 1rem;
+  background: #047857;
+  color: white;
+  font-weight: 700;
+}
+.registration-step:hover { background: #065f46; }

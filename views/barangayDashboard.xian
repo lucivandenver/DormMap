@@ -734,12 +734,13 @@
     <div class="flex items-center justify-between border-b pb-3">
       <div>
         <h3 class="font-bold text-slate-900 text-lg">Review Owner Application & Verification Documents</h3>
-        <p class="text-xs text-slate-500">Inspect 6 required documents before taking official action.</p>
+        <p class="text-xs text-slate-500">Review the details and documents submitted during registration.</p>
       </div>
       <button onclick="closeReviewModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
     </div>
     <div class="mt-4">
       <p class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Uploaded Verification Documents</p>
+      <div id="registrationSummary" class="mb-4 space-y-1 text-sm"></div>
       <div id="modalDocGrid" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"></div>
     </div>
     <div class="mt-6 border-t pt-4 space-y-4">
@@ -1311,9 +1312,6 @@ async function loadApplications() {
             ${x.validIdPicture ? '<span class="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700 font-semibold">Gov ID ✓</span>' : '<span class="rounded bg-rose-50 px-1.5 py-0.5 text-rose-700">Gov ID ✗</span>'}
             ${x.businessPermit ? '<span class="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700 font-semibold">Permit ✓</span>' : '<span class="rounded bg-rose-50 px-1.5 py-0.5 text-rose-700">Permit ✗</span>'}
             ${x.barangayClearance ? '<span class="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700 font-semibold">Brgy ✓</span>' : '<span class="rounded bg-rose-50 px-1.5 py-0.5 text-rose-700">Brgy ✗</span>'}
-            ${x.proofOfOwnership ? '<span class="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700 font-semibold">Ownership ✓</span>' : '<span class="rounded bg-rose-50 px-1.5 py-0.5 text-rose-700">Ownership ✗</span>'}
-            ${x.rentalPermit ? '<span class="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700 font-semibold">Rental ✓</span>' : '<span class="rounded bg-rose-50 px-1.5 py-0.5 text-rose-700">Rental ✗</span>'}
-            ${x.profilePicture ? '<span class="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700 font-semibold">Photo ✓</span>' : '<span class="rounded bg-rose-50 px-1.5 py-0.5 text-rose-700">Photo ✗</span>'}
           </div>
         </td>
         <td><span class="badge status-${esc(x.applicationStatus)}">${esc(x.applicationStatus)}</span></td>
@@ -1329,14 +1327,28 @@ function openReviewModal(id) {
   document.getElementById('reviewAppId').value = id;
   document.getElementById('reviewNoteInput').value = app?.applicationReviewNote || '';
   
+  if (!app) return;
+  const summary = document.getElementById('registrationSummary');
+  const details = [app.fullName, app.email, app.boardingHouseName, app.barangay, app.mapPin,
+    ...(app.branches || []).map((branch, index) =>
+      `${index === 0 ? 'Main property' : 'Branch ' + (index + 1)}: ${branch.floors} floors · ${branch.rooms} rooms`)];
+  summary.replaceChildren(...details.filter(Boolean).map(value => {
+    const row = document.createElement('p');
+    row.textContent = value;
+    return row;
+  }));
+  let photos = app.galleryImages;
+  if (typeof photos === 'string') {
+    try { photos = JSON.parse(photos); } catch { photos = []; }
+  }
   const docTypes = [
     { label: 'Government ID', url: app?.validIdPicture },
     { label: 'Business Permit', url: app?.businessPermit },
     { label: 'Barangay Clearance', url: app?.barangayClearance },
-    { label: 'Proof of Ownership', url: app?.proofOfOwnership },
-    { label: 'Rental Permit', url: app?.rentalPermit },
-    { label: 'Profile Photo', url: app?.profilePicture }
-  ];
+    ...['Outdoor Spaces', 'Living Area', 'Bedroom', 'Dining or Kitchenette', 'Bathroom'].map((label, index) => ({
+      label, url: Array.isArray(photos) ? photos[index] : null
+    }))
+  ].filter(doc => typeof doc.url === 'string' && /^\/uploads\/[a-z0-9_.-]+$/i.test(doc.url));
 
   document.getElementById('modalDocGrid').innerHTML = docTypes.map(d => `
     <div class="rounded-xl border border-slate-200 p-3 bg-slate-50 flex flex-col justify-between">
@@ -1570,7 +1582,7 @@ async function loadMap() {
     d.data.forEach(x => {
       let a = Number(x.boardingHouseLatitude), b = Number(x.boardingHouseLongitude);
       if (Number.isFinite(a) && Number.isFinite(b)) {
-        L.marker([a, b]).addTo(map).bindPopup(`
+        L.marker([a, b], { icon: dormMapPropertyPin(L, x.publicMapUnregistered) }).addTo(map).bindPopup(`
           <div class="p-1">
             <b class="text-emerald-800 text-sm">${esc(x.boardingHouseName)}</b><br>
             <span class="text-xs text-slate-600">Owner: ${esc(x.fullName)}</span><br>

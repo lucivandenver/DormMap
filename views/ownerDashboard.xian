@@ -1938,7 +1938,7 @@
     bhOsmMap = L.map('bhOsmMap').setView([lat, lng], 15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(bhOsmMap);
 
-    bhOsmMarker = L.marker([lat, lng], { draggable: true }).addTo(bhOsmMap);
+    bhOsmMarker = L.marker([lat, lng], { draggable: true, icon: dormMapPropertyPin(L) }).addTo(bhOsmMap);
 
     const updateCoords = (newLat, newLng) => {
       document.getElementById('bhModalLat').value = newLat.toFixed(6);
@@ -2622,7 +2622,7 @@ async function loadLegacyNotifications() {
         const lat = parseFloat(user.boardingHouseLatitude) || 12.7192;
         const lng = parseFloat(user.boardingHouseLongitude) || 121.4719;
         
-        osmMarker = L.marker([lat, lng], { draggable: true }).addTo(osmMap);
+        osmMarker = L.marker([lat, lng], { draggable: true, icon: dormMapPropertyPin(L) }).addTo(osmMap);
         osmMap.setView([lat, lng], 15);
 
         osmMarker.on('dragend', async () => {
