@@ -54,13 +54,13 @@
       function satelliteError() {
         if (activeLayer !== satellite) return;
         selectLayer(street);
-        status.textContent = 'Satellite imagery could not load. Street view is available.';
+        status.textContent = 'Satellite imagery could not load. Check the map key and allowed website domains. Street view is available.';
       }
       satellite?.on('tileerror', satelliteError);
       streetButton.onclick = () => selectLayer(street);
       satelliteButton.onclick = () => {
         if (!satellite) {
-          status.textContent = 'Satellite imagery is unavailable on this deployment.';
+          status.textContent = 'Satellite is not configured. Street view is available.';
           return;
         }
         selectLayer(satellite);
