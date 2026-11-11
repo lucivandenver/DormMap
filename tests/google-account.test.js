@@ -33,3 +33,11 @@ test('the operator allowlist can correct an existing account role after verified
   const result = await resolveGoogleAccount(profile, 'login_only', { ADMIN_GOOGLE_EMAILS: 'admin@example.test' });
   assert.equal(result.user.accountType, 'super_admin');
 });
+
+test('Google owner signup creates a draft until the property application is submitted', async t => {
+  t.mock.method(User, 'findOne', async () => null);
+  t.mock.method(User, 'create', async data => ({ id: 10, ...data }));
+  const result = await resolveGoogleAccount(profile, 'boarding_house_owner', {});
+  assert.equal(result.user.applicationStatus, 'draft');
+  assert.equal(result.isNew, true);
+});

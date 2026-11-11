@@ -1,3 +1,4 @@
+import { Op } from 'sequelize';
 import { User } from '../models/userModel.js';
 
 export const activeBarangayWhere = {
@@ -10,3 +11,11 @@ export async function hasApprovedBarangay(barangay) {
 }
 
 export const ownerBarangayError = 'This barangay does not have an approved, active official account yet. Please wait for BPLO to approve its barangay official before applying.';
+
+export const submittedOwnerWhere = {
+  accountType: 'boarding_house_owner',
+  isArchived: false,
+  boardingHouseName: { [Op.ne]: '' },
+  mapPin: { [Op.ne]: '' },
+  barangay: { [Op.ne]: '' }
+};

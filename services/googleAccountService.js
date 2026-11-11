@@ -28,6 +28,6 @@ export async function resolveGoogleAccount(profile, requestedRole = 'login_only'
   if (!requestedRole || requestedRole === 'login_only') return { error: 'no_account', email };
   if (!['tenant', 'barangay', 'boarding_house_owner'].includes(requestedRole)) return { error: 'invalid_registration_role' };
   if (!verified) return { error: 'unverified_google_email' };
-  user = await User.create({ fullName: profile.displayName || 'Google User', email, password: await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10), accountType: requestedRole, applicationStatus: requestedRole === 'tenant' ? 'approved' : 'pending', emailVerified: true, googleId: profile.id, oauthProvider: 'google', profilePicture: profile.photos?.[0]?.value || null });
+  user = await User.create({ fullName: profile.displayName || 'Google User', email, password: await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10), accountType: requestedRole, applicationStatus: ({ tenant: 'approved', boarding_house_owner: 'draft' })[requestedRole] || 'pending', emailVerified: true, googleId: profile.id, oauthProvider: 'google', profilePicture: profile.photos?.[0]?.value || null });
   return { user, isNew: true };
 }

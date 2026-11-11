@@ -11,6 +11,8 @@ router.get('/api/overview', controller.overview);
 router.get('/api/map-data', controller.adminMapData);
 
 router.get('/api/barangay-accounts', controller.listBarangayAccounts);
+router.post('/api/barangay-accounts', controller.saveBarangayAccount);
+router.put('/api/barangay-accounts/:id', controller.saveBarangayAccount);
 router.patch('/api/barangay-accounts/:id/review', controller.reviewBarangayAccount);
 
 router.get('/api/branches', controller.listBranches);

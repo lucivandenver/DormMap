@@ -1,3 +1,4 @@
+import { submittedOwnerWhere } from './registrationPolicy.js';
 import { Op } from 'sequelize';
 import { User } from '../models/userModel.js';
 import { sequelize } from '../models/db.js';
@@ -31,7 +32,7 @@ export function installPortalActivity(app) {
     if(role==='boarding_house_owner')pending.tenants=await TenantApplication.count({where:{ownerId:user.id,status:'pending_owner'}});
     if(role==='tenant')pending.dashboard=await TenantApplication.count({where:{tenantId:user.id,status:'accepted_by_owner'}});
     if(['barangay','super_admin'].includes(role)){
-      pending[role==='barangay'?'applications':'owners']=await User.count({where:{accountType:'boarding_house_owner',isArchived:false,applicationStatus:{[Op.in]:['pending','pending_barangay','pending_bplo']},...(role==='barangay'?{boardingHouseAddress:user.barangay}:{})}});
+      pending[role==='barangay'?'applications':'owners']=await User.count({where:{...submittedOwnerWhere,applicationStatus:{[Op.in]:['pending','pending_barangay','pending_bplo']},...(role==='barangay'?{boardingHouseAddress:user.barangay}:{})}});
       if(role==='super_admin')pending.barangays=await User.count({where:{accountType:'barangay',isArchived:false,applicationStatus:'pending'}});
       pending[role==='barangay'?'houses':'owners']=(pending[role==='barangay'?'houses':'owners']||0)+await BoardingHouse.count({where:{isPrimary:false,approvalStatus:'pending',...(role==='barangay'?{barangay:user.barangay}:{})}});
     }
@@ -97,10 +98,34 @@ export function installPortalActivity(app) {
     if(!['applicationStatus','isSuspended'].some(field=>row.changed(field)))return;
     return committed(options,()=>notice(row.id,'Account review updated',`Your account status is ${row.isSuspended?'suspended':row.applicationStatus}.`,'account'));
   });
-  User.addHook('afterCreate','portal-registration',(row,options)=>committed(options,async()=>{
-    if(!['barangay','boarding_house_owner'].includes(row.accountType))return;
-    const where=row.accountType==='barangay'?{accountType:{[Op.in]:['super_admin','bplo_admin']}}:{[Op.or]:[{accountType:{[Op.in]:['super_admin','bplo_admin']}},{accountType:'barangay',barangay:row.boardingHouseAddress,applicationStatus:'approved'}]};
-    const reviewers=await User.findAll({where:{...where,isArchived:false,isSuspended:false},attributes:['id']});
-    for(const reviewer of reviewers)await BarangayNotification.create({userId:reviewer.id,title:'New account application',body:`${row.fullName} submitted a ${row.accountType==='barangay'?'barangay official':'property owner'} application.`,type:row.accountType==='barangay'?'barangay_registration':'registration'});
-  }));
+  const notifyRegistration = async row => {
+    const where = row.accountType === 'barangay'
+      ? { accountType: { [Op.in]: ['super_admin', 'bplo_admin'] } }
+      : { [Op.or]: [
+          { accountType: { [Op.in]: ['super_admin', 'bplo_admin'] } },
+          { accountType: 'barangay', barangay: row.barangay, applicationStatus: 'approved' }
+        ] };
+    const reviewers = await User.findAll({ where: { ...where, isArchived: false, isSuspended: false }, attributes: ['id'] });
+    for (const reviewer of reviewers) {
+      await BarangayNotification.create({
+        userId: reviewer.id, title: 'New account application',
+        body: `${row.fullName} submitted a ${row.accountType === 'barangay' ? 'barangay official' : 'property owner'} application.`,
+        type: row.accountType === 'barangay' ? 'barangay_registration' : 'registration'
+      });
+    }
+  };
+  const hasOwnerSubmission = (name, pin, barangay) => Boolean(name?.trim() && pin?.trim() && barangay?.trim());
+  User.addHook('afterCreate', 'portal-registration', (row, options) => {
+    if (row.applicationStatus !== 'pending') return;
+    if (row.accountType !== 'barangay' && (row.accountType !== 'boarding_house_owner' ||
+        !hasOwnerSubmission(row.boardingHouseName, row.mapPin, row.barangay))) return;
+    return committed(options, () => notifyRegistration(row));
+  });
+  User.addHook('afterUpdate', 'portal-owner-submission', (row, options) => {
+    if (row.accountType !== 'boarding_house_owner' || row.applicationStatus !== 'pending' ||
+        !hasOwnerSubmission(row.boardingHouseName, row.mapPin, row.barangay)) return;
+    const before = field => row.changed(field) ? row.previous(field) : row[field];
+    if (hasOwnerSubmission(before('boardingHouseName'), before('mapPin'), before('barangay'))) return;
+    return committed(options, () => notifyRegistration(row));
+  });
 }
