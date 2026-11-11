@@ -1,6 +1,5 @@
 import bcrypt from 'bcrypt';
 import { submittedOwnerWhere } from '../services/registrationPolicy.js';
-import { listBranchApplications, reviewBranch } from '../services/branchReviewService.js';
 import { inventorySummary } from '../services/inventorySummaryService.js';
 import { setPublicMapStatus } from '../services/publicMapStatusService.js';
 import { uploadDir } from '../config/storage.js';
@@ -1139,11 +1138,4 @@ export const updatePublicMapStatus = async (req, res, next) => {
     await audit(req, 'public_map_status', 'User', owner.id, { action: req.body.action, ...data });
     res.json({ data, message: 'Public map status updated.' });
   } catch (error) { next(error); }
-};
-
-export const listBranches = async (req, res, next) => {
-  try { res.json({ data: await listBranchApplications(null) }); } catch (error) { next(error); }
-};
-export const reviewBranchApplication = async (req, res, next) => {
-  try { const data = await reviewBranch(req.params.id, req.body.action, req.body.note, null); await audit(req, 'branch_review', 'BoardingHouse', data.id, { action: req.body.action }); res.json({ data, message: 'Branch review saved.' }); } catch (error) { next(error); }
 };

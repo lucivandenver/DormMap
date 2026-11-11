@@ -415,12 +415,37 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const response=await request('/owner-dashboard/api/boarding-houses',ownerCookie,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'Second Barangay Branch',barangay:'Labasan',address:'Labasan main road',latitude:12.773,longitude:121.475,floorCount:4,propertyType:'Bedspace Residence'})});assert.equal(response.status,201,await response.clone().text());
       const branch=(await response.json()).data;assert.equal(branch.ownerId,owner.id);assert.equal(branch.approvalStatus,'pending');
       const post={method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'approve'})};
+      const adminCookie = await login(admin.email);
+      const readBranches = async (cookie = localCookie) => {
+        const result = await request('/barangay-dashboard/api/branches', cookie);
+        assert.equal(result.status, 200);
+        return result.json();
+      };
+      assert.equal((await request('/admin/api/branches', adminCookie)).status, 404);
+      assert.equal((await request(`/admin/api/branches/${branch.id}/review`, adminCookie, post)).status, 404);
+      assert.equal((await request('/barangay-dashboard/api/branches', adminCookie)).status, 403);
+      const pendingBranches = await readBranches();
+      assert.ok(pendingBranches.data.some(item => item.id === branch.id));
+      assert.ok(!pendingBranches.groups.some(group => group.branches.some(item => item.id === branch.id)));
+      const { BarangayNotification } = await import('../../models/adminModels.js');
+      assert.equal(await BarangayNotification.count({ where: { userId: admin.id, type: 'branch', body: 'Second Barangay Branch in Labasan is awaiting listing review.' } }), 0);
+      await BarangayNotification.create({ userId: admin.id, title: 'Legacy branch notification', body: 'Branch notice', type: 'branch' });
+      const adminNotifications = await (await request('/api/portal/notifications', adminCookie)).json();
+      assert.ok(!adminNotifications.items.some(item => item.type === 'branch'));
       assert.equal((await request(`/barangay-dashboard/api/branches/${branch.id}/review`,originalOfficialCookie,post)).status,404);
       assert.equal((await request(`/barangay-dashboard/api/branches/${branch.id}/review`,localCookie,post)).status,422);
       await saveRoom(owner.id,null,{boardingHouseId:branch.id,roomNumber:'401',floor:'4th Floor',roomType:'Bedspace',capacity:4,bedCount:4,rentalBasis:'bed',rentalPrice:1600});
       const readLanding = async () => (await (await request('/api/landing-data')).json()).listings;
       assert.ok(!(await readLanding()).some(item => item.bhId === branch.id));
       assert.equal((await request(`/barangay-dashboard/api/branches/${branch.id}/review`, localCookie, post)).status, 200);
+
+      const approvedBranches = await readBranches();
+      assert.ok(!approvedBranches.data.some(item => item.id === branch.id));
+      const ownerGroup = approvedBranches.groups.find(group => group.id === owner.id);
+      assert.equal(ownerGroup.boardingHouseName, (await owner.reload()).boardingHouseName);
+      assert.ok(ownerGroup.branches.some(item => item.id === branch.id && item.approvalStatus === 'approved'));
+      const outsideJurisdiction = await readBranches(originalOfficialCookie);
+      assert.ok(!outsideJurisdiction.groups.some(group => group.branches.some(item => item.id === branch.id)));
 
       const landing = await readLanding();
       const branchListing = landing.find(item => item.bhId === branch.id);
