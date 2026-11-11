@@ -29,7 +29,7 @@ import { hasApprovedBarangay, ownerBarangayError } from "../services/registratio
 import bcrypt from "bcrypt";
 import { Op } from "sequelize";
 import { User, sequelize } from "../models/userModel.js";
-import { OwnerGallery } from "../models/ownerModels.js";
+import { storeRegistrationPhotos } from '../services/propertyPhotoService.js';
 import nodemailer from "nodemailer";
 
 const roleLabels = {
@@ -689,15 +689,6 @@ export const registerUser = async (req, res) => {
     }
 
     const profilePicture = getUploadedPath(req.files, "profilePicture");
-    const galleryOutdoor = getUploadedPath(req.files, "galleryOutdoor");
-    const galleryLivingArea = getUploadedPath(req.files, "galleryLivingArea");
-    const galleryBedroom = getUploadedPath(req.files, "galleryBedroom");
-    const galleryDining = getUploadedPath(req.files, "galleryDining");
-    const galleryBathroom = getUploadedPath(req.files, "galleryBathroom");
-
-    // Primary card photo is Outdoor Spaces (fallback to legacy boardingHousePicture if provided)
-    const boardingHousePicture = galleryOutdoor || getUploadedPath(req.files, "boardingHousePicture");
-
     const businessPermit = getUploadedPath(req.files, "businessPermit");
     const proofOfOwnership = getUploadedPath(req.files, "proofOfOwnership");
     const sanitationPermit = getUploadedPath(req.files, "sanitationPermit");
@@ -742,75 +733,47 @@ export const registerUser = async (req, res) => {
       barangayCertificate,
     });
 
-    const galleryImagesArr = [
-      galleryOutdoor || boardingHousePicture || '',
-      galleryLivingArea || '',
-      galleryBedroom || '',
-      galleryDining || '',
-      galleryBathroom || ''
-    ];
-
     const user = await sequelize.transaction(async transaction => {
-    const created = await User.create({
-      accountType: normalizedAccountType,
-      applicationStatus: ['boarding_house_owner', 'barangay'].includes(normalizedAccountType) ? 'pending' : 'approved',
-      fullName,
-      email,
-      password: hashed,
-      emailVerified: true,
-      verificationToken: null,
-      profilePicture,
-      barangay: accountType === "barangay" ? barangay : (accountType === "boarding_house_owner" ? boardingHouseAddress : null),
-      positionTitle: accountType === "barangay" ? positionTitle || null : null,
-      boardingHouseName: accountType === "boarding_house_owner" ? boardingHouseName : null,
-      boardingHouseAddress: accountType === "boarding_house_owner" ? boardingHouseAddress : null,
-      boardingHousePicture: accountType === "boarding_house_owner" ? boardingHousePicture : null,
-      galleryImages: accountType === "boarding_house_owner" && galleryImagesArr.some(Boolean) ? JSON.stringify(galleryImagesArr) : null,
-      roomsAvailable: accountType === "boarding_house_owner" ? Number(roomsAvailable) || null : null,
-      mapPin: accountType === "boarding_house_owner" ? mapPin || null : null,
-      boardingHouseLatitude: accountType === "boarding_house_owner" ? boardingHouseLatitude || null : null,
-      boardingHouseLongitude: accountType === "boarding_house_owner" ? boardingHouseLongitude : null,
-      roomTypes: accountType === "boarding_house_owner" ? JSON.stringify(normalizeList(roomTypes)) : null,
-      paymentMethods: accountType === "boarding_house_owner" ? JSON.stringify(normalizeList(paymentMethods)) : null,
-      businessPermit: accountType === "boarding_house_owner" ? businessPermit : null,
-      supportingDocuments: accountType === "boarding_house_owner" ? supportingDocuments : null,
-      selectedBoardingHouse: accountType === "tenant" ? selectedBoardingHouse || null : null,
-      validIdPicture: validIdPicture,
-      barangayClearance: getUploadedPath(req.files, "barangayClearance"),
-      rentalPermit: getUploadedPath(req.files, "rentalPermit"),
-      contactNumber: contactNumber || null,
-      notes: notes || null,
-    }, { transaction });
-    if (setup) await registerPropertyInventory(created, setup, transaction);
-    return created;
+      const created = await User.create({
+        accountType: normalizedAccountType,
+        applicationStatus: ['boarding_house_owner', 'barangay'].includes(normalizedAccountType) ? 'pending' : 'approved',
+        fullName,
+        email,
+        password: hashed,
+        emailVerified: true,
+        verificationToken: null,
+        profilePicture,
+        barangay: accountType === "barangay" ? barangay : (accountType === "boarding_house_owner" ? boardingHouseAddress : null),
+        positionTitle: accountType === "barangay" ? positionTitle || null : null,
+        boardingHouseName: accountType === "boarding_house_owner" ? boardingHouseName : null,
+        boardingHouseAddress: accountType === "boarding_house_owner" ? boardingHouseAddress : null,
+        roomsAvailable: accountType === "boarding_house_owner" ? Number(roomsAvailable) || null : null,
+        mapPin: accountType === "boarding_house_owner" ? mapPin || null : null,
+        boardingHouseLatitude: accountType === "boarding_house_owner" ? boardingHouseLatitude || null : null,
+        boardingHouseLongitude: accountType === "boarding_house_owner" ? boardingHouseLongitude : null,
+        roomTypes: accountType === "boarding_house_owner" ? JSON.stringify(normalizeList(roomTypes)) : null,
+        paymentMethods: accountType === "boarding_house_owner" ? JSON.stringify(normalizeList(paymentMethods)) : null,
+        businessPermit: accountType === "boarding_house_owner" ? businessPermit : null,
+        supportingDocuments: accountType === "boarding_house_owner" ? supportingDocuments : null,
+        selectedBoardingHouse: accountType === "tenant" ? selectedBoardingHouse || null : null,
+        validIdPicture: validIdPicture,
+        barangayClearance: getUploadedPath(req.files, "barangayClearance"),
+        rentalPermit: getUploadedPath(req.files, "rentalPermit"),
+        contactNumber: contactNumber || null,
+        notes: notes || null,
+      }, { transaction });
+      if (setup) {
+        const galleryImages = await storeRegistrationPhotos(req.files, created.id, transaction);
+        await created.update({
+          boardingHousePicture: galleryImages[0] || null,
+          galleryImages: JSON.stringify(galleryImages),
+        }, { transaction });
+        await registerPropertyInventory(created, setup, transaction);
+      }
+      return created;
     });
 
     req.registrationSaved = true;
-    // Populate initial OwnerGallery records so owner gallery is fully synced
-    if (normalizedAccountType === "boarding_house_owner") {
-      const categoryMetadata = [
-        { slot: 1, img: galleryOutdoor || boardingHousePicture, caption: "Outdoor Spaces", type: "outdoor" },
-        { slot: 2, img: galleryLivingArea, caption: "Living Area", type: "living_area" },
-        { slot: 3, img: galleryBedroom, caption: "Bedroom", type: "bedroom" },
-        { slot: 4, img: galleryDining, caption: "Dining or kitchenette", type: "dining" },
-        { slot: 5, img: galleryBathroom, caption: "Bathroom", type: "bathroom" },
-      ];
-      for (const item of categoryMetadata) {
-        if (item.img) {
-          try {
-            await OwnerGallery.create({
-              ownerId: user.id,
-              imageUrl: item.img,
-              caption: item.caption,
-              sortOrder: item.slot,
-              imageType: item.type
-            });
-          } catch (e) {
-            console.error("Error creating initial gallery item:", e);
-          }
-        }
-      }
-    }
 
     if (normalizedAccountType !== "super_admin") {
       try {
@@ -829,7 +792,7 @@ export const registerUser = async (req, res) => {
     console.error("Register error:", error);
     return renderRegisterPage(res, {
       authAccountType: req.body.accountType || "boarding_house_owner",
-      authError: "Registration failed. Please check your inputs and try again.",
+      authError: error.status === 422 ? error.message : "Registration failed. Please check your inputs and try again.",
       authValues: req.body,
     });
   }

@@ -32,7 +32,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
   let base;
   let ids = [];
   const uploadedFiles = [];
-  async function start({ deniedUploads = false } = {}) {
+  async function start({ deniedUploads = false, freshUploads = false } = {}) {
     const probe = net.createServer().listen(0, '127.0.0.1');
     await once(probe, 'listening');
     const port = probe.address().port;
@@ -50,7 +50,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
     `);
     server = spawn(process.execPath, [...(deniedUploads ? ['--import', preload] : []), 'index.js'], {
       cwd: new URL('../../', import.meta.url),
-      env: { ...process.env, NODE_ENV: 'development', PORT: String(port), UPLOAD_DIR: deniedUploads ? path.join(directory, 'denied-mount') : directory, UPLOAD_DIR_STRICT: 'false', SESSION_SECRET: 'integration-session-secret-keep-between-restarts', PAYMONGO_SECRET_KEY: 'sk_test_integration_webhook', PAYMONGO_WEBHOOK_SECRET_KEY: 'integration-only-webhook-secret' },
+      env: { ...process.env, NODE_ENV: 'development', PORT: String(port), UPLOAD_DIR: deniedUploads ? path.join(directory, 'denied-mount') : (freshUploads ? path.join(directory, 'fresh-uploads') : directory), UPLOAD_DIR_STRICT: 'false', SESSION_SECRET: 'integration-session-secret-keep-between-restarts', PAYMONGO_SECRET_KEY: 'sk_test_integration_webhook', PAYMONGO_WEBHOOK_SECRET_KEY: 'integration-only-webhook-secret' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     await new Promise((resolve, reject) => {
@@ -330,7 +330,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.equal((await request(`/api/payments/status/by-ref?ref=${checkout.payment.internalReference}`, cookie)).status, 403);
       assert.equal((await request(`/api/payments/${checkout.payment.id}/receipt/download`, secondCookie)).status, 200);
     });
-    await t.test('owner signup records property counts and defers room inventory', async () => {
+    await t.test('owner signup photos and gallery replacements survive a clean upload directory', async () => {
       const form = new FormData();
       const data = { accountType:'boarding_house_owner', fullName:'Registered Room Owner', email:`layout-${suffix}@example.test`, password:'test-password-123',confirmPassword:'test-password-123',acceptTerms:'on',boardingHouseName:'Layout Main',boardingHouseAddress:'Orconuma',streetAddress:'Purok 2, Main Street',roomsAvailable:'2',declaredBranches:'1',contactNumber:'09171234567',mapPin:'Lat 12.668945, Lon 121.491777',boardingHouseLatitude:'12.668945',boardingHouseLongitude:'121.491777',propertyType:'Mixed',floorCount:'2' };
       for (const [key,value] of Object.entries(data)) form.set(key,value);
@@ -341,6 +341,57 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       for(const value of [created.profilePicture,created.boardingHousePicture,created.validIdPicture,created.businessPermit,created.barangayClearance,created.rentalPermit,...JSON.parse(created.galleryImages || '[]'),...Object.values(JSON.parse(created.supportingDocuments || '{}'))]) if(typeof value==='string'&&value.startsWith('/uploads/'))uploadedFiles.push(new URL('../../public'+value,import.meta.url));
       const primary=await BoardingHouse.findOne({where:{ownerId:created.id,isPrimary:true}});assert.equal(primary.floorCount,2);assert.equal(primary.address,'Purok 2, Main Street');
       const rooms=await OwnerRoom.findAll({where:{ownerId:created.id},order:[['roomNumber','ASC']]});assert.equal(rooms.length,0);assert.equal(primary.declaredRooms,2);assert.equal(primary.declaredBranches,1);assert.equal(created.roomsAvailable,0);assert.equal(created.applicationStatus,'pending');
+
+      const originalPhotos = JSON.parse(created.galleryImages);
+      assert.equal(originalPhotos.length, 5);
+      assert.equal(primary.picture, originalPhotos[0]);
+      await created.update({ applicationStatus: 'approved' });
+      const ownerCookie = await login(created.email);
+      const galleryUrl = `/owner-dashboard/api/gallery?boardingHouseId=${primary.id}`;
+      const getGalleryPhotos = async () => {
+        const gallery = await request(galleryUrl, ownerCookie);
+        assert.equal(gallery.status, 200);
+        return (await gallery.json()).slots.map(slot => slot.imageUrl);
+      };
+      const checkPublicCover = async expected => {
+        const response = await request('/api/landing-data');
+        assert.equal(response.status, 200);
+        const listing = (await response.json()).listings.find(item => item.ownerId === created.id);
+        assert.equal(listing.boardingHousePicture, expected);
+        assert.equal(listing.galleryImages[0], expected);
+      };
+      const checkPhoto = async url => {
+        assert.match(url, /^\/uploads\/property-[a-f0-9-]+\.png$/);
+        const image = await request(url);
+        assert.equal(image.status, 200);
+        assert.equal(image.headers.get('content-type'), 'image/png');
+        assert.deepEqual(Buffer.from(await image.arrayBuffer()), png);
+      };
+
+      assert.deepEqual(await getGalleryPhotos(), originalPhotos);
+      await checkPublicCover(originalPhotos[0]);
+      const replacements = new FormData();
+      replacements.set('boardingHouseId', primary.id);
+      replacements.set('galleryOutdoor', new Blob([png], { type: 'image/png' }), 'replacement.png');
+      const invalidReplacement = new FormData();
+      for (const [key, value] of replacements) invalidReplacement.set(key, value);
+      invalidReplacement.set('galleryBedroom', new Blob(['not an image'], { type: 'image/png' }), 'invalid.png');
+      assert.equal((await request('/owner-dashboard/api/gallery/five-slots', ownerCookie, { method: 'POST', body: invalidReplacement })).status, 422);
+      assert.deepEqual(await getGalleryPhotos(), originalPhotos);
+      const replacement = await request('/owner-dashboard/api/gallery/five-slots', ownerCookie, { method: 'POST', body: replacements });
+      assert.equal(replacement.status, 200, await replacement.clone().text());
+      const updatedPhotos = await getGalleryPhotos();
+      assert.notEqual(updatedPhotos[0], originalPhotos[0]);
+      assert.deepEqual(updatedPhotos.slice(1), originalPhotos.slice(1));
+      await checkPublicCover(updatedPhotos[0]);
+
+      await stop();
+      await start({ freshUploads: true });
+      assert.deepEqual(await getGalleryPhotos(), updatedPhotos);
+      await checkPublicCover(updatedPhotos[0]);
+      for (const url of updatedPhotos) await checkPhoto(url);
+      await checkPhoto(originalPhotos[0]); // The submitted application keeps its original photo.
+
     });
     await t.test('bed numbers, reported occupancy and whole-room household leases stay consistent', async () => {
       await house.update({ floorCount:4 });

@@ -41,6 +41,7 @@ import { fileURLToPath } from "url";
 import { dirname } from "path";
 import { sessionOptions, sessionStore } from './config/session.js';
 import { publicDir, uploadDir, prepareUploads } from './config/storage.js';
+import { servePropertyPhoto } from './services/propertyPhotoService.js';
 
 hbs.registerHelper('eq', (a, b) => a === b);
 
@@ -76,6 +77,7 @@ app.use(express.json({
   verify: (req, res, buffer) => { req.rawBody = buffer; },
 }));
 app.use(express.urlencoded({ extended: true }));
+app.get('/uploads/:filename', servePropertyPhoto);
 app.use('/uploads', express.static(uploadDir));
 app.use(express.static(publicDir));
 
