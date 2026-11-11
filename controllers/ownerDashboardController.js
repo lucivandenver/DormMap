@@ -1,3 +1,4 @@
+import { GALLERY_CATEGORIES, saveGallerySlot, storePropertyPhoto } from '../services/propertyPhotoService.js';
 import { BarangayMessage } from '../models/adminModels.js';
 import { namedMessages } from '../services/messageIdentityService.js';
 import { propertyMetadata, floorNumber } from '../services/roomPlanService.js';
@@ -475,14 +476,6 @@ export const markAllNotificationsRead = async (req, res, next) => {
 
 // ─── Gallery (5 Categorized Photo Slots) ───────────────────────────────────────
 
-export const GALLERY_CATEGORIES = [
-  { index: 1, key: 'outdoor', label: 'Outdoor Spaces', description: 'Front view, gate, compound exterior' },
-  { index: 2, key: 'living_area', label: 'Living Area', description: 'Common room, sala, lounge area' },
-  { index: 3, key: 'bedroom', label: 'Bedroom', description: 'Typical room offered to tenants' },
-  { index: 4, key: 'dining', label: 'Dining or kitchenette', description: 'Kitchen, dining area, cooking space' },
-  { index: 5, key: 'bathroom', label: 'Bathroom', description: 'CR, comfort room, shower area' },
-];
-
 export const getGallery = async (req, res, next) => {
   try {
     const ownerId = oid(req);
@@ -523,6 +516,10 @@ export const getGallery = async (req, res, next) => {
       boardingHouseId = boardingHouses[0].id;
     }
 
+    const selectedBh = boardingHouses.find(b => b.id === boardingHouseId) || null;
+    if (boardingHouseId && !selectedBh) fail('Boarding house not found.', 404);
+    const useLegacyPhotos = !selectedBh || selectedBh.isPrimary;
+
     // Build OwnerGallery query — filter by boardingHouseId
     let dbGallery = [];
     if (boardingHouseId) {
@@ -531,16 +528,13 @@ export const getGallery = async (req, res, next) => {
         order: [['sortOrder', 'ASC']]
       });
 
-      // Fallback: if this is the first/primary house and has no photos under its ID yet,
-      // check if there are legacy photos (boardingHouseId: null)
-      if (dbGallery.length === 0 && boardingHouses.length > 0 && boardingHouses[0].id === boardingHouseId) {
+      // A primary property can have older slots without a property ID.
+      if (useLegacyPhotos) {
         const legacyGallery = await OwnerGallery.findAll({
           where: { ownerId, boardingHouseId: null },
           order: [['sortOrder', 'ASC']]
         });
-        if (legacyGallery.length > 0) {
-          dbGallery = legacyGallery;
-        }
+        dbGallery.push(...legacyGallery);
       }
     } else {
       dbGallery = await OwnerGallery.findAll({
@@ -550,16 +544,7 @@ export const getGallery = async (req, res, next) => {
     }
 
     // Fallback: if no BH-specific photos, use legacy galleryImages from User (for primary house)
-    let savedImages = [];
-    const isFirstOrPrimary = boardingHouses.length > 0 && boardingHouses[0].id === boardingHouseId;
-    if ((!boardingHouseId || isFirstOrPrimary) && owner?.galleryImages) {
-      try {
-        const parsed = JSON.parse(owner.galleryImages);
-        if (Array.isArray(parsed)) savedImages = parsed;
-      } catch (e) { savedImages = []; }
-    }
-
-    const selectedBh = boardingHouses.find(b => b.id === boardingHouseId) || boardingHouses[0] || null;
+    const savedImages = useLegacyPhotos && owner ? savedGalleryImages(owner) : [];
 
     // Map 5 distinct categories
     const slots = GALLERY_CATEGORIES.map((cat, idx) => {
@@ -575,9 +560,9 @@ export const getGallery = async (req, res, next) => {
       if (!imageUrl) imageUrl = savedImages[idx] || null;
       // Fallback: cover photo from BoardingHouse or User
       if (!imageUrl && idx === 0) {
-        imageUrl = selectedBh?.picture || owner?.boardingHousePicture || null;
+        imageUrl = selectedBh?.picture || (useLegacyPhotos ? owner?.boardingHousePicture : null) || null;
       }
-      return { ...cat, imageUrl, isMainListing: cat.index === 1 };
+      return { index: cat.index, key: cat.key, label: cat.label, description: cat.description, imageUrl, isMainListing: cat.index === 1 };
     });
 
     res.json({
@@ -585,91 +570,69 @@ export const getGallery = async (req, res, next) => {
       slots,
       boardingHouses: boardingHouses.map(bh => (typeof bh.get === 'function' ? bh.get({ plain: true }) : bh)),
       selectedBoardingHouseId: boardingHouseId,
-      boardingHousePicture: selectedBh?.picture || owner?.boardingHousePicture || slots[0]?.imageUrl || null,
+      boardingHousePicture: slots[0]?.imageUrl || null,
       data: dbGallery
     });
   } catch (err) { next(err); }
 };
 
+function galleryHouse(ownerId, houseId, transaction) {
+  const options = houseId
+    ? { where: { id: houseId, ownerId } }
+    : { where: { ownerId }, order: [['isPrimary', 'DESC'], ['id', 'ASC']] };
+  return BoardingHouse.findOne({ ...options, transaction });
+}
+
+function savedGalleryImages(user) {
+  try {
+    const parsed = JSON.parse(user.galleryImages);
+    if (Array.isArray(parsed)) return parsed;
+  } catch { /* Older accounts may have a malformed gallery value. */ }
+  return [];
+}
+
+async function updateGalleryPhotos(ownerId, requestedHouseId, uploads) {
+  return sequelize.transaction(async transaction => {
+    const user = await ownerLock(ownerId, transaction);
+    const house = await galleryHouse(ownerId, requestedHouseId, transaction);
+    if (requestedHouseId && !house) fail('Boarding house not found or does not belong to you.', 403);
+
+    const isPrimary = !house || house.isPrimary;
+    const galleryImages = isPrimary ? savedGalleryImages(user) : [];
+    while (galleryImages.length < GALLERY_CATEGORIES.length) galleryImages.push('');
+
+    const urls = {};
+    for (const { category, file } of uploads) {
+      const url = await storePropertyPhoto(file, ownerId, transaction);
+      urls[category.index] = url;
+      await saveGallerySlot(ownerId, house?.id ?? null, category, url, transaction);
+      if (category.index === 1 && house) await house.update({ picture: url }, { transaction });
+      if (isPrimary) galleryImages[category.index - 1] = url;
+    }
+    if (isPrimary) {
+      const values = { galleryImages: JSON.stringify(galleryImages) };
+      if (urls[1]) values.boardingHousePicture = urls[1];
+      await user.update(values, { transaction });
+    }
+    return { house, urls };
+  });
+}
+
 export const updateGallerySlot = async (req, res, next) => {
   try {
-    const ownerId = oid(req);
-    const slotIndex = parseInt(req.params.slotIndex, 10);
-    const boardingHouseId = req.body.boardingHouseId ? Number(req.body.boardingHouseId) : (req.query.boardingHouseId ? Number(req.query.boardingHouseId) : null);
+    const category = GALLERY_CATEGORIES.find(item => item.index === Number(req.params.slotIndex));
+    if (!category) fail('Invalid slot index (must be 1 to 5).', 400);
+    if (!req.file) fail('No image uploaded for this slot.', 400);
 
-    if (!slotIndex || slotIndex < 1 || slotIndex > 5) {
-      return res.status(400).json({ error: 'Invalid slot index (must be 1 to 5).' });
-    }
-    if (!req.file) {
-      return res.status(400).json({ error: 'No image uploaded for this slot.' });
-    }
-
-    const imageUrl = `/uploads/${req.file.filename}`;
-    const user = await User.findByPk(ownerId);
-    if (!user) return res.status(404).json({ error: 'Owner not found.' });
-
-    let bh = null;
-    if (boardingHouseId) {
-      bh = await BoardingHouse.findOne({ where: { id: boardingHouseId, ownerId } });
-    } else {
-      bh = await BoardingHouse.findOne({ where: { ownerId }, order: [['isPrimary', 'DESC'], ['id', 'ASC']] });
-    }
-
-    const activeBhId = bh ? bh.id : null;
-
-    let galleryArr = [];
-    if (user.galleryImages) {
-      try {
-        const p = JSON.parse(user.galleryImages);
-        if (Array.isArray(p)) galleryArr = p;
-      } catch { galleryArr = []; }
-    }
-    while (galleryArr.length < 5) galleryArr.push('');
-
-    // If slot 1 is Outdoor Spaces, update cover photo on BH
-    if (slotIndex === 1 && bh) {
-      bh.picture = imageUrl;
-      await bh.save();
-    }
-
-    // Slot 1 & primary BH -> update User
-    if (!activeBhId || bh?.isPrimary) {
-      galleryArr[slotIndex - 1] = imageUrl;
-      user.galleryImages = JSON.stringify(galleryArr);
-      if (slotIndex === 1) user.boardingHousePicture = imageUrl;
-      await user.save();
-    }
-
-    // Upsert into OwnerGallery with boardingHouseId
-    const category = GALLERY_CATEGORIES.find(c => c.index === slotIndex);
-    const whereClause = { ownerId, sortOrder: slotIndex, boardingHouseId: activeBhId };
-    const existing = await OwnerGallery.findOne({ where: whereClause });
-    if (existing) {
-      existing.imageUrl = imageUrl;
-      existing.caption = category ? category.label : `Slot ${slotIndex}`;
-      existing.imageType = category ? category.key : 'gallery';
-      await existing.save();
-    } else {
-      await OwnerGallery.create({
-        ownerId,
-        boardingHouseId: activeBhId,
-        imageUrl,
-        caption: category ? category.label : `Slot ${slotIndex}`,
-        sortOrder: slotIndex,
-        imageType: category ? category.key : 'gallery',
-      });
-    }
-
-    await audit(req, 'update_gallery_slot', 'User', user.id, { slotIndex, imageUrl, boardingHouseId: activeBhId });
+    const { house, urls } = await updateGalleryPhotos(oid(req), req.body.boardingHouseId || req.query.boardingHouseId, [{ category, file: req.file }]);
+    const imageUrl = urls[category.index];
+    const boardingHouseId = house?.id ?? null;
+    await audit(req, 'update_gallery_slot', 'User', oid(req), { slotIndex: category.index, imageUrl, boardingHouseId });
     res.json({
       success: true,
-      message: `${category ? category.label : 'Photo'} updated successfully!`,
-      slot: {
-        index: slotIndex,
-        label: category ? category.label : '',
-        imageUrl
-      },
-      boardingHouseId: activeBhId
+      message: `${category.label} updated successfully!`,
+      slot: { index: category.index, label: category.label, imageUrl },
+      boardingHouseId,
     });
   } catch (err) { next(err); }
 };
@@ -677,154 +640,78 @@ export const updateGallerySlot = async (req, res, next) => {
 export const deleteGallerySlot = async (req, res, next) => {
   try {
     const ownerId = oid(req);
-    const slotIndex = parseInt(req.params.slotIndex, 10);
-    const boardingHouseId = req.query.boardingHouseId ? Number(req.query.boardingHouseId) : (req.body.boardingHouseId ? Number(req.body.boardingHouseId) : null);
-
-    if (!slotIndex || slotIndex < 1 || slotIndex > 5) {
-      return res.status(400).json({ error: 'Invalid slot index (must be 1 to 5).' });
+    const slotIndex = Number(req.params.slotIndex);
+    const requestedHouseId = req.query.boardingHouseId || req.body.boardingHouseId;
+    if (!GALLERY_CATEGORIES.some(category => category.index === slotIndex)) {
+      fail('Invalid slot index (must be 1 to 5).', 400);
     }
 
-    const user = await User.findByPk(ownerId);
-    if (!user) return res.status(404).json({ error: 'Owner not found.' });
+    const boardingHouseId = await sequelize.transaction(async transaction => {
+      const user = await ownerLock(ownerId, transaction);
+      const house = await galleryHouse(ownerId, requestedHouseId, transaction);
+      if (requestedHouseId && !house) fail('Boarding house not found or does not belong to you.', 403);
+      const where = { ownerId, sortOrder: slotIndex, boardingHouseId: house?.id ?? null };
 
-    let bh = null;
-    if (boardingHouseId) {
-      bh = await BoardingHouse.findOne({ where: { id: boardingHouseId, ownerId } });
-    } else {
-      bh = await BoardingHouse.findOne({ where: { ownerId }, order: [['isPrimary', 'DESC'], ['id', 'ASC']] });
-    }
-    const activeBhId = bh ? bh.id : null;
-
-    let galleryArr = [];
-    if (user.galleryImages) {
-      try {
-        const p = JSON.parse(user.galleryImages);
-        if (Array.isArray(p)) galleryArr = p;
-      } catch { galleryArr = []; }
-    }
-    if (galleryArr[slotIndex - 1]) {
-      galleryArr[slotIndex - 1] = '';
-      user.galleryImages = JSON.stringify(galleryArr);
-      if (slotIndex === 1) {
-        user.boardingHousePicture = galleryArr.find(Boolean) || null;
+      if (slotIndex === 1 && house) await house.update({ picture: '' }, { transaction });
+      if (!house || house.isPrimary) {
+        const galleryImages = savedGalleryImages(user);
+        if (slotIndex <= galleryImages.length) galleryImages[slotIndex - 1] = '';
+        const values = { galleryImages: JSON.stringify(galleryImages) };
+        if (slotIndex === 1) values.boardingHousePicture = null;
+        await user.update(values, { transaction });
+        if (house) where.boardingHouseId = { [Op.or]: [house.id, null] };
       }
-      await user.save();
-    }
+      await OwnerGallery.destroy({ where, transaction });
+      return house?.id ?? null;
+    });
 
-    if (slotIndex === 1 && bh) {
-      bh.picture = '';
-      await bh.save();
-    }
-
-    const whereClause = { ownerId, sortOrder: slotIndex };
-    if (activeBhId) whereClause.boardingHouseId = activeBhId;
-
-    await OwnerGallery.destroy({ where: whereClause });
-
-    await audit(req, 'delete_gallery_slot', 'User', user.id, { slotIndex, boardingHouseId: activeBhId });
+    await audit(req, 'delete_gallery_slot', 'User', ownerId, { slotIndex, boardingHouseId });
     res.json({ success: true, message: 'Photo removed from category slot.' });
   } catch (err) { next(err); }
 };
 
 export const updateFiveGallerySlots = async (req, res, next) => {
   try {
-    const ownerId = oid(req);
-    let boardingHouseId = req.body.boardingHouseId ? Number(req.body.boardingHouseId) : null;
+    const uploads = GALLERY_CATEGORIES
+      .map(category => ({ category, file: req.files?.[category.field]?.[0] }))
+      .filter(upload => upload.file);
+    if (!uploads.length) fail('Choose at least one photo to upload.', 400);
 
-    const user = await User.findByPk(ownerId);
-    if (!user) return res.status(404).json({ error: 'Owner not found.' });
-
-    // Look up boarding house
-    let bh = null;
-    if (boardingHouseId) {
-      bh = await BoardingHouse.findOne({ where: { id: boardingHouseId, ownerId } });
-      if (!bh) return res.status(403).json({ error: 'Boarding house not found or does not belong to you.' });
-    } else {
-      bh = await BoardingHouse.findOne({ where: { ownerId }, order: [['isPrimary', 'DESC'], ['id', 'ASC']] });
-      if (bh) boardingHouseId = bh.id;
-    }
-
-    let galleryArr = [];
-    if (user.galleryImages) {
-      try {
-        const p = JSON.parse(user.galleryImages);
-        if (Array.isArray(p)) galleryArr = p;
-      } catch { galleryArr = []; }
-    }
-    while (galleryArr.length < 5) galleryArr.push('');
-
-    const fileMap = {
-      1: req.files?.galleryOutdoor?.[0],
-      2: req.files?.galleryLivingArea?.[0],
-      3: req.files?.galleryBedroom?.[0],
-      4: req.files?.galleryDining?.[0],
-      5: req.files?.galleryBathroom?.[0],
-    };
-
-    let updatedCount = 0;
-    for (let slot = 1; slot <= 5; slot++) {
-      const file = fileMap[slot];
-      if (file) {
-        const url = `/uploads/${file.filename}`;
-        const category = GALLERY_CATEGORIES.find(c => c.index === slot);
-
-        // Upsert into OwnerGallery with ownerId + slot + boardingHouseId
-        const whereClause = { ownerId, sortOrder: slot, boardingHouseId: boardingHouseId || null };
-        const existing = await OwnerGallery.findOne({ where: whereClause });
-        if (existing) {
-          existing.imageUrl = url;
-          existing.caption = category?.label || `Slot ${slot}`;
-          existing.imageType = category?.key || 'gallery';
-          await existing.save();
-        } else {
-          await OwnerGallery.create({
-            ownerId,
-            boardingHouseId: boardingHouseId || null,
-            imageUrl: url,
-            caption: category?.label || `Slot ${slot}`,
-            sortOrder: slot,
-            imageType: category?.key || 'gallery'
-          });
-        }
-
-        // If slot 1 (Cover photo), update BoardingHouse.picture
-        if (slot === 1 && bh) {
-          bh.picture = url;
-          await bh.save();
-        }
-
-        // If primary BH or no specific BH, also update legacy User fields
-        if (!boardingHouseId || bh?.isPrimary) {
-          galleryArr[slot - 1] = url;
-          if (slot === 1) user.boardingHousePicture = url;
-        }
-        updatedCount++;
-      }
-    }
-
-    if (!boardingHouseId || bh?.isPrimary) {
-      user.galleryImages = JSON.stringify(galleryArr);
-      await user.save();
-    }
-
-    await audit(req, 'update_five_gallery_slots', 'User', user.id, { updatedCount, boardingHouseId });
+    const { house } = await updateGalleryPhotos(oid(req), req.body.boardingHouseId, uploads);
+    const boardingHouseId = house?.id ?? null;
+    const updatedCount = uploads.length;
+    await audit(req, 'update_five_gallery_slots', 'User', oid(req), { updatedCount, boardingHouseId });
     res.json({
       success: true,
-      message: `${updatedCount} photo ${updatedCount === 1 ? 'category' : 'categories'} updated successfully for ${bh ? bh.name : 'boarding house'}!`,
-      boardingHouseId
+      message: `${updatedCount} photo ${updatedCount === 1 ? 'category' : 'categories'} updated successfully for ${house?.name || 'boarding house'}!`,
+      boardingHouseId,
     });
   } catch (err) { next(err); }
 };
 
 export const addGalleryImage = async (req, res, next) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'No image uploaded.' });
-    const imageUrl = `/uploads/${req.file.filename}`;
-    const maxOrder = await OwnerGallery.max('sortOrder', { where: { ownerId: oid(req) } }) || 5;
-    const house = req.body.boardingHouseId ? await BoardingHouse.findOne({ where: { id: req.body.boardingHouseId, ownerId: oid(req) } }) : await BoardingHouse.findOne({ where: { ownerId: oid(req), isPrimary: true } });
-    if (req.body.boardingHouseId && !house) fail('Boarding house not found.', 404);
-    const data = await OwnerGallery.create({ ownerId: oid(req), boardingHouseId: house?.id || null, imageUrl, caption: req.body.caption || '', sortOrder: maxOrder + 1, imageType: req.body.imageType || 'gallery' });
-    await audit(req, 'add_gallery', 'OwnerGallery', data.id, { imageUrl });
+    if (!req.file) fail('No image uploaded.', 400);
+    const ownerId = oid(req);
+    const data = await sequelize.transaction(async transaction => {
+      await ownerLock(ownerId, transaction);
+      const where = { ownerId };
+      if (req.body.boardingHouseId) where.id = req.body.boardingHouseId;
+      else where.isPrimary = true;
+      const house = await BoardingHouse.findOne({ where, transaction });
+      if (req.body.boardingHouseId && !house) fail('Boarding house not found.', 404);
+      const maxOrder = await OwnerGallery.max('sortOrder', { where: { ownerId }, transaction }) || 5;
+      const imageUrl = await storePropertyPhoto(req.file, ownerId, transaction);
+      return OwnerGallery.create({
+        ownerId,
+        boardingHouseId: house?.id ?? null,
+        imageUrl,
+        caption: req.body.caption || '',
+        sortOrder: Math.max(maxOrder, 5) + 1,
+        imageType: req.body.imageType || 'gallery',
+      }, { transaction });
+    });
+    await audit(req, 'add_gallery', 'OwnerGallery', data.id, { imageUrl: data.imageUrl });
     res.status(201).json({ data, message: 'Image uploaded.' });
   } catch (err) { next(err); }
 };

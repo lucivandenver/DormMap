@@ -7,7 +7,7 @@ import express from "express";
 import passport from "passport";
 import { Op as SequelizeOp } from "sequelize";
 import { User, sequelize, Op as ModelOp } from "../models/userModel.js";
-import { OwnerGallery } from "../models/ownerModels.js";
+import { registrationUploadStorage, storeRegistrationPhotos } from '../services/propertyPhotoService.js';
 
 const Op = SequelizeOp || ModelOp || User.sequelize?.Sequelize?.Op;
 import {
@@ -34,7 +34,7 @@ const storage = multer.diskStorage({
 });
 const allowedMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 const upload = multer({
-  storage,
+  storage: registrationUploadStorage(storage),
   limits: { fileSize: 5 * 1024 * 1024, files: 16 },
   fileFilter: (req, file, cb) => {
     if (!allowedMimeTypes.has(file.mimetype) || !['.jpg','.jpeg','.png','.webp','.pdf'].includes(path.extname(file.originalname).toLowerCase())) {
@@ -236,87 +236,35 @@ router.post("/complete-owner-profile", cleanFailedRegistration, registerUpload, 
     let setup;
     try { setup = validateOwnerSetup(req.body, req.files); } catch (error) { return renderError(error.message); }
     await sequelize.transaction(async transaction => {
-    await user.reload({ transaction, lock: transaction.LOCK.UPDATE });
-    const getUploadUrl = (field) => req.files?.[field]?.[0] ? `/uploads/${req.files[field][0].filename}` : null;
+      await user.reload({ transaction, lock: transaction.LOCK.UPDATE });
+      const getUploadUrl = (field) => req.files?.[field]?.[0] ? `/uploads/${req.files[field][0].filename}` : null;
 
-    // New 5-category gallery photos (required by the registration wizard)
-    const galleryOutdoor   = getUploadUrl('galleryOutdoor');
-    const galleryLivingArea = getUploadUrl('galleryLivingArea');
-    const galleryBedroom   = getUploadUrl('galleryBedroom');
-    const galleryDining    = getUploadUrl('galleryDining');
-    const galleryBathroom  = getUploadUrl('galleryBathroom');
+      const galleryImagesArr = await storeRegistrationPhotos(req.files, user.id, transaction);
+      const [boardingHousePicture] = galleryImagesArr;
+      const validIdPicture = getUploadUrl('validIdPicture');
+      const businessPermit = getUploadUrl('businessPermit');
+      const barangayClearance = getUploadUrl('barangayClearance');
 
-    // Legacy single photo fallback (kept for backward compatibility)
-    const boardingHousePicture = galleryOutdoor || getUploadUrl('boardingHousePicture');
-
-    const validIdPicture = getUploadUrl('validIdPicture');
-    const businessPermit = getUploadUrl('businessPermit');
-    const barangayClearance = getUploadUrl('barangayClearance');
-
-    // Build gallery images array preserving the 5 required category positions (Outdoor, Living, Bedroom, Dining, Bathroom)
-    const galleryImagesArr = [
-      galleryOutdoor || boardingHousePicture || '',
-      galleryLivingArea || '',
-      galleryBedroom || '',
-      galleryDining || '',
-      galleryBathroom || ''
-    ];
-
-    user.boardingHouseName = boardingHouseName;
-    user.boardingHouseAddress = boardingHouseAddress;
-    user.barangay = boardingHouseAddress; // Sort by barangay
-    user.roomsAvailable = Number(roomsAvailable) || 1;
-    user.paymentMethods = JSON.stringify([].concat(req.body.paymentMethods || []).filter(method => ['Cash','GCash','Bank Transfer'].includes(method)));
-    user.mapPin = mapPin;
-    user.boardingHouseLatitude = boardingHouseLatitude || null;
-    user.boardingHouseLongitude = boardingHouseLongitude || null;
-    user.applicationStatus = 'pending'; // Pending until Barangay/BPLO approval
-    if (boardingHousePicture) user.boardingHousePicture = boardingHousePicture;
-    if (validIdPicture) user.validIdPicture = validIdPicture;
-    if (businessPermit) user.businessPermit = businessPermit;
-    if (barangayClearance) user.barangayClearance = barangayClearance;
-    // Save gallery photos JSON string
-    if (galleryImagesArr.some(Boolean)) {
-      user.galleryImages = JSON.stringify(galleryImagesArr);
-    }
-
-    await user.save({ transaction });
-    const primary = await registerPropertyInventory(user, setup, transaction);
-
-    // Populate initial OwnerGallery records so owner dashboard gallery is fully synced
-    const categoryMetadata = [
-      { slot: 1, img: galleryOutdoor || boardingHousePicture, caption: "Outdoor Spaces", type: "outdoor" },
-      { slot: 2, img: galleryLivingArea, caption: "Living Area", type: "living_area" },
-      { slot: 3, img: galleryBedroom, caption: "Bedroom", type: "bedroom" },
-      { slot: 4, img: galleryDining, caption: "Dining or kitchenette", type: "dining" },
-      { slot: 5, img: galleryBathroom, caption: "Bathroom", type: "bathroom" },
-    ];
-    for (const item of categoryMetadata) {
-      if (item.img) {
-        try {
-          const existing = await OwnerGallery.findOne({ where: { ownerId: user.id, sortOrder: item.slot }, transaction });
-          if (existing) {
-            existing.imageUrl = item.img;
-            existing.caption = item.caption;
-            existing.imageType = item.type;
-            existing.boardingHouseId = primary.id;
-            await existing.save({ transaction });
-          } else {
-            await OwnerGallery.create({
-              ownerId: user.id,
-              boardingHouseId: primary.id,
-              imageUrl: item.img,
-              caption: item.caption,
-              sortOrder: item.slot,
-              imageType: item.type
-            }, { transaction });
-          }
-        } catch (e) {
-          console.error("Error saving owner gallery slot:", e);
-        }
+      user.boardingHouseName = boardingHouseName;
+      user.boardingHouseAddress = boardingHouseAddress;
+      user.barangay = boardingHouseAddress; // Sort by barangay
+      user.roomsAvailable = Number(roomsAvailable) || 1;
+      user.paymentMethods = JSON.stringify([].concat(req.body.paymentMethods || []).filter(method => ['Cash','GCash','Bank Transfer'].includes(method)));
+      user.mapPin = mapPin;
+      user.boardingHouseLatitude = boardingHouseLatitude || null;
+      user.boardingHouseLongitude = boardingHouseLongitude || null;
+      user.applicationStatus = 'pending'; // Pending until Barangay/BPLO approval
+      if (boardingHousePicture) user.boardingHousePicture = boardingHousePicture;
+      if (validIdPicture) user.validIdPicture = validIdPicture;
+      if (businessPermit) user.businessPermit = businessPermit;
+      if (barangayClearance) user.barangayClearance = barangayClearance;
+      // Save gallery photos JSON string
+      if (galleryImagesArr.some(Boolean)) {
+        user.galleryImages = JSON.stringify(galleryImagesArr);
       }
-    }
 
+      await user.save({ transaction });
+      await registerPropertyInventory(user, setup, transaction);
     });
 
     req.registrationSaved = true;
@@ -329,7 +277,7 @@ router.post("/complete-owner-profile", cleanFailedRegistration, registerUpload, 
     return res.redirect("/owner-dashboard");
   } catch (err) {
     console.error("Owner profile completion error:", err);
-    return renderError("Failed to save property details. Please try again.");
+    return renderError(err.status === 422 ? err.message : "Failed to save property details. Please try again.");
   }
 });
 

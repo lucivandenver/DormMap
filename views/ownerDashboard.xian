@@ -2733,14 +2733,14 @@ async function loadLegacyNotifications() {
         const slotData = slots.find(s => s.index === cat.slot) || {};
         const photoUrl = slotData.imageUrl;
         return `
-          <div class="rounded-xl border ${photoUrl ? 'border-emerald-300 bg-white' : 'border-slate-200 bg-white'} p-4 flex flex-col justify-between min-h-[175px] shadow-2xs transition">
+          <div data-gallery-slot="${cat.slot}" class="rounded-xl border ${photoUrl ? 'border-emerald-300 bg-white' : 'border-slate-200 bg-white'} p-4 flex flex-col justify-between min-h-[175px] shadow-2xs transition">
             <div>
               <div class="flex items-start gap-2.5">
                 <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-slate-700 flex-shrink-0 border border-slate-200 shadow-2xs">${cat.icon}</span>
                 <div class="min-w-0">
                   <p class="text-xs font-bold text-slate-800 leading-tight">${cat.label} ${cat.sublabel ? `<span class="text-[10px] text-emerald-700 font-semibold block sm:inline">${cat.sublabel}</span>` : ''}</p>
-                  <span class="text-[11px] font-semibold ${photoUrl ? 'text-emerald-600' : 'text-slate-400'}">
-                    ${photoUrl ? 'Uploaded ✓' : 'Not Attached ✕'}
+                  <span data-photo-status class="text-[11px] font-semibold text-slate-500">
+                    ${photoUrl ? 'Loading photo…' : 'Not Attached ✕'}
                   </span>
                 </div>
               </div>
@@ -2750,9 +2750,9 @@ async function loadLegacyNotifications() {
             ${photoUrl ? `
               <div class="mt-2 space-y-2">
                 <div class="w-full h-20 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 flex items-center justify-center">
-                  <img src="${photoUrl}" alt="${cat.label}" class="w-full h-full object-cover">
+                  <img alt="${cat.label}" class="w-full h-full object-cover hidden">
                 </div>
-                <a href="${photoUrl}" target="_blank" class="block text-center text-xs font-semibold text-emerald-700 bg-white border border-emerald-300 py-1 rounded-lg hover:bg-emerald-50 transition shadow-2xs flex items-center justify-center gap-1">
+                <a data-view-photo target="_blank" rel="noopener" class="hidden text-center text-xs font-semibold text-emerald-700 bg-white border border-emerald-300 py-1 rounded-lg hover:bg-emerald-50 transition shadow-2xs items-center justify-center gap-1">
                   View Photo ↗
                 </a>
               </div>
@@ -2760,6 +2760,28 @@ async function loadLegacyNotifications() {
           </div>
         `;
       }).join('');
+
+      for (const card of grid.querySelectorAll('[data-gallery-slot]')) {
+        const image = card.querySelector('img');
+        if (!image) continue;
+        const status = card.querySelector('[data-photo-status]');
+        const link = card.querySelector('[data-view-photo]');
+        image.addEventListener('load', () => {
+          status.textContent = 'Uploaded ✓';
+          status.classList.add('text-emerald-600');
+          image.classList.remove('hidden');
+          link.classList.remove('hidden');
+          link.classList.add('flex');
+        }, { once: true });
+        image.addEventListener('error', () => {
+          status.textContent = 'Photo unavailable. Re-upload this category below.';
+          status.classList.add('text-amber-700');
+          image.parentElement.classList.add('hidden');
+        }, { once: true });
+        const photoUrl = slots.find(slot => slot.index === Number(card.dataset.gallerySlot)).imageUrl;
+        link.href = photoUrl;
+        image.src = photoUrl;
+      }
     } catch (err) {
       console.error('Error loading gallery:', err);
     }

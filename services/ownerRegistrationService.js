@@ -1,5 +1,6 @@
 import { BoardingHouse, OwnerRoom, OwnerTenant } from '../models/ownerModels.js';
 import { propertyMetadata } from './roomPlanService.js';
+import { GALLERY_CATEGORIES, saveGallerySlot } from './propertyPhotoService.js';
 
 export function validateOwnerSetup(body, files) {
   const metadata = propertyMetadata(body);
@@ -18,7 +19,7 @@ export function validateOwnerSetup(body, files) {
     branches.push({ floors, rooms });
   }
   Object.assign(metadata, { declaredBranches, declaredRooms });
-  const imageFields = ['galleryOutdoor','galleryLivingArea','galleryBedroom','galleryDining','galleryBathroom'];
+  const imageFields = GALLERY_CATEGORIES.map(category => category.field);
   const required = ['validIdPicture', 'businessPermit', 'barangayClearance'];
   for (const field of [...required, ...imageFields]) {
     const file = files?.[field]?.[0];
@@ -43,5 +44,9 @@ export async function registerPropertyInventory(user, setup, transaction) {
   house = house ? await house.update(values, { transaction }) : await BoardingHouse.create(values, { transaction });
 
   await user.update({ boardingHouseAddress: house.address, amenities: house.amenities, houseRules: house.houseRules, description: house.description, roomsAvailable: 0, roomTypes: '[]' }, { transaction });
+  for (const category of GALLERY_CATEGORIES) {
+    const url = registrationSubmission.galleryImages[category.index - 1];
+    if (url) await saveGallerySlot(user.id, house.id, category, url, transaction);
+  }
   return house;
 }

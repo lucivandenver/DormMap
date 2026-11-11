@@ -8,7 +8,7 @@ import * as controller from '../controllers/ownerDashboardController.js';
 
 const router = express.Router();
 
-// Setup Multer for drag and drop gallery uploads
+// Gallery photos are saved in the database. Other account uploads use disk.
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -23,6 +23,11 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+const galleryUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024, files: 5 },
 });
 
 // Protect all routes under /owner-dashboard
@@ -84,11 +89,11 @@ router.patch('/api/notifications/read-all', controller.markAllNotificationsRead)
 
 // Gallery Management
 router.get('/api/gallery', controller.getGallery);
-router.post('/api/gallery', upload.single('galleryImage'), controller.addGalleryImage);
+router.post('/api/gallery', galleryUpload.single('galleryImage'), controller.addGalleryImage);
 router.delete('/api/gallery/:id', controller.deleteGalleryImage);
-router.post('/api/gallery/slot/:slotIndex', upload.single('slotImage'), controller.updateGallerySlot);
+router.post('/api/gallery/slot/:slotIndex', galleryUpload.single('slotImage'), controller.updateGallerySlot);
 router.delete('/api/gallery/slot/:slotIndex', controller.deleteGallerySlot);
-router.post('/api/gallery/five-slots', upload.fields([
+router.post('/api/gallery/five-slots', galleryUpload.fields([
   { name: 'galleryOutdoor', maxCount: 1 },
   { name: 'galleryLivingArea', maxCount: 1 },
   { name: 'galleryBedroom', maxCount: 1 },
