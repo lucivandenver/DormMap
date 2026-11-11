@@ -1,3 +1,5 @@
+import bcrypt from 'bcrypt';
+import { submittedOwnerWhere } from '../services/registrationPolicy.js';
 import { listBranchApplications, reviewBranch } from '../services/branchReviewService.js';
 import { inventorySummary } from '../services/inventorySummaryService.js';
 import { setPublicMapStatus } from '../services/publicMapStatusService.js';
@@ -27,7 +29,7 @@ export const overview = async (req, res, next) => {
   try {
     const today = new Date();
     const soon = new Date(); soon.setDate(today.getDate() + 30);
-    const ownerWhere = { accountType: 'boarding_house_owner', isArchived: false };
+    const ownerWhere = { ...submittedOwnerWhere };
     const inventory = await inventorySummary(await User.findAll({ where: ownerWhere, attributes: ['id','boardingHouseName','applicationStatus','isSuspended','publicMapUnregistered'] }));
 
     const [
@@ -845,7 +847,7 @@ export const triggerDatabaseBackup = async (req, res, next) => {
 export const listOwners = async (req, res, next) => {
   try {
     const current = page(req.query.page); const limit = Math.min(page(req.query.limit, 10), 50);
-    const where = { accountType: 'boarding_house_owner', isArchived: false };
+    const where = { ...submittedOwnerWhere };
     if (req.query.status) where.applicationStatus = req.query.status;
     if (req.query.search) where[Op.or] = ['fullName', 'email', 'boardingHouseName', 'barangay'].map((field) => ({ [field]: { [Op.like]: `%${req.query.search}%` } }));
     const result = await User.findAndCountAll({ where, attributes: { exclude: ['password', 'verificationToken'] }, order: [['createdAt', 'DESC']], limit, offset: (current - 1) * limit });
@@ -855,7 +857,7 @@ export const listOwners = async (req, res, next) => {
 
 export const reviewOwner = async (req, res, next) => {
   try {
-    const owner = await User.findOne({ where: { id: req.params.id, accountType: 'boarding_house_owner' } });
+    const owner = await User.findOne({ where: { id: req.params.id, ...submittedOwnerWhere } });
     if (!owner) return res.status(404).json({ error: 'Owner application not found.' });
     const action = req.body.action;
     const statusMap = { approve: 'approved', reject: 'rejected', revision: 'revision_requested', suspend: 'suspended', archive: 'archived' };
@@ -1056,6 +1058,62 @@ export const listBarangayAccounts = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+export const saveBarangayAccount = async (req, res, next) => {
+  try {
+    const user = req.params.id && await User.findOne({
+      where: { id: req.params.id, accountType: 'barangay', applicationStatus: 'approved', isArchived: false }
+    });
+    if (req.params.id && !user) return res.status(404).json({ error: 'Approved barangay account not found.' });
+
+    const fullName = String(req.body.fullName || '').trim();
+    const email = String(req.body.email || '').trim().toLowerCase();
+    const barangay = String(user ? user.barangay : req.body.barangay || '').trim();
+    const password = req.body.password ?? '';
+    if (!fullName || fullName.length > 255 || !barangay || barangay.length > 255 ||
+        email.length > 255 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(422).json({ error: 'Enter a valid official name, barangay and email address.' });
+    }
+    if (typeof password !== 'string' || ((!user || password) && (password.length < 8 || Buffer.byteLength(password) > 72))) {
+      return res.status(422).json({ error: 'Use a password with at least 8 characters and at most 72 bytes.' });
+    }
+    if (!user && await User.findOne({ where: { accountType: 'barangay', barangay, isArchived: false }, attributes: ['id'] })) {
+      return res.status(409).json({ error: 'An official account already exists for this barangay. Review or edit the existing account.' });
+    }
+    const values = {
+      fullName, email, barangay,
+      positionTitle: String(req.body.positionTitle || '').trim().slice(0, 255) || null
+    };
+    if (password) values.password = await bcrypt.hash(password, 12);
+    if (user && (email !== user.email || password)) {
+      values.resetPasswordToken = null;
+      values.resetPasswordExpires = null;
+    }
+    if (user && email !== user.email) {
+      values.googleId = null;
+      values.oauthProvider = null;
+    }
+    const previousEmail = user?.email;
+    const record = await User.sequelize.transaction(async transaction => {
+      const account = user
+        ? await user.update(values, { transaction })
+        : await User.create({ ...values, accountType: 'barangay', applicationStatus: 'approved',
+          applicationReviewedAt: new Date(), applicationReviewNote: 'Created by BPLO.', emailVerified: true }, { transaction });
+      await Barangay.update({ officialName: fullName, officialEmail: email }, {
+        where: { name: barangay, officialEmail: previousEmail || email }, transaction
+      });
+      await AdminAuditLog.create({
+        actorId: req.session.userId, action: user ? 'barangay_account_update' : 'barangay_account_create',
+        entityType: 'User', entityId: account.id, details: { barangay }, ipAddress: req.ip
+      }, { transaction });
+      return account;
+    });
+    res.status(user ? 200 : 201).json({ id: record.id, message: 'Barangay account saved.' });
+  } catch (error) {
+    if (error.name === 'SequelizeUniqueConstraintError') return res.status(409).json({ error: 'That email is already in use.' });
+    next(error);
+  }
+};
+
 export const reviewBarangayAccount = async (req, res, next) => {
   try {
     const user = await User.findOne({ where: { id: req.params.id, accountType: 'barangay', isArchived: false } });
@@ -1074,7 +1132,7 @@ export const reviewBarangayAccount = async (req, res, next) => {
 
 export const updatePublicMapStatus = async (req, res, next) => {
   try {
-    const where = { id: req.params.id, accountType: 'boarding_house_owner' };
+    const where = { id: req.params.id, ...submittedOwnerWhere };
     const owner = await User.findOne({ where });
     if (!owner) return res.status(404).json({ error: 'Establishment not found in your jurisdiction.' });
     const data = await setPublicMapStatus(owner, req.body.action);
