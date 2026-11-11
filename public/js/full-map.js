@@ -4,10 +4,15 @@
 
   window.dormMapFullMap = (leaflet, map, street, picker) => {
     const container = map.getContainer();
-    const satellite = key ? leaflet.tileLayer(
+    const publicSatellite = leaflet.tileLayer(
+      'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg',
+      { maxNativeZoom: 14, maxZoom: 19, attribution: '<a href="https://cloudless.eox.at">EOxCloudless</a> by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016)' }
+    );
+    const mapTilerSatellite = key ? leaflet.tileLayer(
       `https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}.jpg?key=${encodeURIComponent(key)}`,
       { maxZoom: 19, attribution: '© <a href="https://www.maptiler.com/copyright/">MapTiler</a>' }
     ) : null;
+    const satellite = mapTilerSatellite || publicSatellite;
     let activeLayer = street;
     const control = leaflet.control({ position: 'topright' });
     control.onAdd = () => {
@@ -42,29 +47,43 @@
       document.body.append(dialog);
       controls.set(map, dialog);
 
+      let loadedTiles = 0;
+      let failedTiles = 0;
+      const satelliteLayers = [mapTilerSatellite, publicSatellite].filter(Boolean);
+      const startTiles = () => { loadedTiles = failedTiles = 0; };
+      const tileLoaded = () => { loadedTiles++; };
+      const tileFailed = () => { failedTiles++; };
+
       function selectLayer(layer) {
-        if (layer !== activeLayer) {
-          map.removeLayer(activeLayer);
-          activeLayer = layer;
-          map.addLayer(layer);
-        }
         streetButton.setAttribute('aria-pressed', String(layer === street));
-        satelliteButton.setAttribute('aria-pressed', String(layer === satellite));
+        satelliteButton.setAttribute('aria-pressed', String(layer !== street));
+        if (layer === activeLayer) return;
+        map.removeLayer(activeLayer);
+        activeLayer = layer;
+        startTiles();
+        map.addLayer(layer);
       }
-      function satelliteError() {
-        if (activeLayer !== satellite) return;
-        selectLayer(street);
-        status.textContent = 'Satellite imagery could not load. Check the map key and allowed website domains. Street view is available.';
-      }
-      satellite?.on('tileerror', satelliteError);
-      streetButton.onclick = () => selectLayer(street);
-      satelliteButton.onclick = () => {
-        if (!satellite) {
-          status.textContent = 'Satellite is not configured. Street view is available.';
-          return;
+
+      function satelliteFinished(event) {
+        if (event.target !== activeLayer || !failedTiles || loadedTiles) return;
+        if (activeLayer === mapTilerSatellite) {
+          selectLayer(publicSatellite);
+        } else {
+          selectLayer(street);
+          status.textContent = 'Satellite imagery could not load. Street view is available.';
         }
-        selectLayer(satellite);
-      };
+      }
+
+      const tileEvents = { loading: startTiles, tileload: tileLoaded, tileerror: tileFailed, load: satelliteFinished };
+      for (const layer of satelliteLayers) layer.on(tileEvents);
+      function changeLayer(layer) {
+        if (!picker) status.textContent = '';
+        else if (draft) updateDraft(draft.getLatLng());
+        else status.textContent = 'Tap the map to drop a pin, then drag it to adjust.';
+        selectLayer(layer);
+      }
+      streetButton.onclick = () => changeLayer(street);
+      satelliteButton.onclick = () => changeLayer(satellite);
       selectLayer(activeLayer);
       const resize = () => map.invalidateSize({ animate: false });
 
@@ -94,7 +113,8 @@
         map.off('click', pick);
         if (draft) draft.remove();
         picker?.existingMarker?.addTo(map);
-        satellite?.off('tileerror', satelliteError);
+        for (const layer of satelliteLayers) layer.off(tileEvents);
+        selectLayer(street);
         placeholder.replaceWith(container);
         controls.delete(map);
         dialog.remove();
@@ -102,13 +122,15 @@
         if (trigger?.isConnected) trigger.focus({ preventScroll: true });
       }, { once: true });
       dialog.showModal();
-      requestAnimationFrame(resize);
+      resize();
+      map.fire('dormmap:expanded');
     }
 
     control.addTo(map);
     return open;
   };
   window.dormMapIsExpanded = map => controls.has(map);
+  window.dormMapCloseExpanded = map => controls.get(map)?.close();
 
   window.dormMapReferencePins = async (leaflet, map) => {
     try {
