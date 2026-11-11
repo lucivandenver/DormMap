@@ -513,7 +513,7 @@
           <p class="text-xs font-bold uppercase tracking-[0.24em] text-slate-500">Featured Boarding Houses</p>
           <h2 class="font-display mt-2 text-2xl font-bold text-slate-950 sm:text-3xl">Top verified listings</h2>
         </div>
-        <a href="#" class="hidden text-sm font-semibold text-[var(--dormmap-primary)] sm:inline-flex">View all</a>
+        <button type="button" id="toggleVerifiedListings" aria-expanded="false" aria-controls="topListingsGrid" class="text-sm font-semibold text-[var(--dormmap-primary)]" hidden>View all</button>
       </div>
 
       <div id="topListingsGrid" class="mt-5 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
@@ -1006,14 +1006,27 @@
       if (image.nextElementSibling?.hasAttribute('data-photo-placeholder')) image.nextElementSibling.style.display = 'flex';
     }
 
+    let showAllVerifiedListings = false;
+    const toggleVerifiedListings = document.getElementById('toggleVerifiedListings');
+    toggleVerifiedListings.addEventListener('click', () => {
+      showAllVerifiedListings = !showAllVerifiedListings;
+      renderTopVerifiedListings(window.allBoardingHousesCache);
+    });
+
     window.renderTopVerifiedListings = function(houses) {
       const container = document.getElementById('topListingsGrid');
       if (!container) return;
 
-      const validHouses = Array.isArray(houses) ? houses.filter(house => house.registrationStatus === 'registered') : [];
+      const validHouses = (houses || []).filter(house => house.registrationStatus === 'registered')
+        .sort((first, second) => (Date.parse(second.createdAt) || 0) - (Date.parse(first.createdAt) || 0));
+      const expanded = showAllVerifiedListings && validHouses.length > 3;
+      toggleVerifiedListings.hidden = validHouses.length <= 3;
+      toggleVerifiedListings.setAttribute('aria-expanded', String(expanded));
+      toggleVerifiedListings.textContent = expanded ? 'Show fewer' : 'View all';
       let html = '';
 
-      for (let i = 0; i < 3; i++) {
+      const count = expanded ? validHouses.length : 3;
+      for (let i = 0; i < count; i++) {
         const house = validHouses[i];
         if (house) {
           const bhName = house.boardingHouseName || house.fullName || 'Boarding House';
@@ -1586,7 +1599,7 @@
           window.landingMapMarkers.push(marker);
         }
       });
-      if (!hadPins && window.dormMapIsExpanded(map)) fitLandingPins();
+      if (!hadPins && (!activeCriteria || window.dormMapIsExpanded(map))) fitLandingPins();
     };
 
     async function resolvePlace(name, kind) {
