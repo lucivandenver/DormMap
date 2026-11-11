@@ -919,11 +919,7 @@
         return 'Contact for price';
       })();
 
-      // Populate carousel with all images provided by owner (primary picture, gallery, room photos)
-      const rawImages = (Array.isArray(house.galleryImages) && house.galleryImages.length > 0)
-        ? house.galleryImages
-        : [house.boardingHousePicture, house.profilePicture].filter(Boolean);
-      initDetailCarousel(rawImages);
+      initDetailCarousel(listingPhotos(house));
 
       document.getElementById('detailRoomInventory').innerHTML = window.DormRoomDetails.render(house.roomInventory || []);
       const typesArr = Array.isArray(house.roomTypes) && house.roomTypes.length ? house.roomTypes : ['Not specified'];
@@ -988,6 +984,17 @@
       return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 
+    function listingPhotos(house) {
+      const gallery = Array.isArray(house.galleryImages) ? house.galleryImages : [];
+      return [...new Set([house.boardingHousePicture, ...gallery].filter(url => typeof url === 'string' && url.trim()))];
+    }
+
+    function listingPhotoMarkup(house, imageClass) {
+      const [cover, ...alternatives] = listingPhotos(house);
+      const name = house.boardingHouseName || house.fullName || 'Boarding house';
+      return cover ? `<img src="${escapeHtml(cover)}" alt="${escapeHtml(name)}" class="${imageClass}" data-remaining-photos="${escapeHtml(JSON.stringify(alternatives))}" onerror="loadNextListingPhoto(this)">` : '';
+    }
+
     function loadNextListingPhoto(image) {
       const remaining = JSON.parse(image.dataset.remainingPhotos);
       if (remaining.length) {
@@ -996,14 +1003,14 @@
         return;
       }
       image.style.display = 'none';
-      image.nextElementSibling.style.display = 'flex';
+      if (image.nextElementSibling?.hasAttribute('data-photo-placeholder')) image.nextElementSibling.style.display = 'flex';
     }
 
     window.renderTopVerifiedListings = function(houses) {
       const container = document.getElementById('topListingsGrid');
       if (!container) return;
 
-      const validHouses = Array.isArray(houses) ? houses : [];
+      const validHouses = Array.isArray(houses) ? houses.filter(house => house.registrationStatus === 'registered') : [];
       let html = '';
 
       for (let i = 0; i < 3; i++) {
@@ -1012,8 +1019,7 @@
           const bhName = house.boardingHouseName || house.fullName || 'Boarding House';
           const address = house.barangay ? ('Barangay ' + house.barangay) : (house.boardingHouseAddress || 'Bongabong, Oriental Mindoro');
           const rooms = (house.roomsAvailable ?? 0) + ' available rooms';
-          const gallery = Array.isArray(house.galleryImages) ? house.galleryImages : [];
-          const [pic, ...remainingPhotos] = [...new Set([house.boardingHousePicture, ...gallery].filter(Boolean))];
+          const photoMarkup = listingPhotoMarkup(house, 'h-56 w-full object-cover select-none');
 
           const priceText = (() => {
             const min = Number(house.rentalPriceMin);
@@ -1025,10 +1031,10 @@
           })();
 
           let imgMarkup = '';
-          if (pic) {
+          if (photoMarkup) {
             imgMarkup = `
-              <img src="${escapeHtml(pic)}" alt="${escapeHtml(bhName)}" class="h-56 w-full object-cover select-none" data-remaining-photos="${escapeHtml(JSON.stringify(remainingPhotos))}" onerror="loadNextListingPhoto(this)">
-              <div class="h-56 w-full bg-slate-100 flex-col items-center justify-center text-slate-400 gap-2" style="display:none;">
+              ${photoMarkup}
+              <div data-photo-placeholder class="h-56 w-full bg-slate-100 flex-col items-center justify-center text-slate-400 gap-2" style="display:none;">
                 <svg class="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
                 <span class="text-xs font-semibold text-slate-400">Photo Unavailable</span>
               </div>
@@ -1459,10 +1465,10 @@
       const contact = escapeHtml(house.contactNumber || house.email || 'Not listed');
       const minP = Number(house.rentalPriceMin);
       const maxP = Number(house.rentalPriceMax);
-      const estPrice = minP || maxP || null;
 
       return `
         <article class="rounded-[22px] border border-slate-200 bg-slate-50 p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-900/20 hover:shadow-md">
+          ${listingPhotoMarkup(house, 'mb-4 h-40 w-full rounded-xl object-cover')}
           <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h4 class="text-base font-semibold text-slate-950">${name}</h4><p class="mt-2 text-xs font-bold ${house.registrationStatus === 'unregistered' ? 'text-red-700' : 'text-emerald-700'}">${house.registrationStatus === 'unregistered' ? 'Unregistered — barangay public notice' : 'Registered'}</p>
@@ -1527,7 +1533,14 @@
       });
     };
 
+    function fitLandingPins() {
+      const points = window.landingMapMarkers.map(marker => marker.getLatLng());
+      if (points.length) map.fitBounds(points, { padding: [44, 52], maxZoom: 16, animate: false });
+    }
+    map.on('dormmap:expanded', fitLandingPins);
+
     const renderBoardingHouseMarkers = (houses) => {
+      const hadPins = window.landingMapMarkers.length > 0;
       clearLandingMapMarkers();
       if (selectedListingId !== null) {
         const selected = houses.find(house => String(house.id) === selectedListingId);
@@ -1552,7 +1565,7 @@
               <div class="flex flex-col gap-1.5 border-t border-slate-100 pt-2">
                 <div class="flex items-center justify-between gap-2">
                   <span class="text-xs font-black text-emerald-800">${house.roomsAvailable ?? 0} rooms</span>
-                  <button type="button" onclick="window.openPropertyDetailModal('${targetId}')" class="bg-emerald-950 hover:bg-emerald-800 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-xs cursor-pointer shrink-0">
+                  <button type="button" onclick="window.dormMapCloseExpanded(window.map); window.openPropertyDetailModal('${targetId}')" class="bg-emerald-950 hover:bg-emerald-800 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-xs cursor-pointer shrink-0">
                     View Details
                   </button>
                 </div>
@@ -1572,8 +1585,8 @@
 
           window.landingMapMarkers.push(marker);
         }
-
       });
+      if (!hadPins && window.dormMapIsExpanded(map)) fitLandingPins();
     };
 
     async function resolvePlace(name, kind) {
