@@ -15,8 +15,6 @@ router.post('/api/barangay-accounts', controller.saveBarangayAccount);
 router.put('/api/barangay-accounts/:id', controller.saveBarangayAccount);
 router.patch('/api/barangay-accounts/:id/review', controller.reviewBarangayAccount);
 
-router.get('/api/branches', controller.listBranches);
-router.patch('/api/branches/:id/review', controller.reviewBranchApplication);
 
 // Owner Applications & Review
 router.patch('/api/owners/:id/map-status', controller.updatePublicMapStatus);

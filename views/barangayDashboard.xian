@@ -366,7 +366,17 @@
       </section>
 
       <!-- PANEL 6: BOARDING HOUSES -->
-      <section data-panel="houses" class="hidden"><section data-branch-review="/barangay-dashboard/api" class="rounded-2xl border bg-white p-5 mb-5 space-y-3"><div class="flex flex-wrap justify-between gap-3"><div><h2 class="font-bold">Additional property / branch applications</h2><p class="text-xs text-slate-500">Review only branches in your assigned barangay. A branch uses the owner’s existing account.</p></div><button type="button" data-branch-refresh class="button secondary">Refresh branches</button></div><p data-branch-error role="alert" class="text-sm text-rose-700"></p><div data-branch-list class="space-y-3">Loading branches…</div></section>
+      <section data-panel="houses" class="hidden">
+        <section class="rounded-2xl border bg-white p-5 mb-5 space-y-3">
+          <div class="flex flex-wrap justify-between gap-3">
+            <div>
+              <h2 class="font-bold">Additional property / branch applications</h2>
+              <p class="text-xs text-slate-500">Review applications from your barangay. Approved branches appear under their main boarding house below.</p>
+            </div>
+            <button type="button" id="refreshBarangayBranches" class="button secondary">Refresh branches</button>
+          </div>
+          <div id="barangayBranchApplications" class="space-y-3" aria-live="polite">Loading branches…</div>
+        </section>
         <div class="table-wrap">
           <table>
             <thead>
@@ -839,6 +849,7 @@
 </style>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="/js/branch-review.js?v=2"></script>
 <script>
 const api = '/barangay-dashboard/api';
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1448,12 +1459,41 @@ function filterOwnersTable() {
 }
 
 // 6. HOUSES
+const expandedBranchOwners = new Set();
+let housesRequestVersion = 0;
+
+function mainHouseLabel(owner, branches) {
+  const name = esc(owner.boardingHouseName || 'Main boarding house');
+  if (!branches.length) return `<b>${name}</b>`;
+  return `<button type="button" class="font-bold text-left text-emerald-800 hover:underline"
+    data-branch-owner="${owner.id}" aria-expanded="${expandedBranchOwners.has(String(owner.id))}" aria-controls="owner-branches-${owner.id}">
+    ${name} <span class="text-xs font-normal">(${branches.length} ${branches.length === 1 ? 'branch' : 'branches'})</span>
+  </button>`;
+}
+
+function branchDetailRow(ownerId, branches) {
+  return branches.length ? `<tr id="owner-branches-${ownerId}" ${expandedBranchOwners.has(String(ownerId)) ? '' : 'hidden'}>
+    <td colspan="6" class="bg-slate-50">
+      <div class="space-y-3">${window.renderBarangayBranchCards(branches)}</div>
+    </td>
+  </tr>` : '';
+}
+
 async function loadHouses() {
+  const version = ++housesRequestVersion;
   try {
-    let d = await req(api + '/houses');
-    document.getElementById('houseRows').innerHTML = d.data.length ? d.data.map(x => `
+    const [houses, branches] = await Promise.all([req(api + '/houses'), req(api + '/branches')]);
+    if (version !== housesRequestVersion) return;
+    document.getElementById('barangayBranchApplications').innerHTML = window.renderBarangayBranchCards(branches.data)
+      || '<p class="text-sm text-slate-500">No branch applications awaiting review.</p>';
+
+    const groups = new Map(branches.groups.map(group => [group.id, group]));
+    const localOwners = new Set(houses.data.map(owner => owner.id));
+    const localRows = houses.data.map(x => {
+      const ownerBranches = groups.get(x.id)?.branches || [];
+      return `
       <tr>
-        <td><b>${esc(x.boardingHouseName)}</b><br><span class="text-xs text-slate-500">${esc(x.boardingHouseAddress || '')}</span></td>
+        <td>${mainHouseLabel(x, ownerBranches)}<br><span class="text-xs text-slate-500">${esc(x.boardingHouseAddress || '')}</span></td>
         <td>${esc(x.fullName)}</td>
         <td class="text-xs">
           <b class="text-amber-800">${x.roomsAvailable ?? 0} vacant</b> / <b class="text-emerald-800">${x.occupiedRooms ?? 0} occupied</b>
@@ -1469,9 +1509,56 @@ async function loadHouses() {
           </button>
         </td>
       </tr>
-    `).join('') : '<tr><td colspan="6" class="text-slate-400 text-center py-4">No registered boarding houses.</td></tr>';
-  } catch (e) { toast(e.message, true); }
+      ${branchDetailRow(x.id, ownerBranches)}
+      `;
+    }).join('');
+    const otherRows = branches.groups.filter(group => !localOwners.has(group.id)).map(group => `
+      <tr>
+        <td>${mainHouseLabel(group, group.branches)}<br><span class="text-xs text-slate-500">${esc(group.barangay || 'Outside this barangay')}</span></td>
+        <td>${esc(group.fullName)}</td>
+        <td colspan="4" class="text-xs text-slate-500">Only local branches are shown for this owner.</td>
+      </tr>
+      ${branchDetailRow(group.id, group.branches)}
+    `).join('');
+    document.getElementById('houseRows').innerHTML = (localRows + otherRows)
+      || '<tr><td colspan="6" class="text-slate-400 text-center py-4">No registered boarding houses.</td></tr>';
+  } catch (e) {
+    if (version !== housesRequestVersion) return;
+    const applications = document.getElementById('barangayBranchApplications');
+    if (applications.textContent.trim() === 'Loading branches…') applications.textContent = 'Unable to load branch applications.';
+    toast(e.message, true);
+  }
 }
+
+document.getElementById('refreshBarangayBranches').addEventListener('click', loadHouses);
+document.querySelector('[data-panel="houses"]').addEventListener('click', async event => {
+  const toggle = event.target.closest('[data-branch-owner]');
+  if (toggle) {
+    const ownerId = toggle.dataset.branchOwner;
+    const expanded = !expandedBranchOwners.has(ownerId);
+    if (expanded) expandedBranchOwners.add(ownerId);
+    else expandedBranchOwners.delete(ownerId);
+    toggle.setAttribute('aria-expanded', String(expanded));
+    document.getElementById(toggle.getAttribute('aria-controls')).hidden = !expanded;
+    return;
+  }
+  const review = event.target.closest('[data-review-branch]');
+  if (!review) return;
+  const { reviewBranch, action } = review.dataset;
+  const note = action === 'approve' ? '' : prompt('Review note (required):');
+  if (note === null) return;
+  const buttons = review.closest('article').querySelectorAll('[data-review-branch]');
+  buttons.forEach(button => { button.disabled = true; });
+  try {
+    const result = await req(`${api}/branches/${reviewBranch}/review`, { method: 'PATCH', body: JSON.stringify({ action, note }) });
+    toast(result.message);
+    await loadHouses();
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    buttons.forEach(button => { button.disabled = false; });
+  }
+});
 
 async function setHouseMapStatus(id, action) {
   if (!confirm(`Apply ${action} to this establishment's public map status?`)) return;
