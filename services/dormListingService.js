@@ -72,6 +72,12 @@ export async function listTenantDorms(tenantId, query = {}, { includeUnregistere
     for (const house of ownedHouses.length ? ownedHouses : [null]) {
       if (house && house.approvalStatus !== 'approved') continue;
       if (owner.publicMapUnregistered && house && house.barangay !== owner.barangay) continue;
+      const isPrimary = !house || house.isPrimary;
+      const houseLatitude = coordinate(house?.latitude, 90);
+      const houseLongitude = coordinate(house?.longitude, 180);
+      const hasHousePin = houseLatitude !== null && houseLongitude !== null;
+      const latitude = hasHousePin ? houseLatitude : isPrimary ? coordinate(owner.boardingHouseLatitude, 90) : null;
+      const longitude = hasHousePin ? houseLongitude : isPrimary ? coordinate(owner.boardingHouseLongitude, 180) : null;
       const key = house ? `bh-${house.id}` : `owner-${owner.id}`;
       const name = house?.name || owner.boardingHouseName || `${owner.fullName}'s Boarding House`;
       const houseRooms = rooms.filter(room => room.ownerId === owner.id &&
@@ -94,7 +100,7 @@ export async function listTenantDorms(tenantId, query = {}, { includeUnregistere
         totalCapacity: roomInventory.reduce((sum, room) => sum + room.capacity, 0),
         occupiedPeople: roomInventory.reduce((sum, room) => sum + room.occupiedPeople, 0),
         availableBeds: roomInventory.filter(room => room.rentalBasis === 'bed').reduce((sum, room) => sum + room.availableSlots, 0),
-        isPrimary: !house || house.isPrimary,
+        isPrimary,
         registrationStatus: owner.publicMapUnregistered ? 'unregistered' : 'registered',
         createdAt: house?.createdAt || owner.createdAt,
         roomTypes: [...new Set(houseRooms.map(room => room.roomType))],
@@ -108,8 +114,8 @@ export async function listTenantDorms(tenantId, query = {}, { includeUnregistere
         name,
         address: house?.address || owner.boardingHouseAddress || '',
         barangay: house?.barangay || owner.barangay || '',
-        latitude: coordinate(house?.latitude ?? owner.boardingHouseLatitude, 90),
-        longitude: coordinate(house?.longitude ?? owner.boardingHouseLongitude, 180),
+        latitude,
+        longitude,
         picture: house?.picture || (house?.isPrimary || !house ? owner.boardingHousePicture : '') || '',
         description: house?.description || '',
         amenities: house?.amenities || owner.amenities || '',

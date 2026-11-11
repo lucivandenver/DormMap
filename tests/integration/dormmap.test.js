@@ -418,12 +418,36 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.equal((await request(`/barangay-dashboard/api/branches/${branch.id}/review`,originalOfficialCookie,post)).status,404);
       assert.equal((await request(`/barangay-dashboard/api/branches/${branch.id}/review`,localCookie,post)).status,422);
       await saveRoom(owner.id,null,{boardingHouseId:branch.id,roomNumber:'401',floor:'4th Floor',roomType:'Bedspace',capacity:4,bedCount:4,rentalBasis:'bed',rentalPrice:1600});
-      let listings=await(await request('/api/boarding-houses')).json();assert.ok(!listings.some(item=>item.bhId===branch.id));
-      assert.equal((await request(`/barangay-dashboard/api/branches/${branch.id}/review`,localCookie,post)).status,200);
-      listings=await(await request('/api/boarding-houses')).json();assert.ok(listings.some(item=>item.bhId===branch.id&&item.barangay==='Labasan'&&item.ownerId===owner.id));
-      assert.equal((await request(`/barangay-dashboard/api/branches/${branch.id}/review`,localCookie,{...post,body:JSON.stringify({action:'suspend',note:'Temporary inspection'})})).status,200);
-      listings=await(await request('/api/boarding-houses')).json();assert.ok(!listings.some(item=>item.bhId===branch.id));
-      assert.ok(listings.some(item=>item.bhId===house.id));
+      const readLanding = async () => (await (await request('/api/landing-data')).json()).listings;
+      assert.ok(!(await readLanding()).some(item => item.bhId === branch.id));
+      assert.equal((await request(`/barangay-dashboard/api/branches/${branch.id}/review`, localCookie, post)).status, 200);
+
+      const landing = await readLanding();
+      const branchListing = landing.find(item => item.bhId === branch.id);
+      assert.equal(branchListing.boardingHouseName, 'Second Barangay Branch');
+      assert.equal(branchListing.barangay, 'Labasan');
+      assert.equal(branchListing.ownerId, owner.id);
+      assert.deepEqual([branchListing.latitude, branchListing.longitude], [12.773, 121.475]);
+      assert.equal(branchListing.registrationStatus, 'registered');
+
+      const moved = await request(`/owner-dashboard/api/boarding-houses/${branch.id}`, ownerCookie, {
+        ...post,
+        body: JSON.stringify({ latitude: 12.774, longitude: 121.476 }),
+      });
+      assert.equal(moved.status, 200);
+      const listings = await (await request('/api/boarding-houses')).json();
+      const movedBranch = listings.find(item => item.bhId === branch.id);
+      assert.deepEqual([movedBranch.latitude, movedBranch.longitude], [12.774, 121.476]);
+      const primaryPin = item => [item.latitude, item.longitude];
+      assert.deepEqual(primaryPin(listings.find(item => item.bhId === house.id)), primaryPin(landing.find(item => item.bhId === house.id)));
+
+      assert.equal((await request(`/barangay-dashboard/api/branches/${branch.id}/review`, localCookie, {
+        ...post,
+        body: JSON.stringify({ action: 'suspend', note: 'Temporary inspection' }),
+      })).status, 200);
+      const remaining = await readLanding();
+      assert.ok(!remaining.some(item => item.bhId === branch.id));
+      assert.ok(remaining.some(item => item.bhId === house.id));
     });
     await t.test('named messaging, private notification reads and authenticated SSE updates', async () => {
       const { OwnerMessage, OwnerNotification } = await import('../../models/ownerModels.js');

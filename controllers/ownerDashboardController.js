@@ -186,7 +186,7 @@ export const createBoardingHouse = async (req, res, next) => {
       approvalStatus: 'pending'
     });
     await audit(req, 'create_boarding_house', 'BoardingHouse', house.id, { name: house.name });
-    res.status(201).json({ data: house, message: 'Boarding House added successfully.' });
+    res.status(201).json({ data: house, message: 'Branch saved. Add its rooms, then wait for barangay review before it appears publicly.' });
   } catch (err) { next(err); }
 };
 
