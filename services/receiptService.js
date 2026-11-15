@@ -20,7 +20,7 @@ export const createPaymentReceipt = async ({
     tenantId: payment.tenantId,
     ownerId: payment.ownerId,
     amount: payment.amount,
-    paymentMethod: 'GCash Online',
+    paymentMethod: payment.paymentMethod === 'QRPH' ? 'QR Ph' : 'GCash Online',
     billingPeriod: payment.billingMonth,
     paidAt: payment.paidAt || new Date(),
     receiptFile: receiptFileUrl
@@ -64,7 +64,7 @@ export const generateReceiptHtml = ({ receipt, payment, tenant, owner, room }) =
             <div class="brand">DormMap</div>
             <div style="font-size: 12px; color: #64748b; margin-top: 2px;">Official Rental Payment Receipt</div>
           </div>
-          <div class="badge">Paid via GCash</div>
+          <div class="badge">Paid via ${receipt.paymentMethod === 'QR Ph' ? 'QR Ph' : 'GCash'}</div>
         </div>
 
         <div class="grid section">

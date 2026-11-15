@@ -7,7 +7,7 @@ import express from "express";
 import passport from "passport";
 import { Op as SequelizeOp } from "sequelize";
 import { User, sequelize, Op as ModelOp } from "../models/userModel.js";
-import { registrationUploadStorage, storeRegistrationPhotos } from '../services/propertyPhotoService.js';
+import { GALLERY_CATEGORIES, isRegistrationPhoto, storeRegistrationPhotos } from '../services/propertyPhotoService.js';
 
 const Op = SequelizeOp || ModelOp || User.sequelize?.Sequelize?.Op;
 import {
@@ -17,6 +17,7 @@ import {
   completeBarangayProfilePage, completeBarangayProfile,
 } from "../controllers/authController.js";
 import fs from "fs";
+import { tmpdir } from "node:os";
 import path from "path";
 import multer from "multer";
 
@@ -24,8 +25,8 @@ const router = express.Router();
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    fs.mkdirSync(uploadDir, { recursive: true });
-    cb(null, uploadDir);
+    const dir = isRegistrationPhoto(file.fieldname) ? path.join(tmpdir(), "dormmap-registration") : uploadDir;
+    fs.mkdir(dir, { recursive: true, mode: 0o700 }, error => cb(error, dir));
   },
   filename: (req, file, cb) => {
     const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -34,8 +35,8 @@ const storage = multer.diskStorage({
 });
 const allowedMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 const upload = multer({
-  storage: registrationUploadStorage(storage),
-  limits: { fileSize: 5 * 1024 * 1024, files: 16 },
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024, files: 510, fields: 750, parts: 1260 },
   fileFilter: (req, file, cb) => {
     if (!allowedMimeTypes.has(file.mimetype) || !['.jpg','.jpeg','.png','.webp','.pdf'].includes(path.extname(file.originalname).toLowerCase())) {
       return cb(new Error('Only JPG, PNG, WEBP, and PDF files are allowed.'));
@@ -53,19 +54,20 @@ const registerUpload = upload.fields([
   { name: "rentalPermit", maxCount: 1 },
   { name: "sanitationPermit", maxCount: 1 },
   { name: "fireSafetyPermit", maxCount: 1 },
-  // 5 required gallery category photos (registration wizard)
-  { name: "galleryOutdoor", maxCount: 1 },
-  { name: "galleryLivingArea", maxCount: 1 },
-  { name: "galleryBedroom", maxCount: 1 },
-  { name: "galleryDining", maxCount: 1 },
-  { name: "galleryBathroom", maxCount: 1 },
+  ...Array.from({ length: 100 }, (_, index) => GALLERY_CATEGORIES.map(({ field }) => ({
+    name: index ? `branch${index + 1}_${field}` : field, maxCount: 1
+  }))).flat(),
 ]);
 
 router.get("/login", loginPage);
 router.post("/login", loginUser);
 router.get("/register", registerPage);
 const cleanFailedRegistration = (req, res, next) => {
-  res.on('finish', () => { if (!req.registrationSaved) for (const files of Object.values(req.files || {})) for (const file of files) { if (file.filename) fs.rm(path.join(uploadDir, path.basename(file.filename)), { force: true }, () => {}); } });
+  res.on('finish', () => {
+    for (const file of Object.values(req.files || {}).flat()) {
+      if (file.path && (!req.registrationSaved || isRegistrationPhoto(file.fieldname))) fs.rm(file.path, { force: true }, () => {});
+    }
+  });
   next();
 };
 router.post("/register", cleanFailedRegistration, registerUpload, registerUser);
@@ -188,7 +190,7 @@ router.get("/complete-owner-profile", async (req, res, next) => {
   try {
     const user = await User.findByPk(pendingId);
     if (!user || user.accountType !== 'boarding_house_owner') return res.redirect('/dashboard');
-    if (await OwnerRoom.count({ where: { ownerId: user.id } })) return res.redirect('/owner-dashboard');
+    if ((user.boardingHouseName && user.barangay && user.mapPin) || await OwnerRoom.count({ where: { ownerId: user.id } })) return res.redirect('/owner-dashboard');
   } catch (error) { return next(error); }
   res.render("completeOwnerProfile", {
     title: "Complete Property Details | DormMap",
@@ -239,6 +241,9 @@ router.post("/complete-owner-profile", cleanFailedRegistration, registerUpload, 
       await user.reload({ transaction, lock: transaction.LOCK.UPDATE });
       const getUploadUrl = (field) => req.files?.[field]?.[0] ? `/uploads/${req.files[field][0].filename}` : null;
 
+      if (user.boardingHouseName && user.barangay && user.mapPin) {
+        throw new Error('This account already has a property registration. Manage its information from the owner dashboard.');
+      }
       const galleryImagesArr = await storeRegistrationPhotos(req.files, user.id, transaction);
       const [boardingHousePicture] = galleryImagesArr;
       const validIdPicture = getUploadUrl('validIdPicture');
@@ -264,7 +269,7 @@ router.post("/complete-owner-profile", cleanFailedRegistration, registerUpload, 
       }
 
       await user.save({ transaction });
-      await registerPropertyInventory(user, setup, transaction);
+      await registerPropertyInventory(user, setup, req.files, transaction);
     });
 
     req.registrationSaved = true;

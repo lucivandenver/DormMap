@@ -46,3 +46,5 @@
   font-size: 1.5rem;
   text-decoration: none;
 }
+
+[data-branch-location][hidden] { display: none !important; }

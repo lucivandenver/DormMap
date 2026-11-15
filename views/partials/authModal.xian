@@ -1,3 +1,4 @@
+<script src="/js/owner-registration-locations.js"></script>
 <style>
   .dormmap-auth-shell {
     font-family: 'Inter', sans-serif;
@@ -52,7 +53,19 @@
   [data-mode="login"] .dormmap-auth-panel {background:white;padding:clamp(1.25rem, 5vw, 2.5rem);}
   [data-mode="login"] .dormmap-auth-scroll > div:has(.auth-tab),
   [data-mode="login"] .dormmap-auth-scroll > div:first-child p {display:none;}
-  [data-mode="login"] .dormmap-auth-scroll h3 {font-size:2.2rem;}
+  [data-mode="login"] .dormmap-auth-scroll {scrollbar-width:none; padding-right:0;}
+  [data-mode="login"] .dormmap-auth-scroll::-webkit-scrollbar {display:none;}
+  [data-mode="login"] .dormmap-auth-scroll h3 {font-size:1.85rem;}
+  [data-mode="login"] .auth-logo {width:5.75rem;height:5.75rem;}
+  [data-mode="login"] .auth-logo-row {margin:.35rem 0;}
+  [data-mode="login"] #loginForm input,
+  [data-mode="login"] #loginForm button[type="submit"],
+  [data-mode="login"] #googleAuthBtn {min-height:44px;}
+  @media (max-height: 650px) {
+    [data-mode="login"] .dormmap-auth-panel {padding-block:1rem;}
+    [data-mode="login"] .auth-logo {width:4rem;height:4rem;}
+    [data-mode="login"] .auth-create, [data-mode="login"] .auth-legal {margin-top:.5rem;}
+  }
   #loginForm input,#loginForm button[type="submit"],#googleAuthBtn {min-height:52px;border-radius:18px;}
   #loginForm button[type="submit"] {width:100%;background:#006c42;}
   #loginForm button[type="submit"]:hover {filter:brightness(.88);box-shadow:0 6px 16px #064e3b40;}
@@ -74,8 +87,7 @@
       <div class="dormmap-auth-scroll overflow-y-auto pr-0.5">
         <div class="dormmap-auth-heading flex items-start justify-between gap-4">
           <div>
-            <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">Access Portal</p>
-            <h3 class="font-display mt-1 text-[20px] font-bold leading-tight text-slate-950">Sign In</h3>
+            <h3 id="authHeading" class="font-display mt-1 text-[20px] font-bold leading-tight text-slate-950">Sign In</h3>
           </div>
           <button type="button" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-[var(--dormmap-primary)] hover:text-[var(--dormmap-primary)]" data-auth-close aria-label="Close dialog">
             <i data-lucide="x" class="h-5 w-5"></i>
@@ -83,8 +95,8 @@
         </div>
 
         <!-- Centered circle logo -->
-        <div class="flex justify-center mt-3 mb-2">
-          <div class="h-24 w-24 sm:h-28 sm:w-28 rounded-full overflow-hidden border-2 border-emerald-200 bg-white shadow-md flex items-center justify-center p-1 transition hover:scale-105">
+        <div class="auth-logo-row flex justify-center mt-3 mb-2">
+          <div class="auth-logo h-24 w-24 sm:h-28 sm:w-28 rounded-full overflow-hidden border-2 border-emerald-200 bg-white shadow-md flex items-center justify-center p-1 transition hover:scale-105">
             <img src="/images/dormmap-logo.png" alt="DormMap Logo" class="h-full w-full object-contain">
           </div>
         </div>
@@ -182,7 +194,7 @@
           <!-- Step 1: Email input form -->
           <form id="forgotStep1Form" onsubmit="submitForgotPasswordStep1(event)" class="space-y-3">
             <p class="text-xs text-slate-600 leading-relaxed">
-              Enter your registered email address and we will send a password reset link to your Gmail inbox.
+              Enter your registered email address and we will send a password reset link to that email address.
             </p>
             <label class="block">
               <span class="mb-1 block text-xs font-bold text-slate-700">Registered Email Address</span>
@@ -205,13 +217,13 @@
               <div class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
                 <i data-lucide="mail-check" class="w-6 h-6 text-emerald-700"></i>
               </div>
-              <h5 class="font-bold text-slate-900 text-sm">Check Your Gmail Inbox</h5>
+              <h5 class="font-bold text-slate-900 text-sm">Check Your Inbox</h5>
               <p class="text-xs text-slate-600 leading-relaxed">
-                A password reset link has been sent to<br>
+                If this address is registered, a reset link will arrive at<br>
                 <strong id="forgotSentEmailDisplay" class="text-emerald-800 font-bold"></strong>.
               </p>
               <p class="text-xs text-slate-500 leading-relaxed">
-                Open your Gmail inbox, click the <strong>Reset My Password</strong> button in the email, and set your new password there. Then return here to sign in.
+                Open the email and click <strong>Reset My Password</strong>. Set your new password on DormMap, then sign in.
               </p>
               <p class="text-[10px] text-slate-400">Can't find it? Check your spam or junk folder.</p>
             </div>
@@ -364,7 +376,8 @@
               <button type="button" class="registration-step" data-owner-next="2">Next</button>
             </div>
             <div class="mt-2.5 hidden space-y-3" data-owner-step="2">
-              <div class="grid gap-2.5 sm:grid-cols-2">
+              <h4 data-branch-heading class="text-sm font-bold text-slate-900">Branch 1 · Main property</h4>
+              <div data-branch-location class="grid gap-2.5 sm:grid-cols-2">
                 <label class="sm:col-span-2">
                   <span class="mb-1 block text-[13px] font-semibold text-slate-700">Location address (Barangay)</span>
                   <select name="boardingHouseAddress" required class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
@@ -409,6 +422,10 @@
                 </label>
 
                 <label class="sm:col-span-2">
+                  <span class="mb-1 block text-[13px] font-semibold text-slate-700">Street address (optional)</span>
+                  <input name="streetAddress" maxlength="255" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm">
+                </label>
+                <label data-map-placement class="sm:col-span-2">
                   <div class="mb-1 flex items-center justify-between gap-3">
                     <span class="block text-[13px] font-semibold text-slate-700">Streetmap location</span>
                     <button type="button" data-owner-open-map class="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-[var(--dormmap-primary)] hover:text-[var(--dormmap-primary)]">
@@ -421,7 +438,7 @@
                   <input type="hidden" name="boardingHouseLongitude">
                   <p class="mt-1 text-xs text-slate-500" data-owner-map-hint>Use the map below to pin the boarding house on the street map.</p>
                 </label>
-                <div id="ownerMapPanel" class="hidden sm:col-span-2 rounded-2xl border border-slate-200 overflow-hidden">
+                <div id="ownerMapPanel" data-shared-registration-map class="hidden sm:col-span-2 rounded-2xl border border-slate-200 overflow-hidden">
                   <div class="border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 flex items-center justify-between">
                     <span>Owner streetmap selection</span>
                     <button type="button" id="authOwnerFullMapBtn" class="text-xs font-bold text-emerald-800 bg-emerald-100/60 hover:bg-emerald-200/80 px-2.5 py-1 rounded-full border border-emerald-300 transition flex items-center gap-1">
@@ -600,8 +617,8 @@
     const tenantSearchButton = registerForm.querySelector('[data-tenant-search]');
     const boardingHouseSearchInput = registerForm.querySelector('input[name="boardingHouseSearch"]');
     const tenantHouseSelect = registerForm.querySelector('select[name="selectedBoardingHouse"]');
-    const ownerMapButton = registerForm.querySelector('[data-owner-open-map]');
-    const ownerMapHint = registerForm.querySelector('[data-owner-map-hint]');
+    let syncOwnerPin = () => {};
+    const branchLocations = ownerRegistrationLocations(registerForm, ownerSteps[1], () => syncOwnerPin());
 
     const roleLabels = {
       bplo_admin: 'BPLO/Admin',
@@ -646,6 +663,7 @@
     const setMode = (mode, updateUrl = true) => {
       state.mode = mode;
       authRoot.dataset.mode = mode;
+      document.getElementById("authHeading").textContent = mode === "register" ? "Sign Up" : "Sign In";
       if (mode === 'register' && state.role === 'bplo_admin') {
         state.role = 'boarding_house_owner';
       }
@@ -761,14 +779,10 @@
     const validateOwnerStep = () => {
       const activeStep = ownerSteps.find((step) => !step.classList.contains('hidden'));
       if (!activeStep) return true;
+      if (state.ownerStep === 2) return branchLocations.validate();
       const invalidField = activeStep.querySelector('input:invalid, select:invalid, textarea:invalid');
       if (invalidField) {
         invalidField.reportValidity();
-        return false;
-      }
-      if (state.ownerStep === 2 && !activeStep.querySelector('[name="mapPin"]').value) {
-        activeStep.querySelector('[data-owner-map-hint]').textContent = 'Pick the boarding house location on the map before continuing.';
-        activeStep.querySelector('[data-owner-open-map]').focus();
         return false;
       }
       const plan = activeStep.querySelector('[data-room-plan]');
@@ -780,7 +794,8 @@
       if (state.role !== 'boarding_house_owner') return;
       for (let step = 1; step <= 3; step++) {
         state.ownerStep = step; updateOwnerWizard();
-        if (!validateOwnerStep()) { event.preventDefault(); return; }
+        if (!(step === 2 ? branchLocations.validateAll() : validateOwnerStep())) { event.preventDefault(); return; }
+        if (step === 1 && !branchLocations.prepare()) { event.preventDefault(); return; }
       }
       const owner = registerSections.find(section => section.dataset.registerSection === 'boarding_house_owner');
       syncInputs(owner, true);
@@ -827,13 +842,14 @@
     };
 
     const setOwnerLocationValue = (value, lat, lng) => {
-      const ownerMapInput = registerForm.querySelector('input[name="mapPin"]');
-      const latInput = registerForm.querySelector('input[name="boardingHouseLatitude"]');
-      const lngInput = registerForm.querySelector('input[name="boardingHouseLongitude"]');
+      const ownerMapInput = branchLocations.field('mapPin');
+      const latInput = branchLocations.field('boardingHouseLatitude');
+      const lngInput = branchLocations.field('boardingHouseLongitude');
       if (!ownerMapInput) return;
       ownerMapInput.value = value;
       if (latInput) latInput.value = lat || '';
       if (lngInput) lngInput.value = lng || '';
+      const ownerMapHint = branchLocations.active().querySelector('[data-owner-map-hint]');
       if (ownerMapHint) {
         ownerMapHint.textContent = 'Pinned location selected. Continue to the next step.';
       }
@@ -914,6 +930,15 @@
         const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(ownerMap);
 
         let ownerPin;
+        syncOwnerPin = () => {
+          ownerPin?.remove();
+          ownerPin = null;
+          const lat = branchLocations.field('boardingHouseLatitude').value;
+          const lng = branchLocations.field('boardingHouseLongitude').value;
+          if (lat && lng) ownerPin = L.marker([Number(lat), Number(lng)], { icon: dormMapPropertyPin(L) }).addTo(ownerMap);
+          ownerMap.setView(ownerPin?.getLatLng() || [12.7192, 121.4719], 14);
+          requestAnimationFrame(() => ownerMap.invalidateSize());
+        };
         const pickOwnerLocation = ({ lat, lng }) => {
             const locationLabel = `Lat ${lat.toFixed(6)}, Lon ${lng.toFixed(6)}`;
             setOwnerLocationValue(locationLabel, lat, lng);
@@ -1014,13 +1039,10 @@
       });
     }
 
-    if (ownerMapButton) {
-      ownerMapButton.addEventListener('click', () => {
-        if (window.startOwnerLocationPick) {
-          window.startOwnerLocationPick(ownerMapButton);
-        }
-      });
-    }
+    registerForm.addEventListener('click', event => {
+      const button = event.target.closest('[data-owner-open-map]');
+      if (button) window.startOwnerLocationPick?.(button);
+    });
 
     const authOwnerFullMapBtn = document.getElementById('authOwnerFullMapBtn');
     if (authOwnerFullMapBtn) {
@@ -1046,14 +1068,19 @@
     ownerNextButtons.forEach((button) => {
       button.addEventListener('click', () => {
         if (!validateOwnerStep()) return;
+        if (state.ownerStep === 1 && (!branchLocations.prepare())) return;
+        if (state.ownerStep === 2 && branchLocations.next()) return;
         state.ownerStep = Math.min(3, Number(button.dataset.ownerNext));
+        if (state.ownerStep === 2) branchLocations.select(0);
         updateOwnerWizard();
       });
     });
 
     ownerBackButtons.forEach((button) => {
       button.addEventListener('click', () => {
+        if (state.ownerStep === 2 && branchLocations.back()) return;
         state.ownerStep = Math.max(1, Number(button.dataset.ownerBack));
+        if (state.ownerStep === 2) branchLocations.last();
         updateOwnerWizard();
       });
     });
@@ -1077,8 +1104,6 @@
       }
       closeModal(false);
     });
-
-    let currentForgotEmail = '';
 
     window.showForgotPasswordModal = () => {
       document.getElementById('loginForm')?.classList.add('hidden');
@@ -1130,10 +1155,8 @@
         const data = await res.json().catch(() => ({}));
 
         if (res.ok && data.success) {
-          currentForgotEmail = email;
           const sentDisplay = document.getElementById('forgotSentEmailDisplay');
           if (sentDisplay) sentDisplay.textContent = email;
-          // Show the "Check Your Gmail" success panel. Do NOT expose OTP on screen.
           document.getElementById('forgotStep1Form')?.classList.add('hidden');
           document.getElementById('forgotSuccessState')?.classList.remove('hidden');
           lucide.createIcons();

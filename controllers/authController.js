@@ -1,3 +1,4 @@
+import { passwordResetDelivery } from '../services/passwordResetMailService.js';
 import { validateOwnerSetup, registerPropertyInventory } from '../services/ownerRegistrationService.js';
 
       /*
@@ -27,6 +28,7 @@ import { validateOwnerSetup, registerPropertyInventory } from '../services/owner
     
 import { hasApprovedBarangay, ownerBarangayError } from "../services/registrationPolicy.js";
 import bcrypt from "bcrypt";
+import { randomBytes, createHash } from "node:crypto";
 import { Op } from "sequelize";
 import { User, sequelize } from "../models/userModel.js";
 import { storeRegistrationPhotos } from '../services/propertyPhotoService.js';
@@ -148,6 +150,9 @@ const createTransporter = () => {
   if (user) {
     return nodemailer.createTransport({
       service: 'gmail',
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
       auth: { user, pass }
     });
   }
@@ -210,7 +215,7 @@ export const loginPage = (req, res) => {
       ? "Your email has been verified. You can login now."
       : req.query.registered === "1"
         ? "Registration complete. Check your email for the verification link."
-        : "",
+        : req.query.passwordUpdated === "1" ? "Password updated. Sign in with your new password." : "",
     authValues: { email: req.query.email || "" },
     googleNotRegistered: req.query.not_registered === "1" || req.query.error === "google_not_registered",
     googleNotRegisteredEmail: req.query.email || "",
@@ -228,222 +233,117 @@ export const registerPage = (req, res) => {
     authValues: {},
   });
 };
-export const sendPasswordResetEmail = async (email, otp) => {
-  const transporter = createTransporter();
-  const resetUrl = `${process.env.APP_URL || 'http://localhost:3000'}/reset-password?token=${otp}&email=${encodeURIComponent(email)}`;
-  try {
-    const fromAddress = process.env.EMAIL_FROM || `DorMap <${process.env.GMAIL_USER || 'no-reply@dormmap.ph'}>`;
-    await transporter.sendMail({
-      from: fromAddress,
-      to: email,
-      subject: `🔑 [DorMap] Password Reset Request - Verification Code: ${otp}`,
-      html: `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,Helvetica,sans-serif">
-        <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;background-color:#f1f5f9">
-          <tr><td align="center">
-            <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:24px;overflow:hidden;box-shadow:0 10px 35px rgba(0,0,0,0.07);border:1px solid #e2e8f0;max-width:560px;width:100%">
-              <tr><td style="background:linear-gradient(135deg,#023020,#047857);padding:36px 40px;text-align:center">
-                <h1 style="margin:0;color:#ffffff;font-size:26px;font-weight:900;letter-spacing:-0.5px">🏠 DorMap</h1>
-                <p style="margin:6px 0 0;color:#a7f3d0;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase">Municipality of Bongabong • Official Portal</p>
-              </td></tr>
-              <tr><td style="padding:40px 36px">
-                <h2 style="margin:0 0 12px;color:#0f172a;font-size:20px;font-weight:800">Password Reset Request</h2>
-                <p style="margin:0 0 20px;color:#475569;font-size:14px;line-height:1.7">
-                  We received a request to reset the password for your DorMap account associated with <strong>${email}</strong>.
-                </p>
-                <p style="margin:0 0 24px;color:#475569;font-size:14px;line-height:1.7">
-                  You can reset your password directly by clicking the secure button below:
-                </p>
+const resetTokenHash = token => createHash('sha256').update(token).digest('hex');
+const resetLifetime = 15 * 60 * 1000;
 
-                <!-- Direct Reset Button -->
-                <div style="text-align:center;margin:28px 0">
-                  <a href="${resetUrl}" target="_blank" style="display:inline-block;background:#059669;color:#ffffff;text-decoration:none;font-size:15px;font-weight:800;padding:16px 36px;border-radius:14px;box-shadow:0 4px 15px rgba(5,150,105,0.35);letter-spacing:0.3px">
-                    🔑 Reset My Password Directly
-                  </a>
-                </div>
-
-                <!-- 6-Digit Code Option -->
-                <div style="background:#f8fafc;border:2px dashed #cbd5e1;border-radius:16px;padding:22px;text-align:center;margin:28px 0">
-                  <p style="margin:0 0 8px;font-size:11px;font-weight:800;color:#047857;text-transform:uppercase;letter-spacing:1.5px">Or Enter This 6-Digit Verification Code</p>
-                  <div style="font-size:36px;font-weight:900;letter-spacing:10px;color:#064e3b;font-family:'Courier New',Courier,monospace">${otp}</div>
-                  <p style="margin:8px 0 0;font-size:11px;color:#64748b;font-weight:600">This code and link will expire in <strong>15 minutes</strong>.</p>
-                </div>
-
-                <p style="margin:20px 0 0;color:#64748b;font-size:12px;line-height:1.6">
-                  If you did not make this request, you can safely disregard this email. Your password will remain unchanged and your account is secure.
-                </p>
-                <hr style="margin:24px 0;border:none;border-top:1px solid #e2e8f0">
-                <p style="margin:0;color:#94a3b8;font-size:11px;text-align:center">
-                  © ${new Date().getFullYear()} DorMap — Municipality of Bongabong, Oriental Mindoro
-                </p>
-              </td></tr>
-            </table>
-          </td></tr>
-        </table>
-      </body></html>`,
-    });
-    return { success: true, resetUrl };
-  } catch (err) {
-    console.error("Nodemailer error:", err);
-    return { success: false, error: err.message, resetUrl };
-  }
-};
-
-export const forgotPasswordPage = (req, res) => res.render("forgotpassword", {
-  title: "Forgot Password",
-  error: "",
-  success: ""
+export const forgotPasswordPage = (req, res) => res.render('forgotpassword', {
+  title: 'Forgot Password', error: '', success: ''
 });
 
 export const sendPasswordResetLink = async (req, res) => {
-  const wantsJson = req.xhr || req.headers.accept?.includes('json');
+  const wantsJson = req.xhr || req.accepts(['html', 'json']) === 'json';
+  const reply = (status, error, success = '') => wantsJson
+    ? res.status(status).json(error ? { success: false, error } : { success: true, message: success })
+    : res.status(status).render('forgotpassword', { title: 'Forgot Password', error, success });
+  const suppliedEmail = req.body?.email;
+  const email = typeof suppliedEmail === 'string' ? suppliedEmail.trim().toLowerCase() : '';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+    return reply(400, 'Enter your registered email address.');
+  }
+  const deliver = passwordResetDelivery();
+  const base = process.env.APP_BASE_URL || process.env.APP_URL || process.env.RENDER_EXTERNAL_URL ||
+    (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3000');
+  if (!deliver || !base) return reply(503, 'Password reset email is temporarily unavailable. Please try again later.');
+  const success = 'If the address is registered, a password reset link will arrive in your inbox. Check your spam folder too.';
   try {
-    const { email } = req.body;
-    if (!email) {
-      const err = "Please enter your registered email address.";
-      if (wantsJson) return res.status(400).json({ success: false, error: err });
-      return res.render("forgotpassword", { title: "Forgot Password", error: err, success: "" });
-    }
     const user = await User.findOne({
-      where: sequelize.where(
-        sequelize.fn('LOWER', sequelize.col('email')),
-        email.toLowerCase().trim()
-      )
+      attributes: ['id', 'email'],
+      where: { isArchived: false, [Op.and]: sequelize.where(sequelize.fn('LOWER', sequelize.col('email')), email) }
     });
-    if (!user) {
-      const msg = "If this email address is registered, a password reset link and verification code have been sent.";
-      if (wantsJson) return res.json({ success: true, message: msg, email });
-      return res.render("forgotpassword", { title: "Forgot Password", error: "", success: msg });
-    }
-
-    // Generate real 6-digit numeric OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    user.resetPasswordToken = otp;
-    user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
-    await user.save();
-
-    const resetUrl = `${process.env.APP_URL || 'http://localhost:3000'}/reset-password?token=${otp}&email=${encodeURIComponent(user.email)}`;
-    console.log(`\n==================================================`);
-    console.log(`🔑 [DorMap Password Reset]`);
-    console.log(`Recipient: ${user.email}`);
-    console.log(`OTP Code:  ${otp}`);
-    console.log(`Reset URL: ${resetUrl}`);
-    console.log(`==================================================\n`);
-
-    const mailResult = await sendPasswordResetEmail(user.email, otp);
-
-    if (!mailResult.success) {
-      // SMTP failed — log it server-side but do NOT expose OTP to client
-      console.warn(`[DorMap Email Notice] Google SMTP delivery failed (${mailResult.error}).`);
-      const is535 = mailResult.error && (mailResult.error.includes("535") || mailResult.error.includes("BadCredentials") || mailResult.error.includes("EAUTH"));
-
-      if (wantsJson) {
-        // Still return success:true so the UI shows the "check your inbox" state
-        // Never leak the token or resetUrl to the browser
-        return res.json({
-          success: true,
-          email: user.email,
-          message: is535
-            ? `Your reset link has been generated. However, the email could not be delivered due to an SMTP configuration issue. Please contact the system administrator, or try logging in at /reset-password?token=... (shown in server logs).`
-            : `A password reset link has been sent to ${user.email}. Please check your inbox or spam folder.`
-        });
+    if (user) {
+      const token = randomBytes(32).toString('hex');
+      const digest = resetTokenHash(token);
+      const resetUrl = new URL('/reset-password', base);
+      if (process.env.NODE_ENV === 'production' && resetUrl.protocol !== 'https:') throw new Error('Password reset requires an HTTPS application URL.');
+      resetUrl.searchParams.set('token', token);
+      const now = Date.now();
+      const [reserved] = await User.update({
+        resetPasswordToken: digest, resetPasswordExpires: new Date(now + resetLifetime)
+      }, {
+        where: { id: user.id, [Op.or]: [
+          { resetPasswordExpires: null },
+          { resetPasswordExpires: { [Op.lte]: new Date(now + resetLifetime - 60000) } }
+        ] }
+      });
+      if (reserved) {
+        try {
+          await deliver({
+            to: user.email,
+            subject: 'Reset your DormMap password',
+            text: `Open this link within 15 minutes to set your new DormMap password: ${resetUrl}\n\nIf you did not request this, you can ignore this email.`,
+            html: `<p>Use this link within 15 minutes to set your new DormMap password.</p><p><a href="${resetUrl}">Reset My Password</a></p><p>If you did not request this, you can ignore this email.</p>`
+          });
+        } catch (error) {
+          await User.update({ resetPasswordToken: null, resetPasswordExpires: null }, { where: { id: user.id, resetPasswordToken: digest } });
+          console.error('[Password reset email]', error.code || error.name);
+        }
       }
-
-      return res.render("forgotpassword", {
-        title: "Forgot Password",
-        error: is535
-          ? "The email could not be sent due to an SMTP configuration issue (535 Bad Credentials). Please contact the administrator."
-          : "",
-        success: is535 ? "" : `A password reset link has been sent to ${user.email}. Please check your inbox.`
-      });
     }
-
-    if (wantsJson) {
-      return res.json({
-        success: true,
-        email: user.email,
-        message: `A password reset link has been sent to ${user.email}. Please check your inbox or spam folder.`
-      });
-    }
-
-    return res.render("forgotpassword", {
-      title: "Forgot Password",
-      error: "",
-      success: `A password reset link has been sent to ${user.email}. Please open your inbox and click the reset button in the email.`
-    });
+    return reply(200, '', success);
   } catch (error) {
-    console.error("Forgot password error:", error);
-    const err = "An unexpected error occurred while processing your password reset request. Please try again.";
-    if (wantsJson) return res.status(500).json({ success: false, error: err });
-    return res.render("forgotpassword", { title: "Forgot Password", error: err, success: "" });
+    console.error('[Password reset request]', error.code || error.name);
+    return reply(503, 'Password reset is temporarily unavailable. Please try again later.');
   }
 };
 
-export const resetPasswordPage = async (req, res) => {
-  const { token, email } = req.query;
-  res.render("resetpassword", { title: "Reset Password", token: token || "", email: email || "", error: "", success: "" });
+function resetTokenWhere(token) {
+  return { resetPasswordToken: resetTokenHash(token), resetPasswordExpires: { [Op.gt]: new Date() }, isArchived: false };
+}
+
+const validResetToken = token => typeof token === 'string' && /^[0-9a-f]{64}$/.test(token);
+const invalidResetLink = 'This reset link is invalid or expired. Request a new link.';
+const resetHeaders = res => res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
+
+export const resetPasswordPage = async (req, res, next) => {
+  resetHeaders(res);
+  try {
+    const { token } = req.query;
+    const user = validResetToken(token) && await User.findOne({ where: resetTokenWhere(token), attributes: ['id'] });
+    return res.status(user ? 200 : 400).render('resetpassword', {
+      title: 'Reset Password', token: user ? token : '', error: user ? '' : invalidResetLink
+    });
+  } catch (error) { next(error); }
 };
 
 export const handleResetPassword = async (req, res) => {
-  const wantsJson = req.xhr || req.headers.accept?.includes('json');
+  resetHeaders(res);
+  const { token, password, confirmPassword } = req.body || {};
+  const wantsJson = req.xhr || req.accepts(['html', 'json']) === 'json';
+  const fail = (status, error, retry = false) => wantsJson
+    ? res.status(status).json({ success: false, error })
+    : res.status(status).render('resetpassword', { title: 'Reset Password', error, token: retry ? token : '' });
+  if (!validResetToken(token)) return fail(400, invalidResetLink);
+  if (typeof password !== 'string' || password.length < 6 || Buffer.byteLength(password, 'utf8') > 72) {
+    return fail(400, 'Use at least 6 characters and at most 72 bytes for your password.', true);
+  }
+  if (password !== confirmPassword) return fail(400, 'The passwords do not match.', true);
   try {
-    const { email, otp, token, password, confirmPassword } = req.body;
-    const code = (otp || token || "").trim();
-
-    if (!code || !password) {
-      const err = "Verification code and new password are required.";
-      if (wantsJson) return res.status(400).json({ success: false, error: err });
-      return res.render("resetpassword", { title: "Reset Password", email, error: err });
-    }
-
-    if (password !== confirmPassword) {
-      const err = "New Password and Confirm Password do not match.";
-      if (wantsJson) return res.status(400).json({ success: false, error: err });
-      return res.render("resetpassword", { title: "Reset Password", email, error: err });
-    }
-
-    if (password.length < 6) {
-      const err = "Password must be at least 6 characters long.";
-      if (wantsJson) return res.status(400).json({ success: false, error: err });
-      return res.render("resetpassword", { title: "Reset Password", email, error: err });
-    }
-
-    const whereClause = {
-      resetPasswordToken: code,
-      resetPasswordExpires: { [Op.gt]: new Date() }
-    };
-    if (email) {
-      whereClause.email = email.toLowerCase().trim();
-    }
-
-    const user = await User.findOne({ where: whereClause });
-    if (!user) {
-      const err = "Invalid or expired verification code (valid for 15 minutes). Please request a new code.";
-      if (wantsJson) return res.status(400).json({ success: false, error: err });
-      return res.render("resetpassword", { title: "Reset Password", email, error: err });
-    }
-
-    user.password = await bcrypt.hash(password, 10);
-    user.resetPasswordToken = null;
-    user.resetPasswordExpires = null;
-    await user.save();
-
-    const successMsg = "Password updated successfully! You can now sign in with your new password.";
-    if (wantsJson) {
-      return res.json({ success: true, message: successMsg });
-    }
-
-    return renderLoginPage(res, {
-      authAccountType: user.accountType,
-      authSuccess: successMsg,
-      authValues: { email: user.email }
-    });
+    const user = await User.findOne({ where: resetTokenWhere(token), attributes: ['id'] });
+    if (!user) return fail(400, invalidResetLink);
+    const hash = await bcrypt.hash(password, 10);
+    const [updated] = await User.update({
+      password: hash, resetPasswordToken: null, resetPasswordExpires: null
+    }, { where: { ...resetTokenWhere(token), id: user.id } });
+    if (!updated) return fail(400, invalidResetLink);
+    const redirect = '/login?passwordUpdated=1';
+    if (wantsJson) return res.json({ success: true, redirect });
+    return res.redirect(303, redirect);
   } catch (error) {
-    console.error("Reset password error:", error);
-    const err = "An error occurred while updating your password. Please try again.";
-    if (wantsJson) return res.status(500).json({ success: false, error: err });
-    return res.render("resetpassword", { title: "Reset Password", email: req.body?.email, error: err });
+    console.error('[Password reset]', error.code || error.name);
+    return fail(503, 'Unable to update your password. Please try again.', true);
   }
 };
+
 export const verifyEmail = async (req, res) => {
   const token = req.query.token;
   if (!token) {
@@ -768,7 +668,7 @@ export const registerUser = async (req, res) => {
           boardingHousePicture: galleryImages[0] || null,
           galleryImages: JSON.stringify(galleryImages),
         }, { transaction });
-        await registerPropertyInventory(created, setup, transaction);
+        await registerPropertyInventory(created, setup, req.files, transaction);
       }
       return created;
     });

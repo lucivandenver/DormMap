@@ -287,7 +287,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const browsed = await (await request('/tenant-dashboard/api/browse-boarding-houses', cookie)).json(); assert.ok(!browsed.boardingHouses.some(item => item.ownerId === owner.id));
       assert.equal((await request(`/admin/api/owners/${owner.id}/map-status`, adminCookie, patch('registered'))).status, 200);
     });
-    await t.test('GCash checkout binds the correct tenant bill; duplicate webhooks reconcile once', async () => {
+    await t.test('QR Ph checkout binds the correct tenant bill; duplicate webhooks reconcile once', async () => {
       const linked = await OwnerTenant.findOne({ where: { tenantUserId: second.id, ownerId: owner.id } });
       const other = await OwnerTenant.create({ ownerId: owner.id, fullName: 'Different payer', balance: 900 });
       const bill = await OwnerPayment.create({ ownerId: owner.id, tenantId: linked.id, roomId: linked.roomId, amount: 1500, penalty: 50, month: '2026-12', dueDate: '2026-12-01' });
@@ -298,7 +298,15 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       let checkouts = 0;
       const originalFetch = globalThis.fetch;
       globalThis.fetch = async (url, options) => {
-        assert.match(String(url), /checkout_sessions$/); const body = JSON.parse(options.body); assert.equal(body.data.attributes.line_items[0].amount, 155000); checkouts++;
+        if (options.method === 'GET') {
+          assert.match(String(url), new RegExp(`checkout_sessions/cs_contract_${suffix}$`));
+          return { ok: true, json: async () => ({ data: { id: `cs_contract_${suffix}`, attributes: { status: 'active' } } }) };
+        }
+        assert.match(String(url), /checkout_sessions$/);
+        const body = JSON.parse(options.body);
+        assert.equal(body.data.attributes.line_items[0].amount, 155000);
+        assert.deepEqual(body.data.attributes.payment_method_types, ['qrph']);
+        checkouts++;
         return { ok: true, json: async () => ({ data: { id: `cs_contract_${suffix}`, attributes: { checkout_url: 'https://checkout.paymongo.com/test-contract', reference_number: body.data.attributes.reference_number } } }) };
       };
       let checkout;
@@ -319,6 +327,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.equal(Number((await OwnerTenant.findByPk(linked.id)).balance), 0);
       assert.equal(Number((await OwnerTenant.findByPk(other.id)).balance), 900);
       assert.equal((await OwnerPayment.findByPk(bill.id)).status, 'paid');
+      assert.equal((await OwnerPayment.findByPk(bill.id)).method, 'QR Ph');
       assert.equal(await PaymentReceipt.count({ where: { paymentId: checkout.payment.id } }), 1);
       const ownerCookie = await login(owner.email);
       const collections = await request('/api/payments/owner/list', ownerCookie);
@@ -332,20 +341,59 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
     });
     await t.test('owner signup photos and gallery replacements survive a clean upload directory', async () => {
       const form = new FormData();
-      const data = { accountType:'boarding_house_owner', fullName:'Registered Room Owner', email:`layout-${suffix}@example.test`, password:'test-password-123',confirmPassword:'test-password-123',acceptTerms:'on',boardingHouseName:'Layout Main',boardingHouseAddress:'Orconuma',streetAddress:'Purok 2, Main Street',roomsAvailable:'2',declaredBranches:'1',contactNumber:'09171234567',mapPin:'Lat 12.668945, Lon 121.491777',boardingHouseLatitude:'12.668945',boardingHouseLongitude:'121.491777',propertyType:'Mixed',floorCount:'2' };
+      const data = { accountType:'boarding_house_owner', fullName:'Registered Room Owner', email:`layout-${suffix}@example.test`, password:'test-password-123',confirmPassword:'test-password-123',acceptTerms:'on',boardingHouseName:'Layout Main',boardingHouseAddress:'Orconuma',streetAddress:'Purok 2, Main Street',roomsAvailable:'2',declaredBranches:'2',contactNumber:'09171234567',mapPin:'Lat 12.668945, Lon 121.491777',boardingHouseLatitude:'12.668945',boardingHouseLongitude:'121.491777',propertyType:'Mixed',floorCount:'2' };
+      Object.assign(data, {
+        branchFloors2: '3', branchRooms2: '6', branch2_boardingHouseAddress: 'Labasan',
+        branch2_streetAddress: 'Centro', branch2_boardingHouseLatitude: '12.774815',
+        branch2_boardingHouseLongitude: '121.470195'
+      });
       for (const [key,value] of Object.entries(data)) form.set(key,value);
       const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5X8AAAAASUVORK5CYII=','base64');
       for (const name of ['galleryOutdoor','galleryLivingArea','galleryBedroom','galleryDining','galleryBathroom','validIdPicture','businessPermit','barangayClearance']) form.set(name,new Blob([png],{type:'image/png'}),name+'.png');
+      for (const field of ['galleryOutdoor','galleryLivingArea','galleryBedroom','galleryDining','galleryBathroom']) {
+        form.set('branch2_' + field, new Blob([png], { type: 'image/png' }), field + '-branch2.png');
+      }
       const response=await request('/register',null,{method:'POST',body:form});assert.equal(response.status,302,await response.clone().text());
       const created=await User.findOne({where:{email:data.email}});assert.ok(created);ids.push(created.id);
       for(const value of [created.profilePicture,created.boardingHousePicture,created.validIdPicture,created.businessPermit,created.barangayClearance,created.rentalPermit,...JSON.parse(created.galleryImages || '[]'),...Object.values(JSON.parse(created.supportingDocuments || '{}'))]) if(typeof value==='string'&&value.startsWith('/uploads/'))uploadedFiles.push(new URL('../../public'+value,import.meta.url));
       const primary=await BoardingHouse.findOne({where:{ownerId:created.id,isPrimary:true}});assert.equal(primary.floorCount,2);assert.equal(primary.address,'Purok 2, Main Street');
-      const rooms=await OwnerRoom.findAll({where:{ownerId:created.id},order:[['roomNumber','ASC']]});assert.equal(rooms.length,0);assert.equal(primary.declaredRooms,2);assert.equal(primary.declaredBranches,1);assert.equal(created.roomsAvailable,0);assert.equal(created.applicationStatus,'pending');
+      const rooms=await OwnerRoom.findAll({where:{ownerId:created.id},order:[['roomNumber','ASC']]});assert.equal(rooms.length,0);assert.equal(primary.declaredRooms,2);assert.equal(primary.declaredBranches,2);assert.equal(created.roomsAvailable,0);assert.equal(created.applicationStatus,'pending');
 
       const originalPhotos = JSON.parse(created.galleryImages);
       assert.equal(originalPhotos.length, 5);
       assert.equal(primary.picture, originalPhotos[0]);
-      await created.update({ applicationStatus: 'approved' });
+      const branch = await BoardingHouse.findOne({ where: { ownerId: created.id, isPrimary: false } });
+      assert.equal(branch.barangay, 'Labasan');
+      assert.equal(branch.address, 'Centro');
+      assert.equal(Number(branch.latitude), 12.774815);
+      assert.notEqual(branch.picture, primary.picture);
+      const publicListings = async () => (await (await request('/api/boarding-houses')).json()).filter(item => item.ownerId === created.id);
+      assert.equal((await publicListings()).length, 0);
+
+      const mainOfficialCookie = await login(official.email);
+      const primaryApps = await request('/barangay-dashboard/api/applications', mainOfficialCookie);
+      const application = (await primaryApps.json()).data.find(item => item.id === created.id);
+      assert.equal(application.branches[1].galleryImages[0], branch.picture);
+      assert.equal(application.branches[1].longitude, 121.470195);
+      const branchOfficial = await User.create({
+        fullName: 'Branch location official', email: `branch-location-${suffix}@example.test`, password,
+        accountType: 'barangay', barangay: 'Labasan', applicationStatus: 'approved', emailVerified: true
+      });
+      ids.push(branchOfficial.id);
+      const branchOfficialCookie = await login(branchOfficial.email);
+      const inspectBranches = async () => (await (await request('/barangay-dashboard/api/branches', branchOfficialCookie)).json());
+      assert.ok(!(await inspectBranches()).groups.some(group => group.id === created.id));
+      const approve = { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'approve' }) };
+      const applicationPath = `/barangay-dashboard/api/applications/${created.id}/review`;
+      assert.equal((await request(applicationPath, branchOfficialCookie, approve)).status, 404);
+      assert.equal((await request(applicationPath, mainOfficialCookie, approve)).status, 200);
+      assert.ok((await publicListings()).some(item => item.id === `bh-${branch.id}` && item.boardingHousePicture === branch.picture));
+      const local = await inspectBranches();
+      assert.ok(local.groups.find(group => group.id === created.id).branches.some(item => item.id === branch.id));
+      assert.ok(!local.data.some(item => item.id === branch.id));
+      const map = await request('/barangay-dashboard/api/map-houses', branchOfficialCookie);
+      assert.ok((await map.json()).data.some(item => item.id === `bh-${branch.id}`));
+      assert.equal((await request(`/barangay-dashboard/api/branches/${branch.id}/review`, branchOfficialCookie, approve)).status, 403);
       const ownerCookie = await login(created.email);
       const galleryUrl = `/owner-dashboard/api/gallery?boardingHouseId=${primary.id}`;
       const getGalleryPhotos = async () => {
@@ -356,7 +404,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const checkPublicCover = async expected => {
         const response = await request('/api/landing-data');
         assert.equal(response.status, 200);
-        const listing = (await response.json()).listings.find(item => item.ownerId === created.id);
+        const listing = (await response.json()).listings.find(item => item.bhId === primary.id);
         assert.equal(listing.boardingHousePicture, expected);
         assert.equal(listing.galleryImages[0], expected);
       };
