@@ -10,7 +10,7 @@
   };
 
   window.renderBarangayBranchCards = branches => branches.map(branch => {
-    const actions = reviewActions[branch.approvalStatus] || [];
+    const actions = branch.submittedWithOwner ? [] : (reviewActions[branch.approvalStatus] || []);
     const property = [branch.barangay, branch.propertyType, branch.floorCount && `${branch.floorCount} floor(s)`]
       .filter(Boolean).map(escapeHtml).join(' · ');
     return `

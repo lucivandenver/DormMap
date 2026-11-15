@@ -17,14 +17,23 @@ test('invalid capacities, floors, prices and duplicate room/floor identities are
  assert.throws(()=>parseRoomPlan([],1),/Add between/);
 });
 test('required photos/documents and a real map pin are enforced on the server',()=>{
- const body={declaredBranches:1,roomsAvailable:3,floorCount:2,boardingHouseLatitude:'12.668945',boardingHouseLongitude:'121.491777'};
+ const body={declaredBranches:1,roomsAvailable:3,floorCount:2,boardingHouseAddress:'Orconuma',boardingHouseLatitude:'12.668945',boardingHouseLongitude:'121.491777'};
  assert.throws(()=>validateOwnerSetup(body,{}),/upload/);
  const fields=['profilePicture','galleryOutdoor','galleryLivingArea','galleryBedroom','galleryDining','galleryBathroom','validIdPicture','businessPermit','barangayClearance','proofOfOwnership','rentalPermit'];
  const files=Object.fromEntries(fields.map(name=>[name,[{mimetype:'image/png',size:100}]]));
  assert.equal(validateOwnerSetup(body,files).metadata.declaredRooms,3);
  assert.throws(() => validateOwnerSetup({...body, declaredBranches:2},files), /branch 2/);
- assert.deepEqual(validateOwnerSetup({...body, declaredBranches:2, branchFloors2:4, branchRooms2:9},files).branches,
-   [{floors:2, rooms:3}, {floors:4, rooms:9}]);
+ const crossBarangay = {...body, declaredBranches:2, branchFloors2:4, branchRooms2:9,
+   branch2_boardingHouseAddress:'Labasan', branch2_streetAddress:'Centro',
+   branch2_boardingHouseLatitude:'12.774815', branch2_boardingHouseLongitude:'121.470195'};
+ assert.throws(() => validateOwnerSetup(crossBarangay, files), /Outdoor Spaces for branch 2/);
+ const branchPhotos = Object.fromEntries(fields.filter(field => field.startsWith('gallery'))
+   .map(field => ['branch2_' + field, files[field]]));
+ assert.deepEqual(validateOwnerSetup(crossBarangay, {...files, ...branchPhotos}).branches, [
+   {floors:2, rooms:3, barangay:'Orconuma', latitude:12.668945, longitude:121.491777, mapPin:'Lat 12.668945, Lon 121.491777', address:'Orconuma'},
+   {floors:4, rooms:9, barangay:'Labasan', latitude:12.774815, longitude:121.470195, mapPin:'Lat 12.774815, Lon 121.470195', address:'Centro'}
+ ]);
+ assert.throws(() => validateOwnerSetup({...crossBarangay, branch2_boardingHouseAddress:'Outside Bongabong'}, {...files, ...branchPhotos}), /barangay for branch 2/);
  files.galleryOutdoor[0].mimetype='application/pdf';assert.throws(()=>validateOwnerSetup(body,files),/Invalid file/);
  files.galleryOutdoor[0].mimetype='image/png';assert.throws(()=>validateOwnerSetup({...body,boardingHouseLatitude:''},files),/actual Bongabong/);
 });

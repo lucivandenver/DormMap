@@ -78,7 +78,7 @@ export function installPortalActivity(app) {
 
   const notice=async(userId,title,body,type)=>{if(!userId)return;const user=await User.findByPk(userId);if(!user)return;if(user.accountType==='boarding_house_owner')await OwnerNotification.create({ownerId:userId,title,body,type});else await BarangayNotification.create({userId,title,body,type});};
   BoardingHouse.addHook('afterCreate','portal-branch-review',(row,options)=>committed(options,async()=>{
-    if(row.isPrimary)return;
+    if (row.isPrimary || row.approvalStatus !== 'pending') return;
     const reviewers=await User.findAll({where:{isSuspended:false,isArchived:false,accountType:'barangay',barangay:row.barangay,applicationStatus:'approved'},attributes:['id']});
     for(const reviewer of reviewers)await notice(reviewer.id,'New branch for review',`${row.name} in ${row.barangay} is awaiting listing review.`,'branch');
   }));

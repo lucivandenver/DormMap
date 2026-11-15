@@ -1,5 +1,5 @@
 import { namedMessages } from '../services/messageIdentityService.js';
-import { listBarangayBranches, reviewBranch } from '../services/branchReviewService.js';
+import { listApprovedBranchPins, listBarangayBranches, reviewBranch } from '../services/branchReviewService.js';
 import { OwnerTenant, OwnerRoom, BoardingHouse } from '../models/ownerModels.js';
 import { inventorySummary } from '../services/inventorySummaryService.js';
 import { setPublicMapStatus } from '../services/publicMapStatusService.js';
@@ -621,7 +621,7 @@ export const applications = async (req, res, next) => {
     }
     const owners = await User.findAll({
       where, order: [['createdAt', 'DESC']],
-      attributes: ['id', 'fullName', 'email', 'boardingHouseName', 'barangay', 'mapPin', 'galleryImages',
+      attributes: ['id', 'fullName', 'email', 'boardingHouseName', 'barangay', 'mapPin', 'galleryImages', 'boardingHouseLatitude', 'boardingHouseLongitude',
         'validIdPicture', 'businessPermit', 'barangayClearance', 'applicationStatus', 'applicationReviewNote', 'createdAt']
     });
     const houses = await BoardingHouse.findAll({
@@ -636,7 +636,13 @@ export const applications = async (req, res, next) => {
         ...legacy,
         branches: house?.declaredRooms ? [{ floors: house.floorCount, rooms: house.declaredRooms }] : []
       };
-      return { ...submission, id, applicationStatus, applicationReviewNote, createdAt };
+      const mainLocation = {
+        barangay: submission.barangay, latitude: legacy.boardingHouseLatitude, longitude: legacy.boardingHouseLongitude,
+        galleryImages: submission.galleryImages
+      };
+      const branches = (submission.branches || []).filter((branch, index) => index === 0 || branch.barangay);
+      branches[0] = { ...mainLocation, ...branches[0] };
+      return { ...submission, branches, id, applicationStatus, applicationReviewNote, createdAt };
     });
 
     res.json({ data });
@@ -773,7 +779,8 @@ export const mapHouses = async (req, res, next) => {
       }, 
       attributes: ['id', 'fullName', 'boardingHouseName', 'boardingHouseAddress', 'boardingHouseLatitude', 'boardingHouseLongitude', 'roomsAvailable', 'occupiedRooms', 'contactNumber', 'applicationStatus', 'isSuspended', 'publicMapUnregistered']
     }); 
-    res.json({ data }); 
+    const branches = await listApprovedBranchPins(barangay);
+    res.json({ data: [...data, ...branches] });
   } catch (e) { next(e); } 
 };
 

@@ -405,6 +405,8 @@
           <button type="button" class="registration-step" onclick="goToStep(2)">Next</button>
         </div>
         <div id="step2" class="space-y-3.5" style="display:none;">
+          <h3 data-branch-heading>Branch 1 · Main property</h3>
+          <div data-branch-location class="space-y-3.5">
           <label>
             <span>Location Barangay — Bongabong, Oriental Mindoro <span class="req">*</span></span>
             <select name="boardingHouseAddress" required>
@@ -482,20 +484,23 @@
             <p style="font-size:0.72rem;color:#94a3b8;margin-top:0.6rem;">✓ JPG, PNG, or WEBP accepted. Max 5MB per photo. These replace the old single photo requirement.</p>
           </div>
 
+          <label><span>Street address (optional)</span><input name="streetAddress" maxlength="255"></label>
           <!-- Map Pin -->
           <div>
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.35rem;">
               <span style="display:block;font-size:0.8125rem;font-weight:600;color:#374151;">Streetmap Pin (Location) <span class="req" style="color:#dc2626;margin-left:2px;">*</span></span>
-              <button type="button" id="openFullMapBtn" style="font-size:0.75rem;font-weight:700;color:#047857;background:#ecfdf5;border:1px solid #a7f3d0;padding:0.2rem 0.6rem;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:0.3rem;">
+              <button type="button" data-branch-full-map style="font-size:0.75rem;font-weight:700;color:#047857;background:#ecfdf5;border:1px solid #a7f3d0;padding:0.2rem 0.6rem;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:0.3rem;">
                 <svg class="icon-bw-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> Open Full Map
               </button>
             </div>
             <input type="text" name="mapPin" id="mapPinInput" readonly placeholder="Click the map below to set pin" required style="background:#f8fafc;">
             <input type="hidden" name="boardingHouseLatitude" id="latInput">
             <input type="hidden" name="boardingHouseLongitude" id="lngInput">
-            <div id="wizardMap" style="height:160px;border-radius:14px;border:1px solid #cbd5e1;overflow:hidden;margin-top:0.5rem;"></div>
+            <span data-map-placement></span>
+            <div id="wizardMap" data-shared-registration-map style="height:160px;border-radius:14px;border:1px solid #cbd5e1;overflow:hidden;margin-top:0.5rem;"></div>
           </div>
 
+          </div>
           <div style="margin-top:1.2rem;">
             <button type="button" class="registration-step" onclick="goToStep(1)">← Previous Step</button>
             <button type="button" class="registration-step" onclick="goToStep(3)">Next</button>
@@ -599,20 +604,28 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="/js/owner-registration-locations.js"></script>
   <script>
     let mapInitialized = false;
     let map, marker;
 
+    const wizard = document.getElementById('ownerWizardForm');
+    const branches = ownerRegistrationLocations(wizard, document.getElementById('step2'), syncMapPin);
     let wizardStep = 1;
     function goToStep(step) {
       if (step > wizardStep) {
-        const panel = document.getElementById('step'+wizardStep);
-        for (const input of panel.querySelectorAll('input,select,textarea')) if (!input.checkValidity()) { input.reportValidity(); return; }
-        if (wizardStep === 2 && !document.getElementById('mapPinInput').value) {
-          alert('Pick the boarding house location on the map before continuing.');
-          return;
-        }
-      }
+        if (wizardStep === 1) {
+          const invalid = document.querySelector('#step1 :invalid');
+          if (invalid) { invalid.reportValidity(); return; }
+          if (!branches.prepare()) return;
+          branches.select(0);
+        } else if (!branches.validate() || branches.next()) return;
+      } else if (wizardStep === 2 && step === 1 && branches.back()) return;
+      else if (wizardStep === 3 && step === 2) branches.last();
+      showStep(step);
+    }
+
+    function showStep(step) {
       wizardStep = step;
       ['step1','step2','step3'].forEach((id, i) => {
         document.getElementById(id).style.display = (i + 1 === step) ? 'block' : 'none';
@@ -632,10 +645,19 @@
         else if (i + 1 === step) lbl.classList.add('active');
       });
 
-      if (step === 2 && !mapInitialized) {
-        setTimeout(initMap, 200);
-      }
+      if (step === 2) requestAnimationFrame(() => { initMap(); map.invalidateSize(); });
       window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function syncMapPin() {
+      if (!map) return;
+      marker?.remove();
+      marker = null;
+      const lat = branches.field('boardingHouseLatitude').value;
+      const lng = branches.field('boardingHouseLongitude').value;
+      if (lat && lng) marker = L.marker([Number(lat), Number(lng)], { icon: dormMapPropertyPin(L) }).addTo(map);
+      map.setView(marker?.getLatLng() || [12.7192, 121.4719], 14);
+      requestAnimationFrame(() => map.invalidateSize());
     }
 
     let openWizardMap;
@@ -648,9 +670,9 @@
       const selectLocation = ({ lat, lng }) => {
         if (marker) map.removeLayer(marker);
         marker = L.marker([lat, lng], { icon: dormMapPropertyPin(L) }).addTo(map);
-        document.getElementById('mapPinInput').value = `Lat ${lat.toFixed(6)}, Lon ${lng.toFixed(6)}`;
-        document.getElementById('latInput').value = lat.toFixed(6);
-        document.getElementById('lngInput').value = lng.toFixed(6);
+        branches.field('mapPin').value = `Lat ${lat.toFixed(6)}, Lon ${lng.toFixed(6)}`;
+        branches.field('boardingHouseLatitude').value = lat.toFixed(6);
+        branches.field('boardingHouseLongitude').value = lng.toFixed(6);
       };
       openWizardMap = dormMapFullMap(L, map, street, {
         current: () => marker?.getLatLng(),
@@ -662,19 +684,27 @@
       });
     }
 
-    document.getElementById('ownerWizardForm').addEventListener('submit', event => {
+    wizard.addEventListener('submit', event => {
       for (let step = 1; step <= 3; step++) {
+        if (step === 2) {
+          showStep(2);
+          if (!branches.validateAll()) { event.preventDefault(); return; }
+          showStep(3);
+          continue;
+        }
         const panel = document.getElementById('step'+step);
         for (const input of panel.querySelectorAll('input,select,textarea')) {
-          if (!input.checkValidity()) { event.preventDefault(); goToStep(step); input.reportValidity(); return; }
+          if (!input.checkValidity()) { event.preventDefault(); showStep(step); input.reportValidity(); return; }
         }
       }
     });
 
 
-    document.getElementById('openFullMapBtn')?.addEventListener('click', event => {
+    wizard.addEventListener('click', event => {
+      const button = event.target.closest('[data-branch-full-map]');
+      if (!button) return;
       initMap();
-      openWizardMap(event.currentTarget);
+      openWizardMap(button);
     });
   </script>
 </body>

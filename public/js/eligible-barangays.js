@@ -13,6 +13,7 @@
           if (!option.value) continue;
           const label = option.dataset.label || option.textContent;
           option.dataset.label = label;
+          option.value = option.value;
           option.disabled = !allowed.has(option.value.toLowerCase());
           option.textContent = label + (option.disabled ? ' — awaiting approved official' : '');
           if (option.disabled && option.selected) select.value = '';

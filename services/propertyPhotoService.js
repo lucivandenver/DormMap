@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import multer from 'multer';
+import { readFile } from 'node:fs/promises';
 import { DataTypes } from 'sequelize';
 import { sequelize } from '../models/db.js';
 import { OwnerGallery } from '../models/ownerModels.js';
@@ -22,15 +22,8 @@ export const PropertyPhoto = sequelize.define('PropertyPhoto', {
 const extensions = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 const galleryFields = new Set(['boardingHousePicture', ...GALLERY_CATEGORIES.map(category => category.field)]);
 
-// Keep registration documents on their existing disk path. Only public property
-// photos need an in-memory buffer for writing to the database.
-export function registrationUploadStorage(disk) {
-  const memory = multer.memoryStorage();
-  const storageFor = file => galleryFields.has(file.fieldname) ? memory : disk;
-  return {
-    _handleFile(req, file, callback) { storageFor(file)._handleFile(req, file, callback); },
-    _removeFile(req, file, callback) { storageFor(file)._removeFile(req, file, callback); },
-  };
+export function isRegistrationPhoto(field) {
+  return galleryFields.has(field.replace(/^branch[0-9]+_/, ''));
 }
 
 function photoType(bytes) {
@@ -41,7 +34,7 @@ function photoType(bytes) {
 }
 
 export async function storePropertyPhoto(file, ownerId, transaction) {
-  const bytes = file.buffer;
+  const bytes = file.buffer || (file.path ? await readFile(file.path) : null);
   const contentType = photoType(bytes);
   if (!contentType || contentType !== file.mimetype) {
     throw Object.assign(new Error('Upload a valid JPG, PNG, or WebP property photo.'), { status: 422 });
@@ -59,10 +52,10 @@ export async function saveGallerySlot(ownerId, boardingHouseId, category, imageU
   else await OwnerGallery.create({ ...where, ...values }, { transaction });
 }
 
-export async function storeRegistrationPhotos(files, ownerId, transaction) {
+export async function storeRegistrationPhotos(files, ownerId, transaction, prefix = '') {
   const urls = [];
   for (const category of GALLERY_CATEGORIES) {
-    const file = files?.[category.field]?.[0] || (category.index === 1 ? files?.boardingHousePicture?.[0] : null);
+    const file = files?.[prefix + category.field]?.[0] || (!prefix && category.index === 1 ? files?.boardingHousePicture?.[0] : null);
     urls.push(file ? await storePropertyPhoto(file, ownerId, transaction) : '');
   }
   return urls;

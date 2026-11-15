@@ -18,7 +18,7 @@ const isDummyKey = () => {
 };
 
 /**
- * Creates a GCash Payment Checkout Session via PayMongo API (/v1/checkout_sessions)
+ * Creates a QR Ph Payment Checkout Session via PayMongo API (/v1/checkout_sessions)
  */
 export const createPaymongoCheckoutSession = async ({
   reference,
@@ -32,7 +32,7 @@ export const createPaymongoCheckoutSession = async ({
   const defaultSuccessUrl = successReturnUrl || `${getAppBaseUrl()}/payments/processing?ref=${reference}`;
   const defaultCancelUrl = failureReturnUrl || `${getAppBaseUrl()}/payments/failure?ref=${reference}`;
 
-  if (isDummyKey()) throw new Error('Online GCash payments are not configured. Set a valid PayMongo secret key on the server.');
+  if (isDummyKey()) throw new Error('Online QR Ph payments are not configured. Set a valid PayMongo secret key on the server.');
 
   const secretKey = getPaymongoSecretKey();
   const authHeader = `Basic ${Buffer.from(`${secretKey}:`).toString('base64')}`;
@@ -41,7 +41,7 @@ export const createPaymongoCheckoutSession = async ({
   const payload = {
     data: {
       attributes: {
-        payment_method_types: ['gcash'],
+        payment_method_types: ['qrph'],
         line_items: [
           {
             currency: 'PHP',
@@ -60,7 +60,7 @@ export const createPaymongoCheckoutSession = async ({
         cancel_url: defaultCancelUrl,
         metadata: {
           reference,
-          ...metadata
+          ...Object.fromEntries(Object.entries(metadata).map(([key, value]) => [key, String(value)]))
         }
       }
     }
@@ -108,7 +108,7 @@ export const createPaymongoCheckoutSession = async ({
       payments: sessionData.attributes.payments || []
     };
   } catch (err) {
-    throw new Error('PayMongo checkout is unavailable. Verify the API key, enabled GCash payment channel, and connection, then retry.');
+    throw new Error('PayMongo checkout is unavailable. Verify the API key, enabled QR Ph payment channel, and connection, then retry.');
   }
 };
 
@@ -157,6 +157,22 @@ export const getPaymongoCheckoutStatus = async (checkoutSessionId) => {
     throw err;
   }
 };
+
+export async function expireUnpaidPaymongoCheckout(checkoutSessionId) {
+  if (isDummyKey()) throw new Error('PayMongo is not configured.');
+  const secret = getPaymongoSecretKey();
+  const response = await fetch(`${getPaymongoBaseUrl()}/checkout_sessions/${encodeURIComponent(checkoutSessionId)}/expire`, {
+    method: 'POST',
+    signal: AbortSignal.timeout(10000),
+    headers: { Authorization: `Basic ${Buffer.from(`${secret}:`).toString('base64')}`, Accept: 'application/json' }
+  });
+  const result = response.ok ? await response.json() : null;
+  if (result?.data?.attributes?.status === 'expired') return;
+  const current = await getPaymongoCheckoutStatus(checkoutSessionId);
+  if (current.status === 'EXPIRED') return;
+  if (current.status === 'SUCCEEDED') throw new Error('PayMongo already received this payment. Wait for DormMap to confirm it.');
+  throw new Error('The previous PayMongo checkout could not be closed. Please try again after any payment in progress has finished.');
+}
 
 /**
  * Verifies PayMongo Webhook HMAC SHA256 Signature

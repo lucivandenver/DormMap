@@ -35,3 +35,25 @@ test('production cannot create simulated checkout with missing credentials', asy
     if (original.key === undefined) delete process.env.PAYMONGO_SECRET_KEY; else process.env.PAYMONGO_SECRET_KEY = original.key;
   }
 });
+
+test('PayMongo rent checkout asks for QR Ph and sends amounts in centavos', async t => {
+  const originalKey = process.env.PAYMONGO_SECRET_KEY;
+  process.env.PAYMONGO_SECRET_KEY = 'sk_test_fixture';
+  t.after(() => {
+    if (originalKey === undefined) delete process.env.PAYMONGO_SECRET_KEY;
+    else process.env.PAYMONGO_SECRET_KEY = originalKey;
+  });
+  const checkout = t.mock.method(globalThis, 'fetch', async (url, init) => {
+    assert.match(url, /\/checkout_sessions$/);
+    const { attributes } = JSON.parse(init.body).data;
+    assert.deepEqual(attributes.payment_method_types, ['qrph']);
+    assert.equal(attributes.line_items[0].amount, 100000);
+    assert.equal(attributes.success_url, 'https://dormmap.example/payments/processing?ref=test');
+    return Response.json({ data: { id: 'cs_fixture', attributes: { checkout_url: 'https://checkout.paymongo.com/fixture' } } });
+  });
+  const session = await createPaymongoCheckoutSession({
+    reference: 'test', amount: 1000, successReturnUrl: 'https://dormmap.example/payments/processing?ref=test'
+  });
+  assert.equal(session.id, 'cs_fixture');
+  assert.equal(checkout.mock.callCount(), 1);
+});

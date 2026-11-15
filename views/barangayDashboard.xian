@@ -752,6 +752,14 @@
       <p class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Uploaded Verification Documents</p>
       <div id="registrationSummary" class="mb-4 space-y-1 text-sm"></div>
       <div id="modalDocGrid" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"></div>
+      <div class="mt-4 space-y-3">
+        <label class="block text-sm font-bold">Property photos and location
+          <select id="reviewBranchSelect" class="field mt-1"></select>
+        </label>
+        <p id="reviewBranchLocation" class="text-sm text-slate-600"></p>
+        <div id="reviewBranchMap" class="h-44 rounded-xl border border-slate-200" hidden></div>
+        <div id="reviewBranchPhotos" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"></div>
+      </div>
     </div>
     <div class="mt-6 border-t pt-4 space-y-4">
       <input type="hidden" id="reviewAppId">
@@ -1333,6 +1341,8 @@ async function loadApplications() {
   } catch (e) { toast(e.message, true); }
 }
 
+let reviewMap, reviewPin;
+
 function openReviewModal(id) {
   const app = allAppsData.find(x => x.id === id);
   document.getElementById('reviewAppId').value = id;
@@ -1340,7 +1350,7 @@ function openReviewModal(id) {
   
   if (!app) return;
   const summary = document.getElementById('registrationSummary');
-  const details = [app.fullName, app.email, app.boardingHouseName, app.barangay, app.mapPin,
+  const details = [app.fullName, app.email, app.boardingHouseName, app.barangay,
     ...(app.branches || []).map((branch, index) =>
       `${index === 0 ? 'Main property' : 'Branch ' + (index + 1)}: ${branch.floors} floors · ${branch.rooms} rooms`)];
   summary.replaceChildren(...details.filter(Boolean).map(value => {
@@ -1348,20 +1358,52 @@ function openReviewModal(id) {
     row.textContent = value;
     return row;
   }));
-  let photos = app.galleryImages;
+  renderReviewUploads('modalDocGrid', [
+    { label: 'Government ID', url: app.validIdPicture },
+    { label: 'Business Permit', url: app.businessPermit },
+    { label: 'Barangay Clearance', url: app.barangayClearance }
+  ]);
+  const select = document.getElementById('reviewBranchSelect');
+  select.replaceChildren(...app.branches.map((branch, index) => new Option(
+    `Branch ${index + 1}${index === 0 ? ' · Main property' : ''}${branch.barangay ? ' · ' + branch.barangay : ''}`, index
+  )));
+  select.onchange = () => renderReviewedBranch(app.branches[Number(select.value)]);
+  openModal('reviewModal');
+  select.onchange();
+}
+
+function renderReviewedBranch(branch) {
+  let photos = branch.galleryImages;
   if (typeof photos === 'string') {
     try { photos = JSON.parse(photos); } catch { photos = []; }
   }
-  const docTypes = [
-    { label: 'Government ID', url: app?.validIdPicture },
-    { label: 'Business Permit', url: app?.businessPermit },
-    { label: 'Barangay Clearance', url: app?.barangayClearance },
-    ...['Outdoor Spaces', 'Living Area', 'Bedroom', 'Dining or Kitchenette', 'Bathroom'].map((label, index) => ({
-      label, url: Array.isArray(photos) ? photos[index] : null
-    }))
-  ].filter(doc => typeof doc.url === 'string' && /^\/uploads\/[a-z0-9_.-]+$/i.test(doc.url));
+  renderReviewUploads('reviewBranchPhotos', ['Outdoor Spaces', 'Living Area', 'Bedroom', 'Dining or Kitchenette', 'Bathroom'].map((label, index) => ({
+    label, url: Array.isArray(photos) ? photos[index] : null
+  })));
+  const target = document.getElementById('reviewBranchMap');
+  const hasPin = branch.latitude != null && branch.longitude != null &&
+    Number.isFinite(Number(branch.latitude)) && Number.isFinite(Number(branch.longitude));
+  target.hidden = !hasPin;
+  const address = branch.address && branch.address !== branch.barangay ? branch.address : null;
+  document.getElementById('reviewBranchLocation').textContent =
+    [address, branch.barangay, hasPin ? '' : 'Map pin unavailable'].filter(Boolean).join(' · ');
+  if (!hasPin || !window.L) return;
+  if (!reviewMap) {
+    reviewMap = L.map(target, { scrollWheelZoom: false });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(reviewMap);
+  }
+  const pin = [Number(branch.latitude), Number(branch.longitude)];
+  if (reviewPin) reviewPin.setLatLng(pin);
+  else reviewPin = L.marker(pin, { icon: dormMapPropertyPin(L) }).addTo(reviewMap);
+  reviewMap.setView(pin, 17);
+  requestAnimationFrame(() => reviewMap.invalidateSize());
+}
 
-  document.getElementById('modalDocGrid').innerHTML = docTypes.map(d => `
+function renderReviewUploads(id, uploads) {
+  const docTypes = uploads.filter(doc => typeof doc.url === 'string' && /^\/uploads\/[a-z0-9_.-]+$/i.test(doc.url));
+
+
+  document.getElementById(id).innerHTML = docTypes.map(d => `
     <div class="rounded-xl border border-slate-200 p-3 bg-slate-50 flex flex-col justify-between">
       <div class="flex items-center gap-2">
         <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-slate-700 border border-slate-200 shrink-0">
@@ -1377,8 +1419,6 @@ function openReviewModal(id) {
       </div>
     </div>
   `).join('');
-
-  openModal('reviewModal');
 }
 
 function closeReviewModal() { closeModal('reviewModal'); }
@@ -1659,6 +1699,7 @@ async function loadTenants() {
 }
 
 // 10. MAP
+let barangayMapPins;
 async function loadMap() {
   try {
     let d = await req(api + '/map-houses');
@@ -1666,14 +1707,17 @@ async function loadMap() {
       map = L.map('barangayMap').setView([12.7192, 121.4719], 13);
       dormMapFullMap(L, map, L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(map));
     }
+    if (!barangayMapPins) barangayMapPins = L.layerGroup().addTo(map);
+    barangayMapPins.clearLayers();
     d.data.forEach(x => {
+      if (x.boardingHouseLatitude == null || x.boardingHouseLongitude == null) return;
       let a = Number(x.boardingHouseLatitude), b = Number(x.boardingHouseLongitude);
       if (Number.isFinite(a) && Number.isFinite(b)) {
-        L.marker([a, b], { icon: dormMapPropertyPin(L, x.publicMapUnregistered) }).addTo(map).bindPopup(`
+        L.marker([a, b], { icon: dormMapPropertyPin(L, x.publicMapUnregistered) }).addTo(barangayMapPins).bindPopup(`
           <div class="p-1">
             <b class="text-emerald-800 text-sm">${esc(x.boardingHouseName)}</b><br>
             <span class="text-xs text-slate-600">Owner: ${esc(x.fullName)}</span><br>
-            <span class="text-xs text-slate-600">Vacant Rooms: <b>${x.roomsAvailable ?? 0}</b> | Occupied: <b>${x.occupiedRooms ?? 0}</b></span><br>
+            ${x.roomsAvailable == null ? '' : `<span class="text-xs text-slate-600">Vacant Rooms: <b>${x.roomsAvailable}</b> | Occupied: <b>${x.occupiedRooms ?? 0}</b></span><br>`}
             <span class="text-xs text-slate-600">Contact: ${esc(x.contactNumber || '—')}</span><br>
             <span class="badge status-${x.isSuspended ? 'suspended' : esc(x.applicationStatus)} mt-1">${x.isSuspended ? 'Suspended' : esc(x.applicationStatus)}</span>
           </div>
