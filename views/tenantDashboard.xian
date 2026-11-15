@@ -1067,7 +1067,24 @@
   <p class="text-xs text-slate-500 mb-4">Prices and availability are from the latest refresh. Confirm details with the owner before applying.</p>
   <div style="overflow-x:auto"><table id="dormCompareTable" style="width:100%;border-collapse:collapse;text-align:left;font-size:13px"></table></div>
 </dialog>
-<style>#dormCompareDialog::backdrop{background:rgba(15,23,42,.55)}#dormCompareTable th,#dormCompareTable td{padding:12px;min-width:150px;border:1px solid #e2e8f0;vertical-align:top;overflow-wrap:anywhere}#dormCompareTable th{background:#ecfdf5;color:#023020}button:disabled{cursor:not-allowed}</style>
+<dialog id="tenantBranchGallery" aria-labelledby="tenantBranchGalleryTitle" class="w-[calc(100%_-_2rem)] max-w-xl rounded-2xl p-4 shadow-xl">
+  <header class="flex items-center justify-between gap-3 pb-3">
+    <h2 id="tenantBranchGalleryTitle" class="font-bold text-slate-900"></h2>
+    <form method="dialog"><button class="rounded-lg border px-3 py-2 text-sm">Close</button></form>
+  </header>
+  <figure class="overflow-hidden rounded-xl bg-slate-100">
+    <img id="tenantBranchGalleryPhoto" alt="" class="w-full max-h-[55dvh] object-contain">
+    <p id="tenantBranchGalleryUnavailable" class="p-6 text-center text-sm text-slate-600" hidden>Photo unavailable</p>
+    <figcaption id="tenantBranchGalleryCaption" aria-live="polite" class="px-3 py-2 text-sm font-semibold"></figcaption>
+  </figure>
+  <div class="flex items-center justify-between gap-2 pt-3">
+    <button type="button" id="tenantBranchGalleryPrev" class="rounded-lg border px-3 py-2 text-sm">Previous</button>
+    <span id="tenantBranchGalleryCount" class="text-xs text-slate-500"></span>
+    <button type="button" id="tenantBranchGalleryNext" class="rounded-lg border px-3 py-2 text-sm">Next</button>
+  </div>
+</dialog>
+<style>#tenantBranchGallery::backdrop,#dormCompareDialog::backdrop{background:rgba(15,23,42,.55)}#dormCompareTable th,#dormCompareTable td{padding:12px;min-width:150px;border:1px solid #e2e8f0;vertical-align:top;overflow-wrap:anywhere}#dormCompareTable th{background:#ecfdf5;color:#023020}button:disabled{cursor:not-allowed}</style>
+<script src="/js/branch-gallery.js"></script>
 <script src="/js/tenant-dorm-browser.js"></script>
 <script>
   window.currentUserId = Number("{{userId}}") || 0;
@@ -1314,9 +1331,9 @@
       document.getElementById('room-capacity-text').innerText = `${data.room?.capacity || 1} capacity · ${data.room?.availableSlots ?? 0} available spaces`;
       document.getElementById('room-price-text').innerText = `₱${Number(data.room?.rentalPrice || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}`;
       document.getElementById('room-movein-text').innerText = data.tenantRecord?.moveInDate || 'N/A';
-      document.getElementById('bh-name-text').innerText = data.boardingHouse?.boardingHouseName || 'Boarding House';
+      document.getElementById('bh-name-text').innerText = [data.boardingHouse?.propertyName || data.boardingHouse?.boardingHouseName || 'Boarding House', data.boardingHouse?.branchNumber ? `Branch ${data.boardingHouse.branchNumber}` : ''].filter(Boolean).join(' · ');
       document.getElementById('bh-address-text').innerText = data.boardingHouse?.boardingHouseAddress || 'N/A';
-      document.getElementById('bh-owner-contact').innerText = data.boardingHouse?.contactNumber || 'N/A';
+      document.getElementById('bh-owner-contact').innerText = [data.boardingHouse?.fullName, data.boardingHouse?.contactNumber].filter(Boolean).join(' · ') || 'N/A';
 
       if (data.boardingHouse?.houseRules) {
         document.getElementById('room-house-rules').innerText = data.boardingHouse.houseRules;
@@ -1324,12 +1341,15 @@
     } catch (err) { console.error('Error loading my room:', err); }
   }
 
+  let qrPhAvailable = false;
+
   async function loadPaymentHistory() {
     try {
       const statusFilter = document.getElementById('paymentStatusFilter');
       const status = statusFilter ? statusFilter.value : 'all';
       const res = await fetch(`/tenant-dashboard/api/payments?status=${status}`);
       const data = await res.json();
+      qrPhAvailable = data.qrPhAvailable === true;
 
       const tbody = document.getElementById('paymentsTableBody');
       if (!data.payments || data.payments.length === 0) {
@@ -1351,7 +1371,7 @@
             </td>
             <td class="p-3.5 text-right flex items-center justify-end gap-2">
               ${!isPaid ? `
-                <button onclick="openQrPhPayModal('${p.id}', '${p.amount}', '${p.penalty || 0}', '${p.month}')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1 active:scale-95">
+                <button onclick="openQrPhPayModal('${p.id}', '${p.amount}', '${p.penalty || 0}', '${p.month}')" class="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1 active:scale-95">
                   <span>Pay QR Ph</span> ➔
                 </button>
               ` : `
@@ -1365,57 +1385,55 @@
   }
 
   function openQrPhPayModal(tenantPaymentId, amount, penalty, month) {
-    const base = Number(amount) - Number(penalty || 0);
-    const total = Number(amount);
+    const base = Number(amount);
+    const latePenalty = Number(penalty || 0);
+    const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
+    const billingPeriod = /^\d{4}-\d{2}$/.test(month) ? month : 'Current month';
     Swal.fire({
-      title: '<strong>Pay Rent via QR Ph</strong>',
-      icon: 'info',
+      title: 'Pay rent with QR Ph',
+      width: 'min(28rem, calc(100vw - 2rem))',
+      customClass: { popup: 'rounded-2xl', title: 'text-xl', actions: 'gap-2' },
       html: `
-        <div class="text-left space-y-3 text-xs pt-2">
-          <!-- Billing Breakdown -->
-          <div class="p-3.5 bg-blue-50/70 rounded-2xl border border-blue-100 space-y-1.5">
-            <div class="flex justify-between"><span class="text-slate-500 font-medium">Billing Period:</span><span class="font-bold text-slate-800">${month || 'Current Month'}</span></div>
-            <div class="flex justify-between"><span class="text-slate-500 font-medium">Monthly Rent Base:</span><span class="font-bold text-slate-800">₱${base.toLocaleString('en-US', {minimumFractionDigits: 2})}</span></div>
-            <div class="flex justify-between"><span class="text-slate-500 font-medium">Late Penalty:</span><span class="font-bold text-rose-600">₱${Number(penalty || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</span></div>
-            <div class="border-t border-blue-200/60 pt-2 flex justify-between text-sm"><span class="font-bold text-blue-950">Total Amount Due:</span><span class="font-black text-blue-700 text-base">₱${total.toLocaleString('en-US', {minimumFractionDigits: 2})}</span></div>
+        <div class="space-y-4 text-left text-sm text-slate-700">
+          <div class="rounded-2xl bg-emerald-950 px-4 py-4 text-white">
+            <p class="text-sm text-emerald-100">Total due · ${billingPeriod}</p>
+            <p class="mt-1 text-3xl font-bold">${peso.format(base + latePenalty)}</p>
           </div>
-
-          <p class="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-xl leading-relaxed">
-            <strong>PayMongo QR Ph:</strong> Scan the checkout QR code using a supported bank or e-wallet app. Your rent updates when PayMongo confirms the payment.
-          </p>
-        </div>
-      `,
+          <dl class="space-y-2 rounded-xl border border-slate-200 p-3">
+            <div class="flex justify-between gap-3"><dt>Monthly rent</dt><dd class="font-semibold">${peso.format(base)}</dd></div>
+            <div class="flex justify-between gap-3"><dt>Late penalty</dt><dd class="font-semibold">${peso.format(latePenalty)}</dd></div>
+          </dl>
+          <p>${qrPhAvailable
+            ? 'Scan the QR code on PayMongo using your bank or e-wallet app. DormMap updates your bill once PayMongo confirms payment.'
+            : 'Online payment is currently unavailable. Contact DormMap support for payment assistance.'}</p>
+        </div>`,
+      showConfirmButton: qrPhAvailable,
       showCancelButton: true,
-      confirmButtonColor: '#2563eb',
-      cancelButtonColor: '#64748b',
-      confirmButtonText: 'Continue to PayMongo ➔',
-      cancelButtonText: 'Cancel',
+      showLoaderOnConfirm: true,
+      confirmButtonColor: '#047857',
+      cancelButtonColor: '#475569',
+      confirmButtonText: 'Continue to PayMongo',
+      cancelButtonText: qrPhAvailable ? 'Cancel' : 'Close',
+      allowOutsideClick: () => !Swal.isLoading(),
+      allowEscapeKey: () => !Swal.isLoading(),
       focusConfirm: false,
       preConfirm: async () => {
-        Swal.showLoading();
         try {
-          const res = await fetch('/api/payments/gcash/create', {
+          const res = await fetch('/api/payments/qrph/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              billingMonth: month,
-              tenantPaymentId: tenantPaymentId
-            })
+            body: JSON.stringify({ billingMonth: month, tenantPaymentId })
           });
-
           const data = await res.json();
           if (res.ok && data.checkoutUrl) {
-            window.location.href = data.checkoutUrl;
-            return false;
-          } else {
-            Swal.showValidationMessage(data.error || 'Failed to initiate PayMongo QR Ph checkout.');
+            window.location.assign(data.checkoutUrl);
             return false;
           }
-        } catch (err) {
-          console.error(err);
-          Swal.showValidationMessage('Network connection error. Please try again.');
-          return false;
+          Swal.showValidationMessage(data.error || 'Checkout could not start. Please try again.');
+        } catch {
+          Swal.showValidationMessage('Could not reach DormMap. Please try again.');
         }
+        return false;
       }
     });
   }
@@ -1544,17 +1562,19 @@
 
     list.innerHTML = applications.map(app => {
       const sl = statusLabels[app.status] || { label: app.status, cls: 'bg-slate-100 text-slate-600 border border-slate-200' };
-      const bhName = app.boardingHouseName || (app.owner ? app.owner.boardingHouseName : 'Boarding House');
+      const bhName = [app.owner?.propertyName || app.boardingHouseName || app.owner?.boardingHouseName || 'Boarding House',
+        app.owner?.branchNumber ? `Branch ${app.owner.branchNumber}` : ''].filter(Boolean).join(' · ');
+      const actionHouseName = escapeMessage(JSON.stringify(bhName));
       const ownerName = app.owner ? app.owner.fullName : 'Owner';
 
       let actionBtns = '';
       if (app.status === 'accepted_by_owner') {
         actionBtns = `
           <div class="flex items-center gap-2 mt-2">
-            <button onclick="confirmApplication('${app.id}', '${bhName}')" class="flex-1 px-3 py-2 bg-emerald-800 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm active:scale-95 flex items-center justify-center gap-1">
+            <button onclick="confirmApplication(${Number(app.id)}, ${actionHouseName})" class="flex-1 px-3 py-2 bg-emerald-800 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm active:scale-95 flex items-center justify-center gap-1">
               ✅ Accept Back & Confirm Room
             </button>
-            <button onclick="cancelApplication('${app.id}', '${bhName}')" class="px-3 py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-xl text-xs font-bold transition active:scale-95">
+            <button onclick="cancelApplication(${Number(app.id)}, ${actionHouseName})" class="px-3 py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-xl text-xs font-bold transition active:scale-95">
               ✕ Decline
             </button>
           </div>
@@ -1565,7 +1585,7 @@
             <button onclick="openConversationWith('${app.ownerId}')" class="flex-1 px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold transition active:scale-95 flex items-center justify-center gap-1">
               💬 Message Landlord
             </button>
-            <button onclick="cancelApplication('${app.id}', '${bhName}')" class="px-3 py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-xl text-xs font-bold transition active:scale-95">
+            <button onclick="cancelApplication(${Number(app.id)}, ${actionHouseName})" class="px-3 py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-xl text-xs font-bold transition active:scale-95">
               ✕ Cancel
             </button>
           </div>
@@ -1576,8 +1596,8 @@
         <div class="p-3.5 bg-white/80 rounded-2xl border border-amber-200/80 space-y-1.5 text-xs shadow-xs">
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
-              <p class="font-black text-slate-900 truncate">${bhName}</p>
-              <p class="text-slate-500 text-[11px]">${ownerName}</p>
+              <p class="font-black text-slate-900 truncate">${escapeMessage(bhName)}</p>
+              <p class="text-slate-500 text-[11px]">${escapeMessage(ownerName)}</p>
             </div>
             <span class="px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ${sl.cls}">${sl.label}</span>
           </div>
@@ -1592,7 +1612,7 @@
     const result = await Swal.fire({
       icon: 'question',
       title: '✅ Confirm Tenancy',
-      html: `Confirm your tenancy at <strong>${bhName}</strong>?<br><br><span class="text-sm text-rose-700">Your other pending boarding house applications will be cancelled automatically.</span>`,
+      html: `Confirm your tenancy at <strong>${escapeMessage(bhName)}</strong>?<br><br><span class="text-sm text-rose-700">Your other pending boarding house applications will be cancelled automatically.</span>`,
       confirmButtonColor: '#023020',
       confirmButtonText: 'Yes, Confirm My Room!',
       cancelButtonText: 'Not yet',
@@ -1605,7 +1625,7 @@
       const res = await fetch(`/tenant-dashboard/api/applications/${appId}/confirm`, { method: 'POST' });
       const data = await res.json();
       if (res.ok) {
-        await Swal.fire({ icon: 'success', title: '🎉 Tenancy Confirmed!', html: `Welcome! You are now an active tenant at <strong>${bhName}</strong>. All features are now unlocked!`, confirmButtonColor: '#023020' });
+        await Swal.fire({ icon: 'success', title: '🎉 Tenancy Confirmed!', html: `Welcome! You are now an active tenant at <strong>${escapeMessage(bhName)}</strong>. All features are now unlocked!`, confirmButtonColor: '#023020' });
         loadOverview();
       } else {
         Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to confirm application.', confirmButtonColor: '#023020' });
@@ -1619,7 +1639,7 @@
     const result = await Swal.fire({
       icon: 'warning',
       title: '❌ Cancel Application',
-      html: `Cancel your application at <strong>${bhName}</strong>?<br><small class="text-slate-500">The owner will be notified that you cancelled this application.</small>`,
+      html: `Cancel your application at <strong>${escapeMessage(bhName)}</strong>?<br><small class="text-slate-500">The owner will be notified that you cancelled this application.</small>`,
       confirmButtonColor: '#dc2626',
       confirmButtonText: 'Yes, Cancel It',
       cancelButtonText: 'Go Back',

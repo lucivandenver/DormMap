@@ -6,16 +6,22 @@ const getPaymongoWebhookSecretKey = () => (process.env.PAYMONGO_WEBHOOK_SECRET_K
 const getPaymongoBaseUrl = () => (process.env.PAYMONGO_API_BASE_URL || 'https://api.paymongo.com/v1').trim().replace(/\/+$/, '');
 const getAppBaseUrl = () => (process.env.APP_BASE_URL || 'http://localhost:3000').trim().replace(/\/+$/, '');
 
-/**
- * Helper to check if credentials are set or using placeholders
- */
-const isDummyKey = () => {
+export function getQrPhConfiguration() {
   const key = getPaymongoSecretKey();
-  return !key || 
-    key.includes('your_paymongo') || 
-    key.includes('dummy') ||
-    key.includes('placeholder');
-};
+  const isSecret = /^sk_(test|live)_[a-z0-9_]+$/i.test(key) && !/your_paymongo|dummy|placeholder/i.test(key);
+  const mode = isSecret ? (key.startsWith('sk_live_') ? 'live' : 'test') : null;
+  const webhookSecret = getPaymongoWebhookSecretKey();
+  return {
+    available: Boolean(mode && (process.env.NODE_ENV !== 'production' || mode === 'live')),
+    mode,
+    webhookConfigured: Boolean(webhookSecret && !/your_paymongo|dummy|placeholder/i.test(webhookSecret))
+  };
+}
+
+export function requireQrPhConfiguration() {
+  if (getQrPhConfiguration().available) return;
+  throw Object.assign(new Error('QR Ph is not configured for this deployment. Contact DormMap support for payment assistance.'), { status: 503 });
+}
 
 /**
  * Creates a QR Ph Payment Checkout Session via PayMongo API (/v1/checkout_sessions)
@@ -32,7 +38,7 @@ export const createPaymongoCheckoutSession = async ({
   const defaultSuccessUrl = successReturnUrl || `${getAppBaseUrl()}/payments/processing?ref=${reference}`;
   const defaultCancelUrl = failureReturnUrl || `${getAppBaseUrl()}/payments/failure?ref=${reference}`;
 
-  if (isDummyKey()) throw new Error('Online QR Ph payments are not configured. Set a valid PayMongo secret key on the server.');
+  requireQrPhConfiguration();
 
   const secretKey = getPaymongoSecretKey();
   const authHeader = `Basic ${Buffer.from(`${secretKey}:`).toString('base64')}`;
@@ -91,13 +97,9 @@ export const createPaymongoCheckoutSession = async ({
 
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      console.warn('[PayMongo API Error]', response.status, data);
-      const detailError = (data.errors && data.errors.length > 0 && data.errors[0].detail)
-        || data.detail
-        || data.message
-        || `PayMongo API returned HTTP ${response.status}`;
-
-      throw new Error(`PayMongo Checkout Error: ${detailError}`);
+      const providerCode = data.errors?.[0]?.code;
+      console.warn('[PayMongo checkout] Request failed', { status: response.status, providerCode });
+      throw new Error('PayMongo rejected the checkout request.');
     }
 
     const sessionData = data.data;
@@ -107,8 +109,8 @@ export const createPaymongoCheckoutSession = async ({
       checkout_url: sessionData.attributes.checkout_url,
       payments: sessionData.attributes.payments || []
     };
-  } catch (err) {
-    throw new Error('PayMongo checkout is unavailable. Verify the API key, enabled QR Ph payment channel, and connection, then retry.');
+  } catch {
+    throw new Error('QR Ph checkout could not start. Try again or contact DormMap support.');
   }
 };
 
@@ -120,7 +122,7 @@ export const getPaymongoCheckoutStatus = async (checkoutSessionId) => {
     return { status: 'PENDING', isSimulated: true };
   }
 
-  if (isDummyKey()) {
+  if (!getQrPhConfiguration().available) {
     return { status: 'PENDING', isSimulated: true };
   }
 
@@ -159,7 +161,7 @@ export const getPaymongoCheckoutStatus = async (checkoutSessionId) => {
 };
 
 export async function expireUnpaidPaymongoCheckout(checkoutSessionId) {
-  if (isDummyKey()) throw new Error('PayMongo is not configured.');
+  requireQrPhConfiguration();
   const secret = getPaymongoSecretKey();
   const response = await fetch(`${getPaymongoBaseUrl()}/checkout_sessions/${encodeURIComponent(checkoutSessionId)}/expire`, {
     method: 'POST',

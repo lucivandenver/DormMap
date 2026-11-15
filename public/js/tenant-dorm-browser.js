@@ -15,6 +15,7 @@
     if (value.startsWith('/uploads/') || value.startsWith('/images/')) return value;
     try { return new URL(value).protocol === 'https:' ? value : ''; } catch { return ''; }
   };
+  const title = item => [item.propertyName || item.name, item.branchNumber ? `Branch ${item.branchNumber}` : ''].filter(Boolean).join(' · ');
   const hasLocation = item => item.latitude !== null && item.longitude !== null && Number.isFinite(Number(item.latitude)) && Number.isFinite(Number(item.longitude));
   const activeApplication = item => item.application && ['pending_owner', 'accepted_by_owner', 'confirmed'].includes(item.application.status);
   function status(message, error = false) {
@@ -47,7 +48,7 @@
       return;
     }
     const filtered = listings.filter(item =>
-      (!search || [item.name, item.ownerName, item.address, item.barangay].some(value => String(value || '').toLowerCase().includes(search))) &&
+      (!search || [item.name, item.propertyName, item.ownerName, item.address, item.barangay].some(value => String(value || '').toLowerCase().includes(search))) &&
       (barangay === 'all' || item.barangay === barangay) &&
       (!el('browseSavedOnly').checked || item.isSaved) &&
       (!el('browseAvailableOnly').checked || item.roomsAvailable > 0) &&
@@ -72,11 +73,11 @@
       const application = activeApplication(item);
       return `<article class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm" data-dorm="${key}">
         <div class="relative h-36 bg-emerald-50 flex items-center justify-center overflow-hidden">
-          ${picture ? `<img src="${escapeHtml(picture)}" alt="${escapeHtml(item.name)}" loading="lazy" class="w-full h-full object-cover">` : '<span class="text-emerald-800 font-bold text-sm">DormMap</span>'}
+          ${picture ? `<img src="${escapeHtml(picture)}" alt="${escapeHtml(title(item))}" loading="lazy" class="w-full h-full object-cover">` : '<span class="text-emerald-800 font-bold text-sm">DormMap</span>'}
           <span class="absolute top-2 right-2 bg-white rounded-full px-2 py-1 text-xs font-bold">${Number(item.roomsAvailable)} ${Number(item.roomsAvailable) === 1 ? 'room' : 'rooms'} available</span>
         </div>
         <div class="p-4 space-y-3">
-          <div><h4 class="font-bold text-slate-900">${escapeHtml(item.name)}</h4><p class="text-xs text-slate-500">${escapeHtml(item.address || item.barangay || 'Address not provided')}</p></div>
+          <div><h4 class="font-bold text-slate-900">${escapeHtml(title(item))}</h4><p class="text-xs text-slate-500">${escapeHtml(item.address || item.barangay || 'Address not provided')}</p></div>
           <p class="text-emerald-800 font-bold text-xs">${escapeHtml(rate(item))}<br><span class="font-normal">${escapeHtml(item.pricingLabel || 'Confirm price basis')}</span></p>
           <p class="text-xs text-slate-500">${escapeHtml(item.ownerName)} · ${escapeHtml(item.barangay)}</p>
           <p class="text-xs text-slate-600">${escapeHtml(item.propertyType)} · ${item.floorCount || 'Unspecified'} floors · ${Number(item.availableBeds || 0)} bedspaces available</p>
@@ -84,15 +85,42 @@
           ${application ? `<p class="text-xs font-semibold text-emerald-800">Application: ${escapeHtml(item.application.status.replace(/_/g, ' '))}</p>` : ''}
           <div class="flex gap-2 flex-wrap">
             <button type="button" data-action="save" aria-pressed="${item.isSaved}" ${saving.has(item.id) ? 'disabled' : ''} class="px-3 py-2 rounded-xl border border-emerald-800 text-emerald-900 text-xs font-bold">${saving.has(item.id) ? 'Saving…' : item.isSaved ? '♥ Saved' : '♡ Save dorm'}</button>
-            <label class="flex items-center gap-2 text-xs text-slate-700"><input type="checkbox" data-action="compare" ${selected.has(item.id) ? 'checked' : ''}> Compare<span class="sr-only"> ${escapeHtml(item.name)}</span></label>
+            <label class="flex items-center gap-2 text-xs text-slate-700"><input type="checkbox" data-action="compare" ${selected.has(item.id) ? 'checked' : ''}> Compare<span class="sr-only"> ${escapeHtml(title(item))}</span></label>
           </div>
-          <div class="flex gap-2">
+          <div class="flex gap-2 flex-wrap">
+            ${item.branchGalleries?.some(branch => branch.photos.length) ? '<button type="button" data-action="photos" class="px-3 py-2 bg-slate-100 rounded-xl text-xs font-bold">View photos</button>' : ''}
             <button type="button" data-action="map" ${hasLocation(item) && typeof window.L !== 'undefined' ? '' : 'disabled'} class="px-3 py-2 bg-slate-100 rounded-xl text-xs font-bold">${!hasLocation(item) ? 'No map pin' : typeof window.L === 'undefined' ? 'Map unavailable' : 'Map'}</button>
             <button type="button" data-action="${application ? 'message' : 'apply'}" class="flex-1 px-3 py-2 bg-emerald-950 text-white rounded-xl text-xs font-bold">${application ? 'Message owner' : 'Inquire & Apply'}</button>
           </div>
         </div>
       </article>`;
     }).join('') : '<p class="col-span-full text-sm text-slate-500 py-8 text-center">No dorms match these filters. Try clearing a filter or saving a dorm first.</p>';
+  }
+
+  function showBranchGallery(item) {
+    const slides = window.DormBranchGallery.slidesFor(item).filter(slide => safeImage(slide.url));
+    if (!slides.length) return;
+    const dialog = el('tenantBranchGallery');
+    const photo = el('tenantBranchGalleryPhoto');
+    const unavailable = el('tenantBranchGalleryUnavailable');
+    let index = 0;
+    function render() {
+      const slide = slides[index];
+      photo.hidden = false;
+      unavailable.hidden = true;
+      photo.src = slide.url;
+      photo.alt = slide.caption;
+      el('tenantBranchGalleryCaption').textContent = slide.caption;
+      el('tenantBranchGalleryCount').textContent = `${index + 1} / ${slides.length}`;
+      el('tenantBranchGalleryPrev').disabled = index === 0;
+      el('tenantBranchGalleryNext').disabled = index === slides.length - 1;
+    }
+    photo.onerror = () => { photo.hidden = true; unavailable.hidden = false; };
+    el('tenantBranchGalleryTitle').textContent = item.propertyName || item.name;
+    el('tenantBranchGalleryPrev').onclick = () => { index--; render(); };
+    el('tenantBranchGalleryNext').onclick = () => { index++; render(); };
+    render();
+    dialog.showModal();
   }
 
   function inquire(item) {
@@ -116,7 +144,7 @@
     located.forEach(item => {
       const popup = document.createElement('div');
       const name = document.createElement('strong');
-      name.textContent = item.name;
+      name.textContent = title(item);
       const price = document.createElement('p');
       price.textContent = rate(item);
       popup.append(name, price);
@@ -173,7 +201,7 @@
       ['House rules', item => plainList(item.houseRules)], ['Owner', item => item.ownerName],
       ['Contact', item => item.ownerContact || 'Not provided'],
     ];
-    el('dormCompareTable').innerHTML = `<thead><tr><th scope="col">Details</th>${items.map(item => `<th scope="col">${escapeHtml(item.name)}</th>`).join('')}</tr></thead><tbody>${rows.map(([label, value]) => `<tr><th scope="row">${label}</th>${items.map(item => `<td>${escapeHtml(value(item))}</td>`).join('')}</tr>`).join('')}</tbody>`;
+    el('dormCompareTable').innerHTML = `<thead><tr><th scope="col">Details</th>${items.map(item => `<th scope="col">${escapeHtml(title(item))}</th>`).join('')}</tr></thead><tbody>${rows.map(([label, value]) => `<tr><th scope="row">${label}</th>${items.map(item => `<td>${escapeHtml(value(item))}</td>`).join('')}</tr>`).join('')}</tbody>`;
     el('dormCompareDialog').showModal();
   }
 
@@ -182,6 +210,7 @@
     if (!control || control.dataset.action === 'compare') return;
     const item = listings.find(dorm => dorm.id === control.closest('[data-dorm]').dataset.dorm);
     if (!item) return;
+    if (control.dataset.action === 'photos') showBranchGallery(item);
     if (control.dataset.action === 'save') toggleSave(item);
     if (control.dataset.action === 'apply') inquire(item);
     if (control.dataset.action === 'message') window.openConversationWith(item.ownerId);

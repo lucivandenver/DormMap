@@ -16,11 +16,10 @@ function parseList(value) {
 
 export async function publicDormListings() {
   const listings = await listTenantDorms(null, {}, { includeUnregistered: true });
-  const gallery = listings.length ? await OwnerGallery.findAll({ where: { ownerId: { [Op.in]: [...new Set(listings.map(item => item.ownerId))] } }, order: [['sortOrder', 'ASC']] }) : [];
   return listings.map(item => ({
     roomInventory: item.roomInventory, propertyType: item.propertyType, floorCount: item.floorCount, totalCapacity: item.totalCapacity, occupiedPeople: item.occupiedPeople, availableBeds: item.availableBeds, pricingLabel: item.pricingLabel,
     id: item.id, registrationStatus: item.registrationStatus, bhId: item.establishmentId, ownerId: item.ownerId,
-    boardingHouseName: item.name, boardingHouseAddress: item.address, barangay: item.barangay,
+    boardingHouseName: item.name, propertyName: item.propertyName, branchNumber: item.branchNumber, branchGalleries: item.branchGalleries, boardingHouseAddress: item.address, barangay: item.barangay,
     fullName: item.ownerName, contactNumber: item.ownerContact,
     boardingHousePicture: item.picture, latitude: item.latitude, longitude: item.longitude,
     roomsAvailable: item.roomsAvailable, availableSlots: item.availableSlots,
@@ -28,7 +27,7 @@ export async function publicDormListings() {
     roomTypes: item.roomTypes.length ? item.roomTypes : parseList(item.legacyRoomTypes),
     paymentMethods: parseList(item.paymentMethods), amenities: item.amenities, houseRules: item.houseRules,
     description: item.description, createdAt: item.createdAt,
-    galleryImages: [...new Set([item.picture, ...parseList(item.legacyGalleryImages), ...gallery.filter(g => g.ownerId === item.ownerId && (g.boardingHouseId === item.establishmentId || (!g.boardingHouseId && item.isPrimary))).map(g => g.imageUrl)].filter(Boolean))],
+    galleryImages: item.galleryImages,
   }));
 }
 

@@ -42,7 +42,7 @@ router.use(requirePaymentUser);
 
 // ─── Authenticated Tenant Routes ──────────────────────────────────────────────
 router.get('/landlord-gcash', requireTenantUser, getLandlordGcashInfo);
-router.post('/gcash/create', requireTenantUser, validatePaymentCreation, createGcashPayment);
+router.post(['/qrph/create', '/gcash/create'], requireTenantUser, validatePaymentCreation, createGcashPayment);
 router.post('/gcash/authorize-portal', requireTenantUser, authorizePortalPayment);
 router.get('/tenant/list', requireTenantUser, getTenantPayments);
 

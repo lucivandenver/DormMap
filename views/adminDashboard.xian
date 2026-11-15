@@ -453,8 +453,16 @@
         <div class="rounded-2xl bg-white p-6 shadow-xs border border-slate-100">
           <h2 class="text-lg font-bold text-slate-900 mb-2">System Settings & Configuration</h2>
           <p class="text-xs text-slate-500 mb-6">Manage municipality parameters, reporting schedules, notification intervals, and file upload limits.</p>
+          <section class="mb-5 rounded-xl border border-slate-200 p-4 text-sm" aria-labelledby="qrPhSettingsHeading">
+            <h3 id="qrPhSettingsHeading" class="font-bold">PayMongo QR Ph</h3>
+            <p id="qrPhSettingsStatus" class="mt-1 text-slate-600"></p>
+          </section>
           <form id="systemSettingsForm" class="space-y-4 max-w-2xl">
             <div id="settingsFieldsContainer" class="space-y-4"></div>
+            <fieldset class="space-y-3 rounded-xl border p-4">
+              <legend class="px-2 text-sm font-bold">Dormigo quick questions</legend>
+              <div id="dormigoQuestionFields" class="space-y-3"></div>
+            </fieldset>
             <button class="button !bg-emerald-700 !text-white mt-4 flex items-center gap-2">
               Save All Settings
             </button>
@@ -661,7 +669,7 @@
 </div>
 
 <!-- GENERIC CRUD MODAL -->
-<div id="modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/50 p-4"><div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"><div class="flex items-center justify-between"><h2 id="modalTitle" class="text-lg font-bold"></h2><button onclick="closeModal('modal')">✕</button></div><form id="recordForm" class="mt-5 space-y-3"></form></div></div>
+<div id="modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/50 p-4"><div class="w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl bg-white p-6 shadow-2xl"><div class="flex items-center justify-between"><h2 id="modalTitle" class="text-lg font-bold"></h2><button onclick="closeModal('modal')">✕</button></div><form id="recordForm" class="mt-5 space-y-3"></form></div></div>
 
 <!-- TOAST -->
 <div id="toast" class="fixed bottom-5 right-5 hidden z-50 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-medium text-white shadow-lg"></div>
@@ -1560,24 +1568,71 @@ async function exportSubmissionExcel(id) {
   } catch (e) { toast(e.message, true); }
 }
 
+let barangayApplications = [];
 async function loadBarangayAccounts() {
   try {
     const d = await request(api + '/barangay-accounts');
+    barangayApplications = d.data;
     document.getElementById('barangayAccountsTable').innerHTML = d.data.length ? d.data.map(x => `<tr>
       <td><b>${esc(x.fullName)}</b><br>${esc(x.email)}</td>
       <td>${esc(x.barangay || 'Profile incomplete')}<br>${esc(x.positionTitle || '')}</td>
       <td><span class="badge">${esc(x.applicationStatus)}</span><p>${esc(x.applicationReviewNote || '')}</p></td>
-      <td class="space-x-2">${x.applicationStatus === 'approved' ? `<button class="text-emerald-700 font-bold" onclick='openRecordForm("barangay-accounts",${esc(JSON.stringify(x))})'>Edit Account</button>` : ''}<button class="text-emerald-700 font-bold" onclick="reviewBarangayAccount(${x.id}, 'approve')">Approve</button><button class="text-amber-700 font-bold" onclick="reviewBarangayAccount(${x.id}, 'revision')">Revision</button><button class="text-rose-700 font-bold" onclick="reviewBarangayAccount(${x.id}, 'reject')">Reject</button><button class="text-rose-700" onclick="reviewBarangayAccount(${x.id}, 'suspend')">Suspend</button></td>
+      <td><button type="button" class="button secondary" onclick="openBarangayReview(${x.id})">Review</button></td>
     </tr>`).join('') : '<tr><td colspan="4">No barangay account applications yet.</td></tr>';
   } catch (e) { toast(e.message, true); }
 }
-async function reviewBarangayAccount(id, action) {
-  const note = action === 'approve' ? 'Approved by BPLO.' : prompt('Review note (required):');
-  if (note === null) return;
-  try {
-    await request(`${api}/barangay-accounts/${id}/review`, { method: 'PATCH', body: JSON.stringify({ action, note }) });
-    toast('Barangay account updated.'); loadBarangayAccounts(); loadOverview();
-  } catch (e) { toast(e.message, true); }
+function openBarangayReview(id) {
+  const application = barangayApplications.find(item => Number(item.id) === Number(id));
+  if (!application) return;
+  document.getElementById('modalTitle').textContent = 'Review barangay registration';
+  const form = document.getElementById('recordForm');
+  form.innerHTML = `
+    <dl class="space-y-1 rounded-xl bg-slate-50 p-4 text-sm">
+      <dt class="font-bold">${esc(application.fullName)}</dt>
+      <dd>${esc(application.email)}</dd>
+      <dd>${esc([application.barangay, application.positionTitle].filter(Boolean).join(' · ') || 'Profile incomplete')}</dd>
+      <dd>Current status · ${esc(application.applicationStatus)}</dd>
+      ${application.applicationReviewNote ? `<dd>Previous note · ${esc(application.applicationReviewNote)}</dd>` : ''}
+    </dl>
+    <label class="block text-sm font-semibold">Decision
+      <select class="field mt-1" name="action" required>
+        <option value="">Select a decision</option>
+        <option value="approve">Approve</option>
+        <option value="revision">Revision</option>
+        <option value="reject">Reject</option>
+      </select>
+    </label>
+    <label class="block text-sm font-semibold">Notes
+      <textarea class="field mt-1" name="note" rows="4" maxlength="2000"></textarea>
+    </label>
+    <p role="alert" data-review-error class="text-sm text-rose-700"></p>
+    <div class="flex justify-end gap-2">
+      <button type="button" class="button secondary" onclick="closeModal('modal')">Cancel</button>
+      <button type="submit" class="button">Save</button>
+    </div>`;
+  form.elements.action.onchange = () => {
+    form.elements.note.required = ['revision', 'reject'].includes(form.elements.action.value);
+  };
+  form.onsubmit = async event => {
+    event.preventDefault();
+    const save = form.querySelector('button[type="submit"]');
+    save.disabled = true;
+    form.querySelector('[data-review-error]').textContent = '';
+    try {
+      await request(`${api}/barangay-accounts/${id}/review`, {
+        method: 'PATCH', body: JSON.stringify(Object.fromEntries(new FormData(form)))
+      });
+      closeModal('modal');
+      toast('Barangay account updated.');
+      loadBarangayAccounts();
+      loadOverview();
+    } catch (error) {
+      form.querySelector('[data-review-error]').textContent = error.message;
+    } finally {
+      save.disabled = false;
+    }
+  };
+  openModal('modal');
 }
 
 // 4. OWNERS
@@ -1593,11 +1648,14 @@ async function loadOwners(page = 1) {
     document.getElementById('ownersTable').innerHTML = d.data.length ? d.data.map(x => `
       <tr>
         <td><b>${esc(x.fullName)}</b><br><span class="text-xs text-slate-500">${esc(x.boardingHouseName || 'No Property')} · ${esc(x.email)}</span></td>
-        <td>${esc(x.barangay || '—')}</td>
+        <td>${esc(x.barangay || '—')}
+          ${x.branches?.length ? `<ul class="mt-1 text-xs text-slate-500">${x.branches.map(branch => `<li>Branch ${branch.number} · ${esc(branch.barangay || 'No barangay')} · ${esc(branch.status)}</li>`).join('')}</ul>` : ''}
+        </td>
         <td><a class="text-emerald-700 underline text-xs font-bold" href="${esc(x.businessPermit || '#')}" target="_blank">Permit</a></td>
         <td><span class="badge status-${esc(x.applicationStatus)}">${esc(x.applicationStatus)}</span></td>
         <td>${new Date(x.createdAt).toLocaleDateString()}</td>
         <td class="space-x-1 text-xs">
+          <button type="button" class="text-emerald-800 font-bold" onclick="openOwnerTenantAssignments(${x.id})">Tenants</button>
           <button class="text-red-700 font-bold" onclick="reviewOwnerMap(${x.id}, '${x.publicMapUnregistered ? 'registered' : 'unregistered'}')">${x.publicMapUnregistered ? 'Mark registered' : 'Mark unregistered'}</button>
           ${x.publicMapUnregistered ? `<button onclick="reviewOwnerMap(${x.id}, '${x.publicMapPublished ? 'hide' : 'publish'}')">${x.publicMapPublished ? 'Hide red pin' : 'Publish red pin'}</button>` : ''}
           <button class="text-emerald-700 font-bold" onclick="reviewOwner(${x.id}, 'approve')">Approve</button>
@@ -1607,6 +1665,20 @@ async function loadOwners(page = 1) {
       </tr>
     `).join('') : '<tr><td colspan="6" class="text-center text-slate-500 py-6">No owner applications found.</td></tr>';
   } catch (e) { toast(e.message, true); }
+}
+
+async function openOwnerTenantAssignments(ownerId) {
+  try {
+    const { data } = await request(`${api}/owners/${ownerId}/tenants`);
+    document.getElementById('modalTitle').textContent = 'Tenant branch assignments';
+    const form = document.getElementById('recordForm');
+    form.onsubmit = null;
+    form.innerHTML = data.length ? `<ul class="divide-y">${data.map(tenant => `
+      <li class="py-2"><b>${esc(tenant.fullName)}</b>
+        <p class="text-sm text-slate-500">${esc(tenant.selectedBoardingHouse || 'Unassigned')}${tenant.branchNumber ? ` · Branch ${tenant.branchNumber}` : ''}</p>
+      </li>`).join('')}</ul>` : '<p class="text-sm text-slate-500">No tenant records.</p>';
+    openModal('modal');
+  } catch (error) { toast(error.message, true); }
 }
 
 async function reviewOwnerMap(id, action) {
@@ -1662,6 +1734,15 @@ async function reviewRenewal(id, action) {
 async function loadSettings() {
   try {
     const d = await request(api + '/settings');
+    const qrPh = d.qrPh;
+    const keyStatus = qrPh.available ? `Secret key loaded (${qrPh.mode} mode).` :
+      'QR Ph unavailable. Set PAYMONGO_SECRET_KEY to a live secret key in Render Environment and redeploy.';
+    document.getElementById('qrPhSettingsStatus').textContent = keyStatus + (qrPh.webhookConfigured ?
+      ' Webhook signing secret loaded.' : ' Add PAYMONGO_WEBHOOK_SECRET_KEY to verify payment webhooks.');
+    document.getElementById('dormigoQuestionFields').innerHTML = d.dormigoQuestions.map((question, index) => `
+      <label class="block text-sm font-semibold">Question ${index + 1}
+        <input name="dormigoQuestion" maxlength="160" required class="field mt-1" value="${esc(question)}">
+      </label>`).join('');
     const container = document.getElementById('settingsFieldsContainer');
     container.innerHTML = d.data.map(s => `
       <div>
@@ -1675,9 +1756,10 @@ async function loadSettings() {
 document.getElementById('systemSettingsForm').onsubmit = async (e) => {
   e.preventDefault();
   const formData = new FormData(e.target);
-  const settings = Array.from(formData.entries()).map(([key, value]) => ({ key, value }));
+  const settings = Array.from(formData.entries()).filter(([key]) => key !== 'dormigoQuestion').map(([key, value]) => ({ key, value }));
+  const dormigoQuestions = formData.getAll('dormigoQuestion');
   try {
-    await request(api + '/settings', { method: 'POST', body: JSON.stringify({ settings }) });
+    await request(api + '/settings', { method: 'POST', body: JSON.stringify({ settings, dormigoQuestions }) });
     toast('System settings saved successfully.');
     loadSettings();
   } catch (err) { toast(err.message, true); }
