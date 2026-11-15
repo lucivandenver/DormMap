@@ -1,3 +1,4 @@
+import { tenantBranchAssignments } from '../services/propertyBranchesService.js';
 import { namedMessages } from '../services/messageIdentityService.js';
 import { listApprovedBranchPins, listBarangayBranches, reviewBranch } from '../services/branchReviewService.js';
 import { OwnerTenant, OwnerRoom, BoardingHouse } from '../models/ownerModels.js';
@@ -840,21 +841,8 @@ export const publishAnnouncement = async (req, res, next) => {
   } catch (e) { next(e); } 
 };
 
-async function scopedTenantRows(barangay, search = '') {
-  const owners = await User.findAll({ where: ownersWhere(barangay), attributes: ['id','boardingHouseName'] });
-  const ownerIds = owners.map(owner => owner.id);
-  const where = { ownerId: { [Op.in]: ownerIds } };
-  if (search) where[Op.or] = ['fullName','email','contactNumber'].map(field => ({ [field]: { [Op.like]: `%${search}%` } }));
-  const [tenants, rooms, houses] = await Promise.all([
-    OwnerTenant.findAll({ where, order: [['createdAt','DESC']] }),
-    OwnerRoom.findAll({ where: { ownerId: { [Op.in]: ownerIds } } }),
-    BoardingHouse.findAll({ where: { ownerId: { [Op.in]: ownerIds } } }),
-  ]);
-  return tenants.map(tenant => {
-    const room = rooms.find(room => room.id === tenant.roomId);
-    return { ...tenant.toJSON(), roomNumber: room?.roomNumber || null, selectedBoardingHouse: houses.find(house => house.id === room?.boardingHouseId)?.name || owners.find(owner => owner.id === tenant.ownerId)?.boardingHouseName || '' };
-  });
-}
+const scopedTenantRows = (barangay, search = '') => barangay ? tenantBranchAssignments({ barangay, search }) : [];
+
 export const tenants = async (req, res, next) => {
   try {
     const rows = await scopedTenantRows(await barangayOf(req), req.query.search);
@@ -865,7 +853,7 @@ export const tenants = async (req, res, next) => {
     const photos = new Map(users.map(user => [user.id, user.profilePicture]));
     res.json({ data: rows.map(row => ({
       fullName: row.fullName, email: row.email, contactNumber: row.contactNumber,
-      status: row.status, roomNumber: row.roomNumber, selectedBoardingHouse: row.selectedBoardingHouse,
+      status: row.status, roomNumber: row.roomNumber, selectedBoardingHouse: row.selectedBoardingHouse, branchNumber: row.branchNumber,
       moveInDate: row.moveInDate, createdAt: row.createdAt, profilePicture: photos.get(row.tenantUserId) || null
     })) });
   }

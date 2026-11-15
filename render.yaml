@@ -44,3 +44,7 @@ services:
         sync: false
       - key: APP_BASE_URL
         sync: false
+      - key: PAYMONGO_SECRET_KEY
+        sync: false
+      - key: PAYMONGO_WEBHOOK_SECRET_KEY
+        sync: false

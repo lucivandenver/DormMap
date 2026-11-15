@@ -1,3 +1,4 @@
+import { getDormigoQuestions } from '../services/dormigoQuestionsService.js';
 import { processDormigoChat, fetchLiveDatabaseContext, SYSTEM_KNOWLEDGE } from '../services/dormigoAiService.js';
 
 export const handleDormigoChat = async (req, res) => {
@@ -40,15 +41,8 @@ export const handleDormigoChat = async (req, res) => {
 
 export const getDormigoSuggestions = async (req, res) => {
   try {
-    const dbContext = await fetchLiveDatabaseContext();
-    const suggestions = [
-      `🏡 ${dbContext.totalHouses} Boarding houses sa Bongabong`,
-      '📍 Boarding houses malapit sa MinSU',
-      '💰 Available rooms under ₱2,000',
-      '💳 Paano magbayad gamit ang GCash?',
-      '🛡️ Paano ma-verify ng BPLO ang dorm?'
-    ];
-    return res.json({ success: true, suggestions, dbSummary: { totalHouses: dbContext.totalHouses, totalRooms: dbContext.totalRoomsAvailable } });
+    res.set('Cache-Control', 'no-store');
+    return res.json({ success: true, suggestions: await getDormigoQuestions() });
   } catch (error) {
     return res.status(500).json({ success: false, error: error.message });
   }

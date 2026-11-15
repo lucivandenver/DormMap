@@ -1,3 +1,5 @@
+import { getQrPhConfiguration } from '../services/paymongoService.js';
+import { orderBranches } from '../services/propertyBranchesService.js';
 import { confirmOffer } from '../services/occupancyService.js';
 import { listTenantDorms } from '../services/dormListingService.js';
 import { Op, fn, col } from 'sequelize';
@@ -15,7 +17,11 @@ const getTenantRecord = findActiveRental;
 async function propertyOwnerView(owner, room) {
   if (!owner) return null;
   const result = owner.get({ plain: true });
-  const house = room?.boardingHouseId ? await BoardingHouse.findOne({ where: { id: room.boardingHouseId, ownerId: owner.id } }) : null;
+  const branches = orderBranches(await BoardingHouse.findAll({ where: { ownerId: owner.id } }));
+  const index = branches.findIndex(branch => room?.boardingHouseId ? branch.id === room.boardingHouseId : branch.isPrimary);
+  const house = branches[index];
+  result.propertyName = owner.boardingHouseName || house?.name;
+  result.branchNumber = index >= 0 ? index + 1 : room && !room.boardingHouseId ? 1 : null;
   if (house) Object.assign(result, { boardingHouseName: house.name, boardingHouseAddress: house.address, barangay: house.barangay, boardingHousePicture: house.picture, boardingHouseLatitude: house.latitude, boardingHouseLongitude: house.longitude, amenities: house.amenities, houseRules: house.houseRules, description: house.description });
   return result;
 }
@@ -150,7 +156,7 @@ export const overview = async (req, res, next) => {
       }
       return {
         ...app.get({ plain: true }),
-        owner: appOwner ? appOwner.get({ plain: true }) : null,
+        owner: app.boardingHouseId ? await propertyOwnerView(appOwner, { boardingHouseId: app.boardingHouseId }) : appOwner?.get({ plain: true }) || null,
         room: appRoom ? appRoom.get({ plain: true }) : null,
       };
     }));
@@ -296,6 +302,7 @@ export const getPaymentHistory = async (req, res, next) => {
 
     res.json({
       payments,
+      qrPhAvailable: getQrPhConfiguration().available,
       totalPaid,
       totalBalance,
       tenantRecord: tenantRec
@@ -670,7 +677,7 @@ export const getApplications = async (req, res, next) => {
       }
       return {
         ...app.get({ plain: true }),
-        owner: appOwner ? appOwner.get({ plain: true }) : null,
+        owner: app.boardingHouseId ? await propertyOwnerView(appOwner, { boardingHouseId: app.boardingHouseId }) : appOwner?.get({ plain: true }) || null,
         room: appRoom ? appRoom.get({ plain: true }) : null,
       };
     }));
@@ -716,7 +723,9 @@ export const applyBoardingHouse = async (req, res, next) => {
       where: {
         tenantId: user.id,
         ownerId: owner.id,
-        boardingHouseName: boardingHouseName,
+        [Op.or]: selectedHouse
+          ? [{ boardingHouseId: selectedHouse.id }, { boardingHouseId: null, boardingHouseName: selectedHouse.name }]
+          : [{ boardingHouseId: null, boardingHouseName }],
         status: { [Op.in]: ['pending_owner', 'accepted_by_owner', 'confirmed'] }
       }
     });
@@ -736,7 +745,7 @@ export const applyBoardingHouse = async (req, res, next) => {
       tenantId: user.id,
       ownerId: owner.id,
       boardingHouseId: selectedHouse?.id || null,
-      boardingHouseName,
+      boardingHouseName: selectedHouse?.name || owner.boardingHouseName,
       requestedRoomType: requestedRoomType || null,
       message: message || `Inquired/Applied via DormMap Browse. Contact: ${user.contactNumber || 'N/A'}, Gender: ${user.gender || 'N/A'}${roomTypeInfo}`,
       status: 'pending_owner'

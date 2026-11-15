@@ -1,6 +1,8 @@
+import { orderBranches } from './propertyBranchesService.js';
+import { GALLERY_CATEGORIES } from './propertyPhotoService.js';
 import { Op } from 'sequelize';
 import { User } from '../models/userModel.js';
-import { BoardingHouse, OwnerRoom, OwnerTenant } from '../models/ownerModels.js';
+import { BoardingHouse, OwnerRoom, OwnerTenant, OwnerGallery } from '../models/ownerModels.js';
 import { TenantApplication } from '../models/tenantModels.js';
 import { SavedDorm } from '../models/savedDormModel.js';
 
@@ -22,7 +24,7 @@ export function filterDormListings(listings, query = {}) {
     throw error;
   }
   const filtered = listings.filter(item => {
-    if (search && ![item.name, item.ownerName, item.address, item.barangay].some(value => String(value || '').toLowerCase().includes(search))) return false;
+    if (search && ![item.name, item.propertyName, item.ownerName, item.address, item.barangay].some(value => String(value || '').toLowerCase().includes(search))) return false;
     if (barangay !== 'all' && item.barangay !== barangay) return false;
     if (query.savedOnly === 'true' && !item.isSaved) return false;
     if (query.availableOnly === 'true' && item.roomsAvailable < 1) return false;
@@ -57,22 +59,46 @@ export async function listTenantDorms(tenantId, query = {}, { includeUnregistere
       'rentalPriceMin', 'rentalPriceMax', 'amenities', 'houseRules', 'roomTypes', 'paymentMethods', 'galleryImages', 'createdAt', 'publicMapUnregistered'],
   });
   const ownerIds = owners.map(owner => owner.id);
-  const [houses, rooms, applications, saved, occupants] = await Promise.all([
+  const [houses, rooms, applications, saved, occupants, gallery] = await Promise.all([
     BoardingHouse.findAll({ where: { ownerId: { [Op.in]: ownerIds } } }),
     OwnerRoom.findAll({ where: { ownerId: { [Op.in]: ownerIds } } }),
     tenantId ? TenantApplication.findAll({ where: { tenantId }, order: [['createdAt', 'DESC'], ['id', 'DESC']] }) : [],
     tenantId ? SavedDorm.findAll({ where: { tenantId } }) : [],
     OwnerTenant.findAll({ where: { ownerId: { [Op.in]: ownerIds }, status: 'active' }, attributes: ['ownerId','roomId','occupantCount','bedNumber'] }),
+    OwnerGallery.findAll({ where: { ownerId: { [Op.in]: ownerIds } }, order: [['sortOrder', 'ASC'], ['id', 'ASC']] }),
   ]);
   const savedKeys = new Set(saved.map(item => item.listingKey));
   const listings = [];
   for (const owner of owners) {
-    const ownedHouses = houses.filter(house => house.ownerId === owner.id);
+    const ownedHouses = orderBranches(houses.filter(house => house.ownerId === owner.id));
     if (!ownedHouses.length && !owner.boardingHouseName) continue;
-    for (const house of ownedHouses.length ? ownedHouses : [null]) {
-      if (house && house.approvalStatus !== 'approved') continue;
-      if (owner.publicMapUnregistered && house && house.barangay !== owner.barangay) continue;
+    const properties = ownedHouses.length ? ownedHouses : [null];
+    const ownerPhotos = gallery.filter(photo => photo.ownerId === owner.id);
+    let legacyImages = [];
+    try { legacyImages = JSON.parse(owner.galleryImages || '[]'); } catch { /* Missing legacy photos. */ }
+    const visible = properties.map((house, index) => ({ house, number: index + 1 })).filter(({ house }) =>
+      (!house || house.approvalStatus === 'approved') &&
+      (!owner.publicMapUnregistered || !house || house.barangay === owner.barangay)
+    );
+    const branchGalleries = visible.map(({ house, number }) => {
+      const primary = !house || house.isPrimary;
+      const photos = GALLERY_CATEGORIES.flatMap(category => {
+        const slot = ownerPhotos.find(photo => photo.boardingHouseId === house?.id && Number(photo.sortOrder) === category.index)
+          || (primary && ownerPhotos.find(photo => !photo.boardingHouseId && Number(photo.sortOrder) === category.index));
+        const legacy = primary && Array.isArray(legacyImages) ? legacyImages[category.index - 1] : null;
+        const cover = category.index === 1 ? house?.picture || (primary && owner.boardingHousePicture) : null;
+        const url = slot?.imageUrl || legacy || cover;
+        return typeof url === 'string' && url.trim() ? [{ url, label: category.label, outdoor: category.key === 'outdoor' }] : [];
+      });
+      return { branchNumber: number, photos };
+    });
+    for (const { house, number: branchNumber } of visible) {
       const isPrimary = !house || house.isPrimary;
+      const picture = house?.picture || (isPrimary ? owner.boardingHousePicture : '') || '';
+      const galleryImages = [...new Set([picture,
+        ...(isPrimary && Array.isArray(legacyImages) ? legacyImages : []),
+        ...ownerPhotos.filter(photo => photo.boardingHouseId === house?.id || (!photo.boardingHouseId && isPrimary)).map(photo => photo.imageUrl)
+      ].filter(url => typeof url === 'string' && url.trim()))];
       const houseLatitude = coordinate(house?.latitude, 90);
       const houseLongitude = coordinate(house?.longitude, 180);
       const hasHousePin = houseLatitude !== null && houseLongitude !== null;
@@ -93,6 +119,9 @@ export async function listTenantDorms(tenantId, query = {}, { includeUnregistere
       const bases = [...new Set(roomInventory.map(room => room.rentalBasis))];
       listings.push({
         id: key,
+        propertyName: owner.boardingHouseName || name,
+        branchNumber,
+        branchGalleries,
         propertyType: house?.propertyType || 'Boarding House',
         floorCount: house?.floorCount || null,
         roomInventory,
@@ -106,7 +135,7 @@ export async function listTenantDorms(tenantId, query = {}, { includeUnregistere
         roomTypes: [...new Set(houseRooms.map(room => room.roomType))],
         legacyRoomTypes: owner.roomTypes,
         paymentMethods: owner.paymentMethods,
-        legacyGalleryImages: (!house || house.isPrimary) ? owner.galleryImages : null,
+        galleryImages,
         establishmentId: house?.id || null,
         ownerId: owner.id,
         ownerName: owner.fullName,
@@ -116,7 +145,7 @@ export async function listTenantDorms(tenantId, query = {}, { includeUnregistere
         barangay: house?.barangay || owner.barangay || '',
         latitude,
         longitude,
-        picture: house?.picture || (house?.isPrimary || !house ? owner.boardingHousePicture : '') || '',
+        picture,
         description: house?.description || '',
         amenities: house?.amenities || owner.amenities || '',
         houseRules: house?.houseRules || owner.houseRules || '',

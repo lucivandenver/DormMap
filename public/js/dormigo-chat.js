@@ -29,6 +29,26 @@
     const typing = document.getElementById('dormigoTyping');
     const initialTime = document.getElementById('dormigoInitialTime');
 
+    const greeting = messages.innerHTML;
+    const questionButtons = document.getElementById('dormigoQuestionButtons');
+    async function refreshQuestions() {
+      try {
+        const response = await fetch('/api/dormigo/suggestions', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Quick questions unavailable.');
+        const { suggestions } = await response.json();
+        questionButtons.replaceChildren(...suggestions.map(question => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'dormigo-quick-btn rounded-full px-2.5 py-1 text-xs text-white';
+          button.textContent = question;
+          button.addEventListener('click', () => sendMessage(question));
+          return button;
+        }));
+      } catch {
+        if (!questionButtons.childElementCount) questionButtons.textContent = 'Quick questions are temporarily unavailable.';
+      }
+    }
+
     // Set initial greeting dynamic time
     if (initialTime) {
       initialTime.textContent = getCurrentTimeStr();
@@ -41,7 +61,8 @@
       requestAnimationFrame(() => {
         windowEl.classList.add('dormigo-window-open');
       });
-      if (input) input.focus();
+      refreshQuestions();
+      if (input && !matchMedia('(max-width: 639px)').matches) input.focus();
       scrollToBottom();
     }
 
@@ -83,47 +104,9 @@
     if (clearBtn) {
       clearBtn.addEventListener('click', () => {
         conversationHistory = [];
-        messages.innerHTML = `
-          <!-- 1. Bot Initial Greeting Bubble -->
-          <div class="flex gap-2.5 max-w-[92%] animate-fade-in">
-            <div class="space-y-1 w-full">
-              <div class="dormigo-msg-bot p-3.5 text-xs sm:text-sm text-slate-800 leading-relaxed">
-                <p class="font-medium text-slate-900">Hello! I'm your Virtual Dormigo Assistant.</p>
-                <p class="text-slate-700 mt-1">How can I help you today?</p>
-                <div class="flex justify-end mt-1">
-                  <span class="text-[10px] text-slate-400 font-medium">${getCurrentTimeStr()}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 2. Three System Questions in English -->
-          <div id="dormigoQuickQuestions" class="flex flex-col items-end gap-2 my-2.5 w-full animate-fade-in">
-            <button
-              type="button"
-              class="dormigo-quick-btn inline-block text-right text-white text-xs sm:text-sm font-medium py-2.5 px-4 rounded-full shadow-2xs cursor-pointer max-w-[92%]"
-              data-prompt="What dorms are available near MinSU?"
-            >
-              What dorms are available near MinSU?
-            </button>
-
-            <button
-              type="button"
-              class="dormigo-quick-btn inline-block text-right text-white text-xs sm:text-sm font-medium py-2.5 px-4 rounded-full shadow-2xs cursor-pointer max-w-[92%]"
-              data-prompt="What are the budget boarding houses in Bongabong?"
-            >
-              What are the budget boarding houses in Bongabong?
-            </button>
-
-            <button
-              type="button"
-              class="dormigo-quick-btn inline-block text-right text-white text-xs sm:text-sm font-medium py-2.5 px-4 rounded-full shadow-2xs cursor-pointer max-w-[92%]"
-              data-prompt="How can I inquire and pay rent via GCash?"
-            >
-              How can I inquire and pay rent via GCash?
-            </button>
-          </div>
-        `;
+        messages.innerHTML = greeting;
+        document.getElementById('dormigoInitialTime').textContent = getCurrentTimeStr();
+        refreshQuestions();
         if (window.lucide) lucide.createIcons();
       });
     }

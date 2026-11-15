@@ -5,7 +5,7 @@ import { OwnerTenant, OwnerRoom, OwnerPayment } from '../models/ownerModels.js';
 import { Payment, PaymentWebhook, PaymentAuditLog } from '../models/paymentModels.js';
 import { generatePaymentReference } from '../utils/paymentReference.js';
 import { PAYMENT_STATUS } from '../utils/paymentStatus.js';
-import { createPaymongoCheckoutSession, expireUnpaidPaymongoCheckout, getPaymongoCheckoutStatus } from './paymongoService.js';
+import { createPaymongoCheckoutSession, expireUnpaidPaymongoCheckout, getPaymongoCheckoutStatus, requireQrPhConfiguration } from './paymongoService.js';
 import { createPaymentReceipt } from './receiptService.js';
 import { sendPaymentNotification } from './notificationService.js';
 import { emitToUser } from './websocketService.js';
@@ -40,6 +40,7 @@ export const initiateRentPayment = async ({ user, billingMonth, tenantPaymentId 
   // Include pre-upgrade records so deployment cannot restart a settled charge.
   if (!payment) payment = await Payment.findOne({ where: { tenantId: user.id, ownerId: owner.id, billingMonth: month, ...(bill ? { tenantPaymentId: bill.id } : { tenantPaymentId: null }), status: ['PENDING','PROCESSING','SUCCEEDED'] }, transaction, lock: transaction.LOCK.UPDATE });
   if (payment?.status === 'SUCCEEDED') throw new Error('This rent charge has already been paid.');
+  requireQrPhConfiguration();
   if (payment?.checkoutUrl && payment.paymentMethod === 'QRPH' && ['PENDING', 'PROCESSING'].includes(payment.status)) {
     const current = await getPaymongoCheckoutStatus(payment.paymongoCheckoutId);
     if (current.status === 'SUCCEEDED') throw new Error('PayMongo already received this payment. Wait for DormMap to confirm it.');

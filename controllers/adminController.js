@@ -1,3 +1,6 @@
+import { getQrPhConfiguration } from '../services/paymongoService.js';
+import { orderBranches, tenantBranchAssignments } from '../services/propertyBranchesService.js';
+import { dormigoQuestionsKey, getDormigoQuestions, validateDormigoQuestions } from '../services/dormigoQuestionsService.js';
 import bcrypt from 'bcrypt';
 import { submittedOwnerWhere } from '../services/registrationPolicy.js';
 import { inventorySummary } from '../services/inventorySummaryService.js';
@@ -10,7 +13,7 @@ import {
   Announcement, BarangayNotification, BploDataRequest, BploDataSubmission, 
   BploPermitRenewal, BploSystemSetting 
 } from '../models/adminModels.js';
-import { OwnerNotification } from '../models/ownerModels.js';
+import { BoardingHouse, OwnerNotification } from '../models/ownerModels.js';
 import fs from 'fs';
 import path from 'path';
 import { buildConsolidatedMasterlistWorkbook, buildBarangayMasterlistWorkbook } from '../services/excelService.js';
@@ -686,17 +689,18 @@ export const reviewPermitRenewal = async (req, res, next) => {
 export const getSystemSettings = async (req, res, next) => {
   try {
     const settings = await BploSystemSetting.findAll({ order: [['category', 'ASC'], ['key', 'ASC']] });
-    res.json({ data: settings });
+    res.json({ data: settings.filter(setting => setting.key !== dormigoQuestionsKey), dormigoQuestions: await getDormigoQuestions(), qrPh: getQrPhConfiguration() });
   } catch (error) { next(error); }
 };
 
 export const updateSystemSettings = async (req, res, next) => {
   try {
-    const { settings } = req.body; // array of { key, value }
+    const { settings, dormigoQuestions } = req.body; // array of { key, value }
     if (!Array.isArray(settings)) return res.status(422).json({ error: 'Invalid settings payload.' });
 
+    const questions = dormigoQuestions === undefined ? null : validateDormigoQuestions(dormigoQuestions);
     for (const item of settings) {
-      if (item.key && item.value !== undefined) {
+      if (item.key && item.key !== dormigoQuestionsKey && item.value !== undefined) {
         const strVal = typeof item.value === 'object' ? JSON.stringify(item.value) : String(item.value);
         await BploSystemSetting.upsert({
           key: item.key,
@@ -706,6 +710,10 @@ export const updateSystemSettings = async (req, res, next) => {
       }
     }
 
+    if (questions) await BploSystemSetting.upsert({
+      key: dormigoQuestionsKey, value: JSON.stringify(questions), category: 'chatbot',
+      description: 'Dormigo quick questions', updatedBy: req.session.userId
+    });
     await audit(req, 'update_system_settings', 'BploSystemSetting', null, { count: settings.length });
     res.json({ message: 'System settings updated successfully.' });
   } catch (error) { next(error); }
@@ -849,8 +857,28 @@ export const listOwners = async (req, res, next) => {
     const where = { ...submittedOwnerWhere };
     if (req.query.status) where.applicationStatus = req.query.status;
     if (req.query.search) where[Op.or] = ['fullName', 'email', 'boardingHouseName', 'barangay'].map((field) => ({ [field]: { [Op.like]: `%${req.query.search}%` } }));
-    const result = await User.findAndCountAll({ where, attributes: { exclude: ['password', 'verificationToken'] }, order: [['createdAt', 'DESC']], limit, offset: (current - 1) * limit });
-    res.json({ data: result.rows, pagination: { page: current, limit, total: result.count, pages: Math.ceil(result.count / limit) } });
+    const result = await User.findAndCountAll({ where, attributes: { exclude: ['password', 'verificationToken', 'resetPasswordToken'] }, order: [['createdAt', 'DESC']], limit, offset: (current - 1) * limit });
+    const houses = await BoardingHouse.findAll({
+      where: { ownerId: { [Op.in]: result.rows.map(owner => owner.id) } },
+      attributes: ['id', 'ownerId', 'barangay', 'isPrimary', 'approvalStatus']
+    });
+    const data = result.rows.map(owner => ({
+      ...owner.get({ plain: true }),
+      branches: orderBranches(houses.filter(house => house.ownerId === owner.id)).map((house, index) => ({
+        number: index + 1, barangay: house.barangay, status: house.approvalStatus
+      }))
+    }));
+    res.json({ data, pagination: { page: current, limit, total: result.count, pages: Math.ceil(result.count / limit) } });
+  } catch (error) { next(error); }
+};
+
+export const listOwnerTenantAssignments = async (req, res, next) => {
+  try {
+    const ownerId = Number(req.params.id);
+    if (!Number.isSafeInteger(ownerId) || ownerId < 1) return res.status(400).json({ error: 'Invalid owner.' });
+    const tenants = await tenantBranchAssignments({ ownerId });
+    res.json({ data: tenants.map(({ fullName, selectedBoardingHouse, branchNumber }) =>
+      ({ fullName, selectedBoardingHouse, branchNumber })) });
   } catch (error) { next(error); }
 };
 

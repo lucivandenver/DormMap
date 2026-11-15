@@ -441,7 +441,7 @@
                 <th>Tenant Name</th>
                 <th>Email</th>
                 <th>Contact Number</th>
-                <th>Selected Boarding House</th>
+                <th>Boarding House / Branch</th>
                 <th>Tenancy status</th>
                 <th>Move-in / recorded</th>
               </tr>
@@ -739,14 +739,14 @@
 </div>
 
 <!-- Application Review & Document Details Modal -->
-<div id="reviewModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs overflow-y-auto">
-  <div class="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl my-8">
-    <div class="flex items-center justify-between border-b pb-3">
+<div id="reviewModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/60 p-3 sm:p-5 backdrop-blur-xs">
+  <div id="reviewPanel" role="dialog" aria-modal="true" aria-labelledby="reviewTitle" class="w-full max-w-3xl max-h-[calc(100dvh-2.5rem)] overflow-y-auto overscroll-contain rounded-2xl bg-white px-4 pb-5 sm:px-6 shadow-2xl">
+    <div class="sticky top-0 z-[500] flex items-center justify-between gap-4 border-b bg-white py-4">
       <div>
-        <h3 class="font-bold text-slate-900 text-lg">Review Owner Application & Verification Documents</h3>
+        <h3 id="reviewTitle" class="font-bold text-slate-900 text-lg">Review Owner Application & Verification Documents</h3>
         <p class="text-xs text-slate-500">Review the details and documents submitted during registration.</p>
       </div>
-      <button onclick="closeReviewModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
+      <button onclick="closeReviewModal()" type="button" aria-label="Close application review" class="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
     </div>
     <div class="mt-4">
       <p class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Uploaded Verification Documents</p>
@@ -757,7 +757,7 @@
           <select id="reviewBranchSelect" class="field mt-1"></select>
         </label>
         <p id="reviewBranchLocation" class="text-sm text-slate-600"></p>
-        <div id="reviewBranchMap" class="h-44 rounded-xl border border-slate-200" hidden></div>
+        <div id="reviewBranchMap" class="relative isolate z-0 h-44 rounded-xl border border-slate-200" hidden></div>
         <div id="reviewBranchPhotos" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"></div>
       </div>
     </div>
@@ -1369,6 +1369,7 @@ function openReviewModal(id) {
   )));
   select.onchange = () => renderReviewedBranch(app.branches[Number(select.value)]);
   openModal('reviewModal');
+  document.getElementById('reviewPanel').scrollTop = 0;
   select.onchange();
 }
 
@@ -1690,7 +1691,7 @@ async function loadTenants() {
         <td><div class="flex items-center gap-2">${/^(https:\/\/|\/uploads\/)/i.test(x.profilePicture || '') ? `<img src="${esc(x.profilePicture)}" alt="" class="h-8 w-8 rounded-full object-cover" loading="lazy">` : ''}<b>${esc(x.fullName)}</b></div></td>
         <td class="text-xs">${esc(x.email)}</td>
         <td class="text-xs">${esc(x.contactNumber || '—')}</td>
-        <td class="text-xs font-semibold">${esc(x.selectedBoardingHouse || 'Unassigned')}${x.roomNumber ? ` · Room ${esc(x.roomNumber)}` : ''}</td>
+        <td class="text-xs font-semibold">${esc(x.selectedBoardingHouse || 'Unassigned')}${x.branchNumber ? ` · Branch ${esc(x.branchNumber)}` : ''}</td>
         <td><span class="badge">${esc(x.status || '—')}</span></td>
         <td class="text-xs">${esc(x.moveInDate || new Date(x.createdAt).toLocaleDateString())}</td>
       </tr>
