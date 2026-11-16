@@ -127,10 +127,7 @@ function buildSystemPrompt(dbContext) {
    - If a requested barangay has no registered dorms yet, mention it politely and recommend searching nearby barangays (like Poblacion or Labasan).
 
 3. LANGUAGE RULES:
-   - Match the user's language naturally:
-     * If Tagalog/Filipino: respond in natural, friendly Tagalog/Filipino.
-     * If English: respond in clear, fluent English.
-     * If Taglish: respond in natural Filipino/Taglish.
+   - Respond in clear English even if the user writes in another language.
    - Be warm, respectful, concise, and helpful. Use markdown bullet points and bold text for readability.
 
 === LIVE DATABASE CONTEXT (As of ${ts}) ===
@@ -161,7 +158,7 @@ At the very end of every response, you MUST append this metadata block:
 
 Rules for DORMIGO_META:
 - Keep suggestions short and relevant to the context of the conversation.
-- If the chat is casual/greeting, offer suggestions that introduce DorMap features (e.g. "Available dorms sa Poblacion", "Magkano ang pinakamura?", "Paano magbayad sa GCash?").
+- If the chat is casual/greeting, offer suggestions that introduce DorMap features (e.g. "Available dorms in Poblacion", "Which rooms fit my budget?", "How do I pay with QR Ph?").
 - Available Lucide icons: map, search, map-pin, credit-card, shield-check, user-plus, log-in, home, phone, building-2.
 - Only include 1-2 action cards when relevant (e.g., link to "/#map" to view the map).`;
 }
@@ -183,9 +180,9 @@ function parseGeminiResponse(rawText) {
 
   if (suggestions.length === 0) {
     suggestions = [
-      "Available dorms sa Bongabong",
-      "Pinakamurang boarding house",
-      "Paano magbayad via GCash?",
+      "Available dorms in Bongabong",
+      "Budget boarding houses",
+      "How do I pay with QR Ph?",
       "View interactive map"
     ];
   }
@@ -196,35 +193,17 @@ function parseGeminiResponse(rawText) {
 function fallbackResponse(message, dbContext) {
   const q = (message || "").trim().toLowerCase();
   const isGreeting = /\b(hi|hello|kamusta|kumusta|magandang (araw|hapon|gabi|umaga)|hey|uy|musta)\b/i.test(q);
-  const isTagalog = /\b(saan|ano|paano|magkano|meron|mayroon|mga|bakante|kwarto|renta|bayad|tulong|kamusta|kumusta|mura|presyo|alin|nasaan|sino|bakit|gusto|kailangan|puwede|pwede|opo|po|salamat|dito|yung|namin|walang|bayan|maganda)\b/i.test(q);
+  const asksAboutPrice = /magkano|presyo|price|rent|budget|mura|cheap/i.test(q);
+  const availability = `DormMap lists **${dbContext.totalHouses} verified boarding houses** and **${dbContext.totalRoomsAvailable} available slots**.`;
+  let reply = availability + ' You can explore listings by location or price.';
+  if (isGreeting) reply = 'Hello! I am Dormigo. I can help you find boarding houses and answer questions about DormMap.';
+  else if (asksAboutPrice) reply = availability + ' Use the price filter on the interactive map to find listings within your budget.';
 
-  let reply, suggestions = [], actionCards = [];
-
-  if (isGreeting) {
-    if (isTagalog || /magandang|kumusta|kamusta/.test(q)) {
-      reply = `Magandang araw/gabi sa iyo! Kumusta ka?\n\nAko si **Dormigo**, ang AI companion mo dito sa **DorMap Bongabong**. Handa akong makipag-chat sa iyo o tulungan kang maghanap ng verified na boarding house sa bayan.\n\nMay maitutulong ba ako sa iyo ngayon?`;
-      suggestions = ["Available dorms sa Bongabong", "Pinakamurang boarding house", "Saan malapit sa MinSU?", "Tingnan ang mapa"];
-    } else {
-      reply = `Hello there! How are you doing today?\n\nI am **Dormigo**, your friendly AI companion for **DorMap Bongabong**. I'm here to chat, answer questions, or help you find verified boarding houses and dorms in Bongabong!\n\nWhat can I do for you today?`;
-      suggestions = ["Available dorms in Bongabong", "Budget boarding houses", "How to pay via GCash?", "View Interactive Map"];
-    }
-    actionCards.push({ title: "Interactive Map", link: "/#map", label: "View Map", icon: "map" });
-  } else if (/magkano|presyo|price|rent|budget|mura|cheap/i.test(q)) {
-    reply = `Tungkol sa renta sa Bongabong: Sa kasalukuyan, mayroon tayong **${dbContext.totalHouses} verified boarding house(s)** sa system na may **${dbContext.totalRoomsAvailable} available slot(s)**.\n\nPwede mong i-filter ang mga dorm sa ating interactive map para makita ang pasok sa iyong budget!`;
-    suggestions = ["Pinakamurang boarding house", "Dorms malapit sa MinSU", "Dorms sa Poblacion"];
-    actionCards.push({ title: "View Map", link: "/#map", label: "Tingnan sa Mapa", icon: "map" });
-  } else {
-    if (isTagalog) {
-      reply = `Kumusta! Naintindihan ko ang iyong mensahe. Bilang iyong AI assistant sa DorMap Bongabong, kasalukuyan tayong may **${dbContext.totalHouses} verified boarding houses** at **${dbContext.totalRoomsAvailable} available slots**.\n\nPwede kang magtanong tungkol sa mga dorm, presyo, lokasyon, o mag-chat tungkol sa ibang bagay!`;
-      suggestions = ["Available dorms sa Poblacion", "Pinakamurang boarding house", "Paano magbayad via GCash?"];
-    } else {
-      reply = `Hello! I understand your message. As your AI assistant for DorMap Bongabong, we currently have **${dbContext.totalHouses} verified boarding houses** and **${dbContext.totalRoomsAvailable} available slots**.\n\nFeel free to ask about dorms, locations, prices, or anything else you'd like to chat about!`;
-      suggestions = ["Available dorms in Bongabong", "Budget boarding houses", "Explore Interactive Map"];
-    }
-    actionCards.push({ title: "Explore Map", link: "/#map", label: "View Interactive Map", icon: "map" });
-  }
-
-  return { reply, suggestions, actionCards };
+  return {
+    reply,
+    suggestions: ['Available dorms in Bongabong', 'Budget boarding houses', 'View interactive map'],
+    actionCards: [{ title: 'Interactive Map', link: '/#map', label: 'View Map', icon: 'map' }]
+  };
 }
 
 export async function processDormigoChat({ message, userContext = {}, history = [] }) {

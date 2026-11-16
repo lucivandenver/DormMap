@@ -1,8 +1,5 @@
-import { uploadDir } from '../config/storage.js';
 import express from 'express';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import { requireBarangayOfficial } from '../middleware/barangayAuth.js';
 import * as controller from '../controllers/barangayDashboardController.js';
 
@@ -10,20 +7,7 @@ const router = express.Router();
 
 // Setup Multer for document & report submissions
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    fs.mkdirSync(uploadDir, { recursive: true });
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-    cb(null, `barangay-${Date.now()}-${safeName}`);
-  },
-});
-const upload = multer({
-  storage,
-  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB limit
-});
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 router.use(requireBarangayOfficial);
 

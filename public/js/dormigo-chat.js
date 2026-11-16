@@ -31,21 +31,25 @@
 
     const greeting = messages.innerHTML;
     const questionButtons = document.getElementById('dormigoQuestionButtons');
+    let suggestionRequest = 0;
     async function refreshQuestions() {
+      const request = ++suggestionRequest;
       try {
         const response = await fetch('/api/dormigo/suggestions', { cache: 'no-store' });
         if (!response.ok) throw new Error('Quick questions unavailable.');
         const { suggestions } = await response.json();
+        if (!isOpen || request !== suggestionRequest) return;
         questionButtons.replaceChildren(...suggestions.map(question => {
           const button = document.createElement('button');
           button.type = 'button';
-          button.className = 'dormigo-quick-btn rounded-full px-2.5 py-1 text-xs text-white';
+          button.className = 'dormigo-quick-btn rounded-full text-xs sm:text-sm';
           button.textContent = question;
           button.addEventListener('click', () => sendMessage(question));
           return button;
         }));
+        questionButtons.hidden = !questionButtons.childElementCount;
       } catch {
-        if (!questionButtons.childElementCount) questionButtons.textContent = 'Quick questions are temporarily unavailable.';
+        if (request === suggestionRequest) questionButtons.hidden = true;
       }
     }
 
@@ -68,6 +72,8 @@
 
     function closeChat() {
       isOpen = false;
+      suggestionRequest++;
+      questionButtons.hidden = true;
       windowEl.classList.remove('dormigo-window-open');
       setTimeout(() => {
         if (!isOpen) windowEl.style.display = 'none';
@@ -106,7 +112,6 @@
         conversationHistory = [];
         messages.innerHTML = greeting;
         document.getElementById('dormigoInitialTime').textContent = getCurrentTimeStr();
-        refreshQuestions();
         if (window.lucide) lucide.createIcons();
       });
     }
@@ -160,6 +165,8 @@
     }
 
     async function sendMessage(userQuery) {
+      suggestionRequest++;
+      questionButtons.hidden = true;
       const timeStr = getCurrentTimeStr();
 
       // 1. Render User Message (Right-aligned green pill bubble)
@@ -197,8 +204,8 @@
 
         const replyData = json.data || {};
         const replyText = replyData.reply || 'Sorry, I am unable to process your request at the moment.';
-        const actionCards = replyData.actionCards || [];
-        const newSuggestions = replyData.suggestions || [];
+        const actionCards = (replyData.actionCards || []).filter(card =>
+          typeof card?.link === 'string' && /^\/(?![\/\\])[^\s\\]*$/.test(card.link));
 
         conversationHistory.push({ role: 'assistant', content: replyText });
 
@@ -211,12 +218,12 @@
           actionCardsHtml = `
             <div class="mt-2.5 grid gap-1.5">
               ${actionCards.map(card => `
-                <a href="${card.link}" class="flex items-center justify-between gap-2 rounded-xl bg-white hover:bg-emerald-50 border border-slate-200/90 px-3 py-2 text-xs font-semibold text-[#007a64] transition-all shadow-2xs group">
+                <a href="${escapeHtml(card.link)}" class="flex items-center justify-between gap-2 rounded-xl bg-white hover:bg-emerald-50 border border-slate-200/90 px-3 py-2 text-xs font-semibold text-[#007a64] transition-all shadow-2xs group">
                   <div class="flex items-center gap-2">
                     <span class="flex h-5 w-5 items-center justify-center rounded-md bg-[#007a64] text-white text-[11px]">
-                      <i data-lucide="${card.icon || 'arrow-right'}" class="h-3 w-3"></i>
+                      <i data-lucide="${escapeHtml(String(card.icon || 'arrow-right'))}" class="h-3 w-3"></i>
                     </span>
-                    <span>${card.label || card.title}</span>
+                    <span>${escapeHtml(String(card.label || card.title || 'Open'))}</span>
                   </div>
                   <i data-lucide="chevron-right" class="h-3.5 w-3.5 text-[#007a64] transition-transform group-hover:translate-x-0.5"></i>
                 </a>
@@ -225,26 +232,11 @@
           `;
         }
 
-        // Clean suggestions without loud emojis
-        let followUpHtml = '';
-        if (newSuggestions.length > 0) {
-          followUpHtml = `
-            <div class="flex flex-wrap gap-1.5 mt-2.5 pt-2 border-t border-slate-200/50">
-              ${newSuggestions.slice(0, 3).map(s => `
-                <button type="button" class="dormigo-chip inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 shadow-2xs hover:border-[#007a64]" data-prompt="${escapeHtml(s)}">
-                  <span>${escapeHtml(s)}</span>
-                </button>
-              `).join('')}
-            </div>
-          `;
-        }
-
         botBubble.innerHTML = `
           <div class="space-y-1 w-full">
             <div class="dormigo-msg-bot p-3.5 text-xs sm:text-sm text-slate-800 leading-relaxed">
-              <div>${formatMarkdown(replyText)}</div>
+              <div>${formatMarkdown(escapeHtml(replyText))}</div>
               ${actionCardsHtml}
-              ${followUpHtml}
               <div class="flex justify-end mt-1.5">
                 <span class="text-[10px] text-slate-400 font-medium">${getCurrentTimeStr()}</span>
               </div>

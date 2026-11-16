@@ -1080,7 +1080,7 @@ export const listBarangayAccounts = async (req, res, next) => {
   try {
     const where = { accountType: 'barangay', isArchived: false };
     if (req.query.status) where.applicationStatus = req.query.status;
-    const users = await User.findAll({ where, attributes: ['id', 'fullName', 'email', 'barangay', 'positionTitle', 'contactNumber', 'applicationStatus', 'applicationReviewNote', 'isSuspended', 'createdAt'], order: [['createdAt', 'DESC']] });
+    const users = await User.findAll({ where, attributes: ['id', 'fullName', 'email', 'barangay', 'positionTitle', 'contactNumber', 'applicationStatus', 'applicationReviewNote', 'validIdPicture', 'barangayClearance', 'supportingDocuments', 'isSuspended', 'createdAt'], order: [['createdAt', 'DESC']] });
     res.json({ data: users });
   } catch (error) { next(error); }
 };

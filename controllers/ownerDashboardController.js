@@ -1,3 +1,4 @@
+import { storeReviewFile } from '../services/reviewFileService.js';
 import { GALLERY_CATEGORIES, saveGallerySlot, storePropertyPhoto } from '../services/propertyPhotoService.js';
 import { BarangayMessage } from '../models/adminModels.js';
 import { namedMessages } from '../services/messageIdentityService.js';
@@ -1006,10 +1007,13 @@ export const updateMyDocuments = async (req, res, next) => {
     ];
 
     const updates = {};
-    docFields.forEach(field => {
+    for (const field of docFields) {
       const file = req.files?.[field]?.[0];
-      if (file) updates[field] = `/uploads/${file.filename}`;
-    });
+      if (!file) continue;
+      updates[field] = field === 'boardingHousePicture'
+        ? await storePropertyPhoto(file, user.id)
+        : await storeReviewFile(file, user.id, 'owner-registration');
+    }
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: 'No files were uploaded.' });
@@ -1029,23 +1033,20 @@ export const getPendingApplications = async (req, res, next) => {
     const ownerId = oid(req);
     const owner = await User.findByPk(ownerId, { attributes: ['boardingHouseName'] });
 
-    // 1. Fetch from TenantApplications table
-    let applications = await TenantApplication.findAll({
-      where: {
-        [Op.or]: [
-          { ownerId },
-          ...(owner?.boardingHouseName ? [{ boardingHouseName: { [Op.like]: owner.boardingHouseName } }] : [])
-        ]
-      },
+    const applications = await TenantApplication.findAll({
+      where: { ownerId },
       order: [['createdAt', 'DESC']]
     });
 
-    // 2. Backward compatibility: also check User table for tenants who selected this BH
-    if (owner?.boardingHouseName) {
+    // Legacy registrations saved a house name without an application ID.
+    const legacyHouseIsUnique = owner?.boardingHouseName && await User.count({
+      where: { accountType: 'boarding_house_owner', isArchived: false, boardingHouseName: owner.boardingHouseName }
+    }) === 1;
+    if (legacyHouseIsUnique) {
       const pendingTenantUsers = await User.findAll({
         where: {
           accountType: 'tenant',
-          selectedBoardingHouse: { [Op.like]: owner.boardingHouseName },
+          selectedBoardingHouse: owner.boardingHouseName,
         },
         attributes: ['id', 'fullName', 'email', 'contactNumber', 'profilePicture', 'selectedBoardingHouse', 'applicationStatus', 'emailVerified', 'createdAt'],
       });

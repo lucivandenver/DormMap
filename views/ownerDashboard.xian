@@ -116,7 +116,7 @@
 
     <div class="flex items-center gap-3">
       <div class="relative">
-        <button id="notifBtn" onclick="show('notifications')" class="relative rounded-xl p-2.5 text-slate-600 hover:bg-slate-100 transition" title="Notifications">
+        <button id="notifBtn" onclick="show('notifications')" class="relative rounded-xl p-2.5 text-slate-600 hover:bg-slate-100 transition" title="Activity">
           <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
           <span id="notifBadge" class="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-600 text-[10px] font-extrabold text-white hidden ring-2 ring-white">0</span>
         </button>
@@ -231,7 +231,7 @@
           <button data-view="maintenance" class="nav"><span>Maintenance Requests</span></button>
           <button data-view="notifications" class="nav">
             <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-            <span>Notifications</span>
+            <span>Activity</span>
           </button>
         </div>
       </div>
@@ -261,6 +261,9 @@
 
   <!-- Main Content Wrapper -->
   <main class="px-3 pb-8 pt-20 lg:ml-64 lg:px-5">
+    <div id="portalFeedback" class="hidden" role="status"></div>
+    <script src="/js/portal-feedback.js"></script>
+    <script src="/js/document-preview.js"></script>
     <div class="mx-auto max-w-7xl">
       <!-- Title Header -->
       <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200/80 pb-3">
@@ -723,7 +726,7 @@
       <!-- PANEL 9: NOTIFICATIONS -->
       <section data-panel="notifications" class="hidden space-y-4">
         <div class="flex justify-between items-center">
-          <h2 class="text-lg font-bold text-slate-800">Notifications</h2>
+          <h2 class="text-lg font-bold text-slate-800">Activity</h2>
           <button onclick="markAllNotificationsRead()" class="text-xs text-emerald-700 font-bold hover:underline">Mark All Read</button>
         </div>
         <div class="bg-white rounded-2xl border border-slate-100 shadow-sm divide-y divide-slate-100" id="notificationsList"></div>
@@ -806,7 +809,7 @@
               <span class="text-[11px] text-emerald-700 font-semibold hidden sm:inline">Select a property to view its photos</span>
             </div>
             <select id="galleryBoardingHouseSelector" onchange="onGalleryBoardingHouseChange()" class="w-full text-sm font-semibold border border-emerald-300 rounded-lg px-3 py-2.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs cursor-pointer">
-              <option value="">— Naglo-load ng mga Boarding House… —</option>
+              <option value="">Loading boarding houses…</option>
             </select>
             <p class="text-xs text-emerald-700 flex items-center gap-1">
               <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -1002,7 +1005,6 @@
               <i data-lucide="save" class="h-4 w-4"></i>
               Save GCash Settings
             </button>
-            <span id="settingsSaveStatus" class="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg hidden">✓ GCash settings saved successfully!</span>
           </div>
         </form>
       </section>
@@ -1531,7 +1533,6 @@
 
     document.getElementById('myDocGrid').innerHTML = docs.map(d => {
       const url = data[d.key];
-      const isImg = url && !url.toLowerCase().endsWith('.pdf');
       return `
         <div class="rounded-xl border ${url ? 'border-emerald-200 bg-emerald-50/60' : 'border-slate-200 bg-slate-50'} p-4 flex flex-col gap-2">
           <div class="flex items-center gap-2">
@@ -1543,14 +1544,7 @@
               </span>
             </div>
           </div>
-          ${url ? `
-            <div class="mt-1 space-y-1.5">
-              ${isImg ? `<img src="${url}" class="w-full h-20 object-cover rounded-lg border border-emerald-200">` : ''}
-              <a href="${url}" target="_blank" class="block text-center text-[11px] font-bold text-emerald-700 bg-white border border-emerald-200 py-1 rounded-lg hover:bg-emerald-50 transition">
-                View Document ↗
-              </a>
-            </div>
-          ` : `<p class="text-[10px] text-slate-400">No file uploaded</p>`}
+          ${DormMapPreview.render(url, d.label)}
         </div>
       `;
     }).join('');
@@ -1592,15 +1586,8 @@
     reader.readAsDataURL(input.files[0]);
   }
 
-  // Toast notification helper
-  function ownerToast(msg, isErr = false) {
-    const t = document.createElement('div');
-    t.className = `fixed bottom-5 right-5 z-[200] px-5 py-3 rounded-xl text-sm font-semibold text-white shadow-xl transition-all ${
-      isErr ? 'bg-rose-600' : 'bg-emerald-700'
-    }`;
-    t.textContent = msg;
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 3200);
+  function ownerToast(message, error = false) {
+    DormMapFeedback.show(message, error ? 'error' : 'success');
   }
 
   // ─── Business Permit ───
@@ -1998,7 +1985,7 @@
   }
 
   async function deleteBoardingHouse(id) {
-    if (!confirm('Are you sure you want to delete this boarding house branch?')) return;
+    if (!await DormMapFeedback.confirm('Are you sure you want to delete this boarding house branch?')) return;
     try {
       const res = await fetch(`/owner-dashboard/api/boarding-houses/${id}`, { method: 'DELETE' });
       const data = await res.json();
@@ -2168,7 +2155,7 @@
   });
 
   async function deleteRoom(id) {
-    if (!confirm('Delete this room? This action cannot be undone.')) return;
+    if (!await DormMapFeedback.confirm('Delete this room? This action cannot be undone.')) return;
     try {
       const res = await fetch(`/owner-dashboard/api/rooms/${id}`, { method: 'DELETE' });
       if (res.ok) { ownerToast('Room deleted.'); loadRooms(); }
@@ -2245,6 +2232,7 @@
       count.textContent = data.length;
 
       list.innerHTML = data.map(u => {
+        const reviewId = `tenant-review-${Number(u.applicationId || u.id)}`;
         let actionHtml = '';
         if (u.status === 'accepted_by_owner') {
           actionHtml = `
@@ -2253,7 +2241,7 @@
                 <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
                 Offer Sent (Awaiting Tenant Acceptance Back)
               </span>
-              <button onclick="declineApplication('${u.userId || u.id}', '${(u.fullName || '').replace(/'/g, "\\'")}')" class="px-2 py-1 text-slate-400 hover:text-rose-600 text-xs font-semibold" title="Cancel Offer">Cancel Offer</button>
+              <button data-applicant="${esc(u.fullName || 'Tenant')}" onclick="declineApplication(${Number(u.userId || u.id)}, this.dataset.applicant)" class="px-2 py-1 text-slate-400 hover:text-rose-600 text-xs font-semibold" title="Cancel Offer">Cancel Offer</button>
             </div>
           `;
         } else if (u.status === 'confirmed') {
@@ -2271,11 +2259,11 @@
         } else {
           // pending_owner or initial
           actionHtml = `
-            <button onclick="openAcceptAppModal('${u.userId || u.id}', '${(u.fullName || '').replace(/'/g, "\\'")}', '${u.applicationId || u.id || ''}')"
+            <button data-applicant="${esc(u.fullName || 'Tenant')}" onclick="openAcceptAppModal(${Number(u.userId || u.id)}, this.dataset.applicant, ${Number(u.applicationId || u.id)})"
               class="px-3 py-1.5 bg-emerald-700 text-white text-xs font-bold rounded-lg hover:bg-emerald-800 transition active:scale-95 flex items-center gap-1">
               ✔ Accept & Send Offer
             </button>
-            <button onclick="declineApplication('${u.userId || u.id}', '${(u.fullName || '').replace(/'/g, "\\'")}')"
+            <button data-applicant="${esc(u.fullName || 'Tenant')}" onclick="declineApplication(${Number(u.userId || u.id)}, this.dataset.applicant)"
               class="px-3 py-1.5 border border-rose-200 text-rose-600 text-xs font-bold rounded-lg hover:bg-rose-50 transition active:scale-95">
               ✕ Decline
             </button>
@@ -2283,29 +2271,52 @@
         }
 
         return `
+        <article class="rounded-xl border border-amber-100 bg-white">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between bg-white rounded-xl border border-amber-100 px-4 py-3.5 gap-3 shadow-xs">
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-xl flex-shrink-0 overflow-hidden bg-amber-200 flex items-center justify-center font-black text-amber-800 text-sm">
-              ${u.profilePicture ? `<img src="${u.profilePicture}" class="w-full h-full object-cover">` : (u.fullName ? u.fullName[0] : 'T')}
+              ${u.profilePicture ? `<img src="${esc(u.profilePicture)}" class="w-full h-full object-cover">` : (u.fullName ? u.fullName[0] : 'T')}
             </div>
             <div>
               <div class="flex items-center gap-2">
-                <p class="text-sm font-bold text-slate-900">${u.fullName}</p>
-                ${u.requestedRoomType && u.requestedRoomType !== 'Any' ? `<span class="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-semibold">${u.requestedRoomType}</span>` : ''}
+                <p class="text-sm font-bold text-slate-900">${esc(u.fullName)}</p>
+                ${u.requestedRoomType && u.requestedRoomType !== 'Any' ? `<span class="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-semibold">${esc(u.requestedRoomType)}</span>` : ''}
               </div>
-              <p class="text-[11px] text-slate-500">${u.email || u.contactNumber || 'No contact info'} &bull; Applied ${new Date(u.createdAt).toLocaleDateString('en-PH', {month:'short', day:'numeric'})}</p>
-              ${u.message ? `<p class="text-[11px] text-slate-600 italic mt-0.5 bg-slate-50 px-2 py-1 rounded border border-slate-100">"${u.message}"</p>` : ''}
+              <p class="text-[11px] text-slate-500">${esc(u.email || u.contactNumber || 'No contact info')} &bull; Applied ${new Date(u.createdAt).toLocaleDateString('en-PH', {month:'short', day:'numeric'})}</p>
+              ${u.message ? `<p class="text-[11px] text-slate-600 italic mt-0.5 bg-slate-50 px-2 py-1 rounded border border-slate-100">"${esc(u.message)}"</p>` : ''}
             </div>
           </div>
           <div class="flex gap-2 flex-shrink-0 items-center">
+            <button type="button" class="px-3 py-1.5 rounded-lg border border-emerald-200 text-xs font-bold text-emerald-800"
+              aria-controls="${reviewId}" aria-expanded="false" onclick="toggleTenantReview(this)">Review</button>
             ${actionHtml}
           </div>
         </div>
+        <section id="${reviewId}" hidden class="border-t border-amber-100 p-4 text-sm">
+          <h3 class="font-bold text-slate-900">Tenant application</h3>
+          <dl class="mt-3 grid gap-2 sm:grid-cols-2">
+            <div><dt class="font-semibold">Boarding house</dt><dd>${esc(u.boardingHouseName || 'Not specified')}</dd></div>
+            <div><dt class="font-semibold">Requested room</dt><dd>${esc(u.requestedRoomType || 'Any')}</dd></div>
+            <div><dt class="font-semibold">Email</dt><dd>${esc(u.email || 'Not provided')}</dd></div>
+            <div><dt class="font-semibold">Phone</dt><dd>${esc(u.contactNumber || 'Not provided')}</dd></div>
+            <div><dt class="font-semibold">Gender</dt><dd>${esc(u.gender || 'Not provided')}</dd></div>
+            <div><dt class="font-semibold">Inquiry</dt><dd class="whitespace-pre-wrap">${esc(u.message || 'No message submitted.')}</dd></div>
+          </dl>
+          <div class="mt-3"><h4 class="font-semibold">Government ID</h4>${DormMapPreview.render(u.validIdPicture, 'Government ID')}</div>
+        </section>
+        </article>
         `;
       }).join('');
     } catch (err) {
       console.error('Error loading pending applications:', err);
     }
+  }
+
+  function toggleTenantReview(button) {
+    const review = document.getElementById(button.getAttribute('aria-controls'));
+    review.hidden = !review.hidden;
+    button.setAttribute('aria-expanded', String(!review.hidden));
+    button.textContent = review.hidden ? 'Review' : 'Hide review';
   }
 
   function openAcceptAppModal(userId, fullName, applicationId) {
@@ -2355,7 +2366,7 @@
   }
 
   async function declineApplication(userId, fullName) {
-    if (!confirm(`Decline ${fullName}'s rental application? They will need to re-apply.`)) return;
+    if (!await DormMapFeedback.confirm(`Decline ${fullName}'s rental application? They will need to re-apply.`)) return;
     try {
       const res = await fetch(`/owner-dashboard/api/pending-applications/${userId}/decline`, { method: 'DELETE' });
       if (res.ok) {
@@ -2396,8 +2407,8 @@
   });
 
   async function deleteTenant(id) {
-    if (!confirm('Remove this tenant record? Records with history must be moved out instead.')) return;
-    try { await ownerRequest(`/owner-dashboard/api/tenants/${id}`, { method: 'DELETE' }); loadTenants(); loadRooms(); loadOverview(); }
+    if (!await DormMapFeedback.confirm('Remove this tenant record? Records with history must be moved out instead.')) return;
+    try { await ownerRequest(`/owner-dashboard/api/tenants/${id}`, { method: 'DELETE' }); ownerToast('Tenant record removed.'); loadTenants(); loadRooms(); loadOverview(); }
     catch (error) { ownerToast(error.message, true); }
   }
 
@@ -2476,8 +2487,8 @@
     catch (error) { ownerToast(error.message, true); }
   }
   async function deletePayment(id) {
-    if (!confirm('Remove this unpaid bill? Paid bills and online payment history are retained.')) return;
-    try { await ownerRequest(`/owner-dashboard/api/payments/${id}`, { method: 'DELETE' }); loadPayments(); loadTenants(); }
+    if (!await DormMapFeedback.confirm('Remove this unpaid bill? Paid bills and online payment history are retained.')) return;
+    try { await ownerRequest(`/owner-dashboard/api/payments/${id}`, { method: 'DELETE' }); ownerToast('Unpaid bill removed.'); loadPayments(); loadTenants(); }
     catch (error) { ownerToast(error.message, true); }
   }
 
@@ -2848,26 +2859,12 @@ async function loadLegacyNotifications() {
       if (key !== 'boardingHouseId' && val && val.size > 0) hasFile = true;
     }
     if (!hasFile) {
-      if (typeof Swal !== 'undefined') {
-        Swal.fire({
-          icon: 'info',
-          title: 'No photo selected',
-          text: 'Select at least one photo category to upload or replace.',
-        });
-      } else {
-        alert('Select at least one photo category to upload or replace.');
-      }
-      return;
+      return ownerToast('Select at least one photo to upload or replace.', true);
     }
 
-    if (typeof Swal !== 'undefined') {
-      Swal.fire({
-        title: 'Ina-update ang mga larawan...',
-        text: 'Sandali lamang, ina-upload ang mga larawan para sa napiling boarding house.',
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading()
-      });
-    }
+    const submit = e.target.querySelector('[type="submit"]');
+    if (submit) submit.disabled = true;
+    DormMapFeedback.show('Uploading property photos…', 'pending');
 
     try {
       const res = await fetch('/owner-dashboard/api/gallery/five-slots', {
@@ -2877,15 +2874,7 @@ async function loadLegacyNotifications() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update photos.');
 
-      if (typeof Swal !== 'undefined') {
-        Swal.fire({
-          icon: 'success',
-          title: 'Na-update na ang Gallery!',
-          text: data.message || 'Matagumpay na na-update ang mga larawan.',
-          timer: 2000,
-          showConfirmButton: false
-        });
-      }
+      ownerToast(data.message || 'Property photos updated.');
       e.target.reset();
       if (currentBhId) {
         const hiddenInput = document.getElementById('galleryBoardingHouseIdInput');
@@ -2893,11 +2882,9 @@ async function loadLegacyNotifications() {
       }
       loadGallery(currentBhId);
     } catch (err) {
-      if (typeof Swal !== 'undefined') {
-        Swal.fire({ icon: 'error', title: 'Upload Failed', text: err.message });
-      } else {
-        alert(err.message);
-      }
+      ownerToast(err.message || 'Failed to update photos.', true);
+    } finally {
+      if (submit) submit.disabled = false;
     }
   }
 
@@ -2918,12 +2905,14 @@ async function loadLegacyNotifications() {
   document.getElementById('amenitiesForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const checked = Array.from(document.querySelectorAll('#amenitiesForm input[type="checkbox"]:checked')).map(cb => cb.value);
-    await fetch('/owner-dashboard/api/amenities', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amenities: checked })
-    });
-    alert('Amenities saved.');
+    try {
+      await ownerRequest('/owner-dashboard/api/amenities', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amenities: checked })
+      });
+      ownerToast('Amenities saved.');
+    } catch (error) { ownerToast(error.message, true); }
   });
 
   // ─── House Rules ───
@@ -2945,12 +2934,14 @@ async function loadLegacyNotifications() {
     e.preventDefault();
     const formData = new FormData(e.target);
     const rules = Object.fromEntries(formData.entries());
-    await fetch('/owner-dashboard/api/house-rules', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rules })
-    });
-    alert('House rules saved.');
+    try {
+      await ownerRequest('/owner-dashboard/api/house-rules', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rules })
+      });
+      ownerToast('House rules saved.');
+    } catch (error) { ownerToast(error.message, true); }
   });
 
   // ─── Activity Logs ───
@@ -3079,7 +3070,6 @@ async function loadLegacyNotifications() {
     e.preventDefault();
     const formData = new FormData(e.target);
     const body = Object.fromEntries(formData.entries());
-    const statusEl = document.getElementById('settingsSaveStatus');
     const submitBtn = document.getElementById('saveSettingsBtn');
     
     if (submitBtn) {
@@ -3097,17 +3087,13 @@ async function loadLegacyNotifications() {
 
       if (res.ok) {
         updateGcashPreview();
-        if (statusEl) {
-          statusEl.classList.remove('hidden');
-          statusEl.textContent = '✓ GCash settings saved successfully!';
-          setTimeout(() => statusEl.classList.add('hidden'), 4000);
-        }
+        ownerToast('GCash settings saved.');
       } else {
-        alert(data.error || 'Failed to save settings. Please try again.');
+        ownerToast(data.error || 'Failed to save settings. Please try again.', true);
       }
     } catch (err) {
       console.error('Save settings error:', err);
-      alert('Network error while saving settings.');
+      ownerToast('Network error while saving settings.', true);
     } finally {
       if (submitBtn) {
         submitBtn.disabled = false;

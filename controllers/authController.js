@@ -1,3 +1,4 @@
+import { storeReviewFile } from '../services/reviewFileService.js';
 import { passwordResetDelivery } from '../services/passwordResetMailService.js';
 import { validateOwnerSetup, registerPropertyInventory } from '../services/ownerRegistrationService.js';
 
@@ -469,7 +470,7 @@ export const loginUser = async (req, res) => {
     if (!match) {
       return renderLoginPage(res, {
         authAccountType: requestedAccountType || normalizeAccountType(user.accountType),
-        authError: "Maling password. Pakisubukang muli o i-click ang 'Forgot password?'.",
+        authError: "Incorrect password. Try again or select 'Forgot password?'.",
         authValues: { email, accountType: requestedAccountType },
       });
     }
@@ -529,7 +530,6 @@ export const registerUser = async (req, res) => {
     } = req.body;
 
     const normalizedAccountType = normalizeAccountType(accountType);
-    const validIdPicture = getUploadedPath(req.files, 'validIdPicture');
     const agreedToTerms = acceptTerms === 'on' || acceptTerms === 'true';
 
     if (!agreedToTerms) {
@@ -590,11 +590,6 @@ export const registerUser = async (req, res) => {
 
     const profilePicture = getUploadedPath(req.files, "profilePicture");
     const businessPermit = getUploadedPath(req.files, "businessPermit");
-    const proofOfOwnership = getUploadedPath(req.files, "proofOfOwnership");
-    const sanitationPermit = getUploadedPath(req.files, "sanitationPermit");
-    const fireSafetyPermit = getUploadedPath(req.files, "fireSafetyPermit");
-    const governmentId = getUploadedPath(req.files, "governmentId");
-    const barangayCertificate = getUploadedPath(req.files, "barangayCertificate");
 
 
     if (normalizedAccountType === "barangay" && !barangay) {
@@ -625,14 +620,6 @@ export const registerUser = async (req, res) => {
     }
     const hashed = await bcrypt.hash(password, 10);
     const verificationToken = Math.random().toString(36).substring(2, 18);
-    const supportingDocuments = JSON.stringify({
-      proofOfOwnership,
-      sanitationPermit,
-      fireSafetyPermit,
-      governmentId,
-      barangayCertificate,
-    });
-
     const user = await sequelize.transaction(async transaction => {
       const created = await User.create({
         accountType: normalizedAccountType,
@@ -653,15 +640,22 @@ export const registerUser = async (req, res) => {
         boardingHouseLongitude: accountType === "boarding_house_owner" ? boardingHouseLongitude : null,
         roomTypes: accountType === "boarding_house_owner" ? JSON.stringify(normalizeList(roomTypes)) : null,
         paymentMethods: accountType === "boarding_house_owner" ? JSON.stringify(normalizeList(paymentMethods)) : null,
-        businessPermit: accountType === "boarding_house_owner" ? businessPermit : null,
-        supportingDocuments: accountType === "boarding_house_owner" ? supportingDocuments : null,
         selectedBoardingHouse: accountType === "tenant" ? selectedBoardingHouse || null : null,
-        validIdPicture: validIdPicture,
-        barangayClearance: getUploadedPath(req.files, "barangayClearance"),
-        rentalPermit: getUploadedPath(req.files, "rentalPermit"),
         contactNumber: contactNumber || null,
         notes: notes || null,
       }, { transaction });
+      const scope = { boarding_house_owner: 'owner-registration', tenant: 'tenant-registration' }[normalizedAccountType] || 'registration';
+      const documentUpdates = {};
+      const supportingDocuments = {};
+      for (const field of ['validIdPicture', 'businessPermit', 'barangayClearance', 'rentalPermit',
+        'proofOfOwnership', 'sanitationPermit', 'fireSafetyPermit', 'governmentId', 'barangayCertificate']) {
+        const url = await storeReviewFile(req.files?.[field]?.[0], created.id, scope, transaction);
+        if (!url) continue;
+        if (['validIdPicture', 'businessPermit', 'barangayClearance', 'rentalPermit'].includes(field)) documentUpdates[field] = url;
+        else supportingDocuments[field] = url;
+      }
+      if (Object.keys(supportingDocuments).length) documentUpdates.supportingDocuments = JSON.stringify(supportingDocuments);
+      if (Object.keys(documentUpdates).length) await created.update(documentUpdates, { transaction });
       if (setup) {
         const galleryImages = await storeRegistrationPhotos(req.files, created.id, transaction);
         await created.update({

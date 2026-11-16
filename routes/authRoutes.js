@@ -1,3 +1,4 @@
+import { storeReviewFile } from '../services/reviewFileService.js';
 import { randomUUID } from 'node:crypto';
 import { BoardingHouse, OwnerRoom } from '../models/ownerModels.js';
 import { validateOwnerSetup, registerPropertyInventory } from '../services/ownerRegistrationService.js';
@@ -7,7 +8,7 @@ import express from "express";
 import passport from "passport";
 import { Op as SequelizeOp } from "sequelize";
 import { User, sequelize, Op as ModelOp } from "../models/userModel.js";
-import { GALLERY_CATEGORIES, isRegistrationPhoto, storeRegistrationPhotos } from '../services/propertyPhotoService.js';
+import { GALLERY_CATEGORIES, storeRegistrationPhotos } from '../services/propertyPhotoService.js';
 
 const Op = SequelizeOp || ModelOp || User.sequelize?.Sequelize?.Op;
 import {
@@ -25,7 +26,7 @@ const router = express.Router();
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const dir = isRegistrationPhoto(file.fieldname) ? path.join(tmpdir(), "dormmap-registration") : uploadDir;
+    const dir = file.fieldname === "profilePicture" ? uploadDir : path.join(tmpdir(), "dormmap-registration");
     fs.mkdir(dir, { recursive: true, mode: 0o700 }, error => cb(error, dir));
   },
   filename: (req, file, cb) => {
@@ -54,6 +55,8 @@ const registerUpload = upload.fields([
   { name: "rentalPermit", maxCount: 1 },
   { name: "sanitationPermit", maxCount: 1 },
   { name: "fireSafetyPermit", maxCount: 1 },
+  { name: "governmentId", maxCount: 1 },
+  { name: "barangayCertificate", maxCount: 1 },
   ...Array.from({ length: 100 }, (_, index) => GALLERY_CATEGORIES.map(({ field }) => ({
     name: index ? `branch${index + 1}_${field}` : field, maxCount: 1
   }))).flat(),
@@ -65,7 +68,7 @@ router.get("/register", registerPage);
 const cleanFailedRegistration = (req, res, next) => {
   res.on('finish', () => {
     for (const file of Object.values(req.files || {}).flat()) {
-      if (file.path && (!req.registrationSaved || isRegistrationPhoto(file.fieldname))) fs.rm(file.path, { force: true }, () => {});
+      if (file.path && (!req.registrationSaved || file.fieldname !== "profilePicture")) fs.rm(file.path, { force: true }, () => {});
     }
   });
   next();
@@ -239,16 +242,16 @@ router.post("/complete-owner-profile", cleanFailedRegistration, registerUpload, 
     try { setup = validateOwnerSetup(req.body, req.files); } catch (error) { return renderError(error.message); }
     await sequelize.transaction(async transaction => {
       await user.reload({ transaction, lock: transaction.LOCK.UPDATE });
-      const getUploadUrl = (field) => req.files?.[field]?.[0] ? `/uploads/${req.files[field][0].filename}` : null;
+      const getUploadUrl = (field) => storeReviewFile(req.files?.[field]?.[0], user.id, 'owner-registration', transaction);
 
       if (user.boardingHouseName && user.barangay && user.mapPin) {
         throw new Error('This account already has a property registration. Manage its information from the owner dashboard.');
       }
       const galleryImagesArr = await storeRegistrationPhotos(req.files, user.id, transaction);
       const [boardingHousePicture] = galleryImagesArr;
-      const validIdPicture = getUploadUrl('validIdPicture');
-      const businessPermit = getUploadUrl('businessPermit');
-      const barangayClearance = getUploadUrl('barangayClearance');
+      const validIdPicture = await getUploadUrl('validIdPicture');
+      const businessPermit = await getUploadUrl('businessPermit');
+      const barangayClearance = await getUploadUrl('barangayClearance');
 
       user.boardingHouseName = boardingHouseName;
       user.boardingHouseAddress = boardingHouseAddress;
@@ -296,7 +299,7 @@ router.get("/complete-tenant-profile", (req, res) => {
   });
 });
 
-router.post("/complete-tenant-profile", registerUpload, async (req, res) => {
+router.post("/complete-tenant-profile", cleanFailedRegistration, registerUpload, async (req, res) => {
   const pendingId = req.session.pendingTenantUserId || req.session.userId;
   if (!pendingId) return res.redirect("/login");
 
@@ -325,7 +328,8 @@ router.post("/complete-tenant-profile", registerUpload, async (req, res) => {
     }
 
     const getUploadUrl = (field) => req.files?.[field]?.[0] ? `/uploads/${req.files[field][0].filename}` : null;
-    const validIdPicture = getUploadUrl('validIdPicture');
+    if (user.accountType !== 'tenant') return res.status(403).send('Tenant account required.');
+    const validIdPicture = await storeReviewFile(req.files?.validIdPicture?.[0], user.id, 'tenant-registration');
     const profilePicture = getUploadUrl('profilePicture');
 
     user.selectedBoardingHouse = selectedBoardingHouse;
@@ -394,6 +398,7 @@ router.post("/complete-tenant-profile", registerUpload, async (req, res) => {
 
     req.session.userId = user.id;
     req.session.accountType = 'tenant';
+    req.registrationSaved = true;
     req.session.userName = user.fullName;
     delete req.session.pendingTenantUserId;
 

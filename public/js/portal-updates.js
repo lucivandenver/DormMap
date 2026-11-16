@@ -6,10 +6,10 @@
   let bell=document.querySelector('#notifBtn,#quickNotifBtn');
   if(!bell){bell=document.createElement('button');bell.type='button';bell.className='portal-bell';bell.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10 21h4"/></svg>';const theme=document.getElementById('themeToggle');if(theme)theme.before(bell);else document.querySelector('header')?.append(bell);}
   if(!bell)return;
-  bell.removeAttribute('onclick');bell.onclick=null;bell.setAttribute('aria-label','Notifications');bell.setAttribute('aria-expanded','false');
+  bell.removeAttribute('onclick');bell.onclick=null;bell.setAttribute('aria-label','Activity');bell.setAttribute('aria-expanded','false');
   const count=document.createElement('span');count.className='portal-unread';count.hidden=true;bell.append(count);
   const panel=document.createElement('section');panel.className='portal-notification-panel';panel.hidden=true;panel.setAttribute('aria-label','Recent notifications');
-  panel.innerHTML='<div class="portal-notification-heading"><strong>Notifications</strong><button type="button" data-read-all>Mark all read</button><button type="button" data-close aria-label="Close notifications">×</button></div><p class="portal-live-state" aria-live="polite">Connecting to live updates…</p><div data-notification-items></div>';
+  panel.innerHTML='<div class="portal-notification-heading"><strong>Activity</strong><button type="button" data-read-all>Mark all read</button><button type="button" data-close aria-label="Close activity">×</button></div><p class="portal-live-state" aria-live="polite">Connecting to live updates…</p><div data-notification-items></div>';
   document.body.append(panel);
   const state=panel.querySelector('.portal-live-state');
   const toggle=()=>{panel.hidden=!panel.hidden;bell.setAttribute('aria-expanded',String(!panel.hidden));if(!panel.hidden){refresh();panel.querySelector('[data-read-all]').focus();}};
@@ -25,7 +25,7 @@
   }
   async function refresh(){if(loading){queued=true;return;}loading=true;try{
     const res=await fetch('/api/portal/notifications',{cache:'no-store'});if(!res.ok){if([401,403].includes(res.status))state.textContent='Sign in again to receive updates.';return;}const data=await res.json();unread=data.unread;
-    count.textContent=unread>99?'99+':String(unread);count.hidden=!unread;bell.classList.toggle('has-updates',unread>0);bell.setAttribute('aria-label',`Notifications: ${unread} unread`);
+    count.textContent=unread>99?'99+':String(unread);count.hidden=!unread;bell.classList.toggle('has-updates',unread>0);bell.setAttribute('aria-label',`Activity: ${unread} unread`);
     document.querySelectorAll('#notifBadge,#quickNotifBadge').forEach(el=>{el.textContent=unread;el.classList.toggle('hidden',!unread);});
     renderItems(panel.querySelector('[data-notification-items]'),data.items);
     const containers=document.querySelectorAll('#notificationsList,#notificationsContainer,#notificationList');containers.forEach(el=>renderItems(el,data.items));

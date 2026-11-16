@@ -5,6 +5,7 @@ import '../models/userModel.js';
 import { ensureAdminSchema } from '../models/adminModels.js';
 import '../models/savedDormModel.js';
 import './propertyPhotoService.js';
+import './reviewFileService.js';
 import { sessionStore } from '../config/session.js';
 
 // Deliberately additive bootstrap for this legacy app: no force, alter, drops,

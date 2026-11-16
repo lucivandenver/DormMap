@@ -31,8 +31,8 @@ export const handleDormigoChat = async (req, res) => {
       success: false,
       error: 'Dormigo encountered an error processing your request.',
       data: {
-        reply: 'Paumanhin, nagkaroon ng sandaling aberya. Subukan muling magtanong o tingnan ang aming interactive map!',
-        suggestions: ['Tingnan ang Mapa', 'Boarding houses sa Poblacion'],
+        reply: 'Dormigo is temporarily unavailable. Please try again or open the interactive map.',
+        suggestions: ['View the map', 'Boarding houses in Poblacion'],
         actionCards: [{ title: 'Explore Map', link: '/#map', label: 'Buksan ang Mapa', icon: 'map' }]
       }
     });
