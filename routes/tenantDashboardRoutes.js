@@ -48,6 +48,8 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
 });
 
+const documentUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
 // Protect all tenant routes with requireTenantUser middleware
 router.use(requireTenantUser);
 
@@ -82,7 +84,7 @@ router.post('/api/messages', sendMessage);
 
 // Documents
 router.get('/api/documents', getDocuments);
-router.post('/api/documents', upload.single('document'), uploadDocument);
+router.post('/api/documents', documentUpload.single('document'), uploadDocument);
 
 // Notifications & Announcements
 router.get('/api/notifications', getNotifications);

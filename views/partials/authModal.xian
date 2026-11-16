@@ -1193,28 +1193,12 @@
     window._setDormmapAuthRole = setRole;
     window._setDormmapAuthMode = setMode;
 
-    // Show SweetAlert if Google OAuth detected a role conflict
-    const googleRoleConflict = authRoot.dataset.googleRoleConflict;
-    const existingRole = authRoot.dataset.googleRoleConflictExisting;
-    if (googleRoleConflict === 'true' && typeof Swal !== 'undefined') {
-      const roleMap = {
-        super_admin: 'BPLO/Admin',
-        barangay: 'Barangay Official',
-        boarding_house_owner: 'Boarding House Owner',
-        tenant: 'Tenant',
-      };
-      const existingRoleLabel = roleMap[existingRole] || existingRole || 'another role';
-      Swal.fire({
-        icon: 'error',
-        title: 'Google Account Already Registered',
-        html: `This Gmail account is already registered as a <strong>${existingRoleLabel}</strong>.<br><br>Multiple roles per Gmail account are not allowed. Please sign in using your existing role.`,
-        confirmButtonText: 'Got it',
-        confirmButtonColor: '#047857',
-        customClass: {
-          popup: 'rounded-2xl',
-          title: 'text-slate-900',
-        }
-      });
+    if (authRoot.dataset.googleRoleConflict === 'true') {
+      const feedback = document.createElement('p');
+      feedback.className = 'auth-inline-error';
+      feedback.setAttribute('role', 'alert');
+      feedback.textContent = 'This Google account is already registered. Sign in using the role associated with this account.';
+      (loginForm.classList.contains('hidden') ? registerForm : loginForm).prepend(feedback);
     }
 
     // Keep unknown-account feedback in the login form, without an alert dialog.

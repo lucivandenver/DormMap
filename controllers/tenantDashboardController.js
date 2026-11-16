@@ -1,3 +1,4 @@
+import { storeReviewFile } from '../services/reviewFileService.js';
 import { getQrPhConfiguration } from '../services/paymongoService.js';
 import { orderBranches } from '../services/propertyBranchesService.js';
 import { confirmOffer } from '../services/occupancyService.js';
@@ -852,7 +853,7 @@ export const uploadDocument = async (req, res, next) => {
       return res.status(400).json({ error: 'Document title and file are required.' });
     }
 
-    const fileUrl = `/uploads/${req.file.filename}`;
+    const fileUrl = await storeReviewFile(req.file, user.id, 'tenant-document');
     const fileSize = `${(req.file.size / 1024).toFixed(1)} KB`;
 
     const doc = await TenantDocument.create({

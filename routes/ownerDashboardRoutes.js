@@ -129,7 +129,10 @@ const docUpload = upload.fields([
   { name: 'gcashQrCode', maxCount: 1 },
 ]);
 router.patch('/api/my-profile', docUpload, controller.updateMyProfile);
-router.post('/api/my-documents', docUpload, controller.updateMyDocuments);
+const reviewDocumentUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+router.post('/api/my-documents', reviewDocumentUpload.fields([
+  'validIdPicture', 'businessPermit', 'barangayClearance', 'proofOfOwnership', 'rentalPermit', 'boardingHousePicture'
+].map(name => ({ name, maxCount: 1 }))), controller.updateMyDocuments);
 
 export default router;
 

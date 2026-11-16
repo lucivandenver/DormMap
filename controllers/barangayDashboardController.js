@@ -1,10 +1,10 @@
+import { storeReviewFile } from '../services/reviewFileService.js';
 import { tenantBranchAssignments } from '../services/propertyBranchesService.js';
 import { namedMessages } from '../services/messageIdentityService.js';
 import { listApprovedBranchPins, listBarangayBranches, reviewBranch } from '../services/branchReviewService.js';
-import { OwnerTenant, OwnerRoom, BoardingHouse } from '../models/ownerModels.js';
+import { OwnerTenant, OwnerRoom, BoardingHouse, OwnerGallery } from '../models/ownerModels.js';
 import { inventorySummary } from '../services/inventorySummaryService.js';
 import { setPublicMapStatus } from '../services/publicMapStatusService.js';
-import { uploadDir } from '../config/storage.js';
 import path from 'path';
 import { Op, fn, col } from 'sequelize';
 import { User } from '../models/userModel.js';
@@ -12,7 +12,7 @@ import {
   BusinessPermit, AdminAuditLog, Announcement, BarangayMessage, 
   BarangayNotification, BploDataRequest, BploDataSubmission, BploPermitRenewal 
 } from '../models/adminModels.js';
-import { buildBarangayMasterlistWorkbook, saveBarangayMasterlistToFile } from '../services/excelService.js';
+import { buildBarangayMasterlistWorkbook } from '../services/excelService.js';
 
 const barangayOf = async (req) => (await User.findByPk(req.session.userId))?.barangay;
 const audit = (req, action, entityType, entityId, details = {}) => 
@@ -228,7 +228,7 @@ export const submitBarangayData = async (req, res, next) => {
     let fileSize = null;
 
     if (req.file) {
-      fileUrl = `/uploads/${req.file.filename}`;
+      fileUrl = await storeReviewFile(req.file, req.session.userId, 'barangay-submission');
       fileName = req.file.originalname;
       fileFormat = path.extname(req.file.originalname).replace('.', '').toLowerCase();
       fileSize = req.file.size;
@@ -238,9 +238,6 @@ export const submitBarangayData = async (req, res, next) => {
         const safeBarangay = barangay.replace(/[^a-zA-Z0-9_-]/g, '_');
         const dateStr = new Date().toISOString().slice(0, 10);
         const autoFileName = `brgy_${safeBarangay}_masterlist_${dateStr}.xlsx`;
-        const diskFileName = `barangay-${Date.now()}-${autoFileName}`;
-
-        const fullFilePath = path.join(uploadDir, diskFileName);
 
         const compiledForExcel = owners.map((h, i) => {
           const p = permits.find(x => x.ownerId === h.id);
@@ -261,11 +258,12 @@ export const submitBarangayData = async (req, res, next) => {
           };
         });
 
-        const savedResult = await saveBarangayMasterlistToFile(barangay, compiledForExcel, summaryData, fullFilePath);
-        fileUrl = `/uploads/${diskFileName}`;
+        const workbook = await buildBarangayMasterlistWorkbook(barangay, compiledForExcel, summaryData);
+        const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+        fileUrl = await storeReviewFile({ originalname: autoFileName, buffer }, req.session.userId, 'barangay-submission');
         fileName = autoFileName;
         fileFormat = 'xlsx';
-        fileSize = savedResult.fileSize;
+        fileSize = buffer.length;
       } catch (excelGenErr) {
         console.error('Error auto-generating Excel masterlist for submission:', excelGenErr);
       }
@@ -552,7 +550,7 @@ export const submitPermitRenewal = async (req, res, next) => {
 
     let documents = {};
     if (req.file) {
-      documents.uploadedDocument = `/uploads/${req.file.filename}`;
+      documents.uploadedDocument = await storeReviewFile(req.file, req.session.userId, 'barangay-renewal');
     }
 
     const renewal = await BploPermitRenewal.create({
@@ -623,27 +621,50 @@ export const applications = async (req, res, next) => {
     const owners = await User.findAll({
       where, order: [['createdAt', 'DESC']],
       attributes: ['id', 'fullName', 'email', 'boardingHouseName', 'barangay', 'mapPin', 'galleryImages', 'boardingHouseLatitude', 'boardingHouseLongitude',
-        'validIdPicture', 'businessPermit', 'barangayClearance', 'applicationStatus', 'applicationReviewNote', 'createdAt']
+        'validIdPicture', 'businessPermit', 'barangayClearance', 'proofOfOwnership', 'rentalPermit', 'supportingDocuments', 'applicationStatus', 'applicationReviewNote', 'createdAt']
     });
     const houses = await BoardingHouse.findAll({
-      where: { ownerId: owners.map(owner => owner.id), isPrimary: true },
-      attributes: ['ownerId', 'registrationSubmission', 'declaredRooms', 'floorCount']
+      where: { ownerId: owners.map(owner => owner.id) },
+      attributes: ['id', 'ownerId', 'name', 'isPrimary', 'address', 'barangay', 'registrationSubmission', 'declaredRooms', 'floorCount'],
+      order: [['id', 'ASC']]
     });
-    const byOwner = new Map(houses.map(house => [house.ownerId, house]));
+    const photos = await OwnerGallery.findAll({
+      where: { boardingHouseId: houses.map(house => house.id) },
+      attributes: ['boardingHouseId', 'sortOrder', 'imageUrl']
+    });
+    const galleryByHouse = new Map();
+    for (const photo of photos) {
+      if (photo.sortOrder < 1 || photo.sortOrder > 5) continue;
+      if (!galleryByHouse.has(photo.boardingHouseId)) galleryByHouse.set(photo.boardingHouseId, Array(5).fill(null));
+      galleryByHouse.get(photo.boardingHouseId)[photo.sortOrder - 1] = photo.imageUrl;
+    }
     const data = owners.map(owner => {
       const { id, applicationStatus, applicationReviewNote, createdAt, ...legacy } = owner.get({ plain: true });
-      const house = byOwner.get(id);
+      const ownerHouses = houses.filter(property => property.ownerId === id);
+      const house = ownerHouses.find(property => property.isPrimary);
       const submission = house?.registrationSubmission || {
         ...legacy,
         branches: house?.declaredRooms ? [{ floors: house.floorCount, rooms: house.declaredRooms }] : []
       };
       const mainLocation = {
         barangay: submission.barangay, latitude: legacy.boardingHouseLatitude, longitude: legacy.boardingHouseLongitude,
-        galleryImages: submission.galleryImages
+        galleryImages: galleryByHouse.get(house?.id) || legacy.galleryImages || submission.galleryImages
       };
-      const branches = (submission.branches || []).filter((branch, index) => index === 0 || branch.barangay);
-      branches[0] = { ...mainLocation, ...branches[0] };
-      return { ...submission, branches, id, applicationStatus, applicationReviewNote, createdAt };
+      const branches = (submission.branches || []).map((branch, index) => {
+        if (!index) return { ...branch, ...mainLocation };
+        const property = ownerHouses.find(item => item.id === branch.boardingHouseId) ||
+          ownerHouses.find(item => item.registrationSubmission?.submittedWithOwner &&
+            item.name.endsWith(` — Branch ${index + 1}`) && item.barangay === branch.barangay);
+        return { ...branch, galleryImages: galleryByHouse.get(property?.id) || branch.galleryImages };
+      }).filter((branch, index) => index === 0 || branch.barangay);
+      if (!branches.length) branches.push(mainLocation);
+      return { ...submission, branches, id, applicationStatus, applicationReviewNote, createdAt,
+        validIdPicture: legacy.validIdPicture || submission.validIdPicture,
+        businessPermit: legacy.businessPermit || submission.businessPermit,
+        barangayClearance: legacy.barangayClearance || submission.barangayClearance,
+        proofOfOwnership: legacy.proofOfOwnership,
+        rentalPermit: legacy.rentalPermit,
+        supportingDocuments: legacy.supportingDocuments };
     });
 
     res.json({ data });

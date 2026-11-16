@@ -103,9 +103,13 @@ export async function registerPropertyInventory(user, setup, files, transaction)
       mapPin: branch.mapPin,
       picture: branch.galleryImages[0]
     }, { transaction });
+    branch.boardingHouseId = listing.id;
     for (const category of GALLERY_CATEGORIES) {
       await saveGallerySlot(user.id, listing.id, category, branch.galleryImages[category.index - 1], transaction);
     }
+  }
+  if (branches.length > 1) {
+    await house.update({ registrationSubmission: { ...registrationSubmission, branches: [...branches] } }, { transaction });
   }
   return house;
 }

@@ -113,7 +113,7 @@
     <!-- Header Actions -->
     <div class="flex items-center gap-3">
       <!-- Quick Notification Toggle -->
-      <button id="quickNotifBtn" onclick="switchTab('notifications')" title="Notifications" class="relative p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition">
+      <button id="quickNotifBtn" onclick="switchTab('notifications')" title="Activity" class="relative p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
         <span id="notifBadge" class="hidden absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full ring-2 ring-white"></span>
       </button>
@@ -217,7 +217,7 @@
               </button>
               <button onclick="switchTab('notifications')" class="nav" id="btn-notifications">
                 <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-                <span>Notifications</span>
+                <span>Activity</span>
               </button>
             </div>
           </div>
@@ -249,6 +249,9 @@
 
   <!-- Main Content View Area -->
   <main class="lg:pl-64 pt-16 min-h-screen transition-all duration-200">
+    <div id="portalFeedback" class="hidden" role="status"></div>
+    <script src="/js/portal-feedback.js"></script>
+    <script src="/js/document-preview.js"></script>
     <div class="w-full max-w-[1560px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 py-6 space-y-6">
       
       <!-- Breadcrumb Bar -->
@@ -773,11 +776,11 @@
       <div id="tab-notifications" class="tab-content hidden space-y-6">
         <div class="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
           <div>
-            <h2 class="text-xl font-bold text-slate-900">Notification Center</h2>
-            <p class="text-xs text-slate-500">Rent reminders, payment updates, and maintenance notifications</p>
+            <h2 class="text-xl font-bold text-slate-900">Activity</h2>
+            <p class="text-xs text-slate-500">Rent reminders, payment updates, and maintenance updates</p>
           </div>
           <div id="notificationsContainer" class="space-y-3">
-            <p class="text-xs text-slate-400 italic">Loading notifications...</p>
+            <p class="text-xs text-slate-400 italic">Loading activity…</p>
           </div>
         </div>
       </div>
@@ -1528,12 +1531,12 @@
     const res = await fetch('/tenant-dashboard/api/maintenance', { method: 'POST', body: formData });
     const data = await res.json();
     if (res.ok) {
-      Swal.fire({ icon: 'success', title: 'Submitted', text: data.message, confirmButtonColor: '#023020' });
+      DormMapFeedback.show(data.message, 'success');
       closeMaintenanceModal();
       document.getElementById('maintenanceForm').reset();
       loadMaintenance();
     } else {
-      Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to submit request', confirmButtonColor: '#023020' });
+      DormMapFeedback.show(data.error || 'Failed to submit request', 'error');
     }
   }
 
@@ -1609,56 +1612,38 @@
   }
 
   async function confirmApplication(appId, bhName) {
-    const result = await Swal.fire({
-      icon: 'question',
-      title: '✅ Confirm Tenancy',
-      html: `Confirm your tenancy at <strong>${escapeMessage(bhName)}</strong>?<br><br><span class="text-sm text-rose-700">Your other pending boarding house applications will be cancelled automatically.</span>`,
-      confirmButtonColor: '#023020',
-      confirmButtonText: 'Yes, Confirm My Room!',
-      cancelButtonText: 'Not yet',
-      showCancelButton: true
-    });
-    if (!result.isConfirmed) return;
+    if (!await DormMapFeedback.confirm( `Confirm your tenancy at ${bhName}? Your other pending applications will be cancelled.`)) return;
 
-    Swal.fire({ title: 'Confirming...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    DormMapFeedback.show('Confirming…', 'pending');
     try {
       const res = await fetch(`/tenant-dashboard/api/applications/${appId}/confirm`, { method: 'POST' });
       const data = await res.json();
       if (res.ok) {
-        await Swal.fire({ icon: 'success', title: '🎉 Tenancy Confirmed!', html: `Welcome! You are now an active tenant at <strong>${escapeMessage(bhName)}</strong>. All features are now unlocked!`, confirmButtonColor: '#023020' });
+        DormMapFeedback.show('Tenancy confirmed.');
         loadOverview();
       } else {
-        Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to confirm application.', confirmButtonColor: '#023020' });
+        DormMapFeedback.show(data.error || 'Failed to confirm application.', 'error');
       }
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Network Error', text: 'Please try again.', confirmButtonColor: '#023020' });
+      DormMapFeedback.show('Please try again.', 'error');
     }
   }
 
   async function cancelApplication(appId, bhName) {
-    const result = await Swal.fire({
-      icon: 'warning',
-      title: '❌ Cancel Application',
-      html: `Cancel your application at <strong>${escapeMessage(bhName)}</strong>?<br><small class="text-slate-500">The owner will be notified that you cancelled this application.</small>`,
-      confirmButtonColor: '#dc2626',
-      confirmButtonText: 'Yes, Cancel It',
-      cancelButtonText: 'Go Back',
-      showCancelButton: true
-    });
-    if (!result.isConfirmed) return;
+    if (!await DormMapFeedback.confirm( `Cancel your application at ${bhName}?`)) return;
 
-    Swal.fire({ title: 'Cancelling...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    DormMapFeedback.show('Cancelling…', 'pending');
     try {
       const res = await fetch(`/tenant-dashboard/api/applications/${appId}/cancel`, { method: 'POST' });
       const data = await res.json();
       if (res.ok) {
-        Swal.fire({ icon: 'info', title: 'Cancelled', text: data.message, confirmButtonColor: '#023020' });
+        DormMapFeedback.show(data.message, 'success');
         loadOverview();
       } else {
-        Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to cancel.', confirmButtonColor: '#023020' });
+        DormMapFeedback.show(data.error || 'Failed to cancel.', 'error');
       }
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Network Error', text: 'Please try again.', confirmButtonColor: '#023020' });
+      DormMapFeedback.show('Please try again.', 'error');
     }
   }
 
@@ -1700,14 +1685,14 @@
       const data = await res.json();
       if (res.ok) {
         closeInquiryModal();
-        await Swal.fire({ icon: 'success', title: '📩 Inquiry Sent!', html: `<strong>${document.getElementById('inquiryBHName')?.value || 'Boarding House'}</strong> — your application has been submitted. Check your Applications Hub on the Dashboard for updates!`, confirmButtonColor: '#023020' });
+        DormMapFeedback.show('Inquiry sent. Check your applications for updates.');
         loadOverview();
         loadBrowseBoardingHouses();
       } else {
-        Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to submit inquiry.', confirmButtonColor: '#023020' });
+        DormMapFeedback.show(data.error || 'Failed to submit inquiry.', 'error');
       }
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Network Error', text: 'Please try again.', confirmButtonColor: '#023020' });
+      DormMapFeedback.show('Please try again.', 'error');
     } finally {
       if (btn) { btn.disabled = false; btn.innerHTML = 'Send Application & Inquiry ➔'; }
     }
@@ -1873,7 +1858,7 @@
     const text = (input?.value || '').trim();
     if (!text) return;
     if (!ownerId) {
-      Swal.fire({ icon: 'info', title: 'Select a Landlord', text: 'Please select a landlord conversation first.', confirmButtonColor: '#023020' });
+      DormMapFeedback.show('Please select a landlord conversation first.', 'success');
       return;
     }
 
@@ -1893,10 +1878,10 @@
         renderConversationList(allConversations);
       } else {
         const data = await res.json();
-        Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to send message.', confirmButtonColor: '#023020' });
+        DormMapFeedback.show(data.error || 'Failed to send message.', 'error');
       }
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Network Error', text: 'Please try again.', confirmButtonColor: '#023020' });
+      DormMapFeedback.show('Please try again.', 'error');
     }
   }
 
@@ -1954,9 +1939,7 @@
             <span class="px-2.5 py-0.5 bg-slate-200 text-slate-700 rounded-full text-[10px] font-bold capitalize">${d.docType}</span>
           </div>
           <p class="text-slate-500 text-[11px]">${d.fileSize || 'N/A'}</p>
-          <a href="${d.fileUrl}" target="_blank" class="block text-center w-full py-2 bg-emerald-950 text-white rounded-xl font-bold hover:bg-emerald-900 transition active:scale-95">
-            View / Download File
-          </a>
+          ${DormMapPreview.render(d.fileUrl, 'document')}
         </div>
       `).join('');
     } catch (err) { console.error('Error loading documents:', err); }
@@ -1981,12 +1964,12 @@
     const res = await fetch('/tenant-dashboard/api/documents', { method: 'POST', body: formData });
     const data = await res.json();
     if (res.ok) {
-      Swal.fire({ icon: 'success', title: 'Uploaded', text: data.message, confirmButtonColor: '#023020' });
+      DormMapFeedback.show(data.message, 'success');
       closeDocumentModal();
       document.getElementById('documentForm').reset();
       loadDocuments();
     } else {
-      Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to upload document', confirmButtonColor: '#023020' });
+      DormMapFeedback.show(data.error || 'Failed to upload document', 'error');
     }
   }
 
@@ -1999,7 +1982,7 @@ async function loadLegacyNotifications() {
 
       const container = document.getElementById('notificationsContainer');
       if (!data.notifications || data.notifications.length === 0) {
-        container.innerHTML = `<p class="text-xs text-slate-400 italic p-4 bg-slate-50 rounded-2xl">No notifications.</p>`;
+        container.innerHTML = `<p class="text-xs text-slate-400 italic p-4 bg-slate-50 rounded-2xl">No recent activity.</p>`;
         return;
       }
 
@@ -2042,7 +2025,7 @@ async function loadLegacyNotifications() {
     const res = await fetch('/tenant-dashboard/api/profile', { method: 'POST', body: formData });
     const data = await res.json();
     if (res.ok) {
-      Swal.fire({ icon: 'success', title: 'Profile Updated', text: data.message, confirmButtonColor: '#023020' });
+      DormMapFeedback.show(data.message, 'success');
       if (data.user?.profilePicture) {
         const headerAv = document.getElementById('headerAvatar');
         const overviewAv = document.getElementById('profOverviewAvatar');
@@ -2050,7 +2033,7 @@ async function loadLegacyNotifications() {
         if (overviewAv) overviewAv.src = data.user.profilePicture;
       }
     } else {
-      Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to update profile', confirmButtonColor: '#023020' });
+      DormMapFeedback.show(data.error || 'Failed to update profile', 'error');
     }
   }
 
@@ -2067,10 +2050,10 @@ async function loadLegacyNotifications() {
     });
     const data = await res.json();
     if (res.ok) {
-      Swal.fire({ icon: 'success', title: 'Password Updated', text: data.message, confirmButtonColor: '#023020' });
+      DormMapFeedback.show(data.message, 'success');
       document.getElementById('passwordForm').reset();
     } else {
-      Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to update password', confirmButtonColor: '#023020' });
+      DormMapFeedback.show(data.error || 'Failed to update password', 'error');
     }
   }
 </script>

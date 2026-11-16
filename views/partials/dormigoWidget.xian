@@ -5,6 +5,27 @@
      ========================================== -->
 
 <style>
+  #dormigoQuestionButtons:not([hidden]) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    max-height: min(11rem, 29dvh);
+    overflow-y: auto;
+  }
+  #dormigoQuestionButtons .dormigo-quick-btn {
+    background: white;
+    color: #065f46;
+    border: 1px solid #b8d4ca;
+    padding: 0.5rem 0.8rem;
+    text-align: left;
+  }
+  #dormigoQuestionButtons .dormigo-quick-btn:hover,
+  #dormigoQuestionButtons .dormigo-quick-btn:focus-visible {
+    background: #ecfdf5;
+    border-color: #047857;
+  }
+
   /* Dormigo Floating Widget Styling */
   #dormigoRoot {
     --dormigo-primary: #007a64;
@@ -229,10 +250,9 @@
 
     </div>
 
-    <details id="dormigoQuickQuestions" class="shrink-0 border-t border-slate-100 bg-white px-3 py-2" open>
-      <summary class="cursor-pointer text-xs font-semibold text-emerald-800">Quick questions</summary>
-      <div id="dormigoQuestionButtons" class="mt-2 flex flex-wrap gap-1.5 max-h-28 overflow-y-auto"></div>
-    </details>
+    <div class="shrink-0 bg-emerald-50/60">
+      <div id="dormigoQuestionButtons" hidden aria-label="Suggested questions"></div>
+    </div>
 
     <!-- TYPING INDICATOR -->
     <div id="dormigoTyping" class="hidden px-4 pb-2 bg-white">

@@ -85,6 +85,11 @@
 
         <div class="p-6 sm:p-8 space-y-6">
 
+          {{#if googleRoleConflict}}
+            <p role="alert" class="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+              This Google account is already registered. Sign in using the role associated with this account.
+            </p>
+          {{/if}}
           {{#if authError}}
           <div class="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
             <svg class="w-4 h-4 text-rose-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -443,33 +448,6 @@
       selectRole(initialRole);
     })();
 
-    {{#if googleRoleConflict}}
-    if (typeof Swal !== 'undefined') {
-      const roleMap = {
-        super_admin: 'BPLO/Admin',
-        barangay: 'Barangay Official',
-        boarding_house_owner: 'Boarding House Owner',
-        tenant: 'Tenant',
-      };
-      const existing = '{{googleRoleConflictExisting}}';
-      const existingLabel = roleMap[existing] || existing || 'another role';
-      Swal.fire({
-        icon: 'error',
-        title: 'Google Account Already Registered',
-        html: `This Gmail account is already registered as a <strong>${existingLabel}</strong>.<br><br>Multiple roles per Gmail account are not allowed. Please sign in using your existing role.`,
-        confirmButtonText: 'Go to Login',
-        confirmButtonColor: '#047857',
-        customClass: {
-          popup: 'rounded-2xl',
-          title: 'text-slate-900',
-        }
-      }).then((result) => {
-        if (result.isConfirmed) {
-          window.location.href = '/login';
-        }
-      });
-    }
-    {{/if}}
   </script>
 
   {{> footer }}

@@ -41,6 +41,7 @@ import { fileURLToPath } from "url";
 import { dirname } from "path";
 import { sessionOptions, sessionStore } from './config/session.js';
 import { publicDir, uploadDir, prepareUploads } from './config/storage.js';
+import { serveReviewFile } from './services/reviewFileService.js';
 import { servePropertyPhoto } from './services/propertyPhotoService.js';
 
 hbs.registerHelper('eq', (a, b) => a === b);
@@ -93,6 +94,8 @@ app.use((req, res, next) => {
   res.set('Cache-Control', 'no-store');
   next();
 });
+
+app.get('/documents/:id/:filename', serveReviewFile);
 
 const normalizeAccountType = (type) => {
   if (!type) return "tenant";

@@ -146,6 +146,9 @@
 
   <!-- Main Content Area -->
   <main class="px-4 pb-12 pt-20 lg:ml-64 lg:px-8">
+    <div id="portalFeedback" class="hidden" role="status"></div>
+    <script src="/js/portal-feedback.js"></script>
+    <script src="/js/document-preview.js"></script>
     <div class="mx-auto max-w-7xl">
       <!-- Section Header -->
       <div class="mb-7 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
@@ -452,7 +455,7 @@
       <section data-view="settings" class="hidden space-y-6">
         <div class="rounded-2xl bg-white p-6 shadow-xs border border-slate-100">
           <h2 class="text-lg font-bold text-slate-900 mb-2">System Settings & Configuration</h2>
-          <p class="text-xs text-slate-500 mb-6">Manage municipality parameters, reporting schedules, notification intervals, and file upload limits.</p>
+          <p class="text-xs text-slate-500 mb-6">Manage municipality parameters, reporting schedules, activity update intervals, and file upload limits.</p>
           <section class="mb-5 rounded-xl border border-slate-200 p-4 text-sm" aria-labelledby="qrPhSettingsHeading">
             <h3 id="qrPhSettingsHeading" class="font-bold">PayMongo QR Ph</h3>
             <p id="qrPhSettingsStatus" class="mt-1 text-slate-600"></p>
@@ -460,7 +463,7 @@
           <form id="systemSettingsForm" class="space-y-4 max-w-2xl">
             <div id="settingsFieldsContainer" class="space-y-4"></div>
             <fieldset class="space-y-3 rounded-xl border p-4">
-              <legend class="px-2 text-sm font-bold">Dormigo quick questions</legend>
+              <legend class="px-2 text-sm font-bold">Dormigo suggested questions</legend>
               <div id="dormigoQuestionFields" class="space-y-3"></div>
             </fieldset>
             <button class="button !bg-emerald-700 !text-white mt-4 flex items-center gap-2">
@@ -672,7 +675,6 @@
 <div id="modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/50 p-4"><div class="w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl bg-white p-6 shadow-2xl"><div class="flex items-center justify-between"><h2 id="modalTitle" class="text-lg font-bold"></h2><button onclick="closeModal('modal')">✕</button></div><form id="recordForm" class="mt-5 space-y-3"></form></div></div>
 
 <!-- TOAST -->
-<div id="toast" class="fixed bottom-5 right-5 hidden z-50 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-medium text-white shadow-lg"></div>
 
 <style>
   body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
@@ -783,13 +785,7 @@ const titles = {
   audit: 'Audit Logs & Trails'
 };
 
-const toast = (message, error = false) => {
-  const el = document.getElementById('toast');
-  el.textContent = message;
-  el.className = `fixed bottom-5 right-5 z-50 rounded-xl px-4 py-3 text-sm font-medium text-white shadow-lg ${error ? 'bg-rose-700' : 'bg-emerald-700'}`;
-  el.classList.remove('hidden');
-  setTimeout(() => el.classList.add('hidden'), 3500);
-};
+const toast = (message, error = false) => DormMapFeedback.show(message, error ? 'error' : 'success');
 
 async function request(url, opts = {}) {
   const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
@@ -1364,7 +1360,7 @@ async function sendReminder(id) {
 }
 
 async function cancelDataRequest(id) {
-  if (!confirm('Are you sure you want to cancel this data request?')) return;
+  if (!await DormMapFeedback.confirm('Are you sure you want to cancel this data request?')) return;
   try {
     await request(api + `/data-requests/${id}`, { method: 'DELETE' });
     toast('Data request cancelled.');
@@ -1447,10 +1443,7 @@ async function inspectSubmission(id) {
         <p class="text-xs text-slate-600">Barangay: <b>${esc(s.barangay)}</b> · Submitted By: <b>${esc(d.submitter?.fullName || 'Official')}</b> (${esc(d.submitter?.email || '')})</p>
         <p class="text-xs text-slate-600">Reporting Period: <b>${esc(s.reportingPeriod || 'On-Demand')}</b> · Type: <b>${esc(s.submissionType.replace(/_/g, ' '))}</b></p>
         <div class="pt-3 flex flex-col gap-2" style="align-items:flex-start">
-          ${s.fileUrl
-            ? `<a href="${esc(s.fileUrl)}" target="_blank" style="color:#059669;font-weight:600;font-size:13px;text-decoration:underline">View File</a>`
-            : ''
-          }
+          ${DormMapPreview.render(s.fileUrl, 'submission file')}
           <button onclick="exportSubmissionExcel(${s.id})" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#1e293b;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:5px 14px;cursor:pointer" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">
             <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Excel
@@ -1489,7 +1482,7 @@ async function inspectSubmission(id) {
 async function executeReviewSubmission(id, action) {
   const remarks = document.getElementById('adminReviewRemarksInput').value;
   if ((action === 'revision' || action === 'reject') && !remarks.trim()) {
-    alert('Please enter review remarks to guide the barangay official on the required revisions.');
+    toast('Please enter review remarks to guide the barangay official on the required revisions.', true);
     return;
   }
 
@@ -1584,6 +1577,10 @@ async function loadBarangayAccounts() {
 function openBarangayReview(id) {
   const application = barangayApplications.find(item => Number(item.id) === Number(id));
   if (!application) return;
+  let attachments = application.supportingDocuments || {};
+  if (typeof attachments === 'string') {
+    try { attachments = JSON.parse(attachments) || {}; } catch { attachments = {}; }
+  }
   document.getElementById('modalTitle').textContent = 'Review barangay registration';
   const form = document.getElementById('recordForm');
   form.innerHTML = `
@@ -1594,6 +1591,10 @@ function openBarangayReview(id) {
       <dd>Current status · ${esc(application.applicationStatus)}</dd>
       ${application.applicationReviewNote ? `<dd>Previous note · ${esc(application.applicationReviewNote)}</dd>` : ''}
     </dl>
+    <div class="grid gap-3 sm:grid-cols-2">
+      ${DormMapPreview.render(application.validIdPicture || attachments.governmentId, 'government ID')}
+      ${DormMapPreview.render(application.barangayClearance || attachments.barangayCertificate, 'barangay document')}
+    </div>
     <label class="block text-sm font-semibold">Decision
       <select class="field mt-1" name="action" required>
         <option value="">Select a decision</option>
@@ -1651,7 +1652,13 @@ async function loadOwners(page = 1) {
         <td>${esc(x.barangay || '—')}
           ${x.branches?.length ? `<ul class="mt-1 text-xs text-slate-500">${x.branches.map(branch => `<li>Branch ${branch.number} · ${esc(branch.barangay || 'No barangay')} · ${esc(branch.status)}</li>`).join('')}</ul>` : ''}
         </td>
-        <td><a class="text-emerald-700 underline text-xs font-bold" href="${esc(x.businessPermit || '#')}" target="_blank">Permit</a></td>
+        <td><details>
+          <summary class="cursor-pointer text-xs font-bold text-emerald-800">Review documents</summary>
+          ${DormMapPreview.render(x.businessPermit, 'business permit')}
+          ${DormMapPreview.render(x.validIdPicture, 'government ID')}
+          ${DormMapPreview.render(x.barangayClearance, 'barangay clearance')}
+          ${DormMapPreview.render(x.boardingHousePicture, 'property photo')}
+        </details></td>
         <td><span class="badge status-${esc(x.applicationStatus)}">${esc(x.applicationStatus)}</span></td>
         <td>${new Date(x.createdAt).toLocaleDateString()}</td>
         <td class="space-x-1 text-xs">
@@ -1682,7 +1689,7 @@ async function openOwnerTenantAssignments(ownerId) {
 }
 
 async function reviewOwnerMap(id, action) {
-  if (!confirm(`Apply ${action} to the public map listing?`)) return;
+  if (!await DormMapFeedback.confirm(`Apply ${action} to the public map listing?`)) return;
   try { await request(`${api}/owners/${id}/map-status`, { method: 'PATCH', body: JSON.stringify({ action }) }); loadOwners(ownerCurrentPage); toast('Map status updated.'); }
   catch (e) { toast(e.message, true); }
 }
@@ -1705,7 +1712,8 @@ async function loadPermitRenewals() {
       <tr>
         <td><b>${esc(r.owner?.boardingHouseName || 'Boarding House')}</b><br><span class="text-xs text-slate-500">${esc(r.owner?.fullName || 'Owner')}</span></td>
         <td>${esc(r.barangay)}</td>
-        <td>${esc(r.permitNumber || '—')}</td>
+        <td>${esc(r.permitNumber || '—')}
+          ${r.documents ? DormMapPreview.render(DormMapPreview.attachment(r.documents, 'uploadedDocument'), 'renewal document') : ''}</td>
         <td>${esc(r.currentExpirationDate || '—')}</td>
         <td>${esc(r.requestedRenewalDate || '—')}</td>
         <td><span class="badge status-${esc(r.status)}">${esc(r.status.replace(/_/g, ' '))}</span></td>
@@ -1875,7 +1883,7 @@ function openRecordForm(type, record = {}) {
 }
 
 async function deleteRecord(type, id) {
-  if (!confirm('Delete this record?')) return;
+  if (!await DormMapFeedback.confirm('Delete this record?')) return;
   try {
     await request(`${api}/${type}/${id}`, { method: 'DELETE' });
     toast('Record deleted.');

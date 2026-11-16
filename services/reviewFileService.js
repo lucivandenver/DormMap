@@ -1,0 +1,74 @@
+import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { DataTypes, Op } from 'sequelize';
+import { sequelize } from '../models/db.js';
+import { User } from '../models/userModel.js';
+import { TenantApplication } from '../models/tenantModels.js';
+import { BoardingHouse } from '../models/ownerModels.js';
+
+const ReviewFile = sequelize.define('ReviewFile', {
+  id: { type: DataTypes.CHAR(36), primaryKey: true },
+  userId: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'Users', key: 'id' }, onDelete: 'CASCADE' },
+  filename: { type: DataTypes.STRING(255), allowNull: false },
+  scope: { type: DataTypes.STRING(32), allowNull: false },
+  bytes: { type: DataTypes.BLOB('long'), allowNull: false },
+});
+
+export async function storeReviewFile(file, userId, scope = 'registration', transaction) {
+  if (!file) return null;
+  const id = randomUUID();
+  const filename = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, '_').slice(-200);
+  const bytes = file.buffer || await readFile(file.path);
+  await ReviewFile.create({ id, userId, filename, scope, bytes }, { transaction });
+  return `/documents/${id}/${filename}`;
+}
+
+async function canReview(viewer, file) {
+  if (viewer.isArchived || viewer.isSuspended) return false;
+  if (viewer.id === file.userId || ['super_admin', 'bplo_admin'].includes(viewer.accountType)) return true;
+
+  if (viewer.accountType === 'boarding_house_owner' &&
+      ['approved', 'approved_barangay', 'forwarded_to_bplo'].includes(viewer.applicationStatus) &&
+      file.scope === 'tenant-registration') {
+    return Boolean(await TenantApplication.findOne({
+      where: { ownerId: viewer.id, tenantId: file.userId,
+        status: { [Op.in]: ['pending_owner', 'accepted_by_owner', 'confirmed'] } },
+      attributes: ['id']
+    }));
+  }
+  if (viewer.accountType === 'barangay' && viewer.applicationStatus === 'approved' &&
+      viewer.barangay && file.scope === 'owner-registration') {
+    const owner = await User.findByPk(file.userId, { attributes: ['accountType', 'barangay'] });
+    if (owner?.accountType !== 'boarding_house_owner') return false;
+    if (owner.barangay === viewer.barangay) return true;
+    return Boolean(await BoardingHouse.findOne({
+      where: { ownerId: file.userId, barangay: viewer.barangay },
+      attributes: ['id']
+    }));
+  }
+  return false;
+}
+
+export async function serveReviewFile(req, res, next) {
+  if (!/^[0-9a-f-]{36}$/.test(req.params.id)) return res.sendStatus(404);
+  try {
+    const viewer = req.session?.userId && await User.findByPk(req.session.userId, {
+      attributes: ['id', 'accountType', 'barangay', 'applicationStatus', 'isArchived', 'isSuspended']
+    });
+    if (!viewer) return res.sendStatus(404);
+    const file = await ReviewFile.findByPk(req.params.id, { attributes: ['id', 'filename', 'userId', 'scope'] });
+    if (!file || file.filename !== req.params.filename || !await canReview(viewer, file)) return res.sendStatus(404);
+
+    const { bytes } = await ReviewFile.findByPk(file.id, { attributes: ['bytes'] });
+    const type = ({
+      '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp',
+      '.gif': 'image/gif', '.pdf': 'application/pdf'
+    })[path.extname(file.filename).toLowerCase()];
+    res.set({ 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; frame-ancestors 'self'" });
+    if (type) res.type(type);
+    else res.attachment(file.filename).type('application/octet-stream');
+    return res.send(bytes);
+  } catch (error) { next(error); }
+}
