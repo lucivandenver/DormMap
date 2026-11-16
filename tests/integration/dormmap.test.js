@@ -207,9 +207,18 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const response = await request('/tenant-dashboard/api/documents', cookie, { method: 'POST', body: form });
       assert.equal(response.status, 201, await response.clone().text());
       const data = await response.json();
-      assert.match(data.document.fileUrl, /^\/uploads\/tenant-/);
-      uploadedFiles.push(new URL('../../public' + data.document.fileUrl, import.meta.url));
-      assert.equal(await (await request(data.document.fileUrl)).text(), 'fallback upload works');
+      assert.match(data.document.fileUrl, /^\/documents\/[0-9a-f-]{36}\/fallback-check\.txt$/);
+      const download = await request(data.document.fileUrl, cookie);
+      assert.equal(download.status, 200);
+      assert.equal(await download.text(), 'fallback upload works');
+      assert.equal((await request(data.document.fileUrl)).status, 404);
+      assert.equal((await request(data.document.fileUrl, await login(second.email))).status, 404);
+
+      await stop();
+      await start({ freshUploads: true });
+      const persistedDownload = await request(data.document.fileUrl, cookie);
+      assert.equal(persistedDownload.status, 200);
+      assert.equal(await persistedDownload.text(), 'fallback upload works');
     });
     await t.test('room capacity, transfers, move-out, ownership and billing are connected', async () => {
       await owner.update({ barangay: 'Orconuma', boardingHouseName: house.name, mapPin: 'Lat 12.72, Lon 121.47', boardingHouseLatitude: '12.72', boardingHouseLongitude: '121.47' });
