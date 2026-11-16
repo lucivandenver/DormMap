@@ -470,7 +470,7 @@ export const loginUser = async (req, res) => {
     if (!match) {
       return renderLoginPage(res, {
         authAccountType: requestedAccountType || normalizeAccountType(user.accountType),
-        authError: "Maling password. Pakisubukang muli o i-click ang 'Forgot password?'.",
+        authError: "Incorrect password. Try again or select 'Forgot password?'.",
         authValues: { email, accountType: requestedAccountType },
       });
     }
