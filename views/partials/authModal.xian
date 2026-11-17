@@ -372,6 +372,11 @@
                   <input type="text" name="boardingHouseName" value="{{authValues.boardingHouseName}}" required class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
                 </label>
               </div>
+              <label class="block text-sm font-semibold text-slate-700">
+                <span class="mb-1 block">Contact number</span>
+                <input type="tel" name="contactNumber" value="{{authValues.contactNumber}}" maxlength="25" required autocomplete="tel" class="w-full rounded-xl border border-slate-200 px-3 py-2">
+              </label>
+              {{> ownerPaymentSetup }}
               {{> ownerRegistrationCounts }}
               <button type="button" class="registration-step" data-owner-next="2">Next</button>
             </div>
@@ -484,6 +489,17 @@
                       <input type="file" name="galleryBathroom" accept="image/*" required class="w-full text-xs file:mr-2 file:rounded-full file:border-0 file:bg-emerald-800 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white">
                     </label>
                   </div>
+                <details class="my-2 rounded-xl border border-slate-200 bg-white p-3">
+                  <summary class="cursor-pointer text-sm font-semibold text-emerald-800">Add extra property photos</summary>
+                  <p class="my-2 text-xs text-slate-600">Upload up to five extra photos for this branch.</p>
+                  <div class="grid gap-2 sm:grid-cols-2">
+                  <label class="block text-xs font-semibold">Extra Photo 1<input class="mt-1 block w-full text-xs" type="file" name="galleryExtra1" accept="image/jpeg,image/png,image/webp"></label>
+                  <label class="block text-xs font-semibold">Extra Photo 2<input class="mt-1 block w-full text-xs" type="file" name="galleryExtra2" accept="image/jpeg,image/png,image/webp"></label>
+                  <label class="block text-xs font-semibold">Extra Photo 3<input class="mt-1 block w-full text-xs" type="file" name="galleryExtra3" accept="image/jpeg,image/png,image/webp"></label>
+                  <label class="block text-xs font-semibold">Extra Photo 4<input class="mt-1 block w-full text-xs" type="file" name="galleryExtra4" accept="image/jpeg,image/png,image/webp"></label>
+                  <label class="block text-xs font-semibold">Extra Photo 5<input class="mt-1 block w-full text-xs" type="file" name="galleryExtra5" accept="image/jpeg,image/png,image/webp"></label>
+                  </div>
+                </details>
                 </div>
               </div>
               <div class="flex justify-between gap-2">
@@ -745,6 +761,7 @@
         const visible = state.role === 'boarding_house_owner' && Number(step.dataset.ownerStep) === state.ownerStep;
         step.classList.toggle('hidden', !visible);
         syncInputs(step, visible);
+        if (visible) step.querySelector('[data-owner-payment-setup]')?.dispatchEvent(new Event('change'));
       });
 
       ownerDots.forEach((dot) => {
@@ -799,6 +816,7 @@
       }
       const owner = registerSections.find(section => section.dataset.registerSection === 'boarding_house_owner');
       syncInputs(owner, true);
+      owner.querySelector('[data-owner-payment-setup]')?.dispatchEvent(new Event('change'));
     }, true);
 
     const resetTenantSelection = () => {

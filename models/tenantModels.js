@@ -45,6 +45,7 @@ export const TenantApplication = sequelize.define('TenantApplication', {
     // 'confirmed'           -> tenant confirmed back, officially active tenant
     // 'declined_by_owner'   -> owner rejected
     // 'cancelled_by_tenant' -> tenant cancelled or picked another boarding house
+    // 'duplicate_closed'   -> another pending application or offer already covers this owner
   },
   ownerNotes:        { type: DataTypes.TEXT,    allowNull: true },
   acceptedAt:        { type: DataTypes.DATE,    allowNull: true },

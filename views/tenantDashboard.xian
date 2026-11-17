@@ -498,6 +498,34 @@
 
       <!-- TAB 3: PAYMENT HISTORY -->
       <div id="tab-payments" class="tab-content hidden space-y-6">
+        <dialog id="rentPaymentDialog" aria-labelledby="rentPaymentTitle" class="m-auto max-h-[90dvh] w-[calc(100%_-_2rem)] max-w-md overflow-y-auto rounded-2xl p-5 text-slate-800 shadow-xl backdrop:bg-slate-950/60">
+          <form id="rentPaymentForm" class="space-y-4">
+            <h2 id="rentPaymentTitle" class="text-xl font-bold">Pay rent</h2>
+            <p id="rentPaymentTotal" class="rounded-xl bg-emerald-950 p-4 font-semibold text-white"></p>
+            <label class="block text-sm font-semibold">Payment method
+              <select name="method" required class="mt-1 block w-full rounded-xl border border-slate-200 p-2"></select>
+            </label>
+            <p class="text-sm text-slate-600" data-cash-instructions>Pay your owner in person, then report the date you handed over the payment.</p>
+            <div data-gcash-fields hidden class="space-y-3">
+              <p class="text-sm text-slate-600">Use your owner's GCash QR code, then upload proof and enter the transaction reference.</p>
+              <img id="rentGcashQr" class="mx-auto max-h-52 w-full max-w-52 rounded-xl border border-slate-200 object-contain" alt="Owner’s GCash QR code">
+              <label class="block text-sm font-semibold">GCash reference number
+                <input name="reference" maxlength="100" class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
+              </label>
+              <label class="block text-sm font-semibold">Proof of payment
+                <input type="file" name="proof" accept="image/jpeg,image/png,image/webp" class="mt-1 block w-full text-xs">
+              </label>
+            </div>
+            <label class="block text-sm font-semibold">Date paid
+              <input type="date" name="paidDate" required class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
+            </label>
+            <p role="alert" class="text-sm text-rose-700" data-payment-error></p>
+            <div class="flex justify-end gap-2">
+              <button type="button" class="rounded-lg border px-3 py-2" onclick="this.closest('dialog').close()">Cancel</button>
+              <button type="submit" class="rounded-lg bg-emerald-700 px-4 py-2 font-semibold text-white">Submit payment</button>
+            </div>
+          </form>
+        </dialog>
         <div class="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
           <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
@@ -524,7 +552,7 @@
                   <th class="p-3.5">Paid Date</th>
                   <th class="p-3.5">Penalty</th>
                   <th class="p-3.5">Status</th>
-                  <th class="p-3.5 text-right">Receipt</th>
+                  <th class="p-3.5 text-right">Payment</th>
                 </tr>
               </thead>
               <tbody id="paymentsTableBody" class="divide-y divide-slate-100 text-slate-700 font-medium">
@@ -1344,7 +1372,9 @@
     } catch (err) { console.error('Error loading my room:', err); }
   }
 
-  let qrPhAvailable = false;
+  let tenantBills = [];
+  let rentPaymentOptions = {};
+  let rentPaymentToday;
 
   async function loadPaymentHistory() {
     try {
@@ -1352,7 +1382,10 @@
       const status = statusFilter ? statusFilter.value : 'all';
       const res = await fetch(`/tenant-dashboard/api/payments?status=${status}`);
       const data = await res.json();
-      qrPhAvailable = data.qrPhAvailable === true;
+      if (!res.ok) throw new Error(data.error || 'Could not load payments.');
+      tenantBills = data.payments || [];
+      rentPaymentOptions = data.paymentOptions || {};
+      rentPaymentToday = data.today;
 
       const tbody = document.getElementById('paymentsTableBody');
       if (!data.payments || data.payments.length === 0) {
@@ -1364,100 +1397,101 @@
         const isPaid = p.status === 'paid';
         return `
           <tr class="hover:bg-slate-50 transition">
-            <td class="p-3.5 font-bold text-slate-900">${p.month || 'N/A'}</td>
+            <td class="p-3.5 font-bold text-slate-900">${escapeMessage(p.month || 'N/A')}</td>
             <td class="p-3.5 text-emerald-700 font-bold">₱${Number(p.amount).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
             <td class="p-3.5">${p.dueDate || '—'}</td>
             <td class="p-3.5">${p.paidDate || '—'}</td>
             <td class="p-3.5 text-rose-600">₱${Number(p.penalty || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
             <td class="p-3.5">
-              <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${(p.status || 'pending').toUpperCase()}</span>
+              <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${p.status === 'pending' && p.submittedMethod ? 'AWAITING CONFIRMATION' : escapeMessage((p.status || 'pending').toUpperCase())}</span>
             </td>
             <td class="p-3.5 text-right flex items-center justify-end gap-2">
-              ${!isPaid ? `
-                <button onclick="openQrPhPayModal('${p.id}', '${p.amount}', '${p.penalty || 0}', '${p.month}')" class="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1 active:scale-95">
-                  <span>Pay QR Ph</span> ➔
-                </button>
-              ` : `
-                <button onclick="showReceiptModal('${p.month || ''}', '${p.amount || 0}', '${p.reference || 'N/A'}', '${p.status || 'pending'}')" class="text-xs font-bold text-emerald-700 hover:text-emerald-900 hover:underline">Receipt</button>
-              `}
+              ${isPaid ? `<button onclick="showReceiptModal(${p.id})" class="text-xs font-bold text-emerald-700 hover:underline">Receipt</button>`
+                : p.submittedMethod ? `<span class="text-xs">${p.submittedMethod === 'Cash' ? 'Cash on Hand' : 'GCash'} · ${escapeMessage(p.submittedPaidDate)}</span>`
+                : `<button onclick="openRentPayment(${p.id})" class="rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800">Pay</button>`}
             </td>
           </tr>
         `;
       }).join('');
-    } catch (err) { console.error('Error loading payment history:', err); }
+    } catch (error) { DormMapFeedback.show(error.message, 'error'); }
   }
 
-  function openQrPhPayModal(tenantPaymentId, amount, penalty, month) {
-    const base = Number(amount);
-    const latePenalty = Number(penalty || 0);
-    const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
-    const billingPeriod = /^\d{4}-\d{2}$/.test(month) ? month : 'Current month';
-    Swal.fire({
-      title: 'Pay rent with QR Ph',
-      width: 'min(28rem, calc(100vw - 2rem))',
-      customClass: { popup: 'rounded-2xl', title: 'text-xl', actions: 'gap-2' },
-      html: `
-        <div class="space-y-4 text-left text-sm text-slate-700">
-          <div class="rounded-2xl bg-emerald-950 px-4 py-4 text-white">
-            <p class="text-sm text-emerald-100">Total due · ${billingPeriod}</p>
-            <p class="mt-1 text-3xl font-bold">${peso.format(base + latePenalty)}</p>
-          </div>
-          <dl class="space-y-2 rounded-xl border border-slate-200 p-3">
-            <div class="flex justify-between gap-3"><dt>Monthly rent</dt><dd class="font-semibold">${peso.format(base)}</dd></div>
-            <div class="flex justify-between gap-3"><dt>Late penalty</dt><dd class="font-semibold">${peso.format(latePenalty)}</dd></div>
-          </dl>
-          <p>${qrPhAvailable
-            ? 'Scan the QR code on PayMongo using your bank or e-wallet app. DormMap updates your bill once PayMongo confirms payment.'
-            : 'Online payment is currently unavailable. Contact DormMap support for payment assistance.'}</p>
-        </div>`,
-      showConfirmButton: qrPhAvailable,
-      showCancelButton: true,
-      showLoaderOnConfirm: true,
-      confirmButtonColor: '#047857',
-      cancelButtonColor: '#475569',
-      confirmButtonText: 'Continue to PayMongo',
-      cancelButtonText: qrPhAvailable ? 'Cancel' : 'Close',
-      allowOutsideClick: () => !Swal.isLoading(),
-      allowEscapeKey: () => !Swal.isLoading(),
-      focusConfirm: false,
-      preConfirm: async () => {
-        try {
-          const res = await fetch('/api/payments/qrph/create', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ billingMonth: month, tenantPaymentId })
-          });
-          const data = await res.json();
-          if (res.ok && data.checkoutUrl) {
-            window.location.assign(data.checkoutUrl);
-            return false;
-          }
-          Swal.showValidationMessage(data.error || 'Checkout could not start. Please try again.');
-        } catch {
-          Swal.showValidationMessage('Could not reach DormMap. Please try again.');
-        }
-        return false;
-      }
-    });
+  const rentPaymentForm = document.getElementById('rentPaymentForm');
+  function updateRentPaymentMethod() {
+    const gcash = rentPaymentForm.elements.method.value === 'GCash';
+    rentPaymentForm.querySelector('[data-gcash-fields]').hidden = !gcash;
+    rentPaymentForm.querySelector('[data-cash-instructions]').hidden = gcash;
+    for (const name of ['proof', 'reference']) {
+      rentPaymentForm.elements[name].required = gcash;
+      rentPaymentForm.elements[name].disabled = !gcash;
+    }
+  }
+  rentPaymentForm.elements.method.addEventListener('change', updateRentPaymentMethod);
+
+  function openRentPayment(id) {
+    const bill = tenantBills.find(item => item.id === id);
+    if (!bill) return;
+    const { methods = [], gcashQrCode } = rentPaymentOptions;
+    if (!methods.length) {
+      DormMapFeedback.show('Ask your owner to set up an accepted payment method.', 'error');
+      return;
+    }
+    rentPaymentForm.reset();
+    rentPaymentForm.dataset.billId = id;
+    rentPaymentForm.querySelector('[data-payment-error]').textContent = '';
+    rentPaymentForm.elements.method.replaceChildren(...methods.map(method =>
+      new Option(method === 'Cash' ? 'Cash on Hand' : 'GCash', method)
+    ));
+    rentPaymentForm.elements.paidDate.value = rentPaymentToday;
+    rentPaymentForm.elements.paidDate.max = rentPaymentToday;
+    const qr = document.getElementById('rentGcashQr');
+    if (gcashQrCode) qr.src = gcashQrCode;
+    else qr.removeAttribute('src');
+    const amount = Number(bill.amount) + Number(bill.penalty || 0);
+    document.getElementById('rentPaymentTotal').textContent = `₱${amount.toFixed(2)} total due · ${bill.month || bill.dueDate}`;
+    updateRentPaymentMethod();
+    document.getElementById('rentPaymentDialog').showModal();
   }
 
-  function closeGcashPayModal() {
-    Swal.close();
-  }
+  rentPaymentForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = rentPaymentForm.querySelector('button[type=submit]');
+    if (button.disabled) return;
+    button.disabled = true;
+    const errorText = rentPaymentForm.querySelector('[data-payment-error]');
+    errorText.textContent = '';
+    try {
+      const response = await fetch(`/tenant-dashboard/api/payments/${rentPaymentForm.dataset.billId}/submit`, {
+        method: 'POST', body: new FormData(rentPaymentForm)
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not submit payment.');
+      document.getElementById('rentPaymentDialog').close();
+      DormMapFeedback.show(result.message);
+      await loadPaymentHistory();
+    } catch (error) {
+      errorText.textContent = error.message;
+    } finally {
+      button.disabled = false;
+    }
+  });
 
-  window.openQrPhPayModal = openQrPhPayModal;
-  window.closeGcashPayModal = closeGcashPayModal;
-
-  function showReceiptModal(month, amount, reference, status) {
+  function showReceiptModal(id) {
+    const bill = tenantBills.find(item => item.id === id);
+    if (!bill) return;
+    const { month, reference, status, paidDate, method } = bill;
+    const amount = Number(bill.amount) + Number(bill.penalty || 0);
     Swal.fire({
       title: '<strong>Official Receipt</strong>',
       icon: 'info',
       html: `
         <div class="text-left space-y-2 text-xs border-t border-slate-100 pt-3">
-          <p><strong>Month/Period:</strong> ${month}</p>
+          <p><strong>Month/Period:</strong> ${escapeMessage(month || '—')}</p>
           <p><strong>Amount:</strong> ₱${Number(amount).toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
-          <p><strong>Reference Number:</strong> ${reference}</p>
-          <p><strong>Status:</strong> <span class="capitalize font-bold">${status}</span></p>
+          <p><strong>Method:</strong> ${escapeMessage(method === 'Cash' ? 'Cash on Hand' : method || '—')}</p>
+          <p><strong>Date received:</strong> ${escapeMessage(paidDate || '—')}</p>
+          <p><strong>Reference Number:</strong> ${escapeMessage(reference || '—')}</p>
+          <p><strong>Status:</strong> <span class="capitalize font-bold">${escapeMessage(status)}</span></p>
         </div>
       `,
       confirmButtonColor: '#023020',

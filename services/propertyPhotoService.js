@@ -10,6 +10,13 @@ export const GALLERY_CATEGORIES = [
   { index: 3, field: 'galleryBedroom', key: 'bedroom', label: 'Bedroom', description: 'Typical room offered to tenants' },
   { index: 4, field: 'galleryDining', key: 'dining', label: 'Dining or kitchenette', description: 'Kitchen, dining area, cooking space' },
   { index: 5, field: 'galleryBathroom', key: 'bathroom', label: 'Bathroom', description: 'CR, comfort room, shower area' },
+  ...Array.from({ length: 5 }, (_, index) => ({
+    index: index + 6,
+    field: `galleryExtra${index + 1}`,
+    key: `extra_${index + 1}`,
+    label: `Extra Photo ${index + 1}`,
+    description: 'Additional property feature'
+  })),
 ];
 
 export const PropertyPhoto = sequelize.define('PropertyPhoto', {
@@ -26,7 +33,7 @@ export function isRegistrationPhoto(field) {
   return galleryFields.has(field.replace(/^branch[0-9]+_/, ''));
 }
 
-function photoType(bytes) {
+export function photoType(bytes) {
   if (bytes?.length >= 3 && bytes.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]))) return 'image/jpeg';
   if (bytes?.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))) return 'image/png';
   if (bytes?.length >= 12 && bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP') return 'image/webp';

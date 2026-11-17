@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseRoomPlan, floorLabel } from '../services/roomPlanService.js';
-import { validateOwnerSetup } from '../services/ownerRegistrationService.js';
+import { validateOwnerSetup, validateOwnerPaymentSetup } from '../services/ownerRegistrationService.js';
 const bed = { roomNumber:'101',floor:1,roomType:'Bedspace',rentalBasis:'bed',capacity:6,bedCount:6,unavailable:2,rentalPrice:1500 };
 test('registration plan keeps floors, bedspace availability and whole-room rates distinct',()=>{
  const rows=parseRoomPlan([bed,{roomNumber:'101',floor:2,roomType:'Family Room',rentalBasis:'room',capacity:4,bedCount:2,rentalPrice:6500}],2);
@@ -33,6 +33,8 @@ test('required photos/documents and a real map pin are enforced on the server',(
    {floors:2, rooms:3, barangay:'Orconuma', latitude:12.668945, longitude:121.491777, mapPin:'Lat 12.668945, Lon 121.491777', address:'Orconuma'},
    {floors:4, rooms:9, barangay:'Labasan', latitude:12.774815, longitude:121.470195, mapPin:'Lat 12.774815, Lon 121.470195', address:'Centro'}
  ]);
+ assert.equal(validateOwnerSetup(crossBarangay, {...files, ...branchPhotos, branch2_galleryExtra3: files.galleryOutdoor}).branches.length, 2);
+ assert.throws(() => validateOwnerSetup(crossBarangay, {...files, ...branchPhotos, branch2_galleryExtra3: [{mimetype:'application/pdf', size:100}]}), /Extra Photo 3 for branch 2/);
  assert.throws(() => validateOwnerSetup({...crossBarangay, branch2_boardingHouseAddress:'Outside Bongabong'}, {...files, ...branchPhotos}), /barangay for branch 2/);
  files.galleryOutdoor[0].mimetype='application/pdf';assert.throws(()=>validateOwnerSetup(body,files),/Invalid file/);
  files.galleryOutdoor[0].mimetype='image/png';assert.throws(()=>validateOwnerSetup({...body,boardingHouseLatitude:''},files),/actual Bongabong/);
@@ -41,4 +43,15 @@ test('required photos/documents and a real map pin are enforced on the server',(
 test('a reported unavailable whole-room lease is not advertised as partial bedspace availability',()=>{
  const [room]=parseRoomPlan([{roomNumber:'F1',floor:1,roomType:'Family Room',rentalBasis:'room',capacity:4,bedCount:2,unavailable:2,rentalPrice:6000}],1);
  assert.equal(room.availableSlots,0);assert.equal(room.reservedSlots,2);assert.equal(room.status,'occupied');
+});
+
+test('owner payment setup accepts cash on its own and requires a QR for GCash', () => {
+ const contactNumber = '09171234567';
+ assert.deepEqual(validateOwnerPaymentSetup({ contactNumber, paymentMethods: 'Cash' }, {}), {
+   contactNumber, paymentMethods: '["Cash"]', qr: null
+ });
+ assert.throws(() => validateOwnerPaymentSetup({ contactNumber, paymentMethods: ['Cash', 'GCash'] }, {}), /Upload your GCash QR/);
+ assert.throws(() => validateOwnerPaymentSetup({ contactNumber }, {}), /Select at least one/);
+ const qr = { mimetype: 'image/png' };
+ assert.equal(validateOwnerPaymentSetup({ contactNumber, paymentMethods: 'GCash' }, { gcashQrCode: [qr] }).qr, qr);
 });

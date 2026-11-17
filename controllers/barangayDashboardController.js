@@ -634,8 +634,8 @@ export const applications = async (req, res, next) => {
     });
     const galleryByHouse = new Map();
     for (const photo of photos) {
-      if (photo.sortOrder < 1 || photo.sortOrder > 5) continue;
-      if (!galleryByHouse.has(photo.boardingHouseId)) galleryByHouse.set(photo.boardingHouseId, Array(5).fill(null));
+      if (photo.sortOrder < 1 || photo.sortOrder > 10) continue;
+      if (!galleryByHouse.has(photo.boardingHouseId)) galleryByHouse.set(photo.boardingHouseId, Array(10).fill(null));
       galleryByHouse.get(photo.boardingHouseId)[photo.sortOrder - 1] = photo.imageUrl;
     }
     const data = owners.map(owner => {

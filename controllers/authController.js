@@ -1,6 +1,6 @@
 import { storeReviewFile } from '../services/reviewFileService.js';
 import { passwordResetDelivery } from '../services/passwordResetMailService.js';
-import { validateOwnerSetup, registerPropertyInventory } from '../services/ownerRegistrationService.js';
+import { validateOwnerSetup, validateOwnerPaymentSetup, registerPropertyInventory } from '../services/ownerRegistrationService.js';
 
       /*
     MIT License
@@ -523,7 +523,6 @@ export const registerUser = async (req, res) => {
       boardingHouseLatitude,
       boardingHouseLongitude,
       roomTypes,
-      paymentMethods,
       contactNumber,
       selectedBoardingHouse,
       notes,
@@ -616,7 +615,7 @@ export const registerUser = async (req, res) => {
 
     let setup;
     if (normalizedAccountType === 'boarding_house_owner') {
-      try { setup = validateOwnerSetup(req.body, req.files); } catch (error) { return renderRegisterPage(res, { authAccountType: normalizedAccountType, authError: error.message, authValues: req.body }); }
+      try { setup = validateOwnerSetup(req.body, req.files); setup.payment = validateOwnerPaymentSetup(req.body, req.files); } catch (error) { return renderRegisterPage(res, { authAccountType: normalizedAccountType, authError: error.message, authValues: req.body }); }
     }
     const hashed = await bcrypt.hash(password, 10);
     const verificationToken = Math.random().toString(36).substring(2, 18);
@@ -639,9 +638,9 @@ export const registerUser = async (req, res) => {
         boardingHouseLatitude: accountType === "boarding_house_owner" ? boardingHouseLatitude || null : null,
         boardingHouseLongitude: accountType === "boarding_house_owner" ? boardingHouseLongitude : null,
         roomTypes: accountType === "boarding_house_owner" ? JSON.stringify(normalizeList(roomTypes)) : null,
-        paymentMethods: accountType === "boarding_house_owner" ? JSON.stringify(normalizeList(paymentMethods)) : null,
+        paymentMethods: setup?.payment.paymentMethods ?? null,
         selectedBoardingHouse: accountType === "tenant" ? selectedBoardingHouse || null : null,
-        contactNumber: contactNumber || null,
+        contactNumber: setup?.payment.contactNumber || contactNumber || null,
         notes: notes || null,
       }, { transaction });
       const scope = { boarding_house_owner: 'owner-registration', tenant: 'tenant-registration' }[normalizedAccountType] || 'registration';
@@ -661,6 +660,7 @@ export const registerUser = async (req, res) => {
         await created.update({
           boardingHousePicture: galleryImages[0] || null,
           galleryImages: JSON.stringify(galleryImages),
+          gcashQrCode: await storeReviewFile(setup.payment.qr, created.id, 'payment-qr', transaction),
         }, { transaction });
         await registerPropertyInventory(created, setup, req.files, transaction);
       }

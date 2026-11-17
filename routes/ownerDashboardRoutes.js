@@ -1,8 +1,10 @@
+import { GALLERY_CATEGORIES } from '../services/propertyPhotoService.js';
 import { uploadDir } from '../config/storage.js';
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { tmpdir } from 'node:os';
 import { requireApprovedOwner } from '../middleware/ownerAuth.js';
 import * as controller from '../controllers/ownerDashboardController.js';
 
@@ -12,8 +14,8 @@ const router = express.Router();
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    fs.mkdirSync(uploadDir, { recursive: true });
-    cb(null, uploadDir);
+    const directory = file.fieldname === 'gcashQrCode' ? path.join(tmpdir(), 'dormmap-payment-qr') : uploadDir;
+    fs.mkdir(directory, { recursive: true, mode: 0o700 }, error => cb(error, directory));
   },
   filename: (req, file, cb) => {
     const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -68,6 +70,7 @@ router.delete('/api/pending-applications/:userId/decline', controller.declineTen
 router.get('/api/payments', controller.getPayments);
 router.post('/api/payments', controller.createPayment);
 router.patch('/api/payments/:id/pay', controller.markPaid);
+router.delete('/api/payments/:id/submission', controller.returnPaymentSubmission);
 router.delete('/api/payments/:id', controller.deletePayment);
 
 // Inquiry Module
@@ -93,13 +96,7 @@ router.post('/api/gallery', galleryUpload.single('galleryImage'), controller.add
 router.delete('/api/gallery/:id', controller.deleteGalleryImage);
 router.post('/api/gallery/slot/:slotIndex', galleryUpload.single('slotImage'), controller.updateGallerySlot);
 router.delete('/api/gallery/slot/:slotIndex', controller.deleteGallerySlot);
-router.post('/api/gallery/five-slots', galleryUpload.fields([
-  { name: 'galleryOutdoor', maxCount: 1 },
-  { name: 'galleryLivingArea', maxCount: 1 },
-  { name: 'galleryBedroom', maxCount: 1 },
-  { name: 'galleryDining', maxCount: 1 },
-  { name: 'galleryBathroom', maxCount: 1 },
-]), controller.updateFiveGallerySlots);
+router.post('/api/gallery/five-slots', galleryUpload.fields(GALLERY_CATEGORIES.map(({ field }) => ({ name: field, maxCount: 1 }))), controller.updateFiveGallerySlots);
 
 // Amenities & House Rules
 router.patch('/api/amenities', controller.updateAmenities);
@@ -128,7 +125,16 @@ const docUpload = upload.fields([
   { name: 'rentalPermit', maxCount: 1 },
   { name: 'gcashQrCode', maxCount: 1 },
 ]);
-router.patch('/api/my-profile', docUpload, controller.updateMyProfile);
+router.patch('/api/my-profile', (req, res, next) => {
+  res.on('finish', () => {
+    const qr = req.files?.gcashQrCode?.[0];
+    if (qr?.path) fs.rm(qr.path, { force: true }, () => {});
+  });
+  docUpload(req, res, error => {
+    if (error) return res.status(422).json({ error: 'Upload supported images up to 5 MB each.' });
+    next();
+  });
+}, controller.updateMyProfile);
 const reviewDocumentUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 router.post('/api/my-documents', reviewDocumentUpload.fields([
   'validIdPicture', 'businessPermit', 'barangayClearance', 'proofOfOwnership', 'rentalPermit', 'boardingHousePicture'

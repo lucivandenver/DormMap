@@ -1,16 +1,15 @@
+import { createTenantApplication, findApplicationProperty } from '../services/tenantApplicationService.js';
 import { storeReviewFile } from '../services/reviewFileService.js';
 import { randomUUID } from 'node:crypto';
 import { BoardingHouse, OwnerRoom } from '../models/ownerModels.js';
-import { validateOwnerSetup, registerPropertyInventory } from '../services/ownerRegistrationService.js';
+import { validateOwnerSetup, validateOwnerPaymentSetup, registerPropertyInventory } from '../services/ownerRegistrationService.js';
 import { hasApprovedBarangay, ownerBarangayError } from '../services/registrationPolicy.js';
 import { uploadDir } from '../config/storage.js';
 import express from "express";
 import passport from "passport";
-import { Op as SequelizeOp } from "sequelize";
-import { User, sequelize, Op as ModelOp } from "../models/userModel.js";
+import { User, sequelize } from "../models/userModel.js";
 import { GALLERY_CATEGORIES, storeRegistrationPhotos } from '../services/propertyPhotoService.js';
 
-const Op = SequelizeOp || ModelOp || User.sequelize?.Sequelize?.Op;
 import {
   loginPage, registerPage, forgotPasswordPage, sendPasswordResetLink,
   resetPasswordPage, handleResetPassword, dashboardPage, loginUser,
@@ -37,7 +36,7 @@ const storage = multer.diskStorage({
 const allowedMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024, files: 510, fields: 750, parts: 1260 },
+  limits: { fileSize: 5 * 1024 * 1024, files: 1012, fields: 750, parts: 1762 },
   fileFilter: (req, file, cb) => {
     if (!allowedMimeTypes.has(file.mimetype) || !['.jpg','.jpeg','.png','.webp','.pdf'].includes(path.extname(file.originalname).toLowerCase())) {
       return cb(new Error('Only JPG, PNG, WEBP, and PDF files are allowed.'));
@@ -47,6 +46,7 @@ const upload = multer({
 });
 const registerUpload = upload.fields([
   { name: "profilePicture", maxCount: 1 },
+  { name: "gcashQrCode", maxCount: 1 },
   { name: "boardingHousePicture", maxCount: 1 },
   { name: "validIdPicture", maxCount: 1 },
   { name: "businessPermit", maxCount: 1 },
@@ -239,7 +239,7 @@ router.post("/complete-owner-profile", cleanFailedRegistration, registerUpload, 
     if (!await hasApprovedBarangay(boardingHouseAddress)) return renderError(ownerBarangayError);
 
     let setup;
-    try { setup = validateOwnerSetup(req.body, req.files); } catch (error) { return renderError(error.message); }
+    try { setup = validateOwnerSetup(req.body, req.files); setup.payment = validateOwnerPaymentSetup(req.body, req.files); } catch (error) { return renderError(error.message); }
     await sequelize.transaction(async transaction => {
       await user.reload({ transaction, lock: transaction.LOCK.UPDATE });
       const getUploadUrl = (field) => storeReviewFile(req.files?.[field]?.[0], user.id, 'owner-registration', transaction);
@@ -257,7 +257,9 @@ router.post("/complete-owner-profile", cleanFailedRegistration, registerUpload, 
       user.boardingHouseAddress = boardingHouseAddress;
       user.barangay = boardingHouseAddress; // Sort by barangay
       user.roomsAvailable = Number(roomsAvailable) || 1;
-      user.paymentMethods = JSON.stringify([].concat(req.body.paymentMethods || []).filter(method => ['Cash','GCash','Bank Transfer'].includes(method)));
+      user.paymentMethods = setup.payment.paymentMethods;
+      user.contactNumber = setup.payment.contactNumber;
+      user.gcashQrCode = await storeReviewFile(setup.payment.qr, user.id, 'payment-qr', transaction);
       user.mapPin = mapPin;
       user.boardingHouseLatitude = boardingHouseLatitude || null;
       user.boardingHouseLongitude = boardingHouseLongitude || null;
@@ -340,33 +342,25 @@ router.post("/complete-tenant-profile", cleanFailedRegistration, registerUpload,
     if (profilePicture) user.profilePicture = profilePicture;
     user.applicationStatus = 'pending_owner';
 
-    await user.save();
+    const { house, owner } = await findApplicationProperty(selectedBoardingHouse);
+    if (!owner) return renderError('Select an approved boarding house from the current listings.');
 
-    const sequelizeOp = User.sequelize?.Sequelize?.Op || Op;
-    const owner = await User.findOne({
-      where: {
-        accountType: 'boarding_house_owner',
-        [sequelizeOp.or]: [
-          { boardingHouseName: selectedBoardingHouse },
-          { name: selectedBoardingHouse }
-        ]
-      }
-    });
-
-    const { TenantApplication } = await import('../models/tenantModels.js');
     const { OwnerInquiry, OwnerNotification, OwnerMessage } = await import('../models/ownerModels.js');
 
     // Create TenantApplication record
-    await TenantApplication.create({
+    const { created } = await createTenantApplication({
       tenantId: user.id,
-      ownerId: owner ? owner.id : 0,
+      ownerId: owner.id,
+      boardingHouseId: house?.id || null,
       boardingHouseName: selectedBoardingHouse,
       requestedRoomType: requestedRoomType || null,
       message: `Initial application submitted upon registration. Contact: ${contactNumber}, Gender: ${gender}`,
       status: 'pending_owner'
-    }).catch(err => console.error('Error creating TenantApplication in authRoutes:', err));
+    });
 
-    if (owner) {
+    await user.save();
+
+    if (created) {
       const roomTypeInfo = requestedRoomType ? ` (Requested Room: ${requestedRoomType})` : '';
       await OwnerInquiry.create({
         ownerId: owner.id,

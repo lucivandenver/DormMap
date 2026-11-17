@@ -1,3 +1,4 @@
+import { validatePaymentMethods } from './ownerPaymentConfig.js';
 import { BoardingHouse, OwnerRoom, OwnerTenant } from '../models/ownerModels.js';
 import { propertyMetadata } from './roomPlanService.js';
 import { GALLERY_CATEGORIES, saveGallerySlot, storeRegistrationPhotos } from './propertyPhotoService.js';
@@ -55,11 +56,22 @@ export function validateOwnerSetup(body, files) {
       address: String(body[prefix + 'streetAddress'] || '').trim().slice(0, 255) || barangay
     });
     for (const category of GALLERY_CATEGORIES) {
-      checkUpload(files?.[prefix + category.field]?.[0], imageTypes, `${category.label} for branch ${index + 1}`);
+      const file = files?.[prefix + category.field]?.[0];
+      if (category.index <= 5 || file) checkUpload(file, imageTypes, `${category.label} for branch ${index + 1}`);
     }
   });
   return { metadata, branches };
 }
+export function validateOwnerPaymentSetup(body, files) {
+  const contactNumber = String(body.contactNumber || '').trim();
+  if (!/^\+?[0-9 ()-]{7,24}$/.test(contactNumber) || contactNumber.replace(/\D/g, '').length < 7) {
+    throw invalidSetup('Enter a valid contact number.');
+  }
+  const qr = files?.gcashQrCode?.[0];
+  const methods = validatePaymentMethods(body.paymentMethods, Boolean(qr));
+  return { contactNumber, paymentMethods: JSON.stringify(methods), qr: methods.includes('GCash') ? qr : null };
+}
+
 export async function registerPropertyInventory(user, setup, files, transaction) {
   let house = await BoardingHouse.findOne({ where: { ownerId: user.id, isPrimary: true }, transaction, lock: transaction.LOCK.UPDATE });
   if (house && (house.registrationSubmission || await OwnerRoom.count({ where: { boardingHouseId: house.id }, transaction }) || await OwnerTenant.count({ where: { ownerId: user.id }, transaction }))) throw Object.assign(new Error('This account already has a property registration or room inventory. Manage branches and rooms from the owner dashboard.'), { status: 409 });
@@ -105,7 +117,8 @@ export async function registerPropertyInventory(user, setup, files, transaction)
     }, { transaction });
     branch.boardingHouseId = listing.id;
     for (const category of GALLERY_CATEGORIES) {
-      await saveGallerySlot(user.id, listing.id, category, branch.galleryImages[category.index - 1], transaction);
+      const url = branch.galleryImages[category.index - 1];
+      if (url) await saveGallerySlot(user.id, listing.id, category, url, transaction);
     }
   }
   if (branches.length > 1) {

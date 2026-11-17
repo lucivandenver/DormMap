@@ -1,3 +1,5 @@
+import { photoType } from './propertyPhotoService.js';
+import { findActiveRental } from './rentalIdentityService.js';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -5,7 +7,7 @@ import { DataTypes, Op } from 'sequelize';
 import { sequelize } from '../models/db.js';
 import { User } from '../models/userModel.js';
 import { TenantApplication } from '../models/tenantModels.js';
-import { BoardingHouse } from '../models/ownerModels.js';
+import { BoardingHouse, OwnerPayment } from '../models/ownerModels.js';
 
 const ReviewFile = sequelize.define('ReviewFile', {
   id: { type: DataTypes.CHAR(36), primaryKey: true },
@@ -18,15 +20,33 @@ const ReviewFile = sequelize.define('ReviewFile', {
 export async function storeReviewFile(file, userId, scope = 'registration', transaction) {
   if (!file) return null;
   const id = randomUUID();
-  const filename = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, '_').slice(-200);
+  let filename = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, '_').slice(-200);
   const bytes = file.buffer || await readFile(file.path);
+  if (scope === 'payment-qr' || scope === 'payment-proof') {
+    const type = photoType(bytes);
+    if (!type || type !== file.mimetype || bytes.length > 5 * 1024 * 1024) {
+      throw Object.assign(new Error('Upload a valid JPG, PNG, or WebP image up to 5 MB.'), { status: 422 });
+    }
+    filename = scope + '.' + ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' })[type];
+  }
   await ReviewFile.create({ id, userId, filename, scope, bytes }, { transaction });
   return `/documents/${id}/${filename}`;
 }
 
 async function canReview(viewer, file) {
   if (viewer.isArchived || viewer.isSuspended) return false;
-  if (viewer.id === file.userId || ['super_admin', 'bplo_admin'].includes(viewer.accountType)) return true;
+  if (viewer.id === file.userId) return true;
+  if (file.scope === 'payment-qr') {
+    const rental = viewer.accountType === 'tenant' ? await findActiveRental(viewer) : null;
+    return rental?.ownerId === file.userId;
+  }
+  if (file.scope === 'payment-proof') {
+    return viewer.accountType === 'boarding_house_owner' && Boolean(await OwnerPayment.findOne({
+      where: { ownerId: viewer.id, paymentProofUrl: `/documents/${file.id}/${file.filename}` },
+      attributes: ['id']
+    }));
+  }
+  if (['super_admin', 'bplo_admin'].includes(viewer.accountType)) return true;
 
   if (viewer.accountType === 'boarding_house_owner' &&
       ['approved', 'approved_barangay', 'forwarded_to_bplo'].includes(viewer.applicationStatus) &&
@@ -54,7 +74,7 @@ export async function serveReviewFile(req, res, next) {
   if (!/^[0-9a-f-]{36}$/.test(req.params.id)) return res.sendStatus(404);
   try {
     const viewer = req.session?.userId && await User.findByPk(req.session.userId, {
-      attributes: ['id', 'accountType', 'barangay', 'applicationStatus', 'isArchived', 'isSuspended']
+      attributes: ['id', 'email', 'accountType', 'barangay', 'applicationStatus', 'isArchived', 'isSuspended']
     });
     if (!viewer) return res.sendStatus(404);
     const file = await ReviewFile.findByPk(req.params.id, { attributes: ['id', 'filename', 'userId', 'scope'] });

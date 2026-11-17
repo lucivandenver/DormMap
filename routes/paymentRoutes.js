@@ -2,11 +2,10 @@ import express from 'express';
 import { requireTenantUser } from '../middleware/tenantAuth.js';
 import { requireSuperAdmin } from '../middleware/adminAuth.js';
 import { requirePaymentUser, requirePaymentOwnerOrTenant } from '../middleware/paymentAuth.js';
-import { validatePaymentCreation } from '../validators/paymentValidator.js';
 import {
-  createGcashPayment,
   getLandlordGcashInfo,
   getPaymentStatus,
+  closeOnlineCheckout,
   getTenantPayments,
   getOwnerPayments,
   downloadReceipt,
@@ -42,11 +41,13 @@ router.use(requirePaymentUser);
 
 // ─── Authenticated Tenant Routes ──────────────────────────────────────────────
 router.get('/landlord-gcash', requireTenantUser, getLandlordGcashInfo);
-router.post(['/qrph/create', '/gcash/create'], requireTenantUser, validatePaymentCreation, createGcashPayment);
+router.post(['/qrph/create', '/gcash/create'], requireTenantUser, (req, res) =>
+  res.status(410).json({ error: 'Open Payment History to submit a cash or GCash payment for your rent.' }));
 router.post('/gcash/authorize-portal', requireTenantUser, authorizePortalPayment);
 router.get('/tenant/list', requireTenantUser, getTenantPayments);
 
 // ─── Authenticated Owner Routes ───────────────────────────────────────────────
+router.post('/owner/:paymentId/close-checkout', closeOnlineCheckout);
 router.get('/owner/list', (req, res, next) => req.currentUser.accountType === 'boarding_house_owner' ? next() : res.status(403).json({ error: 'Owner access required.' }), getOwnerPayments);
 
 // ─── Common Protected Routes ─────────────────────────────────────────────────

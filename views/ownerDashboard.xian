@@ -357,7 +357,7 @@
             <h2 class="text-base font-bold text-slate-800">Main Property Profile Settings</h2>
             <span class="text-xs bg-emerald-50 text-emerald-700 font-bold px-3 py-1.5 rounded-full">Primary Property</span>
           </div>
-          <p class="text-sm text-slate-600">Before accepting tenants, save your contact and GCash details, set the property street address under Boarding Houses, and add priced rooms under Rooms.</p>
+          <p class="text-sm text-slate-600">Before accepting tenants, save your contact and payment settings, set the property street address under Boarding Houses, and add priced rooms under Rooms.</p>
           <form id="profileForm" class="space-y-4">
           <div class="grid gap-4 md:grid-cols-2">
             <div>
@@ -436,8 +436,10 @@
                 <input type="tel" name="contactNumber" placeholder="09XXXXXXXXX" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 outline-none">
               </div>
             </div>
+            <input type="hidden" name="configureRentPayments" value="on">
+            {{> ownerPaymentSetup }}
             <button type="submit" class="bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-800 transition">
-              💾 Save Personal Info
+              💾 Save Profile & Payment Settings
             </button>
           </form>
         </div>
@@ -672,6 +674,31 @@
       </section>
 
       <!-- PANEL 6: PAYMENTS -->
+      <dialog id="paymentReviewDialog" aria-labelledby="paymentReviewTitle" class="m-auto max-h-[90dvh] w-[calc(100%_-_2rem)] max-w-lg overflow-y-auto rounded-2xl p-5 text-slate-800 shadow-xl backdrop:bg-slate-950/60">
+        <form id="paymentReviewForm" class="space-y-4">
+          <h3 id="paymentReviewTitle" class="text-xl font-bold">Record rent payment</h3>
+          <p id="paymentReviewSummary" class="rounded-xl bg-slate-50 p-3 text-sm"></p>
+          <a id="paymentReviewProof" class="text-sm font-semibold text-emerald-800 underline" target="_blank" rel="noopener" hidden>View proof of payment</a>
+          <label class="block text-sm font-semibold">Method received
+            <select name="method" required class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
+              <option value="Cash">Cash on Hand</option>
+              <option value="GCash">GCash</option>
+            </select>
+          </label>
+          <label class="block text-sm font-semibold">Date received
+            <input name="receivedDate" type="date" required class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
+          </label>
+          <label class="block text-sm font-semibold" data-review-reference hidden>GCash reference number
+            <input name="reference" maxlength="100" class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
+          </label>
+          <p role="alert" class="text-sm text-rose-700" data-payment-error></p>
+          <div class="flex flex-wrap justify-end gap-2">
+            <button type="button" class="rounded-lg border px-3 py-2" onclick="this.closest('dialog').close()">Cancel</button>
+            <button type="button" class="rounded-lg border px-3 py-2 text-rose-700" id="returnPaymentSubmission">Return submission</button>
+            <button class="rounded-lg bg-emerald-700 px-4 py-2 font-semibold text-white" type="submit">Confirm payment</button>
+          </div>
+        </form>
+      </dialog>
       <section data-panel="payments" class="hidden space-y-4">
         <div class="flex justify-between items-center">
           <h2 class="text-lg font-bold text-slate-800">Monthly Payment Log</h2>
@@ -696,7 +723,7 @@
         </div>
 
         <div class="rounded-2xl border border-emerald-100 bg-white p-5 space-y-3">
-          <div class="flex flex-wrap items-center justify-between gap-3"><div><h3 class="font-bold text-slate-900">GCash checkout collections</h3><p class="text-xs text-slate-500">Provider-confirmed payments and receipts. Funds settle to the configured PayMongo merchant.</p></div><button class="rounded-full border px-4 py-2 text-sm" onclick="loadOnlinePayments()">Refresh</button></div>
+          <div class="flex flex-wrap items-center justify-between gap-3"><div><h3 class="font-bold text-slate-900">Previous online checkouts</h3><p class="text-xs text-slate-500">Review existing PayMongo records and download receipts.</p></div><button class="rounded-full border px-4 py-2 text-sm" onclick="loadOnlinePayments()">Refresh</button></div>
           <div id="onlinePaymentsList" class="space-y-3 text-sm text-slate-600">Loading checkout records…</div>
         </div>
       </section>
@@ -790,7 +817,7 @@
                 </span>
               </div>
               <p class="text-xs text-slate-500 mt-0.5">
-                View current status and upload photos for each required area. These 5 photos appear in the carousel when tenants view your listing.
+                Manage each branch’s five required photos and up to five optional photos. Uploaded photos appear in the listing carousel.
               </p>
             </div>
             <button type="button" onclick="loadGallery()" class="text-xs bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 font-bold px-3 py-1.5 rounded-lg transition shadow-2xs self-start sm:self-auto flex items-center gap-1">
@@ -813,7 +840,7 @@
             </select>
             <p class="text-xs text-emerald-700 flex items-center gap-1">
               <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-              Dito pipiliin kung aling boarding house ang titingnan o lalagyan ng 5 photos (Outdoor, Living, Bedroom, Dining, Bathroom). Bawat boarding house ay may sariling gallery.
+              Select the boarding house whose gallery you want to update.
             </p>
           </div>
 
@@ -864,6 +891,17 @@
               </div>
             </div>
 
+                <details class="my-2 rounded-xl border border-slate-200 bg-white p-3">
+                  <summary class="cursor-pointer text-sm font-semibold text-emerald-800">Add or replace optional photos</summary>
+                  <p class="my-2 text-xs text-slate-600">Upload up to five extra photos for this branch.</p>
+                  <div class="grid gap-2 sm:grid-cols-2">
+                  <label class="block text-xs font-semibold">Extra Photo 1<input class="mt-1 block w-full text-xs" type="file" name="galleryExtra1" accept="image/jpeg,image/png,image/webp"></label>
+                  <label class="block text-xs font-semibold">Extra Photo 2<input class="mt-1 block w-full text-xs" type="file" name="galleryExtra2" accept="image/jpeg,image/png,image/webp"></label>
+                  <label class="block text-xs font-semibold">Extra Photo 3<input class="mt-1 block w-full text-xs" type="file" name="galleryExtra3" accept="image/jpeg,image/png,image/webp"></label>
+                  <label class="block text-xs font-semibold">Extra Photo 4<input class="mt-1 block w-full text-xs" type="file" name="galleryExtra4" accept="image/jpeg,image/png,image/webp"></label>
+                  <label class="block text-xs font-semibold">Extra Photo 5<input class="mt-1 block w-full text-xs" type="file" name="galleryExtra5" accept="image/jpeg,image/png,image/webp"></label>
+                  </div>
+                </details>
             <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 flex items-center gap-2">
               <svg class="w-4 h-4 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
               Only upload files you want to replace. Existing photos will be kept if no new file is selected.
@@ -894,6 +932,7 @@
             <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="amenities" value="Generator"> Generator</label>
             <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="amenities" value="Pets Allowed"> Pets Allowed</label>
           </div>
+
           <button type="submit" class="bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-800 transition mt-6">
             Save Amenities
           </button>
@@ -949,64 +988,9 @@
 
       <!-- PANEL 16: SETTINGS -->
       <section data-panel="settings" class="hidden bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
-        <div class="flex items-center justify-between border-b border-slate-100 pb-4">
-          <div>
-            <h2 class="text-lg font-bold text-slate-800">GCash Payment Account</h2>
-            <p class="text-xs text-slate-500">Configure the official GCash account where your tenants will send their rent payments</p>
-          </div>
-          <span class="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold px-3 py-1 rounded-full">Payment Settings</span>
-        </div>
-
-        <form id="settingsForm" class="space-y-6">
-          <!-- GCash Payment Settings Card -->
-          <div class="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-5 space-y-4">
-            <div class="flex items-center gap-3">
-              <div class="h-10 w-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm shadow-emerald-600/30">
-                <i data-lucide="credit-card" class="h-5 w-5"></i>
-              </div>
-              <div>
-                <p class="text-xs font-bold text-emerald-950 uppercase tracking-widest">Official GCash Account Details</p>
-                <p class="text-xs text-emerald-700">Tenants will see this number and account name when paying their rent</p>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-              <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1.5">Your GCash Mobile Number <span class="text-rose-500">*</span></label>
-                <div class="relative">
-                  <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">📱</span>
-                  <input type="tel" name="gcashNumber" placeholder="e.g. 09161475692" maxlength="11" class="w-full rounded-xl border border-emerald-200 bg-white pl-10 pr-3 py-2.5 text-sm font-mono font-bold focus:border-emerald-600 focus:ring-2 focus:ring-emerald-900/10 focus:outline-none transition shadow-2xs">
-                </div>
-                <p class="text-[11px] text-slate-500 mt-1">11-digit Philippine mobile number registered to your GCash (e.g. 09161475692)</p>
-              </div>
-              <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1.5">GCash Registered Account Name <span class="text-rose-500">*</span></label>
-                <input type="text" name="gcashName" placeholder="e.g. grecie macasa" class="w-full rounded-xl border border-emerald-200 bg-white px-3.5 py-2.5 text-sm font-bold focus:border-emerald-600 focus:ring-2 focus:ring-emerald-900/10 focus:outline-none transition shadow-2xs">
-                <p class="text-[11px] text-slate-500 mt-1">Full name exactly as registered in your GCash account (e.g. grecie macasa)</p>
-              </div>
-            </div>
-
-            <!-- Live Tenant Preview Box -->
-            <div id="gcashPreviewBox" class="hidden rounded-xl bg-white border border-emerald-200 p-4 text-xs space-y-2 shadow-2xs">
-              <div class="flex items-center gap-2">
-                <span class="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <p class="font-bold text-emerald-900 text-xs uppercase tracking-wider">Tenant Payment View Preview</p>
-              </div>
-              <p class="text-[11px] text-slate-500">This is how your GCash destination will appear to your tenants when they pay rent:</p>
-              <div class="p-3 bg-slate-50 rounded-xl space-y-1.5 font-medium border border-slate-100">
-                <div class="flex justify-between items-center"><span class="text-slate-500">GCash Account #:</span><span id="previewGcashNumber" class="font-bold text-emerald-700 font-mono text-sm">—</span></div>
-                <div class="flex justify-between items-center"><span class="text-slate-500">Account Name:</span><span id="previewGcashName" class="font-bold text-slate-800 text-sm">—</span></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex items-center gap-3 pt-2">
-            <button type="submit" id="saveSettingsBtn" class="inline-flex items-center gap-2 bg-emerald-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-800 transition shadow-sm shadow-emerald-800/20 active:scale-95 cursor-pointer">
-              <i data-lucide="save" class="h-4 w-4"></i>
-              Save GCash Settings
-            </button>
-          </div>
-        </form>
+        <h2 class="text-lg font-bold text-slate-800">Rent payment settings</h2>
+        <p class="text-sm text-slate-600">Choose Cash on Hand, GCash, or both. Upload your GCash QR code if you accept GCash.</p>
+        <button class="inline-flex rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white" type="button" onclick="show('my-profile')">Edit payment settings</button>
       </section>
 
 
@@ -1352,7 +1336,6 @@
     else if (currentTab === 'amenities') loadAmenities();
     else if (currentTab === 'rules') loadHouseRules();
     else if (currentTab === 'activity') loadActivityLogs();
-    else if (currentTab === 'settings') loadSettings();
   }
 
   // ─── Overview ───
@@ -1516,6 +1499,11 @@
     // Fill personal info form
     const myForm = document.getElementById('myProfileForm');
     if (myForm.elements['contactNumber']) myForm.elements['contactNumber'].value = data.contactNumber || '';
+    const paymentSetup = myForm.querySelector('[data-owner-payment-setup]');
+    const methods = data.rentPaymentOptions.methods;
+    paymentSetup.dataset.existingQr = data.rentPaymentOptions.hasQr ? 'true' : '';
+    for (const input of paymentSetup.querySelectorAll('[name=paymentMethods]')) input.checked = methods.includes(input.value);
+    paymentSetup.dispatchEvent(new Event('change'));
     if (myForm.elements['fullName']) myForm.elements['fullName'].value = data.fullName || '';
 
     // Update profile photo preview if available
@@ -1553,13 +1541,21 @@
   // Personal info update
   document.getElementById('myProfileForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const formData = new FormData(e.target);
-    const r = await fetch('/owner-dashboard/api/my-profile', {
-      method: 'PATCH',
-      body: formData
-    });
-    if (r.ok) { ownerToast('Personal info updated!'); loadMyProfile(); }
-    else ownerToast('Failed to update info.', true);
+    const button = e.target.querySelector('button[type=submit]');
+    if (button.disabled) return;
+    button.disabled = true;
+    try {
+      const result = await ownerRequest('/owner-dashboard/api/my-profile', {
+        method: 'PATCH', body: new FormData(e.target)
+      });
+      e.target.elements.gcashQrCode.value = '';
+      ownerToast(result.message);
+      await loadMyProfile();
+    } catch (error) {
+      ownerToast(error.message, true);
+    } finally {
+      button.disabled = false;
+    }
   });
 
   // Documents re-upload
@@ -2416,28 +2412,40 @@
   async function loadOnlinePayments() {
     try {
       const data = await ownerRequest('/api/payments/owner/list');
-      document.getElementById('onlinePaymentsList').innerHTML = data.payments.length ? data.payments.map(payment => `<div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 p-3"><div><b>${esc(payment.tenant?.fullName || 'Tenant')}</b><p class="text-xs">${esc(payment.internalReference)} · ${esc(payment.billingMonth)} · ₱${Number(payment.amount).toLocaleString()}</p><span class="font-semibold ${payment.status === 'SUCCEEDED' ? 'text-emerald-700' : 'text-amber-700'}">${esc(payment.status)}</span></div><div>${payment.status === 'SUCCEEDED' ? `<a class="text-emerald-700 underline" href="/api/payments/${payment.id}/receipt/download" target="_blank" rel="noopener">Receipt</a>` : `<button class="rounded-full border px-3 py-2" onclick="syncOnlinePayment(${payment.id})">Sync provider status</button>`}</div></div>`).join('') : 'No online checkout records yet.';
+      document.getElementById('onlinePaymentsList').innerHTML = data.payments.length ? data.payments.map(payment => `<div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 p-3"><div><b>${esc(payment.tenant?.fullName || 'Tenant')}</b><p class="text-xs">${esc(payment.internalReference)} · ${esc(payment.billingMonth)} · ₱${Number(payment.amount).toLocaleString()}</p><span class="font-semibold ${payment.status === 'SUCCEEDED' ? 'text-emerald-700' : 'text-amber-700'}">${esc(payment.status)}</span></div><div>${payment.status === 'SUCCEEDED' ? `<a class="text-emerald-700 underline" href="/api/payments/${payment.id}/receipt/download" target="_blank" rel="noopener">Receipt</a>` : `<button class="rounded-full border px-3 py-2" onclick="syncOnlinePayment(${payment.id})">Sync provider status</button>${['PENDING', 'PROCESSING'].includes(payment.status) && payment.paymongoCheckoutId ? `<button class="rounded-full border px-3 py-2" onclick="closeOnlineCheckout(${payment.id})">Close unpaid checkout</button>` : ''}`}</div></div>`).join('') : 'No online checkout records yet.';
     } catch (error) { document.getElementById('onlinePaymentsList').textContent = error.message; }
   }
   async function syncOnlinePayment(id) {
     try { const data = await ownerRequest(`/api/payments/${id}/status`); ownerToast(`Provider status: ${data.status}`); loadOnlinePayments(); loadPayments(); loadTenants(); }
     catch (error) { ownerToast(error.message, true); }
   }
+  async function closeOnlineCheckout(id) {
+    if (!await DormMapFeedback.confirm('Close this online checkout to allow a manual payment?')) return;
+    try {
+      const result = await ownerRequest(`/api/payments/owner/${id}/close-checkout`, { method: 'POST' });
+      ownerToast(result.message);
+      await loadPayments();
+    } catch (error) { ownerToast(error.message, true); }
+  }
+  let ownerBills = [];
+  let ownerPaymentToday;
   async function loadPayments() {
     loadOnlinePayments();
     const res = await fetch('/owner-dashboard/api/payments');
-    const { data } = await res.json();
+    const { data, today } = await res.json();
+    ownerBills = data;
+    ownerPaymentToday = today;
     const tbody = document.getElementById('paymentsTable');
     tbody.innerHTML = data.map(p => `
       <tr class="border-b border-slate-100 hover:bg-slate-50/50">
-        <td class="p-4 font-bold text-slate-800">${esc(p.tenantName || 'Tenant #' + p.tenantId)}<p class="text-xs font-normal text-slate-500">${esc(p.method || 'Unpaid')} ${esc(p.reference || '')}</p></td>
+        <td class="p-4 font-bold text-slate-800">${esc(p.tenantName || 'Tenant #' + p.tenantId)}<p class="text-xs font-normal text-slate-500">${esc(p.method === 'Cash' ? 'Cash on Hand' : p.method || 'Unpaid')} ${esc(p.reference || '')}</p></td>
         <td class="p-4">₱${Number(p.totalAmount ?? p.amount).toLocaleString()}</td>
         <td class="p-4 text-xs">${p.dueDate}</td>
-        <td class="p-4"><span class="px-2 py-1 rounded-full text-xs font-semibold ${p.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}">${p.status}</span></td>
+        <td class="p-4"><span class="px-2 py-1 rounded-full text-xs font-semibold ${p.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}">${p.status === 'pending' && p.submittedMethod ? 'Awaiting review' : esc(p.status)}</span></td>
         <td class="p-4 text-xs">${p.paidDate || '-'}</td>
         <td class="p-4 flex gap-2">
-          ${p.status !== 'paid' ? `<button onclick="markPaymentPaid(${p.id})" class="text-xs text-emerald-700 font-bold hover:underline">Mark Paid</button>` : ''}
-          <button onclick="deletePayment(${p.id})" class="text-xs text-rose-600 font-bold hover:underline">Delete</button>
+          ${p.status !== 'paid' ? `<button onclick="markPaymentPaid(${p.id})" class="text-xs text-emerald-700 font-bold hover:underline">${p.submittedMethod ? 'Review payment' : 'Record payment'}</button>` : ''}
+          ${p.status === 'pending' && !p.submittedMethod ? `<button onclick="deletePayment(${p.id})" class="text-xs text-rose-600 font-bold hover:underline">Delete</button>` : ''}
         </td>
       </tr>
     `).join('');
@@ -2478,14 +2486,70 @@
     } catch (error) { ownerToast(error.message, true); }
   });
 
-  async function markPaymentPaid(id) {
-    const method = prompt('Payment received through Cash, GCash, Bank Transfer, or Other:', 'Cash');
-    if (!method) return;
-    const reference = method === 'Cash' ? '' : prompt('Enter the verified payment reference:');
-    if (reference === null) return;
-    try { await ownerRequest(`/owner-dashboard/api/payments/${id}/pay`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ method, reference }) }); loadPayments(); loadTenants(); loadOverview(); }
-    catch (error) { ownerToast(error.message, true); }
+  const paymentReview = document.getElementById('paymentReviewForm');
+  const paymentReviewError = paymentReview.querySelector('[data-payment-error]');
+  const returnPaymentButton = document.getElementById('returnPaymentSubmission');
+  function updatePaymentReviewMethod() {
+    const reference = paymentReview.elements.reference;
+    reference.required = paymentReview.elements.method.value === 'GCash';
+    reference.disabled = !reference.required;
+    paymentReview.querySelector('[data-review-reference]').hidden = !reference.required;
   }
+  paymentReview.elements.method.addEventListener('change', updatePaymentReviewMethod);
+
+  function markPaymentPaid(id) {
+    const bill = ownerBills.find(item => item.id === id);
+    if (!bill) return;
+    paymentReview.reset();
+    paymentReview.dataset.billId = id;
+    paymentReviewError.textContent = '';
+    paymentReview.elements.method.value = bill.submittedMethod || 'Cash';
+    paymentReview.elements.receivedDate.value = ownerPaymentToday;
+    paymentReview.elements.receivedDate.max = ownerPaymentToday;
+    paymentReview.elements.reference.value = bill.submittedReference || '';
+    updatePaymentReviewMethod();
+    const summary = [bill.tenantName, bill.month, `₱${Number(bill.totalAmount).toFixed(2)}`];
+    if (bill.submittedMethod) summary.push(
+      `Tenant reported ${bill.submittedMethod === 'Cash' ? 'Cash on Hand' : bill.submittedMethod} on ${bill.submittedPaidDate}`,
+      bill.submittedReference ? `Reference ${bill.submittedReference}` : ''
+    );
+    document.getElementById('paymentReviewSummary').textContent = summary.filter(Boolean).join(' · ');
+    const proof = document.getElementById('paymentReviewProof');
+    proof.hidden = !bill.paymentProofUrl;
+    if (bill.paymentProofUrl) proof.href = bill.paymentProofUrl;
+    else proof.removeAttribute('href');
+    returnPaymentButton.hidden = !bill.submittedMethod;
+    document.getElementById('paymentReviewDialog').showModal();
+  }
+
+  async function savePaymentReview(returnSubmission) {
+    const button = paymentReview.querySelector('button[type=submit]');
+    if (button.disabled) return;
+    button.disabled = returnPaymentButton.disabled = true;
+    paymentReviewError.textContent = '';
+    const url = `/owner-dashboard/api/payments/${paymentReview.dataset.billId}`;
+    try {
+      const result = returnSubmission
+        ? await ownerRequest(url + '/submission', { method: 'DELETE' })
+        : await ownerRequest(url + '/pay', {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(Object.fromEntries(new FormData(paymentReview)))
+        });
+      document.getElementById('paymentReviewDialog').close();
+      ownerToast(result.message);
+      loadPayments(); loadTenants(); loadOverview();
+    } catch (error) {
+      paymentReviewError.textContent = error.message;
+    } finally {
+      button.disabled = returnPaymentButton.disabled = false;
+    }
+  }
+  paymentReview.addEventListener('submit', event => {
+    event.preventDefault();
+    savePaymentReview(false);
+  });
+  returnPaymentButton.addEventListener('click', () => savePaymentReview(true));
+
   async function deletePayment(id) {
     if (!await DormMapFeedback.confirm('Remove this unpaid bill? Paid bills and online payment history are retained.')) return;
     try { await ownerRequest(`/owner-dashboard/api/payments/${id}`, { method: 'DELETE' }); ownerToast('Unpaid bill removed.'); loadPayments(); loadTenants(); }
@@ -2726,7 +2790,11 @@ async function loadLegacyNotifications() {
       label: 'Bathroom',
       sublabel: '',
       icon: `<svg class="w-4 h-4 text-slate-800" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 6 6.5 3.5a1.5 1.5 0 0 0-2 0l-1 1a1.5 1.5 0 0 0 0 2L6 9"/><path d="M7 15h14"/><path d="M12 11v8"/></svg>`
-    }
+    },
+    ...Array.from({ length: 5 }, (_, index) => ({
+      slot: index + 6, label: `Extra Photo ${index + 1}`, sublabel: 'Optional',
+      icon: '<i data-lucide="image" class="h-4 w-4"></i>'
+    }))
   ];
 
   async function loadGallery(boardingHouseId) {
@@ -2795,12 +2863,14 @@ async function loadLegacyNotifications() {
                 <a data-view-photo target="_blank" rel="noopener" class="hidden text-center text-xs font-semibold text-emerald-700 bg-white border border-emerald-300 py-1 rounded-lg hover:bg-emerald-50 transition shadow-2xs items-center justify-center gap-1">
                   View Photo ↗
                 </a>
+                ${cat.slot > 5 ? `<button type="button" onclick="removeExtraGalleryPhoto(${cat.slot})" class="text-xs font-semibold text-rose-700 hover:underline">Remove photo</button>` : ''}
               </div>
             ` : ''}
           </div>
         `;
       }).join('');
 
+      if (window.lucide) lucide.createIcons();
       for (const card of grid.querySelectorAll('[data-gallery-slot]')) {
         const image = card.querySelector('img');
         if (!image) continue;
@@ -2825,6 +2895,16 @@ async function loadLegacyNotifications() {
     } catch (err) {
       console.error('Error loading gallery:', err);
     }
+  }
+
+  async function removeExtraGalleryPhoto(slot) {
+    const house = document.getElementById('galleryBoardingHouseSelector').value;
+    if (!await DormMapFeedback.confirm('Remove this extra photo from the branch gallery?')) return;
+    try {
+      const result = await ownerRequest(`/owner-dashboard/api/gallery/slot/${slot}?boardingHouseId=${encodeURIComponent(house)}`, { method: 'DELETE' });
+      ownerToast(result.message);
+      loadGallery(house);
+    } catch (error) { ownerToast(error.message, true); }
   }
 
   function onGalleryBoardingHouseChange() {
@@ -3027,81 +3107,6 @@ async function loadLegacyNotifications() {
       `;
     }
   }
-
-  // ─── Settings ───
-  function updateGcashPreview() {
-    const num = document.getElementById('settingsForm')?.elements['gcashNumber']?.value?.trim();
-    const name = document.getElementById('settingsForm')?.elements['gcashName']?.value?.trim();
-    const previewBox = document.getElementById('gcashPreviewBox');
-    const previewNum = document.getElementById('previewGcashNumber');
-    const previewName = document.getElementById('previewGcashName');
-    if (num || name) {
-      if (previewBox) previewBox.classList.remove('hidden');
-      if (previewNum) previewNum.textContent = num || '—';
-      if (previewName) previewName.textContent = name || '—';
-    } else {
-      if (previewBox) previewBox.classList.add('hidden');
-    }
-  }
-
-  async function loadSettings() {
-    try {
-      const res = await fetch('/owner-dashboard/api/settings');
-      const json = await res.json();
-      const data = json.data;
-      const form = document.getElementById('settingsForm');
-      if (!form || !data) return;
-      const fields = ['gcashNumber', 'gcashName'];
-      fields.forEach(key => {
-        if (form.elements[key] && data[key] != null) form.elements[key].value = data[key];
-      });
-      updateGcashPreview();
-      if (typeof lucide !== 'undefined') lucide.createIcons();
-    } catch (err) {
-      console.error('Failed to load settings:', err);
-    }
-  }
-
-  // Live preview listeners
-  document.getElementById('settingsForm')?.elements['gcashNumber']?.addEventListener('input', updateGcashPreview);
-  document.getElementById('settingsForm')?.elements['gcashName']?.addEventListener('input', updateGcashPreview);
-
-  document.getElementById('settingsForm')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    const body = Object.fromEntries(formData.entries());
-    const submitBtn = document.getElementById('saveSettingsBtn');
-    
-    if (submitBtn) {
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = '<span>Saving...</span>';
-    }
-
-    try {
-      const res = await fetch('/owner-dashboard/api/settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      const data = await res.json().catch(() => ({}));
-
-      if (res.ok) {
-        updateGcashPreview();
-        ownerToast('GCash settings saved.');
-      } else {
-        ownerToast(data.error || 'Failed to save settings. Please try again.', true);
-      }
-    } catch (err) {
-      console.error('Save settings error:', err);
-      ownerToast('Network error while saving settings.', true);
-    } finally {
-      if (submitBtn) {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i data-lucide="save" class="h-4 w-4"></i> Save GCash Settings';
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-      }
-    }
-  });
 
   // Run initialization
   show('overview');

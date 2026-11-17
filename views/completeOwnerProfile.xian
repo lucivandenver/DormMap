@@ -401,7 +401,12 @@
             <input type="text" name="boardingHouseName" value="{{authValues.boardingHouseName}}" required placeholder="e.g. Green Haven Residence">
           </label>
 
-          {{> ownerRegistrationCounts }}
+          <label class="block text-sm font-semibold text-slate-700">
+                <span class="mb-1 block">Contact number</span>
+                <input type="tel" name="contactNumber" value="{{authValues.contactNumber}}" maxlength="25" required autocomplete="tel" class="w-full rounded-xl border border-slate-200 px-3 py-2">
+              </label>
+              {{> ownerPaymentSetup }}
+              {{> ownerRegistrationCounts }}
           <button type="button" class="registration-step" onclick="goToStep(2)">Next</button>
         </div>
         <div id="step2" class="space-y-3.5" style="display:none;">
@@ -481,6 +486,17 @@
                 <input type="file" name="galleryBathroom" accept="image/*" required>
               </label>
             </div>
+                <details class="my-2 rounded-xl border border-slate-200 bg-white p-3">
+                  <summary class="cursor-pointer text-sm font-semibold text-emerald-800">Add extra property photos</summary>
+                  <p class="my-2 text-xs text-slate-600">Upload up to five extra photos for this branch.</p>
+                  <div class="grid gap-2 sm:grid-cols-2">
+                  <label class="block text-xs font-semibold">Extra Photo 1<input class="mt-1 block w-full text-xs" type="file" name="galleryExtra1" accept="image/jpeg,image/png,image/webp"></label>
+                  <label class="block text-xs font-semibold">Extra Photo 2<input class="mt-1 block w-full text-xs" type="file" name="galleryExtra2" accept="image/jpeg,image/png,image/webp"></label>
+                  <label class="block text-xs font-semibold">Extra Photo 3<input class="mt-1 block w-full text-xs" type="file" name="galleryExtra3" accept="image/jpeg,image/png,image/webp"></label>
+                  <label class="block text-xs font-semibold">Extra Photo 4<input class="mt-1 block w-full text-xs" type="file" name="galleryExtra4" accept="image/jpeg,image/png,image/webp"></label>
+                  <label class="block text-xs font-semibold">Extra Photo 5<input class="mt-1 block w-full text-xs" type="file" name="galleryExtra5" accept="image/jpeg,image/png,image/webp"></label>
+                  </div>
+                </details>
             <p style="font-size:0.72rem;color:#94a3b8;margin-top:0.6rem;">✓ JPG, PNG, or WEBP accepted. Max 5MB per photo. These replace the old single photo requirement.</p>
           </div>
 
@@ -615,7 +631,7 @@
     function goToStep(step) {
       if (step > wizardStep) {
         if (wizardStep === 1) {
-          const invalid = document.querySelector('#step1 :invalid');
+          const invalid = document.querySelector('#step1 input:invalid, #step1 select:invalid, #step1 textarea:invalid');
           if (invalid) { invalid.reportValidity(); return; }
           if (!branches.prepare()) return;
           branches.select(0);

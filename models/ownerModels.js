@@ -66,7 +66,15 @@ export const OwnerTenant = sequelize.define('OwnerTenant', {
   notes:            { type: DataTypes.TEXT,    allowNull: true },
 }, { tableName: 'OwnerTenants' });
 
+const manualPaymentColumns = {
+  submittedMethod: { type: DataTypes.STRING, allowNull: true },
+  submittedPaidDate: { type: DataTypes.DATEONLY, allowNull: true },
+  submittedReference: { type: DataTypes.STRING, allowNull: true },
+  paymentProofUrl: { type: DataTypes.STRING, allowNull: true },
+};
+
 export const OwnerPayment = sequelize.define('OwnerPayment', {
+  ...manualPaymentColumns,
   ownerId:       { type: DataTypes.INTEGER, allowNull: false },
   tenantId:      { type: DataTypes.INTEGER, allowNull: false },
   roomId:        { type: DataTypes.INTEGER, allowNull: true },
@@ -143,6 +151,10 @@ export const ensureOwnerSchema = async () => {
 
   // Add extra columns to OwnerGallery if needed
   const queryInterface = sequelize.getQueryInterface();
+  const paymentColumns = await queryInterface.describeTable('OwnerPayments');
+  for (const [name, definition] of Object.entries(manualPaymentColumns)) {
+    if (!paymentColumns[name]) await queryInterface.addColumn('OwnerPayments', name, definition);
+  }
   const houseColumns = await queryInterface.describeTable('BoardingHouses');
   if (!houseColumns.registrationSubmission) await queryInterface.addColumn('BoardingHouses', 'registrationSubmission', { type: DataTypes.JSON, allowNull: true });
   for (const column of ['declaredBranches', 'declaredRooms']) {
