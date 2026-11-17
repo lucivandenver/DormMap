@@ -1360,9 +1360,11 @@ function renderReviewedBranch(branch) {
   if (typeof photos === 'string') {
     try { photos = JSON.parse(photos); } catch { photos = []; }
   }
-  renderReviewUploads('reviewBranchPhotos', ['Outdoor Spaces', 'Living Area', 'Bedroom', 'Dining or Kitchenette', 'Bathroom'].map((label, index) => ({
+  const labels = ['Outdoor Spaces', 'Living Area', 'Bedroom', 'Dining or Kitchenette', 'Bathroom',
+    ...Array.from({ length: 5 }, (_, index) => `Extra Photo ${index + 1}`)];
+  renderReviewUploads('reviewBranchPhotos', labels.map((label, index) => ({
     label, url: Array.isArray(photos) ? photos[index] : null
-  })));
+  })).filter((photo, index) => index < 5 || photo.url));
   const target = document.getElementById('reviewBranchMap');
   const hasPin = branch.latitude != null && branch.longitude != null &&
     Number.isFinite(Number(branch.latitude)) && Number.isFinite(Number(branch.longitude));

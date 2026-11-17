@@ -1,5 +1,5 @@
 import { initiateRentPayment, getLandlordGcashDetails, handlePaymongoWebhookPayload } from '../services/paymentService.js';
-import { getPaymongoCheckoutStatus } from '../services/paymongoService.js';
+import { expireUnpaidPaymongoCheckout, getPaymongoCheckoutStatus } from '../services/paymongoService.js';
 import { Payment, PaymentReceipt } from '../models/paymentModels.js';
 import { User } from '../models/userModel.js';
 import { OwnerRoom } from '../models/ownerModels.js';
@@ -86,6 +86,27 @@ export const getPaymentStatus = async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+};
+
+export const closeOnlineCheckout = async (req, res, next) => {
+  try {
+    if (req.currentUser.accountType !== 'boarding_house_owner') return res.status(403).json({ error: 'Owner access required.' });
+    const payment = await Payment.findOne({ where: { id: req.params.paymentId, ownerId: req.currentUser.id } });
+    if (!payment) return res.status(404).json({ error: 'Checkout not found.' });
+    if (!['PENDING', 'PROCESSING'].includes(payment.status) || !payment.paymongoCheckoutId) {
+      return res.status(409).json({ error: 'This checkout cannot be closed.' });
+    }
+    try {
+      await expireUnpaidPaymongoCheckout(payment.paymongoCheckoutId);
+    } catch {
+      return res.status(409).json({ error: 'PayMongo could not confirm that the checkout is closed. Sync its status before collecting another payment.' });
+    }
+    await handlePaymongoWebhookPayload({ data: { attributes: {
+      type: 'checkout_session.expired', data: { id: payment.paymongoCheckoutId }
+    } } });
+    await payment.reload();
+    res.json({ status: payment.status, message: `Checkout status: ${payment.status}.` });
+  } catch (error) { next(error); }
 };
 
 export const getTenantPayments = async (req, res, next) => {
@@ -182,8 +203,8 @@ export const renderFailurePage = async (req, res) => {
   });
 };
 
-export const renderGcashPortal = async (req, res) => res.status(410).send('The legacy demo portal is disabled. Use the real PayMongo checkout from your tenant dashboard.');
-export const authorizePortalPayment = async (req, res) => res.status(410).json({ error: 'Simulated GCash authorization is disabled. Only verified PayMongo payments can settle rent.' });
+export const renderGcashPortal = async (req, res) => res.status(410).send('Open Payment History on the tenant dashboard to submit your rent payment.');
+export const authorizePortalPayment = async (req, res) => res.status(410).json({ error: 'Open Payment History to submit your rent payment.' });
 
 export const seedDemoAccounts = async (req, res) => {
   try {

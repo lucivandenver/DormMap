@@ -1,3 +1,6 @@
+import { ownerPaymentConfig, ownerPaymentQr, validatePaymentMethods } from '../services/ownerPaymentConfig.js';
+import { assertNoOnlineCheckout, assertReferenceAvailable, manilaToday, paymentReference, validatePaidDate } from '../services/manualPaymentService.js';
+import { createTenantApplication, closeDuplicatePendingApplications } from '../services/tenantApplicationService.js';
 import { storeReviewFile } from '../services/reviewFileService.js';
 import { GALLERY_CATEGORIES, saveGallerySlot, storePropertyPhoto } from '../services/propertyPhotoService.js';
 import { BarangayMessage } from '../models/adminModels.js';
@@ -112,9 +115,13 @@ export const overview = async (req, res, next) => {
 
 export const getProfile = async (req, res, next) => {
   try {
-    const user = await User.findByPk(oid(req), { attributes: { exclude: ['password', 'verificationToken'] } });
+    const user = await User.findByPk(oid(req), { attributes: { exclude: ['password', 'verificationToken', 'resetPasswordToken'] } });
     if (!user) return res.status(404).json({ error: 'Profile not found.' });
-    res.json({ data: user });
+    res.json({
+      data: { ...user.toJSON(), rentPaymentOptions: {
+        ...ownerPaymentConfig(user), hasQr: Boolean(ownerPaymentQr(user))
+      } }
+    });
   } catch (err) { next(err); }
 };
 
@@ -301,7 +308,7 @@ export const getPayments = async (req, res, next) => {
       return plain;
     });
 
-    res.json({ data });
+    res.json({ data, today: manilaToday() });
   } catch (err) { next(err); }
 };
 
@@ -351,18 +358,37 @@ export const markPaid = async (req, res, next) => {
       const bill = await OwnerPayment.findOne({ where: { id: req.params.id, ownerId }, transaction, lock: transaction.LOCK.UPDATE });
       if (!bill) fail('Bill not found.', 404);
       if (bill.status === 'paid') return bill;
-      const { Payment } = await import('../models/paymentModels.js');
-      if (await Payment.count({ where: { tenantPaymentId: bill.id, status: { [Op.in]: ['PENDING','PROCESSING'] } }, transaction })) fail('A checkout is in progress for this bill. Reconcile it before recording another payment.', 409);
+      await assertNoOnlineCheckout(bill, transaction);
       const tenant = await OwnerTenant.findOne({ where: { id: bill.tenantId, ownerId }, transaction, lock: transaction.LOCK.UPDATE });
       if (!tenant) fail('The linked tenancy is missing.');
       const method = req.body.method || 'Cash';
       if (!['Cash','GCash','Bank Transfer','Other'].includes(method)) fail('Invalid payment method.');
-      if (method === 'GCash' && !String(req.body.reference || '').trim()) fail('A GCash reference number is required for an owner-verified direct payment.');
-      await bill.update({ status: 'paid', paidDate: new Date(), method, reference: req.body.reference || null }, { transaction });
+      const reference = method === 'GCash' ? paymentReference(req.body.reference) : null;
+      if (reference) await assertReferenceAvailable(bill, reference, transaction);
+      const paidDate = validatePaidDate(req.body.receivedDate ?? manilaToday());
+      await bill.update({ status: 'paid', paidDate, method, reference }, { transaction });
       await tenant.update({ balance: Math.max(0, Number(tenant.balance)-Number(bill.amount)-Number(bill.penalty)) }, { transaction });
       return bill;
     });
     res.json({ data, message: 'Payment recorded.' });
+  } catch (error) { next(error); }
+};
+
+export const returnPaymentSubmission = async (req, res, next) => {
+  try {
+    await sequelize.transaction(async transaction => {
+      const ownerId = oid(req);
+      await ownerLock(ownerId, transaction);
+      const bill = await OwnerPayment.findOne({
+        where: { id: req.params.id, ownerId }, transaction, lock: transaction.LOCK.UPDATE
+      });
+      if (!bill) fail('Bill not found.', 404);
+      if (bill.status !== 'pending' || !bill.submittedMethod) fail('There is no submission awaiting review.', 409);
+      await bill.update({
+        submittedMethod: null, submittedPaidDate: null, submittedReference: null, paymentProofUrl: null
+      }, { transaction });
+    });
+    res.json({ message: 'Submission returned. The tenant can submit payment again.' });
   } catch (error) { next(error); }
 };
 
@@ -373,7 +399,7 @@ export const deletePayment = async (req, res, next) => {
       const bill = await OwnerPayment.findOne({ where: { id: req.params.id, ownerId: oid(req) }, transaction, lock: transaction.LOCK.UPDATE });
       if (!bill) fail('Bill not found.', 404);
       const { Payment } = await import('../models/paymentModels.js');
-      if (bill.status === 'paid' || await Payment.count({ where: { tenantPaymentId: bill.id }, transaction })) fail('Bills with payment history cannot be deleted.', 409);
+      if (bill.status === 'paid' || bill.submittedMethod || await Payment.count({ where: { tenantPaymentId: bill.id }, transaction })) fail('Bills with payment history cannot be deleted.', 409);
       const tenant = await OwnerTenant.findOne({ where: { id: bill.tenantId, ownerId: oid(req) }, transaction, lock: transaction.LOCK.UPDATE });
       if (tenant) await tenant.update({ balance: Math.max(0, Number(tenant.balance)-Number(bill.amount)-Number(bill.penalty)) }, { transaction });
       await bill.destroy({ transaction });
@@ -622,7 +648,7 @@ async function updateGalleryPhotos(ownerId, requestedHouseId, uploads) {
 export const updateGallerySlot = async (req, res, next) => {
   try {
     const category = GALLERY_CATEGORIES.find(item => item.index === Number(req.params.slotIndex));
-    if (!category) fail('Invalid slot index (must be 1 to 5).', 400);
+    if (!category) fail('Invalid slot index (must be 1 to 10).', 400);
     if (!req.file) fail('No image uploaded for this slot.', 400);
 
     const { house, urls } = await updateGalleryPhotos(oid(req), req.body.boardingHouseId || req.query.boardingHouseId, [{ category, file: req.file }]);
@@ -644,7 +670,7 @@ export const deleteGallerySlot = async (req, res, next) => {
     const slotIndex = Number(req.params.slotIndex);
     const requestedHouseId = req.query.boardingHouseId || req.body.boardingHouseId;
     if (!GALLERY_CATEGORIES.some(category => category.index === slotIndex)) {
-      fail('Invalid slot index (must be 1 to 5).', 400);
+      fail('Invalid slot index (must be 1 to 10).', 400);
     }
 
     const boardingHouseId = await sequelize.transaction(async transaction => {
@@ -985,12 +1011,18 @@ export const updateMyProfile = async (req, res, next) => {
     if (profilePic) updates.profilePicture = `/uploads/${profilePic.filename}`;
 
     const gcashQrFile = req.files?.['gcashQrCode']?.[0];
-    if (gcashQrFile) updates.gcashQrCode = `/uploads/${gcashQrFile.filename}`;
+    if (req.body.configureRentPayments === 'on') {
+      const existingQr = ownerPaymentQr(user);
+      const methods = validatePaymentMethods(req.body.paymentMethods, Boolean(gcashQrFile || existingQr));
+      updates.paymentMethods = JSON.stringify(methods);
+    }
+    if (gcashQrFile) updates.gcashQrCode = await storeReviewFile(gcashQrFile, user.id, 'payment-qr');
 
     await user.update(updates);
     await syncPrimaryHouse(user.id, updates);
     await audit(req, 'update_my_profile', 'User', user.id, { fields: Object.keys(updates) });
-    res.json({ message: 'Profile updated.', data: user.get({ plain: true }) });
+    const { password, verificationToken, resetPasswordToken, ...profile } = user.toJSON();
+    res.json({ message: 'Profile and payment settings saved.', data: profile });
   } catch (err) { next(err); }
 };
 
@@ -1033,7 +1065,7 @@ export const getPendingApplications = async (req, res, next) => {
     const ownerId = oid(req);
     const owner = await User.findByPk(ownerId, { attributes: ['boardingHouseName'] });
 
-    const applications = await TenantApplication.findAll({
+    let applications = await TenantApplication.findAll({
       where: { ownerId },
       order: [['createdAt', 'DESC']]
     });
@@ -1056,18 +1088,21 @@ export const getPendingApplications = async (req, res, next) => {
         if (!hasApp) {
           // Synthesize an application in DB
           try {
-            const created = await TenantApplication.create({
+            const { application, created } = await createTenantApplication({
               tenantId: u.id,
               ownerId: ownerId,
               boardingHouseName: owner.boardingHouseName,
-              status: u.applicationStatus === 'approved' ? 'confirmed' : 'pending_owner',
+              status: await OwnerTenant.count({ where: { ownerId, tenantUserId: u.id, status: 'active' } })
+                ? 'confirmed' : 'pending_owner',
               message: 'Registered with selected boarding house'
-            });
-            applications.unshift(created);
+            }, { legacy: true });
+            if (created) applications.unshift(application);
           } catch (e) {}
         }
       }
     }
+
+    applications = await closeDuplicatePendingApplications(applications);
 
     // Attach tenant user information & room details to each application
     const enriched = await Promise.all(applications.map(async (app) => {

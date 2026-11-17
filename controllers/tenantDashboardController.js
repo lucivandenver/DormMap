@@ -1,5 +1,7 @@
+import { ownerPaymentConfig } from '../services/ownerPaymentConfig.js';
+import { manilaToday, submitRentPayment } from '../services/manualPaymentService.js';
+import { createTenantApplication, closeDuplicatePendingApplications, findApplicationProperty } from '../services/tenantApplicationService.js';
 import { storeReviewFile } from '../services/reviewFileService.js';
-import { getQrPhConfiguration } from '../services/paymongoService.js';
 import { orderBranches } from '../services/propertyBranchesService.js';
 import { confirmOffer } from '../services/occupancyService.js';
 import { listTenantDorms } from '../services/dormListingService.js';
@@ -120,26 +122,23 @@ export const overview = async (req, res, next) => {
 
     // If tenant selected a boarding house previously but has no TenantApplication row, create one retroactively
     if (applications.length === 0 && user.selectedBoardingHouse) {
-      let matchedOwner = await User.findOne({
-        where: {
-          accountType: 'boarding_house_owner',
-          [Op.or]: [
-            { boardingHouseName: user.selectedBoardingHouse },
-            { name: user.selectedBoardingHouse }
-          ]
-        }
-      });
-      const initialStatus = (tenantRec || user.applicationStatus === 'approved') ? 'confirmed' : 'pending_owner';
-      const createdApp = await TenantApplication.create({
-        tenantId: user.id,
-        ownerId: matchedOwner ? matchedOwner.id : (tenantRec?.ownerId || 0),
-        boardingHouseName: user.selectedBoardingHouse,
-        requestedRoomType: user.preferredLocation || null,
-        message: 'Initial profile application',
-        status: initialStatus
-      });
-      applications = [createdApp];
+      const { house, owner } = await findApplicationProperty(user.selectedBoardingHouse);
+      const ownerId = tenantRec?.ownerId || owner?.id;
+      if (ownerId) {
+        const { application } = await createTenantApplication({
+          tenantId: user.id,
+          ownerId,
+          boardingHouseId: house?.ownerId === ownerId ? house.id : null,
+          boardingHouseName: user.selectedBoardingHouse,
+          requestedRoomType: user.preferredLocation || null,
+          message: 'Initial profile application',
+          status: tenantRec ? 'confirmed' : 'pending_owner'
+        }, { legacy: true });
+        applications = [application];
+      }
     }
+
+    applications = await closeDuplicatePendingApplications(applications);
 
     // Attach owner details to applications
     const enrichedApplications = await Promise.all(applications.map(async (app) => {
@@ -301,14 +300,23 @@ export const getPaymentHistory = async (req, res, next) => {
     const totalPaid = payments.filter(p => p.status === 'paid').reduce((s, p) => s + Number(p.amount) + Number(p.penalty || 0), 0);
     const totalBalance = payments.filter(p => p.status === 'pending').reduce((s, p) => s + Number(p.amount) + Number(p.penalty || 0), 0);
 
+    const owner = await User.findByPk(tenantRec.ownerId, { attributes: ['paymentMethods', 'gcashQrCode'] });
     res.json({
       payments,
-      qrPhAvailable: getQrPhConfiguration().available,
+      paymentOptions: ownerPaymentConfig(owner),
+      today: manilaToday(),
       totalPaid,
       totalBalance,
       tenantRecord: tenantRec
     });
   } catch (err) { next(err); }
+};
+
+export const submitPayment = async (req, res, next) => {
+  try {
+    const data = await submitRentPayment(req.currentUser, req.params.id, req.body, req.file);
+    res.json({ data, message: 'Payment submitted for owner confirmation.' });
+  } catch (error) { next(error); }
 };
 
 // ─── Rental Information Module ───────────────────────────────────────────────
@@ -442,8 +450,7 @@ export const getConversations = async (req, res, next) => {
         where: {
           accountType: 'boarding_house_owner',
           [Op.or]: [
-            { boardingHouseName: user.selectedBoardingHouse },
-            { name: user.selectedBoardingHouse }
+            { boardingHouseName: user.selectedBoardingHouse }
           ]
         }
       });
@@ -538,8 +545,7 @@ export const getMessages = async (req, res, next) => {
         where: {
           accountType: 'boarding_house_owner',
           [Op.or]: [
-            { boardingHouseName: user.selectedBoardingHouse },
-            { name: user.selectedBoardingHouse }
+            { boardingHouseName: user.selectedBoardingHouse }
           ]
         }
       });
@@ -613,8 +619,7 @@ export const sendMessage = async (req, res, next) => {
         where: {
           accountType: 'boarding_house_owner',
           [Op.or]: [
-            { boardingHouseName: user.selectedBoardingHouse },
-            { name: user.selectedBoardingHouse }
+            { boardingHouseName: user.selectedBoardingHouse }
           ]
         }
       });
@@ -663,7 +668,8 @@ export const getApplications = async (req, res, next) => {
       order: [['createdAt', 'DESC']]
     });
 
-    const enriched = await Promise.all(applications.map(async (app) => {
+    const uniqueApplications = await closeDuplicatePendingApplications(applications);
+    const enriched = await Promise.all(uniqueApplications.map(async (app) => {
       let appOwner = null;
       if (app.ownerId) {
         appOwner = await User.findByPk(app.ownerId, {
@@ -719,30 +725,8 @@ export const applyBoardingHouse = async (req, res, next) => {
 
     const selectedHouse = establishmentId ? await BoardingHouse.findOne({ where: { id: establishmentId, ownerId: owner.id, approvalStatus: 'approved' } }) : await BoardingHouse.findOne({ where: { ownerId: owner.id, name: boardingHouseName, approvalStatus: 'approved' } });
 
-    // Check existing applications
-    const existing = await TenantApplication.findOne({
-      where: {
-        tenantId: user.id,
-        ownerId: owner.id,
-        [Op.or]: selectedHouse
-          ? [{ boardingHouseId: selectedHouse.id }, { boardingHouseId: null, boardingHouseName: selectedHouse.name }]
-          : [{ boardingHouseId: null, boardingHouseName }],
-        status: { [Op.in]: ['pending_owner', 'accepted_by_owner', 'confirmed'] }
-      }
-    });
-
-    if (existing) {
-      if (existing.status === 'confirmed') {
-        return res.status(400).json({ error: 'You are already confirmed as an active tenant for this boarding house!' });
-      }
-      if (existing.status === 'accepted_by_owner') {
-        return res.status(400).json({ error: 'This owner has already accepted your application! Please accept back on your dashboard to finalize.' });
-      }
-      return res.status(400).json({ error: 'You already have an active pending inquiry/application for this boarding house.' });
-    }
-
     const roomTypeInfo = requestedRoomType ? ` (Requested Room: ${requestedRoomType})` : '';
-    const application = await TenantApplication.create({
+    const { application, created } = await createTenantApplication({
       tenantId: user.id,
       ownerId: owner.id,
       boardingHouseId: selectedHouse?.id || null,
@@ -751,6 +735,8 @@ export const applyBoardingHouse = async (req, res, next) => {
       message: message || `Inquired/Applied via DormMap Browse. Contact: ${user.contactNumber || 'N/A'}, Gender: ${user.gender || 'N/A'}${roomTypeInfo}`,
       status: 'pending_owner'
     });
+
+    if (!created) return res.status(409).json({ error: 'You already have an active rental application with this owner.' });
 
     // Create OwnerInquiry
     await OwnerInquiry.create({

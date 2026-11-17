@@ -1,3 +1,4 @@
+import { ownerPaymentConfig } from './ownerPaymentConfig.js';
 import { floorNumber, floorLabel, ROOM_TYPES } from './roomPlanService.js';
 import { Op } from 'sequelize';
 import { sequelize } from '../models/db.js';
@@ -150,10 +151,8 @@ export async function removeRoom(ownerId, id) {
   });
 }
 
-function requireOwnerGcash(owner) {
-  if (!/^(?:09\d{9}|\+639\d{9})$/.test(String(owner.gcashNumber || '').trim()) || !owner.gcashName?.trim()) {
-    fail('Set a valid GCash number and account name in your owner dashboard before accepting tenants.');
-  }
+function requireOwnerPaymentMethod(owner) {
+  if (!ownerPaymentConfig(owner).methods.length) fail('Configure an accepted rent payment method before accepting tenants.');
 }
 
 function requirePropertySetup(owner, house, room) {
@@ -166,7 +165,7 @@ function requirePropertySetup(owner, house, room) {
 export async function offerApplication(ownerId, tenantUserId, body) {
   return sequelize.transaction(async transaction => {
     const owner = await ownerLock(ownerId, transaction);
-    requireOwnerGcash(owner);
+    requireOwnerPaymentMethod(owner);
     const app = await TenantApplication.findOne({ where: { ownerId, tenantId: tenantUserId, ...(body.applicationId ? { id: body.applicationId } : {}), status: { [Op.in]: ['pending_owner','accepted_by_owner'] } }, order: [['createdAt','DESC']], transaction, lock: transaction.LOCK.UPDATE });
     if (!app) fail('No pending application from this tenant to this owner.', 404);
     if (!body.roomId) fail('Choose a room to offer.');
@@ -193,7 +192,7 @@ export async function confirmOffer(userId, applicationId) {
     const user = await User.findByPk(userId, { transaction, lock: transaction.LOCK.UPDATE });
     const app = await TenantApplication.findByPk(applicationId, { transaction, lock: transaction.LOCK.UPDATE });
     if (app.status === 'confirmed') return app;
-    requireOwnerGcash(owner);
+    requireOwnerPaymentMethod(owner);
     const branch = app.boardingHouseId ? await BoardingHouse.findByPk(app.boardingHouseId, { transaction }) : null;
     if (branch?.approvalStatus !== 'approved') fail('This branch is not currently approved.');
     if (branch.declaredRooms) requirePropertySetup(owner, branch, await ownedRoom(owner.id, app.roomId, transaction));

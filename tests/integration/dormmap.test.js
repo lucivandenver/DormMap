@@ -272,9 +272,9 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const offeredRoom = await saveRoom(owner.id, null, { boardingHouseId: house.id, roomNumber: 'Offered', capacity: 1, rentalPrice: 1500 });
       const app = await TenantApplication.create({ tenantId: second.id, ownerId: owner.id, boardingHouseId: house.id, boardingHouseName: house.name });
       const offer = { applicationId: app.id, roomId: offeredRoom.id, monthlyRent: 1500 };
-      await owner.update({ gcashNumber: null, gcashName: null });
-      await assert.rejects(offerApplication(owner.id, second.id, offer), /Set a valid GCash/);
-      await owner.update({ gcashNumber: '09171234567', gcashName: 'Test Owner' });
+      await owner.update({ paymentMethods: '["GCash"]' });
+      await assert.rejects(offerApplication(owner.id, second.id, offer), /Configure an accepted rent payment method/);
+      await owner.update({ paymentMethods: '["Cash"]' });
       await offerApplication(owner.id, second.id, { applicationId: app.id, roomId: offeredRoom.id, monthlyRent: 1500 });
       assert.equal((await OwnerRoom.findByPk(offeredRoom.id)).availableSlots, 1);
       assert.equal(await OwnerTenant.count({ where: { tenantUserId: second.id } }), 0);
@@ -295,6 +295,85 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.ok(listings.some(item => item.ownerId === owner.id && item.registrationStatus === 'unregistered'));
       const browsed = await (await request('/tenant-dashboard/api/browse-boarding-houses', cookie)).json(); assert.ok(!browsed.boardingHouses.some(item => item.ownerId === owner.id));
       assert.equal((await request(`/admin/api/owners/${owner.id}/map-status`, adminCookie, patch('registered'))).status, 200);
+    });
+    await t.test('concurrent inquiries create one application per tenant and owner', async () => {
+      const applicant = await User.create({
+        fullName: 'Duplicate Inquiry Test', email: `duplicate-${suffix}@example.test`, password,
+        accountType: 'tenant', emailVerified: true
+      });
+      ids.push(applicant.id);
+      const applicantCookie = await login(applicant.email);
+      const ownerCookie = await login(owner.email);
+      const values = { ownerId: owner.id, boardingHouseName: house.name, establishmentId: house.id };
+      const responses = await Promise.all(Array.from({ length: 3 }, () => request('/tenant-dashboard/api/applications', applicantCookie, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values)
+      })));
+      assert.deepEqual(responses.map(response => response.status).sort(), [201, 409, 409]);
+      const where = { ownerId: owner.id, tenantId: applicant.id, status: 'pending_owner' };
+      assert.equal(await TenantApplication.count({ where }), 1);
+      const duplicate = await TenantApplication.create({ ...where, boardingHouseName: house.name });
+      const applications = await request('/owner-dashboard/api/pending-applications', ownerCookie);
+      assert.equal(applications.status, 200);
+      assert.equal((await applications.json()).data.filter(app => app.userId === applicant.id).length, 1);
+      assert.equal((await duplicate.reload()).status, 'duplicate_closed');
+    });
+    await t.test('direct GCash and cash submissions preserve review dates and reduce balance once', async () => {
+      const ownerCookie = await login(owner.email);
+      const tenantCookie = await login(second.email);
+      const unrelatedCookie = await login(tenant.email);
+      const rental = await OwnerTenant.findOne({ where: { tenantUserId: second.id } });
+      const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5X8AAAAASUVORK5CYII=', 'base64');
+      const setup = new FormData();
+      setup.set('configureRentPayments', 'on');
+      setup.append('paymentMethods', 'Cash');
+      setup.append('paymentMethods', 'GCash');
+      setup.set('gcashQrCode', new Blob([png], { type: 'image/png' }), 'qr.png');
+      const saved = await request('/owner-dashboard/api/my-profile', ownerCookie, { method: 'PATCH', body: setup });
+      assert.equal(saved.status, 200, await saved.clone().text());
+      const history = await (await request('/tenant-dashboard/api/payments', tenantCookie)).json();
+      assert.deepEqual(history.paymentOptions.methods, ['Cash', 'GCash']);
+      const qr = history.paymentOptions.gcashQrCode;
+      assert.equal((await request(qr, tenantCookie)).status, 200);
+      assert.equal((await request(qr, unrelatedCookie)).status, 404);
+      const json = (method, body) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const initialBalance = Number(rental.balance);
+      const invoice = await request('/owner-dashboard/api/payments', ownerCookie, json('POST', {
+        tenantId: rental.id, amount: 250, dueDate: '2099-01-10'
+      }));
+      assert.equal(invoice.status, 201, await invoice.clone().text());
+      const { data: bill } = await invoice.json();
+      const pay = `/tenant-dashboard/api/payments/${bill.id}/submit`;
+      const fields = new FormData();
+      fields.set('method', 'GCash');
+      fields.set('reference', '1234567890');
+      fields.set('paidDate', history.today);
+      fields.set('proof', new Blob([png], { type: 'image/png' }), 'proof.png');
+      assert.equal((await request(pay, unrelatedCookie, { method: 'POST', body: fields })).status, 404);
+      const payment = await request(pay, tenantCookie, { method: 'POST', body: fields });
+      assert.equal(payment.status, 200, await payment.clone().text());
+      const { data: submission } = await payment.json();
+      assert.equal(submission.status, 'pending');
+      assert.equal(submission.submittedPaidDate, history.today);
+      assert.equal((await request(submission.paymentProofUrl, ownerCookie)).status, 200);
+      assert.equal((await request(submission.paymentProofUrl, unrelatedCookie)).status, 404);
+      assert.equal((await request(pay, tenantCookie, { method: 'POST', body: fields })).status, 409);
+      const confirm = `/owner-dashboard/api/payments/${bill.id}/pay`;
+      const received = json('PATCH', { method: 'GCash', reference: submission.submittedReference, receivedDate: history.today });
+      assert.equal((await request(confirm, ownerCookie, received)).status, 200);
+      assert.equal((await request(confirm, ownerCookie, received)).status, 200);
+      assert.equal(Number((await rental.reload()).balance), initialBalance);
+      const cashInvoice = await request('/owner-dashboard/api/payments', ownerCookie, json('POST', {
+        roomId: rental.roomId, amount: 100, dueDate: '2099-02-10'
+      }));
+      assert.equal(cashInvoice.status, 201, await cashInvoice.clone().text());
+      const cashBill = (await cashInvoice.json()).data.find(item => item.tenantId === rental.id);
+      const cash = new FormData();
+      cash.set('method', 'Cash');
+      cash.set('paidDate', history.today);
+      assert.equal((await request(`/tenant-dashboard/api/payments/${cashBill.id}/submit`, tenantCookie, { method: 'POST', body: cash })).status, 200);
+      assert.equal((await request(`/owner-dashboard/api/payments/${cashBill.id}/pay`, ownerCookie,
+        json('PATCH', { method: 'Cash', receivedDate: history.today }))).status, 200);
+      assert.equal((await request('/api/payments/qrph/create', tenantCookie, json('POST', {}))).status, 410);
     });
     await t.test('QR Ph checkout binds the correct tenant bill; duplicate webhooks reconcile once', async () => {
       const linked = await OwnerTenant.findOne({ where: { tenantUserId: second.id, ownerId: owner.id } });
@@ -350,7 +429,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
     });
     await t.test('owner signup photos and gallery replacements survive a clean upload directory', async () => {
       const form = new FormData();
-      const data = { accountType:'boarding_house_owner', fullName:'Registered Room Owner', email:`layout-${suffix}@example.test`, password:'test-password-123',confirmPassword:'test-password-123',acceptTerms:'on',boardingHouseName:'Layout Main',boardingHouseAddress:'Orconuma',streetAddress:'Purok 2, Main Street',roomsAvailable:'2',declaredBranches:'2',contactNumber:'09171234567',mapPin:'Lat 12.668945, Lon 121.491777',boardingHouseLatitude:'12.668945',boardingHouseLongitude:'121.491777',propertyType:'Mixed',floorCount:'2' };
+      const data = { accountType:'boarding_house_owner', fullName:'Registered Room Owner', email:`layout-${suffix}@example.test`, password:'test-password-123',confirmPassword:'test-password-123',acceptTerms:'on',boardingHouseName:'Layout Main',boardingHouseAddress:'Orconuma',streetAddress:'Purok 2, Main Street',roomsAvailable:'2',declaredBranches:'2',contactNumber:'09171234567',paymentMethods:'Cash',mapPin:'Lat 12.668945, Lon 121.491777',boardingHouseLatitude:'12.668945',boardingHouseLongitude:'121.491777',propertyType:'Mixed',floorCount:'2' };
       Object.assign(data, {
         branchFloors2: '3', branchRooms2: '6', branch2_boardingHouseAddress: 'Labasan',
         branch2_streetAddress: 'Centro', branch2_boardingHouseLatitude: '12.774815',
@@ -362,6 +441,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       for (const field of ['galleryOutdoor','galleryLivingArea','galleryBedroom','galleryDining','galleryBathroom']) {
         form.set('branch2_' + field, new Blob([png], { type: 'image/png' }), field + '-branch2.png');
       }
+      form.set('branch2_galleryExtra3', new Blob([png], { type: 'image/png' }), 'branch2-extra.png');
       const response=await request('/register',null,{method:'POST',body:form});assert.equal(response.status,302,await response.clone().text());
       const created=await User.findOne({where:{email:data.email}});assert.ok(created);ids.push(created.id);
       for(const value of [created.profilePicture,created.boardingHousePicture,created.validIdPicture,created.businessPermit,created.barangayClearance,created.rentalPermit,...JSON.parse(created.galleryImages || '[]'),...Object.values(JSON.parse(created.supportingDocuments || '{}'))]) if(typeof value==='string'&&value.startsWith('/uploads/'))uploadedFiles.push(new URL('../../public'+value,import.meta.url));
@@ -369,7 +449,8 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const rooms=await OwnerRoom.findAll({where:{ownerId:created.id},order:[['roomNumber','ASC']]});assert.equal(rooms.length,0);assert.equal(primary.declaredRooms,2);assert.equal(primary.declaredBranches,2);assert.equal(created.roomsAvailable,0);assert.equal(created.applicationStatus,'pending');
 
       const originalPhotos = JSON.parse(created.galleryImages);
-      assert.equal(originalPhotos.length, 5);
+      assert.equal(originalPhotos.length, 10);
+      assert.ok(originalPhotos.slice(5).every(url => !url));
       assert.equal(primary.picture, originalPhotos[0]);
       const branch = await BoardingHouse.findOne({ where: { ownerId: created.id, isPrimary: false } });
       assert.equal(branch.barangay, 'Labasan');
@@ -383,6 +464,9 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const primaryApps = await request('/barangay-dashboard/api/applications', mainOfficialCookie);
       const application = (await primaryApps.json()).data.find(item => item.id === created.id);
       assert.equal(application.branches[1].galleryImages[0], branch.picture);
+      const branchExtra = application.branches[1].galleryImages[7];
+      assert.match(branchExtra, /^\/uploads\/property-/);
+      assert.equal((await request(branchExtra)).status, 200);
       assert.equal(application.branches[1].longitude, 121.470195);
       const branchOfficial = await User.create({
         fullName: 'Branch location official', email: `branch-location-${suffix}@example.test`, password,
@@ -396,7 +480,8 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const applicationPath = `/barangay-dashboard/api/applications/${created.id}/review`;
       assert.equal((await request(applicationPath, branchOfficialCookie, approve)).status, 404);
       assert.equal((await request(applicationPath, mainOfficialCookie, approve)).status, 200);
-      assert.ok((await publicListings()).some(item => item.id === `bh-${branch.id}` && item.boardingHousePicture === branch.picture));
+      assert.ok((await publicListings()).some(item => item.id === `bh-${branch.id}` &&
+        item.boardingHousePicture === branch.picture && item.galleryImages.includes(branchExtra)));
       const local = await inspectBranches();
       assert.ok(local.groups.find(group => group.id === created.id).branches.some(item => item.id === branch.id));
       assert.ok(!local.data.some(item => item.id === branch.id));
@@ -408,7 +493,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const getGalleryPhotos = async () => {
         const gallery = await request(galleryUrl, ownerCookie);
         assert.equal(gallery.status, 200);
-        return (await gallery.json()).slots.map(slot => slot.imageUrl);
+        return (await gallery.json()).slots.map(slot => slot.imageUrl || '');
       };
       const checkPublicCover = async expected => {
         const response = await request('/api/landing-data');
@@ -446,7 +531,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       await start({ freshUploads: true });
       assert.deepEqual(await getGalleryPhotos(), updatedPhotos);
       await checkPublicCover(updatedPhotos[0]);
-      for (const url of updatedPhotos) await checkPhoto(url);
+      for (const url of updatedPhotos.filter(Boolean)) await checkPhoto(url);
       await checkPhoto(originalPhotos[0]); // The submitted application keeps its original photo.
 
     });
