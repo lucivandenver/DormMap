@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { User } from '../models/userModel.js';
 import { BarangayNotification } from '../models/adminModels.js';
-import { ownerPaymentConfig } from './ownerPaymentConfig.js';
+import { ownerPaymentConfig, usesPaymentQr } from './ownerPaymentConfig.js';
 import { Op } from 'sequelize';
 import { sequelize } from '../models/db.js';
 import { OwnerNotification, OwnerPayment } from '../models/ownerModels.js';
@@ -21,22 +21,22 @@ export function validatePaidDate(value) {
   return value;
 }
 
-export function paymentReference(value) {
+export function paymentReference(value, method = 'GCash') {
   const reference = typeof value === 'string' ? value.trim() : '';
-  if (!reference || reference.length > 100 || /[\u0000-\u001f\u007f]/.test(reference)) fail('Enter a valid GCash reference number (up to 100 characters).');
+  if (!reference || reference.length > 100 || /[\u0000-\u001f\u007f]/.test(reference)) fail(`Enter a valid ${method} reference number (up to 100 characters).`);
   return reference;
 }
 
-export async function assertReferenceAvailable(bill, reference, transaction) {
+export async function assertReferenceAvailable(bill, method, reference, transaction) {
   const conflict = await OwnerPayment.findOne({
     where: { ownerId: bill.ownerId, id: { [Op.ne]: bill.id }, [Op.or]: [
-      { method: 'GCash', reference },
-      { status: 'pending', submittedMethod: 'GCash', submittedReference: reference,
+      { method, reference },
+      { status: 'pending', submittedMethod: method, submittedReference: reference,
         [Op.or]: [{ reviewStatus: { [Op.ne]: 'declined' } }, { reviewStatus: null }] }
     ] },
     attributes: ['id'], transaction
   });
-  if (conflict) fail('This GCash reference is already attached to another bill.', 409);
+  if (conflict) fail(`This ${method} reference is already attached to another bill.`, 409);
 }
 
 export async function assertNoOnlineCheckout(bill, transaction) {
@@ -64,11 +64,11 @@ export async function submitRentPayment(user, id, fields, proof) {
     const method = fields.method;
     if (!ownerPaymentConfig(owner).methods.includes(method)) fail('Select a payment method accepted by your owner.');
     const date = validatePaidDate(fields.paidDate);
-    const gcash = method === 'GCash';
-    const reference = gcash ? paymentReference(fields.reference) : null;
-    if (gcash && !proof) fail('Upload your GCash proof of payment.');
-    if (gcash) await assertReferenceAvailable(bill, reference, transaction);
-    const paymentProofUrl = gcash ? await storeReviewFile(proof, user.id, 'payment-proof', transaction) : null;
+    const qrPayment = usesPaymentQr(method);
+    const reference = qrPayment ? paymentReference(fields.reference, method) : null;
+    if (qrPayment && !proof) fail(`Upload your ${method} proof of payment.`);
+    if (qrPayment) await assertReferenceAvailable(bill, method, reference, transaction);
+    const paymentProofUrl = qrPayment ? await storeReviewFile(proof, user.id, 'payment-proof', transaction) : null;
     const submissionNotes = paymentNotes(fields.notes);
     await bill.update({
       submissionId: randomUUID(), submissionNotes, reviewStatus: 'submitted', reviewDate: null, reviewNotes: null,
@@ -76,7 +76,7 @@ export async function submitRentPayment(user, id, fields, proof) {
     }, { transaction });
     await OwnerNotification.create({
       ownerId: owner.id, title: 'Rent payment submitted',
-      body: `${user.fullName} submitted a ${method === 'Cash' ? 'Cash on Hand' : 'GCash'} payment for ${bill.month || bill.dueDate}. Open Payments to review the details.`,
+      body: `${user.fullName} submitted a ${method === 'Cash' ? 'Cash on Hand' : method} payment for ${bill.month || bill.dueDate}. Open Payments to review the details.`,
       type: 'payment_submitted', link: '#payments'
     }, { transaction });
     return bill;

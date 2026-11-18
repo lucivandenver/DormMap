@@ -2,7 +2,7 @@
   const key = document.querySelector('meta[name="dormmap-maptiler-key"]')?.content;
   const controls = new WeakMap();
 
-  window.dormMapFullMap = (leaflet, map, street, picker) => {
+  window.dormMapFullMap = (leaflet, map, street, picker, listings) => {
     const container = map.getContainer();
     const publicSatellite = leaflet.tileLayer(
       'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg',
@@ -12,13 +12,21 @@
       `https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}.jpg?key=${encodeURIComponent(key)}`,
       { maxZoom: 19, attribution: '© <a href="https://www.maptiler.com/copyright/">MapTiler</a>' }
     ) : null;
-    const satellite = mapTilerSatellite || publicSatellite;
+    const esriSatellite = leaflet.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      { maxNativeZoom: 19, maxZoom: 20, attribution: 'Tiles © Esri, Maxar, Earthstar Geographics, and the GIS User Community' }
+    );
+    const roadLabels = leaflet.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',
+      { maxZoom: 20, pane: 'overlayPane', attribution: 'Labels © OpenStreetMap contributors © CARTO' }
+    );
+    const satellite = mapTilerSatellite || esriSatellite;
     let activeLayer = street;
-    const control = leaflet.control({ position: 'topright' });
+    const control = leaflet.control({ position: 'bottomright' });
     control.onAdd = () => {
       const button = leaflet.DomUtil.create('button', 'dormmap-expand-map');
       button.type = 'button';
-      button.textContent = 'Open Full Map';
+      button.textContent = 'Open full map';
       leaflet.DomEvent.disableClickPropagation(button);
       button.addEventListener('click', () => open(button));
       return button;
@@ -34,7 +42,11 @@
         <div aria-label="Map layer"><button type="button" data-street>Street</button>
         <button type="button" data-satellite>Satellite</button></div>
         <button type="button" data-close>${picker ? 'Cancel' : 'Close'}</button>
-      </div><p class="dormmap-map-status" role="status"></p><div class="dormmap-map-stage"></div>
+      </div><p class="dormmap-map-status" role="status"></p>
+      <div class="dormmap-map-stage"><aside class="dormmap-map-sidebar" aria-label="Boarding house listings" hidden>
+        <div class="dormmap-sidebar-heading"><strong>Boarding houses</strong><span data-listing-count></span></div>
+        <div data-full-map-listings></div>
+      </aside></div>
       ${picker ? '<div class="dormmap-map-toolbar"><button type="button" data-use disabled>Use this location</button></div>' : ''}`;
       const status = dialog.querySelector('[role="status"]');
       const stage = dialog.querySelector('.dormmap-map-stage');
@@ -49,7 +61,7 @@
 
       let loadedTiles = 0;
       let failedTiles = 0;
-      const satelliteLayers = [mapTilerSatellite, publicSatellite].filter(Boolean);
+      const satelliteLayers = [mapTilerSatellite, esriSatellite, publicSatellite].filter(Boolean);
       const startTiles = () => { loadedTiles = failedTiles = 0; };
       const tileLoaded = () => { loadedTiles++; };
       const tileFailed = () => { failedTiles++; };
@@ -57,17 +69,22 @@
       function selectLayer(layer) {
         streetButton.setAttribute('aria-pressed', String(layer === street));
         satelliteButton.setAttribute('aria-pressed', String(layer !== street));
+        if (layer === street) roadLabels.remove();
         if (layer === activeLayer) return;
         map.removeLayer(activeLayer);
         activeLayer = layer;
         startTiles();
         map.addLayer(layer);
+        if (layer !== street && layer !== publicSatellite) roadLabels.addTo(map);
       }
 
       function satelliteFinished(event) {
         if (event.target !== activeLayer || !failedTiles || loadedTiles) return;
         if (activeLayer === mapTilerSatellite) {
+          selectLayer(esriSatellite);
+        } else if (activeLayer === esriSatellite) {
           selectLayer(publicSatellite);
+          status.textContent = 'Loading alternative satellite coverage…';
         } else {
           selectLayer(street);
           status.textContent = 'Satellite imagery could not load. Street view is available.';
@@ -85,7 +102,51 @@
       streetButton.onclick = () => changeLayer(street);
       satelliteButton.onclick = () => changeLayer(satellite);
       selectLayer(activeLayer);
-      const resize = () => map.invalidateSize({ animate: false });
+      const resize = () => map.invalidateSize({ animate: false, pan: false });
+      const scrollEnabled = map.scrollWheelZoom.enabled();
+      const zoomPosition = map.zoomControl?.getPosition();
+      map.scrollWheelZoom.enable();
+      map.zoomControl?.setPosition('topright');
+      const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(resize) : null;
+      observer?.observe(stage);
+      window.addEventListener('resize', resize);
+
+      const sidebar = dialog.querySelector('.dormmap-map-sidebar');
+      const listingCards = new Map();
+      function highlightListing(event) {
+        for (const [id, card] of listingCards) {
+          card.classList.toggle('is-selected', id === String(event.id));
+        }
+      }
+      function renderListings() {
+        if (!listings) return;
+        const houses = listings.getListings();
+        sidebar.hidden = false;
+        dialog.querySelector('[data-listing-count]').textContent = houses.length;
+        const list = dialog.querySelector('[data-full-map-listings]');
+        list.replaceChildren();
+        listingCards.clear();
+        for (const house of houses) {
+          const card = window.dormMapListingPopup(house, {
+            onDetails: () => listings.onDetails(house),
+            onDirections: () => listings.onDirections(house)
+          });
+          card.classList.add('dormmap-map-listing-card');
+          const focus = document.createElement('button');
+          focus.type = 'button';
+          focus.className = 'dormmap-focus-listing';
+          focus.textContent = 'Show on map';
+          focus.addEventListener('click', () => listings.onSelect(house));
+          card.append(focus);
+          listingCards.set(String(house.id), card);
+          list.append(card);
+          window.dormMapRefreshListingDistance(leaflet, card, house);
+        }
+        if (!houses.length) list.textContent = 'No boarding houses match the current map filters.';
+      }
+      renderListings();
+      map.on('dormmap:listings-updated', renderListings);
+      map.on('dormmap:listing-selected', highlightListing);
 
       let draft;
       function updateDraft(point) {
@@ -111,6 +172,12 @@
       dialog.querySelector('[data-close]').onclick = () => dialog.close();
       dialog.addEventListener('close', () => {
         map.off('click', pick);
+        map.off('dormmap:listings-updated', renderListings);
+        map.off('dormmap:listing-selected', highlightListing);
+        observer?.disconnect();
+        window.removeEventListener('resize', resize);
+        if (!scrollEnabled) map.scrollWheelZoom.disable();
+        if (zoomPosition) map.zoomControl?.setPosition(zoomPosition);
         if (draft) draft.remove();
         picker?.existingMarker?.addTo(map);
         for (const layer of satelliteLayers) layer.off(tileEvents);
@@ -119,11 +186,16 @@
         controls.delete(map);
         dialog.remove();
         resize();
+        map.fire('dormmap:collapsed');
         if (trigger?.isConnected) trigger.focus({ preventScroll: true });
       }, { once: true });
       dialog.showModal();
       resize();
-      map.fire('dormmap:expanded');
+      requestAnimationFrame(() => {
+        if (!dialog.open) return;
+        resize();
+        map.fire('dormmap:expanded');
+      });
     }
 
     control.addTo(map);
@@ -144,7 +216,7 @@
         if (!point.every(Number.isFinite)) continue;
         const label = document.createElement('span');
         label.textContent = house.boardingHouseName || 'Boarding house';
-        leaflet.marker(point, { icon: window.dormMapPropertyPin(leaflet, house.registrationStatus === 'unregistered') })
+        leaflet.marker(point, { icon: window.dormMapPropertyPin(leaflet, house.registrationStatus === 'unregistered', house) })
           .bindTooltip(label).addTo(map);
       }
     } catch {

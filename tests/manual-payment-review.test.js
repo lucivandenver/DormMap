@@ -10,7 +10,7 @@ import { markPaid, returnPaymentSubmission } from '../controllers/ownerDashboard
 
 function setup(t, { onlineCheckout = false, hasSubmission = false } = {}) {
   const today = manilaToday();
-  const owner = { id: 2, paymentMethods: '["GCash","Cash"]', gcashQrCode: '/uploads/qr.png' };
+  const owner = { id: 2, paymentMethods: '["GCash","Cash","QR Ph"]', gcashQrCode: '/uploads/qr.png', qrPhCode: '/uploads/qrph.png' };
   const user = { id: 3, fullName: 'Test Tenant', email: 'tenant@example.test' };
   const notifications = [];
   const ownerNotifications = [];
@@ -51,11 +51,15 @@ async function request(controller, body) {
   return result;
 }
 
-test('tenant saves proof and notes while a previous checkout is pending', async t => {
+test('tenant saves proof and notes for QR Ph while a previous checkout is pending', async t => {
   const { user, today, bill, rental, ownerNotifications } = setup(t, { onlineCheckout: true });
+  await assert.rejects(submitRentPayment(user, bill.id, {
+    method: 'QR Ph', reference: '123456789', paidDate: today
+  }), /Upload your QR Ph proof/);
   const result = await submitRentPayment(user, bill.id, {
-    method: 'GCash', reference: '123456789', paidDate: today, notes: 'Advance rent'
+    method: 'QR Ph', reference: '123456789', paidDate: today, notes: 'Advance rent'
   }, { originalname: 'proof.jpg', mimetype: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff]) });
+  assert.equal(result.submittedMethod, 'QR Ph');
   assert.equal(result.status, 'pending');
   assert.equal(result.reviewStatus, 'submitted');
   assert.equal(result.submissionNotes, 'Advance rent');
@@ -80,13 +84,14 @@ test('confirming an open online checkout cannot settle the manual submission', a
 
 test('confirmation saves the selected date and sends one notification on retries', async t => {
   const { bill, rental, notifications } = setup(t, { hasSubmission: true });
+  bill.submittedMethod = 'QR Ph';
   const body = { submissionId: bill.submissionId, confirmedDate: '2026-01-15', notes: 'Payment verified.' };
   await Promise.all([request(markPaid, body), request(markPaid, body)]);
   assert.equal(bill.status, 'paid');
   assert.equal(bill.reviewStatus, 'confirmed');
   assert.equal(bill.reviewDate, '2026-01-15');
   assert.equal(bill.paidDate, '2026-01-15');
-  assert.equal(bill.method, 'GCash');
+  assert.equal(bill.method, 'QR Ph');
   assert.equal(bill.reference, '123456789');
   assert.equal(rental.balance, 0);
   assert.equal(notifications.length, 1);

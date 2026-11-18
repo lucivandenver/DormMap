@@ -14,7 +14,7 @@ const router = express.Router();
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const directory = file.fieldname === 'gcashQrCode' ? path.join(tmpdir(), 'dormmap-payment-qr') : uploadDir;
+    const directory = ['gcashQrCode', 'qrPhCode'].includes(file.fieldname) ? path.join(tmpdir(), 'dormmap-payment-qr') : uploadDir;
     fs.mkdir(directory, { recursive: true, mode: 0o700 }, error => cb(error, directory));
   },
   filename: (req, file, cb) => {
@@ -124,11 +124,14 @@ const docUpload = upload.fields([
   { name: 'proofOfOwnership', maxCount: 1 },
   { name: 'rentalPermit', maxCount: 1 },
   { name: 'gcashQrCode', maxCount: 1 },
+  { name: 'qrPhCode', maxCount: 1 },
 ]);
 router.patch('/api/my-profile', (req, res, next) => {
   res.on('finish', () => {
-    const qr = req.files?.gcashQrCode?.[0];
-    if (qr?.path) fs.rm(qr.path, { force: true }, () => {});
+    for (const field of ['gcashQrCode', 'qrPhCode']) {
+      const qr = req.files?.[field]?.[0];
+      if (qr?.path) fs.rm(qr.path, { force: true }, () => {});
+    }
   });
   docUpload(req, res, error => {
     if (error) return res.status(422).json({ error: 'Upload supported images up to 5 MB each.' });

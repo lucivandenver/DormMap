@@ -14,14 +14,14 @@
 }
 .dormmap-map-toolbar button:disabled { opacity: .5; cursor: default; }
 .dormmap-full-map {
-  width: min(96vw, 1440px);
-  height: 94dvh;
+  width: 100dvw;
+  height: 100dvh;
   max-width: none;
   max-height: none;
   margin: auto;
   padding: 0;
   border: 0;
-  border-radius: .75rem;
+  border-radius: 0;
   background: white;
 }
 .dormmap-full-map[open] { display: flex; flex-direction: column; }
@@ -39,3 +39,88 @@
 }
 
 .dormmap-map-stage .dormmap-expand-map { display: none; }
+
+.dormmap-expand-map {
+  border: 0;
+  border-radius: 999px;
+  padding: .7rem 1.1rem;
+  background: #047857;
+  color: #fff;
+  box-shadow: 0 3px 12px #064e3b33;
+}
+.dormmap-map-sidebar {
+  position: absolute;
+  inset: 16px auto 16px 16px;
+  width: 330px;
+  box-sizing: border-box;
+  max-width: calc(100% - 32px);
+  z-index: 800;
+  overflow-y: auto;
+  padding: 16px;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 8px 24px #0f172a26;
+}
+.dormmap-sidebar-heading { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.dormmap-listing-popup { width: 260px; max-width: 100%; color: #1e293b; font: 14px/1.45 system-ui, sans-serif; }
+.dormmap-listing-heading { display: flex; align-items: center; gap: .7rem; }
+.dormmap-listing-popup p { margin: .55rem 0; }
+.dormmap-listing-distance { color: #64748b; font-size: .8rem; }
+.dormmap-listing-rooms { color: #047857; font-weight: 700; }
+.dormmap-listing-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.dormmap-listing-actions button, .dormmap-focus-listing {
+  padding: .55rem .75rem;
+  border-radius: 999px;
+  border: 1px solid #a7f3d0;
+  background: #fff;
+  color: #065f46;
+  font: 600 .8rem/1.2 system-ui, sans-serif;
+  cursor: pointer;
+}
+.dormmap-listing-actions button:first-child { background: #064e3b; color: #fff; border-color: #064e3b; }
+.dormmap-listing-actions button:hover, .dormmap-focus-listing:hover { background: #ecfdf5; color: #064e3b; }
+.dormmap-map-listing-card { width: auto; border: 1px solid #e2e8f0; border-radius: 16px; margin-bottom: .75rem; padding: .85rem; }
+.dormmap-map-listing-card.is-selected { border: 2px solid #047857; }
+.dormmap-focus-listing { margin-top: .5rem; }
+.dormmap-pin-photo, .dormmap-listing-avatar {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #ecfdf5;
+  color: #047857;
+  font: 800 19px/1 system-ui, sans-serif;
+}
+.dormmap-listing-avatar { height: 40px; width: 40px; border: 1px solid #d1fae5; }
+.dormmap-pin-photo { height: 42px; width: 42px; border: 3px solid #fff; box-sizing: border-box; }
+.dormmap-pin-photo img, .dormmap-listing-avatar img { position: absolute; width: 100%; height: 100%; object-fit: cover; }
+.dormmap-avatar-pin {
+  display: block;
+  position: relative;
+  height: 48px;
+  width: 48px;
+  border-radius: 50%;
+  padding: 3px;
+  background: #047857;
+  box-shadow: 0 3px 9px #0f172a44;
+  box-sizing: border-box;
+}
+.dormmap-avatar-pin::after {
+  content: '';
+  position: absolute;
+  top: 43px;
+  left: 13px;
+  border-left: 11px solid transparent;
+  border-right: 11px solid transparent;
+  border-top: 16px solid #047857;
+}
+.dormmap-avatar-pin.is-unregistered { background: #b91c1c; }
+.dormmap-avatar-pin.is-unregistered::after { border-top-color: #b91c1c; }
+@media (max-width: 700px) {
+  .dormmap-map-sidebar { inset: auto 8px 24px; width: auto; max-width: none; max-height: 28%; padding: 10px; border-radius: 14px; }
+  .dormmap-sidebar-heading { margin-bottom: .5rem; }
+  .dormmap-map-listing-card { padding: .65rem; }
+}

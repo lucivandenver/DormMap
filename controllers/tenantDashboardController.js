@@ -300,7 +300,7 @@ export const getPaymentHistory = async (req, res, next) => {
     const totalPaid = payments.filter(p => p.status === 'paid').reduce((s, p) => s + Number(p.amount) + Number(p.penalty || 0), 0);
     const totalBalance = payments.filter(p => p.status === 'pending').reduce((s, p) => s + Number(p.amount) + Number(p.penalty || 0), 0);
 
-    const owner = await User.findByPk(tenantRec.ownerId, { attributes: ['paymentMethods', 'gcashQrCode'] });
+    const owner = await User.findByPk(tenantRec.ownerId, { attributes: ['paymentMethods', 'gcashQrCode', 'qrPhCode'] });
     res.json({
       payments,
       paymentOptions: ownerPaymentConfig(owner),

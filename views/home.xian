@@ -698,13 +698,13 @@
             </span>
           </div>
           <h3 id="detailTitle" class="text-xl sm:text-2xl font-black mt-1 leading-tight text-white drop-shadow"></h3>
-<div id="detailRegistrationStatus" role="status" class="rounded-xl p-3 text-sm"></div>
           <p id="detailAddress" class="text-xs text-slate-200 mt-0.5 flex items-center gap-1"></p>
         </div>
       </div>
 
       <!-- Compact Details Section (Small Fonts and Proportional Buttons as requested) -->
       <div class="p-4 sm:p-5 space-y-3.5 max-h-[50vh] overflow-y-auto">
+        <div id="detailRegistrationStatus" role="status" hidden class="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800"></div>
         <div id="detailRoomInventory"></div>
         
         <!-- 4-Stat Compact Grid -->
@@ -893,8 +893,8 @@
       inquire.querySelector('span').textContent = unregistered ? 'Registration pending' : 'Inquire Now';
       inquire.classList.toggle('opacity-50', unregistered);
       const warning = document.getElementById('detailRegistrationStatus');
-      warning.textContent = house.registrationStatus === 'unregistered' ? 'UNREGISTERED — Published by the barangay for public information. This is not an accredited rental listing.' : 'Registered establishment';
-      warning.className = house.registrationStatus === 'unregistered' ? 'rounded-xl bg-red-50 border border-red-200 p-3 text-sm font-bold text-red-800' : 'rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900';
+      warning.hidden = !unregistered;
+      warning.textContent = unregistered ? 'UNREGISTERED — Published by the barangay for public information. Applications are unavailable until registration is approved.' : '';
 
       document.getElementById('detailTitle').textContent = listingTitle(house);
       document.getElementById('detailAddress').textContent = (house.boardingHouseAddress || house.barangay || 'Bongabong, Oriental Mindoro');
@@ -912,7 +912,7 @@
 
       const slides = window.DormBranchGallery.slidesFor(house);
       initDetailCarousel(slides.length ? slides : listingPhotos(house).map((url, index) => ({
-        url, caption: `Photo ${index + 1}`
+        url, caption: `Branch ${house.branchNumber || 1}`
       })));
 
       document.getElementById('detailRoomInventory').innerHTML = window.DormRoomDetails.render(house.roomInventory || []);
@@ -1404,7 +1404,22 @@
     const openLandingMap = dormMapFullMap(L, map, L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap contributors',
-    }).addTo(map));
+    }).addTo(map), null, {
+      getListings: () => DormMapSearch.filter(window.allBoardingHousesCache || [], activeCriteria || {}).filter(DormMapSearch.hasCoordinates),
+      onSelect: house => {
+        map.setView([Number(house.latitude), Number(house.longitude)], 17);
+        window.landingMapMarkers.find(marker => String(marker.options.listingId) === String(house.id))?.openPopup();
+        renderSingleHouseCard(house);
+      },
+      onDetails: house => {
+        window.dormMapCloseExpanded(map);
+        window.openPropertyDetailModal(house.id);
+      },
+      onDirections: house => {
+        window.dormMapCloseExpanded(map);
+        window._getDirectionsToCoords(Number(house.latitude), Number(house.longitude), listingTitle(house));
+      }
+    });
 
     document.getElementById('landingFullMapButton').addEventListener('click', event => openLandingMap(event.currentTarget));
 
@@ -1545,14 +1560,37 @@
       });
     };
 
+    function landingPopupPadding() {
+      const expanded = window.dormMapIsExpanded(map);
+      const desktop = map.getContainer().clientWidth > 700;
+      return {
+        autoPanPaddingTopLeft: expanded && desktop ? L.point(370, 25) : L.point(25, 25),
+        autoPanPaddingBottomRight: expanded && !desktop
+          ? L.point(25, map.getContainer().clientHeight * .32) : L.point(25, 25)
+      };
+    }
+    function updateLandingPopupPadding() {
+      for (const marker of window.landingMapMarkers) Object.assign(marker.getPopup().options, landingPopupPadding());
+    }
+    map.on('dormmap:collapsed', updateLandingPopupPadding);
+
     function fitLandingPins() {
+      updateLandingPopupPadding();
       const points = window.landingMapMarkers.map(marker => marker.getLatLng());
-      if (points.length) map.fitBounds(points, { padding: [44, 52], maxZoom: 16, animate: false });
+      const expanded = window.dormMapIsExpanded(map);
+      const sidebar = expanded && map.getContainer().clientWidth > 700;
+      const mobileList = expanded && !sidebar;
+      if (points.length) map.fitBounds(points, {
+        paddingTopLeft: sidebar ? [380, 52] : [44, 52],
+        paddingBottomRight: mobileList ? [44, Math.max(80, map.getContainer().clientHeight * .32)] : [44, 52],
+        maxZoom: 16, animate: false
+      });
     }
     map.on('dormmap:expanded', fitLandingPins);
 
     const renderBoardingHouseMarkers = (houses) => {
       const hadPins = window.landingMapMarkers.length > 0;
+      const openListingId = window.landingMapMarkers.find(marker => marker.isPopupOpen())?.options.listingId;
       clearLandingMapMarkers();
       if (selectedListingId !== null) {
         const selected = houses.find(house => String(house.id) === selectedListingId);
@@ -1560,44 +1598,31 @@
         else clearSelectedListing();
       }
 
-      houses.forEach((house, idx) => {
-        const latitude = Number(house.latitude);
-        const longitude = Number(house.longitude);
-        const name = escapeHtml(listingTitle(house));
-        const address = escapeHtml(house.boardingHouseAddress || house.barangay || 'Address not available');
-        const targetId = house.id || idx;
-
-        if (DormMapSearch.hasCoordinates(house)) {
-          const customPin = dormMapPropertyPin(L, house.registrationStatus === 'unregistered');
-
-          const marker = L.marker([latitude, longitude], { icon: customPin }).addTo(map).bindPopup(`
-            <div class="p-2 max-w-[260px]">
-              <strong class="text-sm font-extrabold text-slate-950 block leading-tight mb-1">${name}</strong>
-              <p class="text-xs text-slate-600 mb-2">📍 ${address}</p>
-              <div class="flex flex-col gap-1.5 border-t border-slate-100 pt-2">
-                <div class="flex items-center justify-between gap-2">
-                  <span class="text-xs font-black text-emerald-800">${house.roomsAvailable ?? 0} rooms</span>
-                  <button type="button" onclick="window.dormMapCloseExpanded(window.map); window.openPropertyDetailModal('${targetId}')" class="bg-emerald-950 hover:bg-emerald-800 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-xs cursor-pointer shrink-0">
-                    View Details
-                  </button>
-                </div>
-                <button type="button"
-                  data-direction-name="${name}" onclick="window._getDirectionsToCoords(${latitude}, ${longitude}, this.dataset.directionName)"
-                  class="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold px-3 py-1.5 rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5">
-                  Get Directions
-                </button>
-              </div>
-            </div>
-          `);
-
-          // When user clicks pin, populate live listings side panel with this boarding house
-          marker.on('click', () => {
-            renderSingleHouseCard(house);
-          });
-
-          window.landingMapMarkers.push(marker);
-        }
+      houses.forEach(house => {
+        if (!DormMapSearch.hasCoordinates(house)) return;
+        const popup = window.dormMapListingPopup(house, {
+          onDetails: () => {
+            window.dormMapCloseExpanded(map);
+            window.openPropertyDetailModal(house.id);
+          },
+          onDirections: () => {
+            window.dormMapCloseExpanded(map);
+            window._getDirectionsToCoords(Number(house.latitude), Number(house.longitude), listingTitle(house));
+          }
+        });
+        const marker = L.marker([Number(house.latitude), Number(house.longitude)], {
+          icon: dormMapPropertyPin(L, house.registrationStatus === 'unregistered', house),
+          listingId: house.id, title: listingTitle(house)
+        }).addTo(map).bindPopup(popup, { maxWidth: 300, ...landingPopupPadding() });
+        marker.on('popupopen', () => {
+          window.dormMapRefreshListingDistance(L, popup, house);
+          renderSingleHouseCard(house);
+          map.fire('dormmap:listing-selected', { id: house.id });
+        });
+        window.landingMapMarkers.push(marker);
       });
+      map.fire('dormmap:listings-updated');
+      if (openListingId) window.landingMapMarkers.find(marker => marker.options.listingId === openListingId)?.openPopup();
       if (!hadPins && (!activeCriteria || window.dormMapIsExpanded(map))) fitLandingPins();
     };
 

@@ -20,6 +20,7 @@ export async function publicDormListings() {
     roomInventory: item.roomInventory, propertyType: item.propertyType, floorCount: item.floorCount, totalCapacity: item.totalCapacity, occupiedPeople: item.occupiedPeople, availableBeds: item.availableBeds, pricingLabel: item.pricingLabel,
     id: item.id, registrationStatus: item.registrationStatus, bhId: item.establishmentId, ownerId: item.ownerId,
     boardingHouseName: item.name, propertyName: item.propertyName, branchNumber: item.branchNumber, branchGalleries: item.branchGalleries, boardingHouseAddress: item.address, barangay: item.barangay,
+    ownerProfilePicture: item.ownerProfilePicture, town: item.town,
     fullName: item.ownerName, contactNumber: item.ownerContact,
     boardingHousePicture: item.picture, latitude: item.latitude, longitude: item.longitude,
     roomsAvailable: item.roomsAvailable, availableSlots: item.availableSlots,

@@ -5,6 +5,7 @@
   const saving = new Set();
   let map = null;
   let markerLayer = null;
+  let currentMapListings = [];
   const markers = new Map();
   const el = id => document.getElementById(id);
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -129,6 +130,7 @@
 
   function renderMap(items) {
     const located = items.filter(hasLocation);
+    currentMapListings = located;
     el('browseMapCount').textContent = `${located.length} map pins · ${items.length - located.length} without a pin`;
     if (typeof window.L === 'undefined') {
       el('browseMapCount').textContent = 'Map could not load. You can still browse the cards.';
@@ -136,26 +138,59 @@
     }
     if (!map) {
       map = window.L.map('tenantBrowseMap').setView([12.7192, 121.4719], 13);
-      dormMapFullMap(window.L, map, window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map));
+      dormMapFullMap(window.L, map, window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map), null, {
+        getListings: () => currentMapListings,
+        onSelect: item => {
+          map.setView([item.latitude, item.longitude], 17);
+          markers.get(item.id)?.openPopup();
+        },
+        onDetails: item => {
+          window.dormMapCloseExpanded(map);
+          showBranchGallery(item);
+        },
+        onDirections: item => {
+          window.open(`https://www.openstreetmap.org/directions?to=${Number(item.latitude)},${Number(item.longitude)}`, '_blank', 'noopener');
+        }
+      });
       markerLayer = window.L.layerGroup().addTo(map);
+      map.on('dormmap:expanded', () => {
+        if (!currentMapListings.length) return;
+        const desktop = map.getContainer().clientWidth > 700;
+        map.fitBounds(currentMapListings.map(item => [item.latitude, item.longitude]), {
+          paddingTopLeft: desktop ? [380, 40] : [25, 40],
+          paddingBottomRight: desktop ? [40, 40] : [25, map.getContainer().clientHeight * .32],
+          maxZoom: 16, animate: false
+        });
+      });
     }
     markerLayer.clearLayers();
     markers.clear();
     located.forEach(item => {
-      const popup = document.createElement('div');
-      const name = document.createElement('strong');
-      name.textContent = title(item);
-      const price = document.createElement('p');
-      price.textContent = rate(item);
-      popup.append(name, price);
+      const popup = window.dormMapListingPopup(item, {
+        onDetails: () => {
+          window.dormMapCloseExpanded(map);
+          showBranchGallery(item);
+        }
+      });
       const button = document.createElement('button');
       button.type = 'button';
       button.textContent = activeApplication(item) ? 'Message owner' : 'Inquire & Apply';
-      button.addEventListener('click', () => activeApplication(item) ? window.openConversationWith(item.ownerId) : inquire(item));
-      popup.append(button);
-      const marker = window.L.marker([item.latitude, item.longitude], { icon: window.dormMapPropertyPin(window.L, item.registrationStatus === 'unregistered') }).addTo(markerLayer).bindPopup(popup);
+      button.addEventListener('click', () => {
+        window.dormMapCloseExpanded(map);
+        activeApplication(item) ? window.openConversationWith(item.ownerId) : inquire(item);
+      });
+      popup.querySelector('.dormmap-listing-actions').append(button);
+      const marker = window.L.marker([item.latitude, item.longitude], {
+        icon: window.dormMapPropertyPin(window.L, item.registrationStatus === 'unregistered', item),
+        title: title(item)
+      }).addTo(markerLayer).bindPopup(popup);
+      marker.on('popupopen', () => {
+        window.dormMapRefreshListingDistance(window.L, popup, item);
+        map.fire('dormmap:listing-selected', { id: item.id });
+      });
       markers.set(item.id, marker);
     });
+    map.fire('dormmap:listings-updated');
     map.invalidateSize();
     if (located.length) map.fitBounds(located.map(item => [item.latitude, item.longitude]), { padding: [25, 25], maxZoom: 15 });
   }

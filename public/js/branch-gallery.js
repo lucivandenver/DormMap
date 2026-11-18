@@ -3,9 +3,9 @@
     const galleries = listing.branchGalleries || [];
     const selected = galleries.findIndex(branch => branch.branchNumber === listing.branchNumber);
     const ordered = selected > 0 ? [...galleries.slice(selected), ...galleries.slice(0, selected)] : galleries;
-    return ordered.flatMap(branch => branch.photos.map((photo, index) => ({
+    return ordered.flatMap(branch => branch.photos.map(photo => ({
       url: photo.url,
-      caption: photo.outdoor || index === 0 ? `Branch ${branch.branchNumber} · ${photo.label}` : photo.label
+      caption: `Branch ${branch.branchNumber}`
     })));
   }
   window.DormBranchGallery = { slidesFor };

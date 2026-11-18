@@ -506,10 +506,10 @@
               <select name="method" required class="mt-1 block w-full rounded-xl border border-slate-200 p-2"></select>
             </label>
             <p class="text-sm text-slate-600" data-cash-instructions>Pay your owner in person, then report the date you handed over the payment.</p>
-            <div data-gcash-fields hidden class="space-y-3">
-              <p class="text-sm text-slate-600">Use your owner's GCash QR code, then upload proof and enter the transaction reference.</p>
-              <img id="rentGcashQr" class="mx-auto max-h-52 w-full max-w-52 rounded-xl border border-slate-200 object-contain" alt="Owner’s GCash QR code">
-              <label class="block text-sm font-semibold">GCash reference number
+            <div data-qr-fields hidden class="space-y-3">
+              <p class="text-sm text-slate-600">Use your owner's QR code for the selected method, then upload proof and enter the transaction reference.</p>
+              <img id="rentPaymentQr" class="mx-auto max-h-52 w-full max-w-52 rounded-xl border border-slate-200 object-contain" alt="Owner’s payment QR code">
+              <label class="block text-sm font-semibold">Transaction reference number
                 <input name="reference" maxlength="100" class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
               </label>
               <label class="block text-sm font-semibold">Proof of payment
@@ -1415,7 +1415,7 @@
             </td>
             <td class="p-3.5 text-right flex items-center justify-end gap-2">
               ${isPaid ? `<button onclick="showReceiptModal(${p.id})" class="text-xs font-bold text-emerald-700 hover:underline">Receipt</button>`
-                : submitted ? `<span class="text-xs">${p.submittedMethod === 'Cash' ? 'Cash on Hand' : 'GCash'} · ${escapeMessage(p.submittedPaidDate)}</span>`
+                : submitted ? `<span class="text-xs">${p.submittedMethod === 'Cash' ? 'Cash on Hand' : escapeMessage(p.submittedMethod)} · ${escapeMessage(p.submittedPaidDate)}</span>`
                 : `<button onclick="openRentPayment(${p.id})" class="rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800">${declined ? 'Submit again' : 'Pay'}</button>`}
             </td>
           </tr>
@@ -1426,12 +1426,17 @@
 
   const rentPaymentForm = document.getElementById('rentPaymentForm');
   function updateRentPaymentMethod() {
-    const gcash = rentPaymentForm.elements.method.value === 'GCash';
-    rentPaymentForm.querySelector('[data-gcash-fields]').hidden = !gcash;
-    rentPaymentForm.querySelector('[data-cash-instructions]').hidden = gcash;
+    const method = rentPaymentForm.elements.method.value;
+    const qrPayment = ['GCash', 'QR Ph'].includes(method);
+    const qr = document.getElementById('rentPaymentQr');
+    const source = rentPaymentOptions.qrCodes?.[method];
+    if (qrPayment && source) qr.src = source;
+    else qr.removeAttribute('src');
+    rentPaymentForm.querySelector('[data-qr-fields]').hidden = !qrPayment;
+    rentPaymentForm.querySelector('[data-cash-instructions]').hidden = qrPayment;
     for (const name of ['proof', 'reference']) {
-      rentPaymentForm.elements[name].required = gcash;
-      rentPaymentForm.elements[name].disabled = !gcash;
+      rentPaymentForm.elements[name].required = qrPayment;
+      rentPaymentForm.elements[name].disabled = !qrPayment;
     }
   }
   rentPaymentForm.elements.method.addEventListener('change', updateRentPaymentMethod);
@@ -1439,7 +1444,7 @@
   function openRentPayment(id) {
     const bill = tenantBills.find(item => item.id === id);
     if (!bill) return;
-    const { methods = [], gcashQrCode } = rentPaymentOptions;
+    const { methods = [] } = rentPaymentOptions;
     if (!methods.length) {
       DormMapFeedback.show('Ask your owner to set up an accepted payment method.', 'error');
       return;
@@ -1448,13 +1453,10 @@
     rentPaymentForm.dataset.billId = id;
     rentPaymentForm.querySelector('[data-payment-error]').textContent = '';
     rentPaymentForm.elements.method.replaceChildren(...methods.map(method =>
-      new Option(method === 'Cash' ? 'Cash on Hand' : 'GCash', method)
+      new Option(method === 'Cash' ? 'Cash on Hand' : method, method)
     ));
     rentPaymentForm.elements.paidDate.value = rentPaymentToday;
     rentPaymentForm.elements.paidDate.max = rentPaymentToday;
-    const qr = document.getElementById('rentGcashQr');
-    if (gcashQrCode) qr.src = gcashQrCode;
-    else qr.removeAttribute('src');
     const amount = Number(bill.amount) + Number(bill.penalty || 0);
     document.getElementById('rentPaymentTotal').textContent = `₱${amount.toFixed(2)} total due · ${bill.month || bill.dueDate}`;
     updateRentPaymentMethod();

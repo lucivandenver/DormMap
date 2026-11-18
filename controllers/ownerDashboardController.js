@@ -1,4 +1,4 @@
-import { ownerPaymentConfig, ownerPaymentQr, validatePaymentMethods } from '../services/ownerPaymentConfig.js';
+import { PAYMENT_QR_FIELDS, ownerPaymentConfig, ownerPaymentQr, usesPaymentQr, validatePaymentMethods } from '../services/ownerPaymentConfig.js';
 import { assertCurrentSubmission, assertNoOnlineCheckout, assertReferenceAvailable, manilaToday, notifyPaymentReview, paymentNotes, paymentReference, prepareManualConfirmation, validatePaidDate } from '../services/manualPaymentService.js';
 import { createTenantApplication, closeDuplicatePendingApplications } from '../services/tenantApplicationService.js';
 import { storeReviewFile } from '../services/reviewFileService.js';
@@ -119,7 +119,8 @@ export const getProfile = async (req, res, next) => {
     if (!user) return res.status(404).json({ error: 'Profile not found.' });
     res.json({
       data: { ...user.toJSON(), rentPaymentOptions: {
-        ...ownerPaymentConfig(user), hasQr: Boolean(ownerPaymentQr(user))
+        ...ownerPaymentConfig(user),
+        uploadedQrCodes: Object.fromEntries(Object.keys(PAYMENT_QR_FIELDS).map(method => [method, Boolean(ownerPaymentQr(user, method))]))
       } }
     });
   } catch (err) { next(err); }
@@ -127,8 +128,6 @@ export const getProfile = async (req, res, next) => {
 
 export const updateProfile = async (req, res, next) => {
   try {
-    const user = await User.findByPk(oid(req));
-    if (!user) return res.status(404).json({ error: 'Profile not found.' });
     const allowed = [
       'boardingHouseName', 'boardingHouseAddress', 'contactNumber', 'description',
       'operatingHours', 'rentalPriceMin', 'rentalPriceMax', 'amenities', 'houseRules',
@@ -136,10 +135,17 @@ export const updateProfile = async (req, res, next) => {
     ];
     const updates = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
-    // Sync barangay for filtering
-
-    await user.update(updates);
-    await syncPrimaryHouse(user.id, updates);
+    if (Object.hasOwn(updates, 'boardingHouseName')) {
+      const name = typeof updates.boardingHouseName === 'string' ? updates.boardingHouseName.trim() : '';
+      if (!name || name.length > 255) fail('Enter a boarding house name of up to 255 characters.');
+      updates.boardingHouseName = name;
+    }
+    const user = await sequelize.transaction(async transaction => {
+      const account = await ownerLock(oid(req), transaction);
+      await account.update(updates, { transaction });
+      await syncPrimaryHouse(account.id, updates, { transaction });
+      return account;
+    });
     await audit(req, 'update_profile', 'User', user.id, updates);
     res.json({ data: user.get({ plain: true }), message: 'Profile updated.' });
   } catch (err) { next(err); }
@@ -367,9 +373,9 @@ export const markPaid = async (req, res, next) => {
       const tenant = await OwnerTenant.findOne({ where: { id: bill.tenantId, ownerId }, transaction, lock: transaction.LOCK.UPDATE });
       if (!tenant) fail('The linked tenancy is missing.');
       const method = req.body.method || bill.submittedMethod || 'Cash';
-      if (!['Cash','GCash','Bank Transfer','Other'].includes(method)) fail('Invalid payment method.');
-      const reference = method === 'GCash' ? paymentReference(req.body.reference ?? bill.submittedReference) : null;
-      if (reference) await assertReferenceAvailable(bill, reference, transaction);
+      if (!['Cash','GCash','QR Ph','Bank Transfer','Other'].includes(method)) fail('Invalid payment method.');
+      const reference = usesPaymentQr(method) ? paymentReference(req.body.reference ?? bill.submittedReference, method) : null;
+      if (reference) await assertReferenceAvailable(bill, method, reference, transaction);
       await bill.update({
         status: 'paid', paidDate: reviewDate, method, reference,
         reviewStatus: 'confirmed', reviewDate, reviewNotes
@@ -1024,15 +1030,20 @@ export const updateMyProfile = async (req, res, next) => {
     const profilePic = req.files?.['profilePicture']?.[0];
     if (profilePic) updates.profilePicture = `/uploads/${profilePic.filename}`;
 
-    const gcashQrFile = req.files?.['gcashQrCode']?.[0];
-    if (req.body.configureRentPayments === 'on') {
-      const existingQr = ownerPaymentQr(user);
-      const methods = validatePaymentMethods(req.body.paymentMethods, Boolean(gcashQrFile || existingQr));
-      updates.paymentMethods = JSON.stringify(methods);
-    }
-    if (gcashQrFile) updates.gcashQrCode = await storeReviewFile(gcashQrFile, user.id, 'payment-qr');
-
-    await user.update(updates);
+    await sequelize.transaction(async transaction => {
+      const account = await ownerLock(user.id, transaction);
+      const uploads = Object.entries(PAYMENT_QR_FIELDS).map(([method, field]) =>
+        ({ method, field, file: req.files?.[field]?.[0] }));
+      if (req.body.configureRentPayments === 'on') {
+        const available = Object.fromEntries(uploads.map(({ method, file }) =>
+          [method, Boolean(file || ownerPaymentQr(account, method))]));
+        updates.paymentMethods = JSON.stringify(validatePaymentMethods(req.body.paymentMethods, available));
+      }
+      for (const { field, file } of uploads) {
+        if (file) updates[field] = await storeReviewFile(file, account.id, 'payment-qr', transaction);
+      }
+      await user.update(updates, { transaction });
+    });
     await syncPrimaryHouse(user.id, updates);
     await audit(req, 'update_my_profile', 'User', user.id, { fields: Object.keys(updates) });
     const { password, verificationToken, resetPasswordToken, ...profile } = user.toJSON();

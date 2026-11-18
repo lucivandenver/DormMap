@@ -1,4 +1,4 @@
-import { validatePaymentMethods } from './ownerPaymentConfig.js';
+import { PAYMENT_QR_FIELDS, validatePaymentMethods } from './ownerPaymentConfig.js';
 import { BoardingHouse, OwnerRoom, OwnerTenant } from '../models/ownerModels.js';
 import { propertyMetadata } from './roomPlanService.js';
 import { GALLERY_CATEGORIES, saveGallerySlot, storeRegistrationPhotos } from './propertyPhotoService.js';
@@ -67,9 +67,10 @@ export function validateOwnerPaymentSetup(body, files) {
   if (!/^\+?[0-9 ()-]{7,24}$/.test(contactNumber) || contactNumber.replace(/\D/g, '').length < 7) {
     throw invalidSetup('Enter a valid contact number.');
   }
-  const qr = files?.gcashQrCode?.[0];
-  const methods = validatePaymentMethods(body.paymentMethods, Boolean(qr));
-  return { contactNumber, paymentMethods: JSON.stringify(methods), qr: methods.includes('GCash') ? qr : null };
+  const methods = validatePaymentMethods(body.paymentMethods, null, { requireQr: false });
+  const qrUploads = Object.fromEntries(Object.entries(PAYMENT_QR_FIELDS).map(([method, field]) =>
+    [field, methods.includes(method) ? files?.[field]?.[0] || null : null]));
+  return { contactNumber, paymentMethods: JSON.stringify(methods), qrUploads };
 }
 
 export async function registerPropertyInventory(user, setup, files, transaction) {

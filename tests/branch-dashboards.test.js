@@ -8,7 +8,7 @@ import { tenantBranchAssignments } from '../services/propertyBranchesService.js'
 const main = { id: 10, ownerId: 5, name: 'Hill View', barangay: 'Labasan', isPrimary: true, approvalStatus: 'approved' };
 const branch = { id: 12, ownerId: 5, name: 'Hill View — Branch 2', barangay: 'Orconuma', approvalStatus: 'approved' };
 const pending = { id: 13, ownerId: 5, name: 'New branch', barangay: 'Orconuma', approvalStatus: 'pending' };
-const owner = { id: 5, boardingHouseName: 'Hill View', fullName: 'Property owner', barangay: 'Labasan' };
+const owner = { id: 5, boardingHouseName: 'Hill View', fullName: 'Property owner', profilePicture: 'https://lh3.googleusercontent.com/owner-photo', barangay: 'Labasan' };
 
 test('approved branches share the owner name and include five ordered photos per branch', async t => {
   t.mock.method(User, 'findAll', async () => [owner]);
@@ -24,6 +24,8 @@ test('approved branches share the owner name and include five ordered photos per
   const listings = await listTenantDorms(null, { barangay: 'Orconuma' });
   assert.equal(listings.length, 1);
   assert.equal(listings[0].propertyName, 'Hill View');
+  assert.equal(listings[0].ownerProfilePicture, owner.profilePicture);
+  assert.equal(listings[0].town, 'Bongabong');
   assert.equal(listings[0].branchNumber, 2);
   assert.deepEqual(listings[0].branchGalleries.map(gallery => gallery.photos.length), [5, 5]);
   assert.equal(listings[0].branchGalleries[1].photos[0].label, 'Outdoor Spaces');

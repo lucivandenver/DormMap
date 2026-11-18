@@ -1,19 +1,27 @@
-<fieldset class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm" data-owner-payment-setup
+<fieldset class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm" data-owner-payment-setup {{#if registration}}data-qr-optional{{/if}}
   onchange="
-    const qr = this.querySelector('[name=gcashQrCode]');
-    const gcash = this.querySelector('[value=GCash]').checked;
-    qr.closest('label').hidden = !gcash;
-    qr.disabled = !gcash;
-    qr.required = gcash && !this.dataset.existingQr;
+    for (const upload of this.querySelectorAll('[data-qr-method]')) {
+      const selected = [...this.querySelectorAll('[name=paymentMethods]')].some(input => input.checked && input.value === upload.dataset.qrMethod);
+      upload.hidden = !selected;
+      const qr = upload.querySelector('input');
+      qr.disabled = !selected;
+      qr.required = selected && !qr.dataset.existingQr && !this.hasAttribute('data-qr-optional');
+    }
     const cash = this.querySelector('[value=Cash]');
-    cash.setCustomValidity(cash.checked || gcash ? '' : 'Select at least one accepted payment method.');
+    cash.setCustomValidity(this.querySelector('[name=paymentMethods]:checked') ? '' : 'Select at least one accepted payment method.');
   ">
   <legend class="px-1 font-semibold text-slate-700">Accepted rent payments</legend>
   <label class="inline-flex items-center gap-2"><input type="checkbox" name="paymentMethods" value="Cash" checked> Cash on Hand</label>
   <label class="ml-3 inline-flex items-center gap-2"><input type="checkbox" name="paymentMethods" value="GCash"> GCash</label>
-  <label hidden>
+  <label class="ml-3 inline-flex items-center gap-2"><input type="checkbox" name="paymentMethods" value="QR Ph"> QR Ph</label>
+  <label hidden data-qr-method="GCash">
     <span class="mb-1 mt-2 block font-semibold">GCash QR code</span>
     <input class="block w-full text-xs" type="file" name="gcashQrCode" accept="image/jpeg,image/png,image/webp" disabled>
-    <span class="mt-1 block text-xs text-slate-500">Tenants see this image when they select GCash. JPG, PNG or WebP, up to 5 MB.</span>
+    <span class="mt-1 block text-xs text-slate-500">{{#if registration}}You can upload this later in My Profile & Documents. Complete your GCash QR setup before accepting tenants.{{else}}Tenants see this image when they select GCash.{{/if}} JPG, PNG or WebP, up to 5 MB.</span>
+  </label>
+  <label hidden data-qr-method="QR Ph">
+    <span class="mb-1 mt-2 block font-semibold">QR Ph code</span>
+    <input class="block w-full text-xs" type="file" name="qrPhCode" accept="image/jpeg,image/png,image/webp" disabled>
+    <span class="mt-1 block text-xs text-slate-500">{{#if registration}}You can upload this later in My Profile & Documents. Complete your QR Ph setup before accepting tenants.{{else}}Tenants see this image when they select QR Ph.{{/if}} JPG, PNG or WebP, up to 5 MB.</span>
   </label>
 </fieldset>
