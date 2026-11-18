@@ -1,5 +1,6 @@
 (() => {
   const key = document.querySelector('meta[name="dormmap-maptiler-key"]')?.content;
+  const cartoKey = document.querySelector('meta[name="dormmap-carto-basemap-key"]')?.content;
   const controls = new WeakMap();
 
   window.dormMapFullMap = (leaflet, map, street, picker, listings) => {
@@ -17,6 +18,10 @@
       { maxNativeZoom: 19, maxZoom: 20, attribution: 'Tiles © Esri, Maxar, Earthstar Geographics, and the GIS User Community' }
     );
     const satellite = mapTilerSatellite || esriSatellite;
+    const voyager = cartoKey ? leaflet.tileLayer(
+      `https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${encodeURIComponent(cartoKey)}`,
+      { maxNativeZoom: 19, maxZoom: 20, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> © <a href="https://carto.com/basemaps/">CARTO</a>' }
+    ) : null;
     let activeLayer = street;
     const control = leaflet.control({ position: 'bottomright' });
     control.onAdd = () => {
@@ -36,6 +41,7 @@
       dialog.innerHTML = `<div class="dormmap-map-toolbar">
         <strong>${picker ? 'Choose property location' : 'DormMap'}</strong>
         <div aria-label="Map layer"><button type="button" data-street>Street</button>
+        ${voyager ? '<button type="button" data-voyager>Voyager</button>' : ''}
         <button type="button" data-satellite>Satellite</button></div>
         <button type="button" data-close>${picker ? 'Cancel' : 'Close'}</button>
       </div><p class="dormmap-map-status" role="status"></p>
@@ -48,6 +54,7 @@
       const stage = dialog.querySelector('.dormmap-map-stage');
       const streetButton = dialog.querySelector('[data-street]');
       const satelliteButton = dialog.querySelector('[data-satellite]');
+      const voyagerButton = voyager && dialog.querySelector('[data-voyager]');
       const use = dialog.querySelector('[data-use]');
       const placeholder = document.createComment('DormMap map position');
       container.before(placeholder);
@@ -57,14 +64,15 @@
 
       let loadedTiles = 0;
       let failedTiles = 0;
-      const satelliteLayers = [mapTilerSatellite, esriSatellite, publicSatellite].filter(Boolean);
+      const alternateLayers = [voyager, mapTilerSatellite, esriSatellite, publicSatellite].filter(Boolean);
       const startTiles = () => { loadedTiles = failedTiles = 0; };
       const tileLoaded = () => { loadedTiles++; };
       const tileFailed = () => { failedTiles++; };
 
       function selectLayer(layer) {
         streetButton.setAttribute('aria-pressed', String(layer === street));
-        satelliteButton.setAttribute('aria-pressed', String(layer !== street));
+        voyagerButton?.setAttribute('aria-pressed', String(layer === voyager));
+        satelliteButton.setAttribute('aria-pressed', String(layer !== street && layer !== voyager));
         if (layer === activeLayer) return;
         map.removeLayer(activeLayer);
         activeLayer = layer;
@@ -72,9 +80,12 @@
         map.addLayer(layer);
       }
 
-      function satelliteFinished(event) {
+      function tilesFinished(event) {
         if (event.target !== activeLayer || !failedTiles || loadedTiles) return;
-        if (activeLayer === mapTilerSatellite) {
+        if (activeLayer === voyager) {
+          selectLayer(street);
+          status.textContent = 'Voyager tiles could not load. Showing Street view.';
+        } else if (activeLayer === mapTilerSatellite) {
           selectLayer(esriSatellite);
         } else if (activeLayer === esriSatellite) {
           selectLayer(publicSatellite);
@@ -85,8 +96,8 @@
         }
       }
 
-      const tileEvents = { loading: startTiles, tileload: tileLoaded, tileerror: tileFailed, load: satelliteFinished };
-      for (const layer of satelliteLayers) layer.on(tileEvents);
+      const tileEvents = { loading: startTiles, tileload: tileLoaded, tileerror: tileFailed, load: tilesFinished };
+      for (const layer of alternateLayers) layer.on(tileEvents);
       function changeLayer(layer) {
         if (!picker) status.textContent = '';
         else if (draft) updateDraft(draft.getLatLng());
@@ -94,6 +105,7 @@
         selectLayer(layer);
       }
       streetButton.onclick = () => changeLayer(street);
+      if (voyagerButton) voyagerButton.onclick = () => changeLayer(voyager);
       satelliteButton.onclick = () => changeLayer(satellite);
       selectLayer(activeLayer);
       const resize = () => map.invalidateSize({ animate: false, pan: false });
@@ -174,7 +186,7 @@
         if (zoomPosition) map.zoomControl?.setPosition(zoomPosition);
         if (draft) draft.remove();
         picker?.existingMarker?.addTo(map);
-        for (const layer of satelliteLayers) layer.off(tileEvents);
+        for (const layer of alternateLayers) layer.off(tileEvents);
         selectLayer(street);
         placeholder.replaceWith(container);
         controls.delete(map);

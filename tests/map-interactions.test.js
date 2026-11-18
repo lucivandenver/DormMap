@@ -52,7 +52,7 @@ class Element {
   focus() {}
 }
 
-function fixture() {
+function fixture(cartoKey = '') {
   const body = new Element('body');
   const original = new Element();
   const container = new Element();
@@ -77,9 +77,9 @@ function fixture() {
   };
   const tiles = [];
   const leaflet = {
-    tileLayer(url) {
+    tileLayer(url, options) {
       const layer = {
-        url,
+        url, options,
         on(value) { this.events = value; }, off() {},
         addTo(target) { target.addLayer(this); return this; },
         remove() { this.map?.removeLayer(this); }
@@ -95,7 +95,7 @@ function fixture() {
   };
   const context = {
     window: { location: { href: 'https://dormmap.example/' }, addEventListener() {}, removeEventListener() {} },
-    document: { body, querySelector: () => null, createElement: tag => new Element(tag), createComment: () => new Element() },
+    document: { body, querySelector: selector => selector.includes('dormmap-carto-basemap-key') ? { content: cartoKey } : null, createElement: tag => new Element(tag), createComment: () => new Element() },
     navigator: { geolocation: { getCurrentPosition: resolve => resolve({ coords: { latitude: 12.72, longitude: 121.47 } }) } },
     URL, Date, Promise, WeakMap, Map, Number, String,
     requestAnimationFrame: callback => callback(),
@@ -142,6 +142,39 @@ test('full map and satellite switches keep listing markers and restore the previ
   assert.equal(map.zoomControl.getPosition(), 'topleft');
   assert.ok(layers.has(street));
   assert.ok(layers.has(marker));
+});
+
+test('configured Voyager preserves pins, switches layers and falls back to Street on tile failure', () => {
+  const { context, map, leaflet, body, layers, tiles } = fixture('dummy&carto+key');
+  const street = leaflet.tileLayer('street').addTo(map);
+  const marker = { id: 'boarding-house-marker' };
+  map.addLayer(marker);
+  context.window.dormMapFullMap(leaflet, map, street)(new Element('button'));
+  const dialog = body.children.find(node => node.tagName === 'dialog');
+  const voyager = tiles.find(layer => layer.url.includes('/voyager/'));
+  assert.equal(voyager.url, 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=dummy%26carto%2Bkey');
+  assert.match(voyager.options.attribution, /OpenStreetMap contributors.*CARTO/);
+
+  const voyagerButton = dialog.querySelector('[data-voyager]');
+  const satelliteButton = dialog.querySelector('[data-satellite]');
+  voyagerButton.onclick();
+  assert.ok(layers.has(voyager));
+  assert.ok(layers.has(marker));
+  assert.equal(voyagerButton.attributes['aria-pressed'], 'true');
+  assert.equal(satelliteButton.attributes['aria-pressed'], 'false');
+  satelliteButton.onclick();
+  assert.ok(!layers.has(voyager));
+  assert.equal(satelliteButton.attributes['aria-pressed'], 'true');
+  voyagerButton.onclick();
+  voyager.events.tileerror();
+  voyager.events.load({ target: voyager });
+  assert.ok(layers.has(street));
+  assert.ok(layers.has(marker));
+  assert.match(dialog.querySelector('[role="status"]').textContent, /Showing Street view/);
+  voyagerButton.onclick();
+  dialog.close();
+  assert.ok(layers.has(street));
+  assert.ok(!layers.has(voyager));
 });
 
 test('listing pins use owner photos and popups show branch, barangay, town and current distance', async () => {
