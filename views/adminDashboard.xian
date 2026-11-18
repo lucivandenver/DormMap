@@ -1052,7 +1052,7 @@ function applyGisFilters() {
         statusLabel = 'Pending Review';
       }
 
-      const houseIcon = dormMapPropertyPin(L, o.publicMapUnregistered);
+      const houseIcon = dormMapPropertyPin(L, o.publicMapUnregistered, o);
 
       const marker = L.marker([o.lat, o.lng], { icon: houseIcon });
       boundsPoints.push([o.lat, o.lng]);

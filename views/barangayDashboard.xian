@@ -28,7 +28,6 @@
       <div class="relative">
         <button id="notifBtn" onclick="show('notifications')" class="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100" title="Activity">
           <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-          <span id="notifBadge" class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-600 text-[10px] font-bold text-white hidden">0</span>
         </button>
       </div>
 
@@ -1349,13 +1348,13 @@ function openReviewModal(id) {
   select.replaceChildren(...app.branches.map((branch, index) => new Option(
     `Branch ${index + 1}${index === 0 ? ' · Main property' : ''}${branch.barangay ? ' · ' + branch.barangay : ''}`, index
   )));
-  select.onchange = () => renderReviewedBranch(app.branches[Number(select.value)]);
+  select.onchange = () => renderReviewedBranch(app.branches[Number(select.value)], app);
   openModal('reviewModal');
   document.getElementById('reviewPanel').scrollTop = 0;
   select.onchange();
 }
 
-function renderReviewedBranch(branch) {
+function renderReviewedBranch(branch, owner) {
   let photos = branch.galleryImages;
   if (typeof photos === 'string') {
     try { photos = JSON.parse(photos); } catch { photos = []; }
@@ -1378,8 +1377,9 @@ function renderReviewedBranch(branch) {
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(reviewMap);
   }
   const pin = [Number(branch.latitude), Number(branch.longitude)];
-  if (reviewPin) reviewPin.setLatLng(pin);
-  else reviewPin = L.marker(pin, { icon: dormMapPropertyPin(L) }).addTo(reviewMap);
+  const icon = dormMapPropertyPin(L, owner.publicMapUnregistered, owner);
+  if (reviewPin) reviewPin.setLatLng(pin).setIcon(icon);
+  else reviewPin = L.marker(pin, { icon }).addTo(reviewMap);
   reviewMap.setView(pin, 17);
   requestAnimationFrame(() => reviewMap.invalidateSize());
 }
@@ -1654,7 +1654,7 @@ async function loadMap() {
       if (x.boardingHouseLatitude == null || x.boardingHouseLongitude == null) return;
       let a = Number(x.boardingHouseLatitude), b = Number(x.boardingHouseLongitude);
       if (Number.isFinite(a) && Number.isFinite(b)) {
-        L.marker([a, b], { icon: dormMapPropertyPin(L, x.publicMapUnregistered) }).addTo(barangayMapPins).bindPopup(`
+        L.marker([a, b], { icon: dormMapPropertyPin(L, x.publicMapUnregistered, x) }).addTo(barangayMapPins).bindPopup(`
           <div class="p-1">
             <b class="text-emerald-800 text-sm">${esc(x.boardingHouseName)}</b><br>
             <span class="text-xs text-slate-600">Owner: ${esc(x.fullName)}</span><br>

@@ -156,7 +156,7 @@ export const updateProfile = async (req, res, next) => {
 export const getBoardingHouses = async (req, res, next) => {
   try {
     const ownerId = oid(req);
-    const houses = await sequelize.transaction(async transaction => {
+    const { houses, mapOwner } = await sequelize.transaction(async transaction => {
       const user = await ownerLock(ownerId, transaction);
       let records = await BoardingHouse.findAll({ where: { ownerId }, order: [['isPrimary','DESC'],['id','ASC']], transaction });
       if (!records.length) {
@@ -165,10 +165,17 @@ export const getBoardingHouses = async (req, res, next) => {
       }
       const primary = records.find(house => house.isPrimary) || records[0];
       await OwnerRoom.update({ boardingHouseId: primary.id }, { where: { ownerId, boardingHouseId: null }, transaction });
-      return records;
+      return {
+        houses: records,
+        mapOwner: {
+          fullName: user.fullName,
+          profilePicture: user.profilePicture,
+          publicMapUnregistered: user.publicMapUnregistered
+        }
+      };
     });
 
-    res.json({ data: houses });
+    res.json({ data: houses, mapOwner });
   } catch (err) { next(err); }
 };
 

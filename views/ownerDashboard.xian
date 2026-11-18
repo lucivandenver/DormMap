@@ -118,7 +118,6 @@
       <div class="relative">
         <button id="notifBtn" onclick="show('notifications')" class="relative rounded-xl p-2.5 text-slate-600 hover:bg-slate-100 transition" title="Activity">
           <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-          <span id="notifBadge" class="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-600 text-[10px] font-extrabold text-white hidden ring-2 ring-white">0</span>
         </button>
       </div>
 
@@ -1777,6 +1776,7 @@
 
   // ─── Boarding House Management (Multiple Establishments & OSM Pinpoint) ───
   let _allBoardingHouses = [];
+  let mapOwner;
   let _selectedBhId = null;
   let bhOsmMap = null;
   let bhOsmMarker = null;
@@ -1785,7 +1785,8 @@
     try {
       const res = await fetch('/owner-dashboard/api/boarding-houses');
       if (!res.ok) throw new Error('Could not load boarding houses.');
-      const { data } = await res.json();
+      const { data, mapOwner: owner } = await res.json();
+      mapOwner = owner;
       _allBoardingHouses = data || [];
 
       if (!_selectedBhId && _allBoardingHouses.length > 0) {
@@ -1942,7 +1943,7 @@
     bhOsmMap = L.map('bhOsmMap').setView([lat, lng], 15);
     const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(bhOsmMap);
 
-    bhOsmMarker = L.marker([lat, lng], { draggable: true, icon: dormMapPropertyPin(L) }).addTo(bhOsmMap);
+    bhOsmMarker = L.marker([lat, lng], { draggable: true, icon: dormMapPropertyPin(L, mapOwner?.publicMapUnregistered, mapOwner) }).addTo(bhOsmMap);
 
     const updateCoords = (newLat, newLng) => {
       document.getElementById('bhModalLat').value = newLat.toFixed(6);
@@ -2773,7 +2774,7 @@ async function loadLegacyNotifications() {
       if (!point) continue;
       const label = document.createElement('span');
       label.textContent = `${house.name} · ${house.approvalStatus || 'approved'}`;
-      const marker = L.marker(point, { draggable: true, icon: dormMapPropertyPin(L), title: house.name })
+      const marker = L.marker(point, { draggable: true, icon: dormMapPropertyPin(L, mapOwner?.publicMapUnregistered, mapOwner || house), title: house.name })
         .bindTooltip(label).addTo(ownerMapPins);
       marker.on('dragend', async () => {
         const previousPoint = ownerPropertyPoint(house);
