@@ -61,7 +61,7 @@ router.get('/', tenantDashboardPage);
 router.get('/api/overview', overview);
 router.get('/api/my-room', getMyRoom);
 router.get('/api/payments', getPaymentHistory);
-const paymentProofUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, fields: 3 } });
+const paymentProofUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, fields: 4 } });
 router.post('/api/payments/:id/submit', (req, res, next) => {
   paymentProofUpload.single('proof')(req, res, error => {
     if (error) return res.status(422).json({ error: 'Upload one proof image up to 5 MB.' });
