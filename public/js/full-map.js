@@ -5,19 +5,10 @@
 
   window.dormMapFullMap = (leaflet, map, street, picker, listings) => {
     const container = map.getContainer();
-    const publicSatellite = leaflet.tileLayer(
-      'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg',
-      { maxNativeZoom: 14, maxZoom: 19, attribution: '<a href="https://cloudless.eox.at">EOxCloudless</a> by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016)' }
-    );
-    const mapTilerSatellite = key ? leaflet.tileLayer(
-      `https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}.jpg?key=${encodeURIComponent(key)}`,
-      { maxZoom: 19, attribution: '© <a href="https://www.maptiler.com/copyright/">MapTiler</a>' }
+    const satellite = key ? leaflet.tileLayer(
+      `https://api.maptiler.com/maps/satellite-v4/{z}/{x}/{y}.jpg?key=${encodeURIComponent(key)}`,
+      { tileSize: 512, zoomOffset: -1, maxZoom: 21, attribution: '© <a href="https://www.maptiler.com/copyright/">MapTiler</a>' }
     ) : null;
-    const esriSatellite = leaflet.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?blankTile=false',
-      { maxNativeZoom: 19, maxZoom: 20, attribution: 'Tiles © Esri, Maxar, Earthstar Geographics, and the GIS User Community' }
-    );
-    const satellite = mapTilerSatellite || esriSatellite;
     const voyager = cartoKey ? leaflet.tileLayer(
       `https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${encodeURIComponent(cartoKey)}`,
       { maxNativeZoom: 19, maxZoom: 20, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> © <a href="https://carto.com/basemaps/">CARTO</a>' }
@@ -42,13 +33,13 @@
         <strong>${picker ? 'Choose property location' : 'DormMap'}</strong>
         <div aria-label="Map layer"><button type="button" data-street>Street</button>
         ${voyager ? '<button type="button" data-voyager>Voyager</button>' : ''}
-        <button type="button" data-satellite>Satellite</button></div>
+        <button type="button" data-satellite ${satellite ? '' : 'disabled title="Satellite imagery is unavailable"'}>Satellite</button></div>
         <button type="button" data-close>${picker ? 'Cancel' : 'Close'}</button>
       </div><p class="dormmap-map-status" role="status"></p>
-      <div class="dormmap-map-stage"><aside class="dormmap-map-sidebar" aria-label="Boarding house listings" hidden>
+      <div class="dormmap-map-stage">${listings ? `<aside class="dormmap-map-sidebar" aria-label="Boarding house listings">
         <div class="dormmap-sidebar-heading"><strong>Boarding houses</strong><span data-listing-count></span></div>
         <div data-full-map-listings></div>
-      </aside></div>
+      </aside>` : ''}</div>
       ${picker ? '<div class="dormmap-map-toolbar"><button type="button" data-use disabled>Use this location</button></div>' : ''}`;
       const status = dialog.querySelector('[role="status"]');
       const stage = dialog.querySelector('.dormmap-map-stage');
@@ -64,7 +55,7 @@
 
       let loadedTiles = 0;
       let failedTiles = 0;
-      const alternateLayers = [voyager, mapTilerSatellite, esriSatellite, publicSatellite].filter(Boolean);
+      const alternateLayers = [voyager, satellite].filter(Boolean);
       const startTiles = () => { loadedTiles = failedTiles = 0; };
       const tileLoaded = () => { loadedTiles++; };
       const tileFailed = () => { failedTiles++; };
@@ -72,7 +63,7 @@
       function selectLayer(layer) {
         streetButton.setAttribute('aria-pressed', String(layer === street));
         voyagerButton?.setAttribute('aria-pressed', String(layer === voyager));
-        satelliteButton.setAttribute('aria-pressed', String(layer !== street && layer !== voyager));
+        satelliteButton.setAttribute('aria-pressed', String(layer === satellite));
         if (layer === activeLayer) return;
         map.removeLayer(activeLayer);
         activeLayer = layer;
@@ -82,18 +73,9 @@
 
       function tilesFinished(event) {
         if (event.target !== activeLayer || !failedTiles || loadedTiles) return;
-        if (activeLayer === voyager) {
-          selectLayer(street);
-          status.textContent = 'Voyager tiles could not load. Showing Street view.';
-        } else if (activeLayer === mapTilerSatellite) {
-          selectLayer(esriSatellite);
-        } else if (activeLayer === esriSatellite) {
-          selectLayer(publicSatellite);
-          status.textContent = 'Loading alternative satellite coverage…';
-        } else {
-          selectLayer(street);
-          status.textContent = 'Satellite imagery could not load. Street view is available.';
-        }
+        const failedLayer = activeLayer === voyager ? 'Voyager tiles' : 'Satellite imagery';
+        selectLayer(street);
+        status.textContent = `${failedLayer} could not load. Showing Street view.`;
       }
 
       const tileEvents = { loading: startTiles, tileload: tileLoaded, tileerror: tileFailed, load: tilesFinished };
@@ -106,7 +88,7 @@
       }
       streetButton.onclick = () => changeLayer(street);
       if (voyagerButton) voyagerButton.onclick = () => changeLayer(voyager);
-      satelliteButton.onclick = () => changeLayer(satellite);
+      if (satellite) satelliteButton.onclick = () => changeLayer(satellite);
       selectLayer(activeLayer);
       const resize = () => map.invalidateSize({ animate: false, pan: false });
       const scrollEnabled = map.scrollWheelZoom.enabled();
@@ -117,7 +99,6 @@
       observer?.observe(stage);
       window.addEventListener('resize', resize);
 
-      const sidebar = dialog.querySelector('.dormmap-map-sidebar');
       const listingCards = new Map();
       function highlightListing(event) {
         for (const [id, card] of listingCards) {
@@ -127,7 +108,6 @@
       function renderListings() {
         if (!listings) return;
         const houses = listings.getListings();
-        sidebar.hidden = false;
         dialog.querySelector('[data-listing-count]').textContent = houses.length;
         const list = dialog.querySelector('[data-full-map-listings]');
         list.replaceChildren();
@@ -157,7 +137,7 @@
       let draft;
       function updateDraft(point) {
         if (!draft) {
-          draft = leaflet.marker(point, { draggable: true, icon: window.dormMapPropertyPin(leaflet), zIndexOffset: 1000, title: 'Draft property location' }).addTo(map);
+          draft = leaflet.marker(point, { draggable: true, icon: picker.existingMarker?.options.icon || window.dormMapPropertyPin(leaflet), zIndexOffset: 1000, title: 'Draft property location' }).addTo(map);
           draft.on('dragend', () => updateDraft(draft.getLatLng()));
         } else draft.setLatLng(point);
         use.disabled = false;

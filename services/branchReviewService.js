@@ -50,14 +50,14 @@ export async function listApprovedBranchPins(barangay) {
   });
   const owners = await User.findAll({
     where: { ...approvedOwnerWhere, id: branches.map(branch => branch.ownerId) },
-    attributes: ['id', 'fullName', 'contactNumber', 'applicationStatus'],
+    attributes: ['id', 'fullName', 'profilePicture', 'contactNumber', 'applicationStatus'],
   });
   const byId = new Map(owners.map(owner => [owner.id, owner]));
   return branches.flatMap(branch => {
     const owner = byId.get(branch.ownerId);
     if (!owner || branch.latitude == null || branch.longitude == null) return [];
     return [{
-      id: `bh-${branch.id}`, fullName: owner.fullName, contactNumber: owner.contactNumber,
+      id: `bh-${branch.id}`, fullName: owner.fullName, profilePicture: owner.profilePicture, contactNumber: owner.contactNumber,
       applicationStatus: owner.applicationStatus, boardingHouseName: branch.name,
       boardingHouseAddress: branch.address, boardingHouseLatitude: branch.latitude, boardingHouseLongitude: branch.longitude
     }];

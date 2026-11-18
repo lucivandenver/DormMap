@@ -620,7 +620,7 @@ export const applications = async (req, res, next) => {
     }
     const owners = await User.findAll({
       where, order: [['createdAt', 'DESC']],
-      attributes: ['id', 'fullName', 'email', 'boardingHouseName', 'barangay', 'mapPin', 'galleryImages', 'boardingHouseLatitude', 'boardingHouseLongitude',
+      attributes: ['id', 'fullName', 'email', 'profilePicture', 'publicMapUnregistered', 'boardingHouseName', 'barangay', 'mapPin', 'galleryImages', 'boardingHouseLatitude', 'boardingHouseLongitude',
         'validIdPicture', 'businessPermit', 'barangayClearance', 'proofOfOwnership', 'rentalPermit', 'supportingDocuments', 'applicationStatus', 'applicationReviewNote', 'createdAt']
     });
     const houses = await BoardingHouse.findAll({
@@ -659,6 +659,7 @@ export const applications = async (req, res, next) => {
       }).filter((branch, index) => index === 0 || branch.barangay);
       if (!branches.length) branches.push(mainLocation);
       return { ...submission, branches, id, applicationStatus, applicationReviewNote, createdAt,
+        profilePicture: legacy.profilePicture, publicMapUnregistered: legacy.publicMapUnregistered,
         validIdPicture: legacy.validIdPicture || submission.validIdPicture,
         businessPermit: legacy.businessPermit || submission.businessPermit,
         barangayClearance: legacy.barangayClearance || submission.barangayClearance,
@@ -799,7 +800,7 @@ export const mapHouses = async (req, res, next) => {
         boardingHouseLatitude: { [Op.ne]: null }, 
         boardingHouseLongitude: { [Op.ne]: null } 
       }, 
-      attributes: ['id', 'fullName', 'boardingHouseName', 'boardingHouseAddress', 'boardingHouseLatitude', 'boardingHouseLongitude', 'roomsAvailable', 'occupiedRooms', 'contactNumber', 'applicationStatus', 'isSuspended', 'publicMapUnregistered']
+      attributes: ['id', 'fullName', 'profilePicture', 'boardingHouseName', 'boardingHouseAddress', 'boardingHouseLatitude', 'boardingHouseLongitude', 'roomsAvailable', 'occupiedRooms', 'contactNumber', 'applicationStatus', 'isSuspended', 'publicMapUnregistered']
     }); 
     const branches = await listApprovedBranchPins(barangay);
     res.json({ data: [...data, ...branches] });

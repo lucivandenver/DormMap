@@ -52,7 +52,7 @@ class Element {
   focus() {}
 }
 
-function fixture(cartoKey = '') {
+function fixture(cartoKey = '', mapTilerKey = '') {
   const body = new Element('body');
   const original = new Element();
   const container = new Element();
@@ -95,7 +95,7 @@ function fixture(cartoKey = '') {
   };
   const context = {
     window: { location: { href: 'https://dormmap.example/' }, addEventListener() {}, removeEventListener() {} },
-    document: { body, querySelector: selector => selector.includes('dormmap-carto-basemap-key') ? { content: cartoKey } : null, createElement: tag => new Element(tag), createComment: () => new Element() },
+    document: { body, querySelector: selector => ({ content: selector.includes('dormmap-carto-basemap-key') ? cartoKey : mapTilerKey }), createElement: tag => new Element(tag), createComment: () => new Element() },
     navigator: { geolocation: { getCurrentPosition: resolve => resolve({ coords: { latitude: 12.72, longitude: 121.47 } }) } },
     URL, Date, Promise, WeakMap, Map, Number, String,
     requestAnimationFrame: callback => callback(),
@@ -109,7 +109,7 @@ function fixture(cartoKey = '') {
 }
 
 test('full map and satellite switches keep listing markers and restore the preview container', () => {
-  const { context, map, leaflet, body, original, container, layers, tiles } = fixture();
+  const { context, map, leaflet, body, original, container, layers, tiles } = fixture('', 'dummy-maptiler-key');
   const street = leaflet.tileLayer('street').addTo(map);
   const marker = { id: 'boarding-house-marker' };
   map.addLayer(marker);
@@ -117,12 +117,18 @@ test('full map and satellite switches keep listing markers and restore the previ
   open(new Element('button'));
   const dialog = body.children.find(node => node.tagName === 'dialog');
   assert.equal(dialog.open, true);
+  assert.doesNotMatch(dialog.innerHTML, /dormmap-map-sidebar/);
   assert.equal(map.scrollWheelZoom.enabled(), true);
   assert.equal(map.zoomControl.getPosition(), 'topright');
   assert.notEqual(container.parent, original);
 
   dialog.querySelector('[data-satellite]').onclick();
-  assert.ok([...layers].some(layer => layer.url?.includes('World_Imagery')));
+  const satellite = tiles.find(layer => layer.url.includes('satellite-v4'));
+  assert.ok(layers.has(satellite));
+  assert.match(satellite.url, /key=dummy-maptiler-key/);
+  assert.equal(satellite.options.maxZoom, 21);
+  assert.equal(satellite.options.tileSize, 512);
+  assert.equal(satellite.options.zoomOffset, -1);
   assert.ok(!tiles.some(layer => layer.url.includes('cartocdn.com')));
   assert.ok(layers.has(marker));
   dialog.querySelector('[data-street]').onclick();
@@ -130,11 +136,12 @@ test('full map and satellite switches keep listing markers and restore the previ
   assert.ok(layers.has(marker));
 
   dialog.querySelector('[data-satellite]').onclick();
-  const satellite = tiles.find(layer => layer.url.includes('World_Imagery'));
-  assert.match(satellite.url, /blankTile=false/);
   satellite.events.tileerror();
   satellite.events.load({ target: satellite });
-  assert.ok([...layers].some(layer => layer.url?.includes('s2cloudless')));
+  assert.ok(layers.has(street));
+  assert.ok(!layers.has(satellite));
+  assert.ok(!tiles.some(layer => /World_Imagery|s2cloudless/.test(layer.url)));
+  assert.match(dialog.querySelector('[role="status"]').textContent, /Satellite imagery could not load/);
 
   dialog.close();
   assert.equal(container.parent, original);
@@ -145,7 +152,7 @@ test('full map and satellite switches keep listing markers and restore the previ
 });
 
 test('configured Voyager preserves pins, switches layers and falls back to Street on tile failure', () => {
-  const { context, map, leaflet, body, layers, tiles } = fixture('dummy&carto+key');
+  const { context, map, leaflet, body, layers, tiles } = fixture('dummy&carto+key', 'dummy-maptiler-key');
   const street = leaflet.tileLayer('street').addTo(map);
   const marker = { id: 'boarding-house-marker' };
   map.addLayer(marker);
