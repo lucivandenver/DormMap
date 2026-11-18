@@ -179,6 +179,7 @@ export const ensureAdminSchema = async () => {
     gcashNumber: { type: DataTypes.STRING, allowNull: true },
     gcashName: { type: DataTypes.STRING, allowNull: true },
     gcashQrCode: { type: DataTypes.TEXT, allowNull: true },
+    qrPhCode: { type: DataTypes.TEXT, allowNull: true },
     barangayClearance: { type: DataTypes.TEXT, allowNull: true },
     proofOfOwnership: { type: DataTypes.TEXT, allowNull: true },
     rentalPermit: { type: DataTypes.TEXT, allowNull: true },

@@ -1,4 +1,4 @@
-import { ownerPaymentConfig } from './ownerPaymentConfig.js';
+import { ownerPaymentConfig, usesPaymentQr } from './ownerPaymentConfig.js';
 import { floorNumber, floorLabel, ROOM_TYPES } from './roomPlanService.js';
 import { Op } from 'sequelize';
 import { sequelize } from '../models/db.js';
@@ -152,7 +152,10 @@ export async function removeRoom(ownerId, id) {
 }
 
 function requireOwnerPaymentMethod(owner) {
-  if (!ownerPaymentConfig(owner).methods.length) fail('Configure an accepted rent payment method before accepting tenants.');
+  const payment = ownerPaymentConfig(owner);
+  const missingMethod = payment.selectedMethods.find(method => usesPaymentQr(method) && !payment.qrCodes[method]);
+  if (missingMethod) fail(`Upload your ${missingMethod} QR code in My Profile & Documents before accepting tenants.`);
+  if (!payment.methods.length) fail('Configure an accepted rent payment method before accepting tenants.');
 }
 
 function requirePropertySetup(owner, house, room) {

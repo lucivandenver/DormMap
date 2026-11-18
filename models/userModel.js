@@ -50,6 +50,7 @@ export const User = sequelize.define("User", {
   gcashNumber: { type: DataTypes.STRING, allowNull: true },
   gcashName: { type: DataTypes.STRING, allowNull: true },
   gcashQrCode: { type: DataTypes.TEXT, allowNull: true },
+  qrPhCode: { type: DataTypes.TEXT, allowNull: true },
   businessPermit: { type: DataTypes.TEXT, allowNull: true },
   supportingDocuments: { type: DataTypes.TEXT, allowNull: true },
   emailVerified: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },

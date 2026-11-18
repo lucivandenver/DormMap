@@ -45,13 +45,15 @@ test('a reported unavailable whole-room lease is not advertised as partial bedsp
  assert.equal(room.availableSlots,0);assert.equal(room.reservedSlots,2);assert.equal(room.status,'occupied');
 });
 
-test('owner payment setup accepts cash on its own and requires a QR for GCash', () => {
+test('registration accepts selected payment methods before the owner uploads QR codes', () => {
  const contactNumber = '09171234567';
  assert.deepEqual(validateOwnerPaymentSetup({ contactNumber, paymentMethods: 'Cash' }, {}), {
-   contactNumber, paymentMethods: '["Cash"]', qr: null
+   contactNumber, paymentMethods: '["Cash"]', qrUploads: { gcashQrCode: null, qrPhCode: null }
  });
- assert.throws(() => validateOwnerPaymentSetup({ contactNumber, paymentMethods: ['Cash', 'GCash'] }, {}), /Upload your GCash QR/);
+ assert.deepEqual(validateOwnerPaymentSetup({ contactNumber, paymentMethods: ['Cash', 'GCash', 'QR Ph'] }, {}), {
+   contactNumber, paymentMethods: '["Cash","GCash","QR Ph"]', qrUploads: { gcashQrCode: null, qrPhCode: null }
+ });
  assert.throws(() => validateOwnerPaymentSetup({ contactNumber }, {}), /Select at least one/);
  const qr = { mimetype: 'image/png' };
- assert.equal(validateOwnerPaymentSetup({ contactNumber, paymentMethods: 'GCash' }, { gcashQrCode: [qr] }).qr, qr);
+ assert.equal(validateOwnerPaymentSetup({ contactNumber, paymentMethods: 'GCash' }, { gcashQrCode: [qr] }).qrUploads.gcashQrCode, qr);
 });

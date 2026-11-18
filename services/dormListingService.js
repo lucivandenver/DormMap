@@ -54,7 +54,7 @@ function price(value) {
 export async function listTenantDorms(tenantId, query = {}, { includeUnregistered = false } = {}) {
   const owners = await User.findAll({
     where: includeUnregistered ? { accountType: 'boarding_house_owner', isSuspended: false, isArchived: false, [Op.or]: [{ applicationStatus: { [Op.in]: ['approved','approved_barangay'] }, publicMapUnregistered: false }, { publicMapUnregistered: true, publicMapPublished: true }] } : approvedOwnerWhere,
-    attributes: ['id', 'fullName', 'contactNumber', 'boardingHouseName', 'boardingHouseAddress',
+    attributes: ['id', 'fullName', 'profilePicture', 'contactNumber', 'boardingHouseName', 'boardingHouseAddress',
       'boardingHousePicture', 'barangay', 'boardingHouseLatitude', 'boardingHouseLongitude',
       'rentalPriceMin', 'rentalPriceMax', 'amenities', 'houseRules', 'roomTypes', 'paymentMethods', 'galleryImages', 'createdAt', 'publicMapUnregistered'],
   });
@@ -139,6 +139,8 @@ export async function listTenantDorms(tenantId, query = {}, { includeUnregistere
         establishmentId: house?.id || null,
         ownerId: owner.id,
         ownerName: owner.fullName,
+        ownerProfilePicture: owner.profilePicture || null,
+        town: 'Bongabong',
         ownerContact: owner.contactNumber,
         name,
         address: house?.address || owner.boardingHouseAddress || '',

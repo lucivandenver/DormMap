@@ -405,7 +405,7 @@
                 <span class="mb-1 block">Contact number</span>
                 <input type="tel" name="contactNumber" value="{{authValues.contactNumber}}" maxlength="25" required autocomplete="tel" class="w-full rounded-xl border border-slate-200 px-3 py-2">
               </label>
-              {{> ownerPaymentSetup }}
+              {{> ownerPaymentSetup registration=true }}
               {{> ownerRegistrationCounts }}
           <button type="button" class="registration-step" onclick="goToStep(2)">Next</button>
         </div>

@@ -376,7 +376,7 @@
                 <span class="mb-1 block">Contact number</span>
                 <input type="tel" name="contactNumber" value="{{authValues.contactNumber}}" maxlength="25" required autocomplete="tel" class="w-full rounded-xl border border-slate-200 px-3 py-2">
               </label>
-              {{> ownerPaymentSetup }}
+              {{> ownerPaymentSetup registration=true }}
               {{> ownerRegistrationCounts }}
               <button type="button" class="registration-step" data-owner-next="2">Next</button>
             </div>
@@ -905,6 +905,7 @@
       .then(houses => {
         if (!Array.isArray(houses)) return;
         authMapHouseData = houses.filter(h => h.registrationStatus !== 'unregistered').map(h => ({
+          ...h,
           name: h.boardingHouseName || h.fullName || 'Boarding House',
           type: Array.isArray(h.roomTypes) ? h.roomTypes[0] : 'N/A',
           lat: h.latitude === null ? null : Number(h.latitude),
@@ -929,13 +930,16 @@
         if (house.lat === null || house.lng === null || !Number.isFinite(house.lat) || !Number.isFinite(house.lng)) return;
         const lat = Number(house.lat) || 12.7192;
         const lng = Number(house.lng) || 121.4719;
-        const marker = L.marker([lat, lng], { icon: dormMapPropertyPin(L, house.registrationStatus === 'unregistered') }).addTo(map).bindPopup(`
-          <div style="min-width:140px">
-            <strong style="font-size:12px">${house.name}</strong><br>
-            <span style="font-size:11px;color:#64748b">${house.address || house.type}</span><br>
-            <span style="font-size:11px;color:#047857;font-weight:700">${house.rooms} rooms available</span>
-          </div>
-        `);
+        const popup = window.dormMapListingPopup(house, {
+          onDetails: () => {
+            window.dormMapCloseExpanded(map);
+            window.openPropertyDetailModal(house.id);
+          }
+        });
+        const marker = L.marker([lat, lng], {
+          icon: dormMapPropertyPin(L, false, house), title: house.name
+        }).addTo(map).bindPopup(popup);
+        marker.on('popupopen', () => window.dormMapRefreshListingDistance(L, popup, house));
         marker.on('click', () => {
           window.selectBoardingHouseFromMap(house);
         });

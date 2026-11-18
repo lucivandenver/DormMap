@@ -362,7 +362,7 @@
           <div class="grid gap-4 md:grid-cols-2">
             <div>
               <label class="block text-xs font-bold text-slate-500 mb-1">Boarding House Name *</label>
-              <input type="text" name="boardingHouseName" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/10 outline-none" required>
+              <input type="text" name="boardingHouseName" maxlength="255" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/10 outline-none" required>
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-500 mb-1">Contact Number</label>
@@ -696,12 +696,13 @@
               <select name="method" required class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
                 <option value="Cash">Cash on Hand</option>
                 <option value="GCash">GCash</option>
+                <option value="QR Ph">QR Ph</option>
               </select>
             </label>
             <label class="block text-sm font-semibold"><span data-review-date-label>Confirmation date</span>
               <input name="confirmedDate" type="date" required class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
             </label>
-            <label class="block text-sm font-semibold" data-review-reference hidden>GCash reference number
+            <label class="block text-sm font-semibold" data-review-reference hidden>Transaction reference number
               <input name="reference" maxlength="100" class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
             </label>
             <label class="block text-sm font-semibold"><span data-review-notes-label>Notes (optional)</span>
@@ -1005,7 +1006,7 @@
       <!-- PANEL 16: SETTINGS -->
       <section data-panel="settings" class="hidden bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
         <h2 class="text-lg font-bold text-slate-800">Rent payment settings</h2>
-        <p class="text-sm text-slate-600">Choose Cash on Hand, GCash, or both. Upload your GCash QR code if you accept GCash.</p>
+        <p class="text-sm text-slate-600">Choose Cash on Hand, GCash, or QR Ph. Upload a QR code for each QR payment method you accept.</p>
         <button class="inline-flex rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white" type="button" onclick="show('my-profile')">Edit payment settings</button>
       </section>
 
@@ -1495,15 +1496,23 @@
 
   document.getElementById('profileForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const formData = new FormData(e.target);
-    const body = Object.fromEntries(formData.entries());
-    const r = await fetch('/owner-dashboard/api/profile', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    if (r.ok) ownerToast('Property profile saved successfully!');
-    else ownerToast('Failed to save profile.', true);
+    const button = e.target.querySelector('button[type=submit]');
+    button.disabled = true;
+    try {
+      const result = await ownerRequest('/owner-dashboard/api/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.fromEntries(new FormData(e.target)))
+      });
+      e.target.elements.boardingHouseName.value = result.data.boardingHouseName;
+      document.getElementById('ownerBhName').textContent = result.data.boardingHouseName;
+      await loadBoardingHouses();
+      ownerToast('Property profile saved successfully!');
+    } catch (error) {
+      ownerToast(error.message, true);
+    } finally {
+      button.disabled = false;
+    }
   });
 
   // ─── My Profile & Documents ───
@@ -1516,8 +1525,10 @@
     const myForm = document.getElementById('myProfileForm');
     if (myForm.elements['contactNumber']) myForm.elements['contactNumber'].value = data.contactNumber || '';
     const paymentSetup = myForm.querySelector('[data-owner-payment-setup]');
-    const methods = data.rentPaymentOptions.methods;
-    paymentSetup.dataset.existingQr = data.rentPaymentOptions.hasQr ? 'true' : '';
+    const methods = data.rentPaymentOptions.selectedMethods || data.rentPaymentOptions.methods;
+    for (const upload of paymentSetup.querySelectorAll('[data-qr-method]')) {
+      upload.querySelector('input').dataset.existingQr = data.rentPaymentOptions.uploadedQrCodes[upload.dataset.qrMethod] ? 'true' : '';
+    }
     for (const input of paymentSetup.querySelectorAll('[name=paymentMethods]')) input.checked = methods.includes(input.value);
     paymentSetup.dispatchEvent(new Event('change'));
     if (myForm.elements['fullName']) myForm.elements['fullName'].value = data.fullName || '';
@@ -1564,7 +1575,7 @@
       const result = await ownerRequest('/owner-dashboard/api/my-profile', {
         method: 'PATCH', body: new FormData(e.target)
       });
-      e.target.elements.gcashQrCode.value = '';
+      for (const name of ['gcashQrCode', 'qrPhCode']) e.target.elements[name].value = '';
       ownerToast(result.message);
       await loadMyProfile();
     } catch (error) {
@@ -1797,7 +1808,7 @@
 
     const options = _allBoardingHouses.map(bh => `
       <option value="${bh.id}" ${Number(_selectedBhId) === Number(bh.id) ? 'selected' : ''}>
-        🏠 ${bh.name} ${bh.isPrimary ? '(Main)' : ''} — ${bh.barangay || bh.address || 'Bongabong'}
+        🏠 ${esc(bh.name)} ${bh.isPrimary ? '(Main)' : ''} — ${esc(bh.barangay || bh.address || 'Bongabong')}
       </option>
     `).join('');
 
@@ -2508,7 +2519,7 @@
   function updatePaymentReviewDecision() {
     const decline = paymentReview.elements.decision.value === 'decline';
     const reference = paymentReview.elements.reference;
-    reference.required = !decline && paymentReview.elements.method.value === 'GCash';
+    reference.required = !decline && ['GCash', 'QR Ph'].includes(paymentReview.elements.method.value);
     reference.disabled = !reference.required;
     paymentReview.querySelector('[data-review-reference]').hidden = !reference.required;
     paymentReview.elements.method.disabled = decline;

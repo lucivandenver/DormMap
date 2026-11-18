@@ -36,7 +36,7 @@ const storage = multer.diskStorage({
 const allowedMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024, files: 1012, fields: 750, parts: 1762 },
+  limits: { fileSize: 5 * 1024 * 1024, files: 1013, fields: 750, parts: 1763 },
   fileFilter: (req, file, cb) => {
     if (!allowedMimeTypes.has(file.mimetype) || !['.jpg','.jpeg','.png','.webp','.pdf'].includes(path.extname(file.originalname).toLowerCase())) {
       return cb(new Error('Only JPG, PNG, WEBP, and PDF files are allowed.'));
@@ -47,6 +47,7 @@ const upload = multer({
 const registerUpload = upload.fields([
   { name: "profilePicture", maxCount: 1 },
   { name: "gcashQrCode", maxCount: 1 },
+  { name: "qrPhCode", maxCount: 1 },
   { name: "boardingHousePicture", maxCount: 1 },
   { name: "validIdPicture", maxCount: 1 },
   { name: "businessPermit", maxCount: 1 },
@@ -259,7 +260,9 @@ router.post("/complete-owner-profile", cleanFailedRegistration, registerUpload, 
       user.roomsAvailable = Number(roomsAvailable) || 1;
       user.paymentMethods = setup.payment.paymentMethods;
       user.contactNumber = setup.payment.contactNumber;
-      user.gcashQrCode = await storeReviewFile(setup.payment.qr, user.id, 'payment-qr', transaction);
+      for (const [field, file] of Object.entries(setup.payment.qrUploads)) {
+        user[field] = await storeReviewFile(file, user.id, 'payment-qr', transaction);
+      }
       user.mapPin = mapPin;
       user.boardingHouseLatitude = boardingHouseLatitude || null;
       user.boardingHouseLongitude = boardingHouseLongitude || null;

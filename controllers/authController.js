@@ -660,7 +660,8 @@ export const registerUser = async (req, res) => {
         await created.update({
           boardingHousePicture: galleryImages[0] || null,
           galleryImages: JSON.stringify(galleryImages),
-          gcashQrCode: await storeReviewFile(setup.payment.qr, created.id, 'payment-qr', transaction),
+          ...Object.fromEntries(await Promise.all(Object.entries(setup.payment.qrUploads).map(async ([field, file]) =>
+            [field, await storeReviewFile(file, created.id, 'payment-qr', transaction)]))),
         }, { transaction });
         await registerPropertyInventory(created, setup, req.files, transaction);
       }
