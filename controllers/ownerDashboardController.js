@@ -1,5 +1,5 @@
 import { ownerPaymentConfig, ownerPaymentQr, validatePaymentMethods } from '../services/ownerPaymentConfig.js';
-import { assertNoOnlineCheckout, assertReferenceAvailable, manilaToday, paymentReference, validatePaidDate } from '../services/manualPaymentService.js';
+import { assertCurrentSubmission, assertNoOnlineCheckout, assertReferenceAvailable, manilaToday, notifyPaymentReview, paymentNotes, paymentReference, prepareManualConfirmation, validatePaidDate } from '../services/manualPaymentService.js';
 import { createTenantApplication, closeDuplicatePendingApplications } from '../services/tenantApplicationService.js';
 import { storeReviewFile } from '../services/reviewFileService.js';
 import { GALLERY_CATEGORIES, saveGallerySlot, storePropertyPhoto } from '../services/propertyPhotoService.js';
@@ -353,42 +353,56 @@ export const createPayment = async (req, res, next) => {
 };
 export const markPaid = async (req, res, next) => {
   try {
+    const reviewDate = validatePaidDate(req.body.confirmedDate ?? req.body.receivedDate ?? manilaToday());
+    const reviewNotes = paymentNotes(req.body.notes);
+    await prepareManualConfirmation(oid(req), req.params.id, req.body);
     const data = await sequelize.transaction(async transaction => {
       const ownerId = oid(req); await ownerLock(ownerId, transaction);
       const bill = await OwnerPayment.findOne({ where: { id: req.params.id, ownerId }, transaction, lock: transaction.LOCK.UPDATE });
       if (!bill) fail('Bill not found.', 404);
+      assertCurrentSubmission(bill, req.body);
       if (bill.status === 'paid') return bill;
+      if (bill.reviewStatus === 'declined') fail('Wait for the tenant to submit updated payment details.', 409);
       await assertNoOnlineCheckout(bill, transaction);
       const tenant = await OwnerTenant.findOne({ where: { id: bill.tenantId, ownerId }, transaction, lock: transaction.LOCK.UPDATE });
       if (!tenant) fail('The linked tenancy is missing.');
-      const method = req.body.method || 'Cash';
+      const method = req.body.method || bill.submittedMethod || 'Cash';
       if (!['Cash','GCash','Bank Transfer','Other'].includes(method)) fail('Invalid payment method.');
-      const reference = method === 'GCash' ? paymentReference(req.body.reference) : null;
+      const reference = method === 'GCash' ? paymentReference(req.body.reference ?? bill.submittedReference) : null;
       if (reference) await assertReferenceAvailable(bill, reference, transaction);
-      const paidDate = validatePaidDate(req.body.receivedDate ?? manilaToday());
-      await bill.update({ status: 'paid', paidDate, method, reference }, { transaction });
+      await bill.update({
+        status: 'paid', paidDate: reviewDate, method, reference,
+        reviewStatus: 'confirmed', reviewDate, reviewNotes
+      }, { transaction });
       await tenant.update({ balance: Math.max(0, Number(tenant.balance)-Number(bill.amount)-Number(bill.penalty)) }, { transaction });
+      await notifyPaymentReview(bill, tenant, 'confirmed', transaction);
       return bill;
     });
-    res.json({ data, message: 'Payment recorded.' });
+    res.json({ data, message: 'Payment confirmed. The tenant has been notified.' });
   } catch (error) { next(error); }
 };
 
 export const returnPaymentSubmission = async (req, res, next) => {
   try {
-    await sequelize.transaction(async transaction => {
+    const reviewDate = validatePaidDate(req.body.confirmedDate ?? manilaToday());
+    const reviewNotes = paymentNotes(req.body.notes, true);
+    const data = await sequelize.transaction(async transaction => {
       const ownerId = oid(req);
       await ownerLock(ownerId, transaction);
       const bill = await OwnerPayment.findOne({
         where: { id: req.params.id, ownerId }, transaction, lock: transaction.LOCK.UPDATE
       });
       if (!bill) fail('Bill not found.', 404);
+      assertCurrentSubmission(bill, req.body);
       if (bill.status !== 'pending' || !bill.submittedMethod) fail('There is no submission awaiting review.', 409);
-      await bill.update({
-        submittedMethod: null, submittedPaidDate: null, submittedReference: null, paymentProofUrl: null
-      }, { transaction });
+      if (bill.reviewStatus === 'declined') return bill;
+      const tenant = await OwnerTenant.findOne({ where: { id: bill.tenantId, ownerId }, transaction });
+      if (!tenant) fail('The linked tenancy is missing.');
+      await bill.update({ reviewStatus: 'declined', reviewDate, reviewNotes }, { transaction });
+      await notifyPaymentReview(bill, tenant, 'declined', transaction);
+      return bill;
     });
-    res.json({ message: 'Submission returned. The tenant can submit payment again.' });
+    res.json({ data, message: 'Payment declined. The tenant has been notified with your notes.' });
   } catch (error) { next(error); }
 };
 

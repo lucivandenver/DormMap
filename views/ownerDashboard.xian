@@ -676,25 +676,41 @@
       <!-- PANEL 6: PAYMENTS -->
       <dialog id="paymentReviewDialog" aria-labelledby="paymentReviewTitle" class="m-auto max-h-[90dvh] w-[calc(100%_-_2rem)] max-w-lg overflow-y-auto rounded-2xl p-5 text-slate-800 shadow-xl backdrop:bg-slate-950/60">
         <form id="paymentReviewForm" class="space-y-4">
-          <h3 id="paymentReviewTitle" class="text-xl font-bold">Record rent payment</h3>
+          <h3 id="paymentReviewTitle" class="text-xl font-bold">Review payment</h3>
           <p id="paymentReviewSummary" class="rounded-xl bg-slate-50 p-3 text-sm"></p>
-          <a id="paymentReviewProof" class="text-sm font-semibold text-emerald-800 underline" target="_blank" rel="noopener" hidden>View proof of payment</a>
-          <label class="block text-sm font-semibold">Method received
-            <select name="method" required class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
-              <option value="Cash">Cash on Hand</option>
-              <option value="GCash">GCash</option>
-            </select>
-          </label>
-          <label class="block text-sm font-semibold">Date received
-            <input name="receivedDate" type="date" required class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
-          </label>
-          <label class="block text-sm font-semibold" data-review-reference hidden>GCash reference number
-            <input name="reference" maxlength="100" class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
-          </label>
+          <dl id="paymentReviewDetails" class="grid grid-cols-2 gap-3 text-sm"></dl>
+          <div id="paymentReviewProofPanel" hidden class="space-y-2">
+            <p class="text-sm font-semibold">Proof of payment</p>
+            <img id="paymentReviewProofImage" alt="Tenant’s proof of payment" class="mx-auto max-h-72 max-w-full rounded-xl border border-slate-200 object-contain">
+            <p id="paymentReviewProofError" class="text-xs text-amber-800" hidden>Preview unavailable. Open the uploaded proof to inspect it.</p>
+            <a id="paymentReviewProof" class="text-sm font-semibold text-emerald-800 underline" target="_blank" rel="noopener">Open full-size proof</a>
+          </div>
+          <fieldset id="paymentReviewFields" class="space-y-4">
+            <label class="block text-sm font-semibold">Decision
+              <select name="decision" required class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
+                <option value="confirm">Confirm payment</option>
+                <option value="decline">Decline payment</option>
+              </select>
+            </label>
+            <label class="block text-sm font-semibold">Method received
+              <select name="method" required class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
+                <option value="Cash">Cash on Hand</option>
+                <option value="GCash">GCash</option>
+              </select>
+            </label>
+            <label class="block text-sm font-semibold"><span data-review-date-label>Confirmation date</span>
+              <input name="confirmedDate" type="date" required class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
+            </label>
+            <label class="block text-sm font-semibold" data-review-reference hidden>GCash reference number
+              <input name="reference" maxlength="100" class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
+            </label>
+            <label class="block text-sm font-semibold"><span data-review-notes-label>Notes (optional)</span>
+              <textarea name="notes" rows="3" maxlength="2000" class="mt-1 block w-full rounded-xl border border-slate-200 p-2" placeholder="Add a message for the tenant"></textarea>
+            </label>
+          </fieldset>
           <p role="alert" class="text-sm text-rose-700" data-payment-error></p>
           <div class="flex flex-wrap justify-end gap-2">
-            <button type="button" class="rounded-lg border px-3 py-2" onclick="this.closest('dialog').close()">Cancel</button>
-            <button type="button" class="rounded-lg border px-3 py-2 text-rose-700" id="returnPaymentSubmission">Return submission</button>
+            <button type="button" class="rounded-lg border px-3 py-2" onclick="this.closest('dialog').close()">Close</button>
             <button class="rounded-lg bg-emerald-700 px-4 py-2 font-semibold text-white" type="submit">Confirm payment</button>
           </div>
         </form>
@@ -2441,11 +2457,10 @@
         <td class="p-4 font-bold text-slate-800">${esc(p.tenantName || 'Tenant #' + p.tenantId)}<p class="text-xs font-normal text-slate-500">${esc(p.method === 'Cash' ? 'Cash on Hand' : p.method || 'Unpaid')} ${esc(p.reference || '')}</p></td>
         <td class="p-4">₱${Number(p.totalAmount ?? p.amount).toLocaleString()}</td>
         <td class="p-4 text-xs">${p.dueDate}</td>
-        <td class="p-4"><span class="px-2 py-1 rounded-full text-xs font-semibold ${p.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}">${p.status === 'pending' && p.submittedMethod ? 'Awaiting review' : esc(p.status)}</span></td>
+        <td class="p-4"><span class="px-2 py-1 rounded-full text-xs font-semibold ${p.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}">${p.status === 'pending' && p.reviewStatus === 'declined' ? 'Declined' : p.status === 'pending' && p.submittedMethod ? 'Submitted · Awaiting review' : esc(p.status)}</span></td>
         <td class="p-4 text-xs">${p.paidDate || '-'}</td>
         <td class="p-4 flex gap-2">
-          ${p.status !== 'paid' ? `<button onclick="markPaymentPaid(${p.id})" class="text-xs text-emerald-700 font-bold hover:underline">${p.submittedMethod ? 'Review payment' : 'Record payment'}</button>` : ''}
-          ${p.status === 'pending' && !p.submittedMethod ? `<button onclick="deletePayment(${p.id})" class="text-xs text-rose-600 font-bold hover:underline">Delete</button>` : ''}
+          <button onclick="reviewPayment(${p.id})" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-50">Review</button>
         </td>
       </tr>
     `).join('');
@@ -2488,73 +2503,113 @@
 
   const paymentReview = document.getElementById('paymentReviewForm');
   const paymentReviewError = paymentReview.querySelector('[data-payment-error]');
-  const returnPaymentButton = document.getElementById('returnPaymentSubmission');
-  function updatePaymentReviewMethod() {
+  const reviewSubmitButton = paymentReview.querySelector('button[type=submit]');
+
+  function updatePaymentReviewDecision() {
+    const decline = paymentReview.elements.decision.value === 'decline';
     const reference = paymentReview.elements.reference;
-    reference.required = paymentReview.elements.method.value === 'GCash';
+    reference.required = !decline && paymentReview.elements.method.value === 'GCash';
     reference.disabled = !reference.required;
     paymentReview.querySelector('[data-review-reference]').hidden = !reference.required;
+    paymentReview.elements.method.disabled = decline;
+    paymentReview.elements.notes.required = decline;
+    paymentReview.querySelector('[data-review-date-label]').textContent = decline ? 'Review date' : 'Confirmation date';
+    paymentReview.querySelector('[data-review-notes-label]').textContent = decline ? 'Reason for declining (required)' : 'Notes (optional)';
+    reviewSubmitButton.textContent = decline ? 'Decline payment' : 'Confirm payment';
+    reviewSubmitButton.classList.toggle('bg-rose-700', decline);
+    reviewSubmitButton.classList.toggle('bg-emerald-700', !decline);
   }
-  paymentReview.elements.method.addEventListener('change', updatePaymentReviewMethod);
+  paymentReview.elements.method.addEventListener('change', updatePaymentReviewDecision);
+  paymentReview.elements.decision.addEventListener('change', updatePaymentReviewDecision);
 
-  function markPaymentPaid(id) {
+  function reviewPayment(id) {
     const bill = ownerBills.find(item => item.id === id);
     if (!bill) return;
     paymentReview.reset();
     paymentReview.dataset.billId = id;
+    paymentReview.dataset.submissionId = bill.submissionId || '';
     paymentReviewError.textContent = '';
-    paymentReview.elements.method.value = bill.submittedMethod || 'Cash';
-    paymentReview.elements.receivedDate.value = ownerPaymentToday;
-    paymentReview.elements.receivedDate.max = ownerPaymentToday;
-    paymentReview.elements.reference.value = bill.submittedReference || '';
-    updatePaymentReviewMethod();
-    const summary = [bill.tenantName, bill.month, `₱${Number(bill.totalAmount).toFixed(2)}`];
-    if (bill.submittedMethod) summary.push(
-      `Tenant reported ${bill.submittedMethod === 'Cash' ? 'Cash on Hand' : bill.submittedMethod} on ${bill.submittedPaidDate}`,
-      bill.submittedReference ? `Reference ${bill.submittedReference}` : ''
-    );
-    document.getElementById('paymentReviewSummary').textContent = summary.filter(Boolean).join(' · ');
+    paymentReview.elements.method.value = bill.submittedMethod || bill.method || 'Cash';
+    paymentReview.elements.confirmedDate.value = ownerPaymentToday;
+    paymentReview.elements.confirmedDate.max = ownerPaymentToday;
+    paymentReview.elements.reference.value = bill.submittedReference || bill.reference || '';
+    updatePaymentReviewDecision();
+
+    const awaitingReview = bill.status === 'pending' && bill.submittedMethod && bill.reviewStatus !== 'declined';
+    document.getElementById('paymentReviewFields').hidden = !awaitingReview;
+    document.getElementById('paymentReviewFields').disabled = !awaitingReview;
+    reviewSubmitButton.hidden = !awaitingReview;
+    reviewSubmitButton.disabled = false;
+
+    const state = bill.status === 'paid' ? 'Confirmed'
+      : bill.reviewStatus === 'declined' ? 'Declined · Awaiting a new submission'
+      : bill.submittedMethod ? 'Submitted · Awaiting review' : 'Awaiting tenant submission';
+    document.getElementById('paymentReviewSummary').textContent =
+      [bill.tenantName, bill.month, `₱${Number(bill.totalAmount).toFixed(2)}`, state].filter(Boolean).join(' · ');
+    const details = [
+      ['Payment method', bill.submittedMethod || bill.method],
+      ['Tenant date paid', bill.submittedPaidDate],
+      ['Reference number', bill.submittedReference || bill.reference],
+      ['Tenant notes', bill.submissionNotes],
+      [bill.reviewStatus === 'declined' ? 'Declined on' : 'Confirmed on', bill.reviewDate || bill.paidDate],
+      ['Owner notes', bill.reviewNotes]
+    ];
+    const target = document.getElementById('paymentReviewDetails');
+    target.replaceChildren();
+    for (const [label, value] of details) {
+      const item = document.createElement('div');
+      const title = document.createElement('dt');
+      title.className = 'font-semibold text-slate-500';
+      title.textContent = label;
+      const description = document.createElement('dd');
+      description.className = 'break-words whitespace-pre-wrap';
+      description.textContent = value === 'Cash' && label === 'Payment method' ? 'Cash on Hand' : value || '—';
+      item.append(title, description);
+      target.append(item);
+    }
+
+    const panel = document.getElementById('paymentReviewProofPanel');
+    const image = document.getElementById('paymentReviewProofImage');
     const proof = document.getElementById('paymentReviewProof');
-    proof.hidden = !bill.paymentProofUrl;
-    if (bill.paymentProofUrl) proof.href = bill.paymentProofUrl;
-    else proof.removeAttribute('href');
-    returnPaymentButton.hidden = !bill.submittedMethod;
+    const previewError = document.getElementById('paymentReviewProofError');
+    panel.hidden = !bill.paymentProofUrl;
+    previewError.hidden = true;
+    image.hidden = false;
+    image.onerror = () => { image.hidden = true; previewError.hidden = false; };
+    if (bill.paymentProofUrl) {
+      proof.href = bill.paymentProofUrl;
+      image.src = bill.paymentProofUrl;
+    } else {
+      proof.removeAttribute('href');
+      image.removeAttribute('src');
+    }
     document.getElementById('paymentReviewDialog').showModal();
   }
 
-  async function savePaymentReview(returnSubmission) {
-    const button = paymentReview.querySelector('button[type=submit]');
-    if (button.disabled) return;
-    button.disabled = returnPaymentButton.disabled = true;
+  paymentReview.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (reviewSubmitButton.disabled) return;
+    const body = Object.fromEntries(new FormData(paymentReview));
+    body.submissionId = paymentReview.dataset.submissionId || null;
+    const decline = body.decision === 'decline';
+    reviewSubmitButton.disabled = true;
     paymentReviewError.textContent = '';
     const url = `/owner-dashboard/api/payments/${paymentReview.dataset.billId}`;
     try {
-      const result = returnSubmission
-        ? await ownerRequest(url + '/submission', { method: 'DELETE' })
-        : await ownerRequest(url + '/pay', {
-          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(Object.fromEntries(new FormData(paymentReview)))
-        });
+      const result = await ownerRequest(url + (decline ? '/submission' : '/pay'), {
+        method: decline ? 'DELETE' : 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
       document.getElementById('paymentReviewDialog').close();
       ownerToast(result.message);
       loadPayments(); loadTenants(); loadOverview();
     } catch (error) {
       paymentReviewError.textContent = error.message;
     } finally {
-      button.disabled = returnPaymentButton.disabled = false;
+      reviewSubmitButton.disabled = false;
     }
-  }
-  paymentReview.addEventListener('submit', event => {
-    event.preventDefault();
-    savePaymentReview(false);
   });
-  returnPaymentButton.addEventListener('click', () => savePaymentReview(true));
-
-  async function deletePayment(id) {
-    if (!await DormMapFeedback.confirm('Remove this unpaid bill? Paid bills and online payment history are retained.')) return;
-    try { await ownerRequest(`/owner-dashboard/api/payments/${id}`, { method: 'DELETE' }); ownerToast('Unpaid bill removed.'); loadPayments(); loadTenants(); }
-    catch (error) { ownerToast(error.message, true); }
-  }
 
   // ─── Inquiries ───
   async function loadInquiries() {

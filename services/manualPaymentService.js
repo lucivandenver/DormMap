@@ -1,7 +1,10 @@
+import { randomUUID } from 'node:crypto';
+import { User } from '../models/userModel.js';
+import { BarangayNotification } from '../models/adminModels.js';
 import { ownerPaymentConfig } from './ownerPaymentConfig.js';
 import { Op } from 'sequelize';
 import { sequelize } from '../models/db.js';
-import { OwnerPayment } from '../models/ownerModels.js';
+import { OwnerNotification, OwnerPayment } from '../models/ownerModels.js';
 import { Payment } from '../models/paymentModels.js';
 import { fail, ownerLock } from './occupancyService.js';
 import { findActiveRental } from './rentalIdentityService.js';
@@ -28,7 +31,8 @@ export async function assertReferenceAvailable(bill, reference, transaction) {
   const conflict = await OwnerPayment.findOne({
     where: { ownerId: bill.ownerId, id: { [Op.ne]: bill.id }, [Op.or]: [
       { method: 'GCash', reference },
-      { status: 'pending', submittedMethod: 'GCash', submittedReference: reference }
+      { status: 'pending', submittedMethod: 'GCash', submittedReference: reference,
+        [Op.or]: [{ reviewStatus: { [Op.ne]: 'declined' } }, { reviewStatus: null }] }
     ] },
     attributes: ['id'], transaction
   });
@@ -55,8 +59,7 @@ export async function submitRentPayment(user, id, fields, proof) {
     });
     if (!bill) fail('Bill not found.', 404);
     if (bill.status !== 'pending') fail('This bill has already been paid.', 409);
-    if (bill.submittedMethod) fail('This payment was already submitted for owner review.', 409);
-    await assertNoOnlineCheckout(bill, transaction);
+    if (bill.submittedMethod && bill.reviewStatus !== 'declined') fail('This payment was already submitted for owner review.', 409);
 
     const method = fields.method;
     if (!ownerPaymentConfig(owner).methods.includes(method)) fail('Select a payment method accepted by your owner.');
@@ -66,8 +69,74 @@ export async function submitRentPayment(user, id, fields, proof) {
     if (gcash && !proof) fail('Upload your GCash proof of payment.');
     if (gcash) await assertReferenceAvailable(bill, reference, transaction);
     const paymentProofUrl = gcash ? await storeReviewFile(proof, user.id, 'payment-proof', transaction) : null;
-    return bill.update({
+    const submissionNotes = paymentNotes(fields.notes);
+    await bill.update({
+      submissionId: randomUUID(), submissionNotes, reviewStatus: 'submitted', reviewDate: null, reviewNotes: null,
       submittedMethod: method, submittedPaidDate: date, submittedReference: reference, paymentProofUrl
     }, { transaction });
+    await OwnerNotification.create({
+      ownerId: owner.id, title: 'Rent payment submitted',
+      body: `${user.fullName} submitted a ${method === 'Cash' ? 'Cash on Hand' : 'GCash'} payment for ${bill.month || bill.dueDate}. Open Payments to review the details.`,
+      type: 'payment_submitted', link: '#payments'
+    }, { transaction });
+    return bill;
   });
+}
+
+export function paymentNotes(value, required = false) {
+  const notes = typeof value === 'string' ? value.trim() : '';
+  if (notes.length > 2000) fail('Keep payment notes within 2,000 characters.');
+  if (required && !notes) fail('Enter a reason so the tenant knows why the payment was declined.');
+  return notes || null;
+}
+
+export function assertCurrentSubmission(bill, fields) {
+  if (Object.hasOwn(fields, 'submissionId') && (fields.submissionId || null) !== (bill.submissionId || null)) {
+    fail('The payment submission changed. Close this review and open it again.', 409);
+  }
+}
+
+export async function notifyPaymentReview(bill, tenant, decision, transaction) {
+  let tenantId = tenant.tenantUserId;
+  if (!tenantId && tenant.email) {
+    const account = await User.findOne({
+      where: { accountType: 'tenant', email: tenant.email.trim().toLowerCase() }, transaction
+    });
+    if (account && (await findActiveRental(account, { transaction }))?.id === tenant.id) tenantId = account.id;
+  }
+  if (!tenantId) return;
+  const confirmed = decision === 'confirmed';
+  await BarangayNotification.create({
+    userId: tenantId,
+    title: confirmed ? 'Rent payment confirmed' : 'Rent payment declined',
+    body: `Your payment for ${bill.month || bill.dueDate} was ${decision} on ${bill.reviewDate}.${bill.reviewNotes ? ' Owner notes: ' + bill.reviewNotes : ''}${confirmed ? '' : ' Review the notes and submit your payment details again.'}`,
+    type: confirmed ? 'payment_confirmed' : 'payment_declined', link: '#payments'
+  }, { transaction });
+}
+
+// Tenant submissions can be received while an older checkout is open.
+// Settlement still requires the old checkout to be closed by the provider.
+export async function prepareManualConfirmation(ownerId, id, fields) {
+  const bill = await OwnerPayment.findOne({ where: { id, ownerId } });
+  if (!bill) fail('Bill not found.', 404);
+  assertCurrentSubmission(bill, fields);
+  if (bill.status === 'paid') return;
+  if (bill.reviewStatus === 'declined') fail('Wait for the tenant to submit updated payment details.', 409);
+  const checkouts = await Payment.findAll({
+    where: { tenantPaymentId: bill.id, ownerId, status: { [Op.in]: ['PENDING', 'PROCESSING'] } }
+  });
+  if (!checkouts.length) return;
+  const { expireUnpaidPaymongoCheckout } = await import('./paymongoService.js');
+  const { handlePaymongoWebhookPayload } = await import('./paymentService.js');
+  for (const checkout of checkouts) {
+    if (!checkout.paymongoCheckoutId) fail('Review the previous online checkout before confirming this payment.', 409);
+    try {
+      await expireUnpaidPaymongoCheckout(checkout.paymongoCheckoutId);
+    } catch {
+      fail('Payment details are saved. Sync the previous checkout under Previous online checkouts, then review this payment again.', 409);
+    }
+    await handlePaymongoWebhookPayload({ data: { attributes: {
+      type: 'checkout_session.expired', data: { id: checkout.paymongoCheckoutId }
+    } } });
+  }
 }

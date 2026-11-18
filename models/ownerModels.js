@@ -67,6 +67,11 @@ export const OwnerTenant = sequelize.define('OwnerTenant', {
 }, { tableName: 'OwnerTenants' });
 
 const manualPaymentColumns = {
+  submissionId: { type: DataTypes.CHAR(36), allowNull: true },
+  submissionNotes: { type: DataTypes.TEXT, allowNull: true },
+  reviewStatus: { type: DataTypes.STRING(16), allowNull: true },
+  reviewDate: { type: DataTypes.DATEONLY, allowNull: true },
+  reviewNotes: { type: DataTypes.TEXT, allowNull: true },
   submittedMethod: { type: DataTypes.STRING, allowNull: true },
   submittedPaidDate: { type: DataTypes.DATEONLY, allowNull: true },
   submittedReference: { type: DataTypes.STRING, allowNull: true },

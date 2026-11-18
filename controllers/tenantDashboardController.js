@@ -315,7 +315,7 @@ export const getPaymentHistory = async (req, res, next) => {
 export const submitPayment = async (req, res, next) => {
   try {
     const data = await submitRentPayment(req.currentUser, req.params.id, req.body, req.file);
-    res.json({ data, message: 'Payment submitted for owner confirmation.' });
+    res.json({ data, message: 'Payment submitted successfully. Awaiting owner confirmation.' });
   } catch (error) { next(error); }
 };
 

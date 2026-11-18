@@ -19,7 +19,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
   const { migrateSchema, closeDatabase } = await import('../../services/schemaService.js');
   const { User } = await import('../../models/userModel.js');
   const { BoardingHouse, OwnerRoom, OwnerTenant, OwnerGallery } = await import('../../models/ownerModels.js');
-  const { Barangay, EducationalInstitution } = await import('../../models/adminModels.js');
+  const { Barangay, EducationalInstitution, BarangayNotification } = await import('../../models/adminModels.js');
   const { TenantApplication } = await import('../../models/tenantModels.js');
   const { OwnerPayment } = await import('../../models/ownerModels.js');
   const { Payment, PaymentReceipt, PaymentWebhook, PaymentAuditLog } = await import('../../models/paymentModels.js');
@@ -342,26 +342,43 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       }));
       assert.equal(invoice.status, 201, await invoice.clone().text());
       const { data: bill } = await invoice.json();
+      const oldCheckout = await Payment.create({
+        tenantId: second.id, ownerId: owner.id, ownerTenantId: rental.id, tenantPaymentId: bill.id,
+        billingMonth: bill.month, billingYear: 2099, internalReference: `OLD-${suffix}`,
+        amount: 250, baseAmount: 250, status: 'PENDING'
+      });
       const pay = `/tenant-dashboard/api/payments/${bill.id}/submit`;
       const fields = new FormData();
       fields.set('method', 'GCash');
       fields.set('reference', '1234567890');
       fields.set('paidDate', history.today);
+      fields.set('notes', 'Rent paid in advance.');
       fields.set('proof', new Blob([png], { type: 'image/png' }), 'proof.png');
       assert.equal((await request(pay, unrelatedCookie, { method: 'POST', body: fields })).status, 404);
       const payment = await request(pay, tenantCookie, { method: 'POST', body: fields });
       assert.equal(payment.status, 200, await payment.clone().text());
-      const { data: submission } = await payment.json();
+      const submitted = await payment.json();
+      const { data: submission } = submitted;
+      assert.match(submitted.message, /submitted successfully/);
       assert.equal(submission.status, 'pending');
+      assert.equal(submission.reviewStatus, 'submitted');
+      assert.equal(submission.submissionNotes, 'Rent paid in advance.');
       assert.equal(submission.submittedPaidDate, history.today);
       assert.equal((await request(submission.paymentProofUrl, ownerCookie)).status, 200);
       assert.equal((await request(submission.paymentProofUrl, unrelatedCookie)).status, 404);
       assert.equal((await request(pay, tenantCookie, { method: 'POST', body: fields })).status, 409);
       const confirm = `/owner-dashboard/api/payments/${bill.id}/pay`;
-      const received = json('PATCH', { method: 'GCash', reference: submission.submittedReference, receivedDate: history.today });
+      const received = json('PATCH', { method: 'GCash', reference: submission.submittedReference,
+        confirmedDate: history.today, submissionId: submission.submissionId });
+      assert.equal((await request(confirm, ownerCookie, received)).status, 409);
+      await oldCheckout.update({ status: 'EXPIRED' });
       assert.equal((await request(confirm, ownerCookie, received)).status, 200);
       assert.equal((await request(confirm, ownerCookie, received)).status, 200);
       assert.equal(Number((await rental.reload()).balance), initialBalance);
+      const confirmed = await OwnerPayment.findByPk(bill.id);
+      assert.equal(confirmed.reviewStatus, 'confirmed');
+      assert.equal(confirmed.reviewDate, history.today);
+      assert.equal(await BarangayNotification.count({ where: { userId: second.id, type: 'payment_confirmed' } }), 1);
       const cashInvoice = await request('/owner-dashboard/api/payments', ownerCookie, json('POST', {
         roomId: rental.roomId, amount: 100, dueDate: '2099-02-10'
       }));
@@ -371,8 +388,25 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       cash.set('method', 'Cash');
       cash.set('paidDate', history.today);
       assert.equal((await request(`/tenant-dashboard/api/payments/${cashBill.id}/submit`, tenantCookie, { method: 'POST', body: cash })).status, 200);
+      const cashSubmission = await OwnerPayment.findByPk(cashBill.id);
+      const declineUrl = `/owner-dashboard/api/payments/${cashBill.id}/submission`;
+      assert.equal((await request(declineUrl, ownerCookie, json('DELETE', {
+        submissionId: cashSubmission.submissionId, confirmedDate: history.today
+      }))).status, 422);
+      const decision = json('DELETE', { submissionId: cashSubmission.submissionId,
+        confirmedDate: history.today, notes: 'Please verify the amount with the owner.' });
+      assert.equal((await request(declineUrl, ownerCookie, decision)).status, 200);
+      assert.equal((await request(declineUrl, ownerCookie, decision)).status, 200);
+      assert.equal(await BarangayNotification.count({ where: { userId: second.id, type: 'payment_declined' } }), 1);
+      const declinedHistory = await (await request('/tenant-dashboard/api/payments', tenantCookie)).json();
+      const declined = declinedHistory.payments.find(item => item.id === cashBill.id);
+      assert.equal(declined.reviewStatus, 'declined');
+      assert.equal(declined.reviewNotes, 'Please verify the amount with the owner.');
+      assert.equal((await request(`/tenant-dashboard/api/payments/${cashBill.id}/submit`, tenantCookie, { method: 'POST', body: cash })).status, 200);
+      assert.equal((await request(declineUrl, ownerCookie, decision)).status, 409);
+      const resubmission = await OwnerPayment.findByPk(cashBill.id);
       assert.equal((await request(`/owner-dashboard/api/payments/${cashBill.id}/pay`, ownerCookie,
-        json('PATCH', { method: 'Cash', receivedDate: history.today }))).status, 200);
+        json('PATCH', { method: 'Cash', confirmedDate: history.today, submissionId: resubmission.submissionId }))).status, 200);
       assert.equal((await request('/api/payments/qrph/create', tenantCookie, json('POST', {}))).status, 410);
     });
     await t.test('QR Ph checkout binds the correct tenant bill; duplicate webhooks reconcile once', async () => {
