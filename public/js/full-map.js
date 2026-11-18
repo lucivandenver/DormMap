@@ -13,12 +13,8 @@
       { maxZoom: 19, attribution: '© <a href="https://www.maptiler.com/copyright/">MapTiler</a>' }
     ) : null;
     const esriSatellite = leaflet.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?blankTile=false',
       { maxNativeZoom: 19, maxZoom: 20, attribution: 'Tiles © Esri, Maxar, Earthstar Geographics, and the GIS User Community' }
-    );
-    const roadLabels = leaflet.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',
-      { maxZoom: 20, pane: 'overlayPane', attribution: 'Labels © OpenStreetMap contributors © CARTO' }
     );
     const satellite = mapTilerSatellite || esriSatellite;
     let activeLayer = street;
@@ -69,13 +65,11 @@
       function selectLayer(layer) {
         streetButton.setAttribute('aria-pressed', String(layer === street));
         satelliteButton.setAttribute('aria-pressed', String(layer !== street));
-        if (layer === street) roadLabels.remove();
         if (layer === activeLayer) return;
         map.removeLayer(activeLayer);
         activeLayer = layer;
         startTiles();
         map.addLayer(layer);
-        if (layer !== street && layer !== publicSatellite) roadLabels.addTo(map);
       }
 
       function satelliteFinished(event) {

@@ -15,6 +15,27 @@ test('landing search combines actual rent ranges, barangay, type and nearby scho
   assert.equal(filter(houses, { barangay: 'Labasan', priceRange: 'under_1000' }).length, 0);
   assert.equal(hasCoordinates(houses[2]), false);
 });
+test('barangay searches keep local listings and include neighbors within 3 km', () => {
+  const barangay = 'Labasan';
+  const place = { latitude: 12.73, longitude: 121.47 };
+  const criteria = { barangay, place, radius: 3 };
+  assert.deepEqual(filter(houses, { ...criteria, placeKind: 'barangay' }), [houses[0], houses[1]]);
+  assert.deepEqual(filter(houses, { ...criteria, placeKind: 'institution' }), []);
+  assert.deepEqual(filter(houses, { unavailable: true }), []);
+});
+
+test('property and room types match actual room prices when an inventory is present', () => {
+  const dorm = {
+    propertyType: 'Dormitory', roomTypes: ['Bedspace', 'Solo Room'],
+    rentalPriceMin: 800, rentalPriceMax: 5000,
+    roomInventory: [{ roomType: 'Bedspace', rentalPrice: 800 }, { roomType: 'Solo Room', rentalPrice: 5000 }]
+  };
+  assert.deepEqual(filter([dorm], { type: 'Dormitory', priceRange: 'above_5000' }), [dorm]);
+  assert.deepEqual(filter([dorm], { type: 'Bedspace', priceRange: 'under_1000' }), [dorm]);
+  assert.deepEqual(filter([dorm], { type: 'Bedspace', priceRange: 'above_5000' }), []);
+  assert.deepEqual(filter([dorm], { priceRange: '2000_3000' }), []);
+});
+
 test('database place coordinates reject blank, out-of-area and invalid points', () => {
   assert.equal(storedPlace({ latitude: '', longitude: '' }), null);
   assert.equal(storedPlace({ latitude: 0, longitude: 0 }), null);

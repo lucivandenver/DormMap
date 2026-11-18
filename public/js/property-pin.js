@@ -83,6 +83,30 @@
     }
   };
 
+  window.dormMapGoogleDirectionsUrl = house => {
+    const coordinates = [house.latitude, house.longitude];
+    if (!coordinates.every((value, index) => value != null && String(value).trim() &&
+      Number.isFinite(Number(value)) && Math.abs(Number(value)) <= (index === 0 ? 90 : 180))) return null;
+    const url = new URL('https://www.google.com/maps/dir/');
+    url.searchParams.set('api', '1');
+    url.searchParams.set('destination', coordinates.map(Number).join(','));
+    return url.href;
+  };
+
+  window.dormMapGoogleDirectionsLink = house => {
+    const url = window.dormMapGoogleDirectionsUrl(house);
+    if (!url) return null;
+    const link = document.createElement('a');
+    link.className = 'dormmap-google-directions';
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.title = 'Directions in Google Maps';
+    link.setAttribute('aria-label', 'Directions in Google Maps (opens in a new tab)');
+    link.innerHTML = '<span aria-hidden="true"></span>';
+    return link;
+  };
+
   window.dormMapListingPopup = (house, { onDetails, onDirections } = {}) => {
     const popup = document.createElement('article');
     popup.className = 'dormmap-listing-popup';
@@ -103,11 +127,14 @@
     popup.append(heading, location, distance, rooms);
     const actions = document.createElement('div');
     actions.className = 'dormmap-listing-actions';
+    const googleDirections = window.dormMapGoogleDirectionsLink(house);
+    if (googleDirections) actions.append(googleDirections);
     for (const [label, callback] of [['View Details', onDetails], ['Get Directions', onDirections]]) {
       if (!callback) continue;
       const button = document.createElement('button');
       button.type = 'button';
       button.textContent = label;
+      if (callback === onDetails) button.className = 'dormmap-listing-details';
       button.addEventListener('click', callback);
       actions.append(button);
     }

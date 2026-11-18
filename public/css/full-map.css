@@ -77,8 +77,27 @@
   font: 600 .8rem/1.2 system-ui, sans-serif;
   cursor: pointer;
 }
-.dormmap-listing-actions button:first-child { background: #064e3b; color: #fff; border-color: #064e3b; }
+.dormmap-listing-actions button.dormmap-listing-details { background: #064e3b; color: #fff; border-color: #064e3b; }
 .dormmap-listing-actions button:hover, .dormmap-focus-listing:hover { background: #ecfdf5; color: #064e3b; }
+.dormmap-google-directions {
+  box-sizing: border-box;
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid #a7f3d0;
+  border-radius: 50%;
+  background: #fff;
+  color: #065f46 !important;
+}
+.dormmap-google-directions:hover { background: #ecfdf5; }
+.dormmap-google-directions span {
+  width: 1rem;
+  height: 1rem;
+  background: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m3 11 19-9-9 19-2-8-8-2Z' fill='none' stroke='black' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
 .dormmap-map-listing-card { width: auto; border: 1px solid #e2e8f0; border-radius: 16px; margin-bottom: .75rem; padding: .85rem; }
 .dormmap-map-listing-card.is-selected { border: 2px solid #047857; }
 .dormmap-focus-listing { margin-top: .5rem; }

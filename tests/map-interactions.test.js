@@ -123,15 +123,15 @@ test('full map and satellite switches keep listing markers and restore the previ
 
   dialog.querySelector('[data-satellite]').onclick();
   assert.ok([...layers].some(layer => layer.url?.includes('World_Imagery')));
-  assert.ok([...layers].some(layer => layer.url?.includes('light_only_labels')));
+  assert.ok(!tiles.some(layer => layer.url.includes('cartocdn.com')));
   assert.ok(layers.has(marker));
   dialog.querySelector('[data-street]').onclick();
   assert.ok(layers.has(street));
-  assert.ok(![...layers].some(layer => layer.url?.includes('light_only_labels')));
   assert.ok(layers.has(marker));
 
   dialog.querySelector('[data-satellite]').onclick();
   const satellite = tiles.find(layer => layer.url.includes('World_Imagery'));
+  assert.match(satellite.url, /blankTile=false/);
   satellite.events.tileerror();
   satellite.events.load({ target: satellite });
   assert.ok([...layers].some(layer => layer.url?.includes('s2cloudless')));
@@ -155,7 +155,14 @@ test('listing pins use owner photos and popups show branch, barangay, town and c
   assert.equal(pin.html.children[0].children[0].src, house.ownerProfilePicture);
   assert.equal(context.window.dormMapListingTitle(house), 'Sample House · Branch 2');
   assert.equal(context.window.dormMapListingLocation(house), 'Labasan, Bongabong');
-  const popup = context.window.dormMapListingPopup(house);
+  const unregistered = context.window.dormMapPropertyPin(leaflet, true, house);
+  assert.match(unregistered.html.className, /is-unregistered/);
+  const popup = context.window.dormMapListingPopup(house, { onDetails() {} });
+  const [directions, details] = popup.children.at(-1).children;
+  assert.equal(new URL(directions.href).searchParams.get('destination'), '12.774,121.47');
+  assert.equal(directions.target, '_blank');
+  assert.equal(details.textContent, 'View Details');
+  assert.equal(context.window.dormMapGoogleDirectionsUrl({ latitude: '', longitude: 121.47 }), null);
   await context.window.dormMapRefreshListingDistance(leaflet, popup, house);
   assert.match(popup.querySelector('[data-map-listing-distance]').textContent, /2.75 km from your location/);
 });
