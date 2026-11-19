@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { offerMoveInDate } from '../services/occupancyService.js';
 import { parseRoomPlan, floorLabel } from '../services/roomPlanService.js';
 import { validateOwnerSetup, validateOwnerPaymentSetup } from '../services/ownerRegistrationService.js';
 const bed = { roomNumber:'101',floor:1,roomType:'Bedspace',rentalBasis:'bed',capacity:6,bedCount:6,unavailable:2,rentalPrice:1500 };
@@ -56,4 +57,12 @@ test('registration accepts selected payment methods before the owner uploads QR 
  assert.throws(() => validateOwnerPaymentSetup({ contactNumber }, {}), /Select at least one/);
  const qr = { mimetype: 'image/png' };
  assert.equal(validateOwnerPaymentSetup({ contactNumber, paymentMethods: 'GCash' }, { gcashQrCode: [qr] }).qrUploads.gcashQrCode, qr);
+});
+
+test('rental offers preserve each calendar date and reject invalid dates', () => {
+  assert.equal(offerMoveInDate('2027-01-04'), '2027-01-04');
+  assert.equal(offerMoveInDate('2027-01-22'), '2027-01-22');
+  assert.equal(offerMoveInDate(''), null);
+  assert.throws(() => offerMoveInDate('2027-02-29'), /valid move-in date/);
+  assert.throws(() => offerMoveInDate('tomorrow'), /valid move-in date/);
 });

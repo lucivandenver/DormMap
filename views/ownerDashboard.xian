@@ -1177,7 +1177,7 @@
 <div id="tenantModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
   <div class="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-2xl">
     <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-      <h3 class="text-base font-bold text-slate-800">Register Tenant Manually</h3>
+      <h3 id="tenantModalTitle" class="text-base font-bold text-slate-800">Register Tenant Manually</h3>
       <button onclick="closeTenantModal()" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
     </div>
     <form id="tenantForm" class="space-y-3">
@@ -1196,7 +1196,9 @@
           <input type="text" name="contactNumber" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
         </div>
         <div>
-          <label class="block text-xs font-bold text-slate-500 mb-1">Assigned Room</label>
+          <label for="tenantBranchSelect" class="block text-xs font-bold text-slate-500 mb-1">Boarding house / branch</label>
+          <select id="tenantBranchSelect" class="mb-2 w-full rounded-lg border border-slate-200 p-2.5 text-sm"></select>
+          <label for="tenantRoomSelect" class="block text-xs font-bold text-slate-500 mb-1">Assigned Room</label>
           <select name="roomId" id="tenantRoomSelect" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none"></select>
         </div>
         <div>
@@ -1212,52 +1214,47 @@
       </div>
       <div class="flex justify-end gap-2 pt-2">
         <button type="button" onclick="closeTenantModal()" class="border border-slate-200 px-4 py-2 rounded-lg text-sm hover:bg-slate-50 transition">Cancel</button>
-        <button type="submit" class="bg-emerald-700 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-emerald-800 transition active:scale-95">Register</button>
+        <button type="submit" id="tenantSaveButton" class="bg-emerald-700 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-emerald-800 transition active:scale-95">Register</button>
       </div>
     </form>
   </div>
 </div>
 
-<!-- Accept Application Modal -->
+<!-- Tenant application review -->
 <div id="acceptAppModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
   <div class="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-2xl">
     <div class="flex items-center justify-between border-b border-slate-100 pb-3">
       <div>
-        <h3 class="text-base font-bold text-slate-800">Accept Tenant Application & Send Offer</h3>
+        <h3 class="text-base font-bold text-slate-800">Review Tenant Application</h3>
         <p id="acceptAppName" class="text-xs text-slate-500 mt-0.5"></p>
       </div>
       <button onclick="closeAcceptAppModal()" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
     </div>
-    <input type="hidden" id="acceptAppUserId">
-    <input type="hidden" id="acceptAppApplicationId">
-    
-    <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 leading-relaxed space-y-1">
-      <p class="font-bold flex items-center gap-1.5">
-        <span>ℹ️</span> Two-Way Acceptance Workflow
-      </p>
-      <p>
-        The room offer will appear on the tenant dashboard. <strong>The tenant must confirm it before a space is assigned</strong> to prevent double booking.
-      </p>
-    </div>
-
-    <div class="space-y-3">
-      <div>
-        <label class="block text-xs font-bold text-slate-500 mb-1">Room to offer (required)</label>
-        <select id="acceptAppRoomSelect" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none"></select>
+    <section id="reviewApplicantDetails" class="space-y-2 text-sm"></section>
+    <form id="tenantOfferForm" class="space-y-3">
+      <div id="tenantOfferFields" class="space-y-3 border-t border-slate-100 pt-3">
+        <p class="text-xs text-slate-600">The tenant must confirm the offer before the room is assigned.</p>
+        <label class="block text-xs font-bold text-slate-600">Room to offer
+          <select id="acceptAppRoomSelect" required class="mt-1 w-full rounded-lg border border-slate-200 p-2.5 text-sm"></select>
+        </label>
+        <div class="grid grid-cols-2 gap-3">
+          <label class="block text-xs font-bold text-slate-600">Household occupants
+            <input id="acceptAppOccupants" type="number" required min="1" max="100" value="1" class="mt-1 w-full rounded-lg border p-2.5">
+          </label>
+          <label class="block text-xs font-bold text-slate-600">Monthly total (₱)
+            <input type="number" id="acceptAppRent" step="0.01" min="0.01" required class="mt-1 w-full rounded-lg border p-2.5">
+          </label>
+        </div>
+        <label class="block text-xs font-bold text-slate-600">Move-in date
+          <input type="date" id="acceptAppMoveIn" required class="mt-1 w-full rounded-lg border p-2.5">
+        </label>
       </div>
-      <div>
-        <label class="block text-xs font-bold text-slate-500 mb-1">Household size (1 for each bedspace)<input id="acceptAppOccupants" type="number" min="1" max="100" value="1" class="w-full border rounded-lg p-2 mb-3"></label><label class="block text-xs font-bold text-slate-500 mb-1">Agreed monthly total (₱) *</label>
-        <input type="number" id="acceptAppRent" placeholder="e.g. 3000" min="0" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
+      <p id="tenantOfferMessage" role="status" class="text-xs text-slate-600"></p>
+      <div class="flex flex-wrap justify-end gap-2">
+        <button type="button" id="declineTenantReview" class="rounded-lg border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700">Decline</button>
+        <button type="submit" id="sendTenantOffer" class="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Accept &amp; Send Offer</button>
       </div>
-      <div>
-        <label class="block text-xs font-bold text-slate-500 mb-1">Target Move-in Date</label>
-        <input type="date" id="acceptAppMoveIn" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none">
-      </div>
-    </div>
-    <div class="flex justify-end gap-2 pt-1">
-      <button onclick="closeAcceptAppModal()" class="border border-slate-200 px-4 py-2 rounded-lg text-sm hover:bg-slate-50 transition">Cancel</button>
-      <button onclick="confirmAcceptApplication()" class="bg-emerald-700 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-emerald-800 transition active:scale-95">✅ Send Rental Offer</button>
-    </div>
+    </form>
   </div>
 </div>
 
@@ -2206,7 +2203,7 @@
         tbody.innerHTML = data.map(t => `
           <tr class="border-b border-slate-100 hover:bg-slate-50/50 transition">
             <td class="p-4 font-bold text-slate-800">${esc(t.fullName)}<p class="text-xs font-medium text-slate-500">${esc(t.status)} · ${t.occupantCount || 1} occupant(s)${t.bedNumber ? ' · Bed '+Number(t.bedNumber) : ''}</p></td>
-            <td class="p-4 text-xs text-slate-500">${t.contactNumber || t.email || '—'}</td>
+            <td class="p-4 text-xs text-slate-500">${esc(t.contactNumber || t.email || '—')}</td>
             <td class="p-4">${t.roomId ? 'Room ' + esc(t.roomNumber || t.roomId) : '<span class="text-slate-400 text-xs">Unassigned</span>'}<p class="text-xs text-slate-500">${esc(t.boardingHouseName || '')}</p></td>
             <td class="p-4 font-semibold text-emerald-700">₱${Number(t.monthlyRent || 0).toLocaleString()}</td>
             <td class="p-4">
@@ -2222,15 +2219,6 @@
         `).join('');
       }
 
-      // Populate room selects
-      const roomsRes = await fetch('/owner-dashboard/api/rooms');
-      const roomsData = await roomsRes.json();
-      const roomOptions = '<option value="">No Room Assigned</option>' + (roomsData.data || []).map(r =>
-        `<option value="${r.id}">${esc(r.boardingHouseName || 'Boarding house')} — Room ${esc(r.roomNumber)} (${esc(r.roomType)}) · ${r.availableSlots} free - ₱${Number(r.rentalPrice).toLocaleString()}</option>`
-      ).join('');
-      for (const id of ['tenantRoomSelect','acceptAppRoomSelect']) {
-        const select=document.getElementById(id),previous=select.value;select.innerHTML=roomOptions;if([...select.options].some(option=>option.value===previous))select.value=previous;
-      }
     } catch (err) {
       console.error('Error loading tenants:', err);
     }
@@ -2255,154 +2243,190 @@
       card.classList.remove('hidden');
       count.textContent = data.length;
 
-      list.innerHTML = data.map(u => {
-        const reviewId = `tenant-review-${Number(u.applicationId || u.id)}`;
-        let actionHtml = '';
-        if (u.status === 'accepted_by_owner') {
-          actionHtml = `
-            <div class="flex items-center gap-2">
-              <span class="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs">
-                <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                Offer Sent (Awaiting Tenant Acceptance Back)
-              </span>
-              <button data-applicant="${esc(u.fullName || 'Tenant')}" onclick="declineApplication(${Number(u.userId || u.id)}, this.dataset.applicant)" class="px-2 py-1 text-slate-400 hover:text-rose-600 text-xs font-semibold" title="Cancel Offer">Cancel Offer</button>
-            </div>
-          `;
-        } else if (u.status === 'confirmed') {
-          actionHtml = `
-            <span class="px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold flex items-center gap-1.5">
-              ✅ Confirmed Active Tenant
-            </span>
-          `;
-        } else if (u.status === 'cancelled_by_tenant') {
-          actionHtml = `
-            <span class="px-2.5 py-1 bg-slate-100 text-slate-500 rounded-lg text-xs font-bold">
-              ❌ Cancelled by Tenant
-            </span>
-          `;
-        } else {
-          // pending_owner or initial
-          actionHtml = `
-            <button data-applicant="${esc(u.fullName || 'Tenant')}" onclick="openAcceptAppModal(${Number(u.userId || u.id)}, this.dataset.applicant, ${Number(u.applicationId || u.id)})"
-              class="px-3 py-1.5 bg-emerald-700 text-white text-xs font-bold rounded-lg hover:bg-emerald-800 transition active:scale-95 flex items-center gap-1">
-              ✔ Accept & Send Offer
-            </button>
-            <button data-applicant="${esc(u.fullName || 'Tenant')}" onclick="declineApplication(${Number(u.userId || u.id)}, this.dataset.applicant)"
-              class="px-3 py-1.5 border border-rose-200 text-rose-600 text-xs font-bold rounded-lg hover:bg-rose-50 transition active:scale-95">
-              ✕ Decline
-            </button>
-          `;
-        }
-
-        return `
-        <article class="rounded-xl border border-amber-100 bg-white">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between bg-white rounded-xl border border-amber-100 px-4 py-3.5 gap-3 shadow-xs">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl flex-shrink-0 overflow-hidden bg-amber-200 flex items-center justify-center font-black text-amber-800 text-sm">
-              ${u.profilePicture ? `<img src="${esc(u.profilePicture)}" class="w-full h-full object-cover">` : (u.fullName ? u.fullName[0] : 'T')}
-            </div>
-            <div>
-              <div class="flex items-center gap-2">
-                <p class="text-sm font-bold text-slate-900">${esc(u.fullName)}</p>
-                ${u.requestedRoomType && u.requestedRoomType !== 'Any' ? `<span class="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-semibold">${esc(u.requestedRoomType)}</span>` : ''}
-              </div>
-              <p class="text-[11px] text-slate-500">${esc(u.email || u.contactNumber || 'No contact info')} &bull; Applied ${new Date(u.createdAt).toLocaleDateString('en-PH', {month:'short', day:'numeric'})}</p>
-              ${u.message ? `<p class="text-[11px] text-slate-600 italic mt-0.5 bg-slate-50 px-2 py-1 rounded border border-slate-100">"${esc(u.message)}"</p>` : ''}
-            </div>
+      applicationReviews = new Map(data.map(app => [Number(app.applicationId), app]));
+      list.innerHTML = data.map(app => `
+        <article class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-100 bg-white px-4 py-3">
+          <div class="min-w-0">
+            <p class="font-bold text-slate-900">${esc(app.fullName)}</p>
+            <p class="text-xs text-slate-600">${esc(app.requestedRoomType || 'Any room')} · ${esc(applicationStatusText(app.status))}</p>
           </div>
-          <div class="flex gap-2 flex-shrink-0 items-center">
-            <button type="button" class="px-3 py-1.5 rounded-lg border border-emerald-200 text-xs font-bold text-emerald-800"
-              aria-controls="${reviewId}" aria-expanded="false" onclick="toggleTenantReview(this)">Review</button>
-            ${actionHtml}
-          </div>
-        </div>
-        <section id="${reviewId}" hidden class="border-t border-amber-100 p-4 text-sm">
-          <h3 class="font-bold text-slate-900">Tenant application</h3>
-          <dl class="mt-3 grid gap-2 sm:grid-cols-2">
-            <div><dt class="font-semibold">Boarding house</dt><dd>${esc(u.boardingHouseName || 'Not specified')}</dd></div>
-            <div><dt class="font-semibold">Requested room</dt><dd>${esc(u.requestedRoomType || 'Any')}</dd></div>
-            <div><dt class="font-semibold">Email</dt><dd>${esc(u.email || 'Not provided')}</dd></div>
-            <div><dt class="font-semibold">Phone</dt><dd>${esc(u.contactNumber || 'Not provided')}</dd></div>
-            <div><dt class="font-semibold">Gender</dt><dd>${esc(u.gender || 'Not provided')}</dd></div>
-            <div><dt class="font-semibold">Inquiry</dt><dd class="whitespace-pre-wrap">${esc(u.message || 'No message submitted.')}</dd></div>
-          </dl>
-          <div class="mt-3"><h4 class="font-semibold">Government ID</h4>${DormMapPreview.render(u.validIdPicture, 'Government ID')}</div>
-        </section>
-        </article>
-        `;
-      }).join('');
+          <button type="button" onclick="openTenantReview(${Number(app.applicationId)})" class="rounded-lg border border-emerald-200 px-4 py-2 text-xs font-bold text-emerald-800">Review</button>
+        </article>`).join('');
     } catch (err) {
       console.error('Error loading pending applications:', err);
     }
   }
 
-  function toggleTenantReview(button) {
-    const review = document.getElementById(button.getAttribute('aria-controls'));
-    review.hidden = !review.hidden;
-    button.setAttribute('aria-expanded', String(!review.hidden));
-    button.textContent = review.hidden ? 'Review' : 'Hide review';
+  let applicationReviews = new Map();
+  let reviewingApplication;
+  let declineArmed = false;
+  let tenantAssignmentRooms = [];
+  const roomLabel = room => `Room ${room.roomNumber} · ${room.roomType} · ${room.availableSlots} free`;
+
+  function applicationStatusText(status) {
+    return {
+      pending_owner: 'Pending review', accepted_by_owner: 'Offer sent · Awaiting tenant confirmation',
+      confirmed: 'Confirmed', declined_by_owner: 'Declined', cancelled_by_tenant: 'Cancelled by tenant',
+      duplicate_closed: 'Duplicate closed'
+    }[status] || status;
   }
 
-  function openAcceptAppModal(userId, fullName, applicationId) {
-    document.getElementById('acceptAppUserId').value = userId;
-    document.getElementById('acceptAppApplicationId').value = applicationId || '';
-    document.getElementById('acceptAppName').textContent = `Target: ${fullName}`;
-    document.getElementById('acceptAppRent').value = '';
-    document.getElementById('acceptAppMoveIn').value = new Date().toISOString().split('T')[0];
+  async function openTenantReview(id) {
+    const app = applicationReviews.get(id);
+    if (!app) return;
+    reviewingApplication = app;
+    declineArmed = false;
+    const actionable = ['pending_owner', 'accepted_by_owner'].includes(app.status);
+    const date = document.getElementById('acceptAppMoveIn');
+    const roomSelect = document.getElementById('acceptAppRoomSelect');
+    const offerButton = document.getElementById('sendTenantOffer');
+    const declineButton = document.getElementById('declineTenantReview');
+    const message = document.getElementById('tenantOfferMessage');
+    document.getElementById('acceptAppName').textContent = app.fullName;
+    document.getElementById('reviewApplicantDetails').innerHTML = `
+      <dl class="grid gap-2 sm:grid-cols-2">${[
+        ['Boarding house / branch', app.boardingHouseName], ['Requested room', app.requestedRoomType],
+        ['Email', app.email], ['Phone', app.contactNumber], ['Gender', app.gender],
+        ['Status', applicationStatusText(app.status)], ['Offered room', app.room?.roomNumber],
+        ['Move-in date', app.moveInDate]
+      ].map(([label, value]) => `<div><dt class="font-semibold">${label}</dt><dd>${esc(value || '—')}</dd></div>`).join('')}</dl>
+      <p class="whitespace-pre-wrap">${esc(app.message || 'No inquiry message submitted.')}</p>
+      <div><h4 class="font-semibold">Government ID</h4>${DormMapPreview.render(app.validIdPicture, 'Government ID')}</div>`;
+    document.getElementById('tenantOfferFields').hidden = !actionable;
+    declineButton.hidden = offerButton.hidden = !actionable;
+    offerButton.disabled = true;
+    declineButton.disabled = actionable;
+    offerButton.textContent = app.status === 'accepted_by_owner' ? 'Update Offer' : 'Accept & Send Offer';
+    declineButton.textContent = app.status === 'accepted_by_owner' ? 'Cancel Offer' : 'Decline';
+    document.getElementById('acceptAppOccupants').value = app.occupantCount || 1;
+    document.getElementById('acceptAppRent').value = app.monthlyRent ?? '';
+    date.value = app.moveInDate || new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Manila' }).format(new Date());
+    roomSelect.replaceChildren(new Option('Choose a room', ''));
+    message.textContent = actionable ? 'Loading available rooms…' : '';
     document.getElementById('acceptAppModal').classList.remove('hidden');
+    if (!actionable) return;
+
+    try {
+      const { data } = await ownerRequest('/owner-dashboard/api/rooms');
+      if (reviewingApplication !== app) return;
+      const rooms = data.filter(room => room.branchApprovalStatus === 'approved' &&
+        (!app.boardingHouseId || room.boardingHouseId === app.boardingHouseId) &&
+        room.status === 'available' && Number(room.availableSlots) > 0);
+      for (const room of rooms) roomSelect.add(new Option(`${room.boardingHouseName} · ${roomLabel(room)}`, room.id));
+      if (rooms.some(room => room.id === app.roomId)) roomSelect.value = app.roomId;
+      offerButton.disabled = !rooms.length;
+      message.textContent = rooms.length ? '' : 'No available rooms for this application.';
+    } catch (error) {
+      if (reviewingApplication === app) message.textContent = error.message;
+    } finally {
+      if (reviewingApplication === app) declineButton.disabled = false;
+    }
   }
 
   function closeAcceptAppModal() {
+    reviewingApplication = null;
     document.getElementById('acceptAppModal').classList.add('hidden');
   }
 
-  async function confirmAcceptApplication() {
-    const userId = document.getElementById('acceptAppUserId').value;
-    const applicationId = document.getElementById('acceptAppApplicationId').value;
-    const roomId = document.getElementById('acceptAppRoomSelect').value;
-    const monthlyRent = document.getElementById('acceptAppRent').value;
-    const moveInDate = document.getElementById('acceptAppMoveIn').value;
+  async function saveApplicationReview(accept) {
+    const app = reviewingApplication;
+    if (!app) return;
+    const offer = document.getElementById('sendTenantOffer');
+    const decline = document.getElementById('declineTenantReview');
+    if (accept ? offer.disabled : decline.disabled) return;
+    const offerDisabled = offer.disabled;
+    const message = document.getElementById('tenantOfferMessage');
+    offer.disabled = decline.disabled = true;
+    const url = `/owner-dashboard/api/pending-applications/${app.userId}`;
+    try {
+      const response = accept
+        ? await ownerRequest(url + '/accept', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              applicationId: app.applicationId, roomId: document.getElementById('acceptAppRoomSelect').value,
+              monthlyRent: document.getElementById('acceptAppRent').value, moveInDate: document.getElementById('acceptAppMoveIn').value,
+              occupantCount: document.getElementById('acceptAppOccupants').value
+            })
+          })
+        : await ownerRequest(url + '/decline?' + new URLSearchParams({ applicationId: app.applicationId }), { method: 'DELETE' });
+      if (reviewingApplication === app) closeAcceptAppModal();
+      ownerToast(response.message);
+      loadTenants();
+      loadOverview();
+    } catch (error) {
+      if (reviewingApplication === app) message.textContent = error.message;
+      else ownerToast(error.message, true);
+    } finally {
+      if (reviewingApplication === app) {
+        offer.disabled = offerDisabled;
+        decline.disabled = false;
+      }
+    }
+  }
 
-    if (!monthlyRent || Number(monthlyRent) <= 0) {
-      ownerToast('Please enter a valid monthly rent amount.', true);
+  document.getElementById('tenantOfferForm').addEventListener('submit', event => {
+    event.preventDefault();
+    saveApplicationReview(true);
+  });
+  document.getElementById('declineTenantReview').addEventListener('click', event => {
+    if (declineArmed) {
+      saveApplicationReview(false);
       return;
     }
+    declineArmed = true;
+    event.currentTarget.textContent = reviewingApplication?.status === 'accepted_by_owner' ? 'Confirm Cancellation' : 'Confirm Decline';
+    document.getElementById('tenantOfferMessage').textContent = 'Confirm to notify the tenant and close this application.';
+  });
 
-    try {
-      const res = await fetch(`/owner-dashboard/api/pending-applications/${userId}/accept`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ occupantCount: document.getElementById('acceptAppOccupants').value, applicationId: applicationId || null, roomId: roomId || null, monthlyRent, moveInDate })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        closeAcceptAppModal();
-        ownerToast('🎉 Offer sent! Waiting for tenant to accept back on their portal.');
-        loadPendingApplications();
-        loadTenants();
-        loadOverview();
-      } else {
-        ownerToast(data.error || 'Failed to accept application.', true);
-      }
-    } catch (err) {
-      ownerToast('Network error. Please try again.', true);
+  function setTenantRoomOptions(selectedRoomId = '') {
+    const branchSelect = document.getElementById('tenantBranchSelect');
+    const roomSelect = document.getElementById('tenantRoomSelect');
+    roomSelect.replaceChildren(new Option('No room assigned', ''));
+    for (const room of tenantAssignmentRooms) {
+      if (String(room.boardingHouseId || '') !== branchSelect.value) continue;
+      roomSelect.add(new Option(roomLabel(room), room.id));
     }
+    roomSelect.value = String(selectedRoomId || '');
   }
 
-  async function declineApplication(userId, fullName) {
-    if (!await DormMapFeedback.confirm(`Decline ${fullName}'s rental application? They will need to re-apply.`)) return;
+  document.getElementById('tenantBranchSelect').addEventListener('change', event => {
+    setTenantRoomOptions();
+    document.getElementById('tenantRoomSelect').required = Boolean(event.target.value);
+    document.getElementById('tenantForm').elements.bedNumber.value = '';
+  });
+  document.getElementById('tenantRoomSelect').addEventListener('change', () => {
+    document.getElementById('tenantForm').elements.bedNumber.value = '';
+  });
+
+  async function openTenantModal(tenant) {
     try {
-      const res = await fetch(`/owner-dashboard/api/pending-applications/${userId}/decline`, { method: 'DELETE' });
-      if (res.ok) {
-        ownerToast(`${fullName}'s application declined.`);
-        loadPendingApplications();
-      } else ownerToast('Failed to decline application.', true);
-    } catch (err) { ownerToast('Network error.', true); }
-  }
-
-  function openTenantModal() {
-    document.getElementById('tenantForm').reset();
-    document.getElementById('tenantForm').elements['id'].value = '';
+      const { data } = await ownerRequest('/owner-dashboard/api/rooms');
+      tenantAssignmentRooms = data || [];
+    } catch (error) {
+      ownerToast(error.message, true);
+      return;
+    }
+    if (tenant?.roomId && !tenantAssignmentRooms.some(room => room.id === tenant.roomId)) {
+      ownerToast('The current room could not be loaded. Refresh and try again.', true);
+      return;
+    }
+    const form = document.getElementById('tenantForm');
+    form.reset();
+    form.elements.id.value = tenant?.id || '';
+    document.getElementById('tenantModalTitle').textContent = tenant ? 'Edit Tenant Assignment' : 'Register Tenant Manually';
+    document.getElementById('tenantSaveButton').textContent = tenant ? 'Save Changes' : 'Register';
+    const branchSelect = document.getElementById('tenantBranchSelect');
+    const branches = new Map(tenantAssignmentRooms.filter(room => room.boardingHouseId).map(room => [room.boardingHouseId, room.boardingHouseName]));
+    branchSelect.replaceChildren(new Option('Choose a branch', ''), ...Array.from(branches, ([id, name]) => new Option(name, id)));
+    const assigned = tenantAssignmentRooms.find(room => room.id === tenant?.roomId);
+    branchSelect.value = String(assigned?.boardingHouseId || branches.keys().next().value || '');
+    setTenantRoomOptions(tenant?.roomId);
+    document.getElementById('tenantRoomSelect').required = false;
+    if (tenant) {
+      for (const key of ['fullName', 'email', 'contactNumber', 'monthlyRent', 'status', 'occupantCount', 'bedNumber', 'moveInDate']) {
+        if (tenant[key] != null) form.elements[key].value = tenant[key];
+      }
+    }
     document.getElementById('tenantModal').classList.remove('hidden');
   }
 
@@ -2411,11 +2435,7 @@
   }
 
   function editTenant(tenant) {
-    openTenantModal();
-    const form = document.getElementById('tenantForm');
-    for (const key in tenant) {
-      if (form.elements[key]) form.elements[key].value = tenant[key];
-    }
+    openTenantModal(tenant);
   }
 
   document.getElementById('tenantForm').addEventListener('submit', async (e) => {

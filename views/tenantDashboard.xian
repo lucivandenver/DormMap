@@ -1118,7 +1118,7 @@
 </dialog>
 <style>#tenantBranchGallery::backdrop,#dormCompareDialog::backdrop{background:rgba(15,23,42,.55)}#dormCompareTable th,#dormCompareTable td{padding:12px;min-width:150px;border:1px solid #e2e8f0;vertical-align:top;overflow-wrap:anywhere}#dormCompareTable th{background:#ecfdf5;color:#023020}button:disabled{cursor:not-allowed}</style>
 <script src="/js/branch-gallery.js"></script>
-<script src="/js/tenant-dorm-browser.js"></script>
+<script src="/js/tenant-dorm-browser.js?v=2"></script>
 <script>
   window.currentUserId = Number("{{userId}}") || 0;
   let paymentHistoryChart = null;

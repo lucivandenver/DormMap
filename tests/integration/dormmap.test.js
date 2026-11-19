@@ -277,11 +277,13 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       await owner.update({ paymentMethods: '["Cash","GCash"]' });
       await assert.rejects(offerApplication(owner.id, second.id, offer), /Upload your GCash QR code/);
       await owner.update({ paymentMethods: '["Cash"]' });
-      await offerApplication(owner.id, second.id, { applicationId: app.id, roomId: offeredRoom.id, monthlyRent: 1500 });
+      const datedOffer = await offerApplication(owner.id, second.id, { ...offer, moveInDate: '2027-01-22' });
+      assert.equal(datedOffer.moveInDate, '2027-01-22');
       assert.equal((await OwnerRoom.findByPk(offeredRoom.id)).availableSlots, 1);
       assert.equal(await OwnerTenant.count({ where: { tenantUserId: second.id } }), 0);
       await confirmOffer(second.id, app.id); await confirmOffer(second.id, app.id);
       assert.equal(await OwnerTenant.count({ where: { tenantUserId: second.id } }), 1);
+      assert.equal((await OwnerTenant.findOne({ where: { tenantUserId: second.id } })).moveInDate, '2027-01-22');
       assert.equal((await OwnerRoom.findByPk(offeredRoom.id)).availableSlots, 0);
     });
     await t.test('unregistered map publication is explicitly scoped and excluded from rental applications', async () => {

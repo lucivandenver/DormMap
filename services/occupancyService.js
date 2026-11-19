@@ -99,6 +99,7 @@ export async function saveTenant(ownerId, id, body, { transaction: suppliedTrans
     values.monthlyRent = money(body.monthlyRent ?? tenant?.monthlyRent ?? 0);
     // The ledger controls balance; a public form cannot inject IDs, owner IDs, or payment balances.
     if (trustedUserId) values.tenantUserId = trustedUserId;
+    if (!values.roomId || values.roomId !== oldRoomId) values.bedNumber = null;
     if (values.roomId) {
       const room = await ownedRoom(ownerId, values.roomId, transaction);
       if (values.status === 'active') {
@@ -134,7 +135,7 @@ export async function saveTenant(ownerId, id, body, { transaction: suppliedTrans
     if (saved.tenantUserId) {
       const room = saved.roomId ? await ownedRoom(ownerId, saved.roomId, transaction) : null;
       const house = room ? await BoardingHouse.findByPk(room.boardingHouseId, { transaction }) : null;
-      await TenantApplication.update({ roomId: saved.roomId, boardingHouseId: house?.id || null, boardingHouseName: house?.name || 'Boarding House', monthlyRent: saved.monthlyRent, status: values.status === 'active' ? 'confirmed' : 'cancelled_by_tenant' }, { where: { ownerId, tenantId: saved.tenantUserId, status: 'confirmed' }, transaction });
+      await TenantApplication.update({ roomId: saved.roomId, boardingHouseId: house?.id || null, boardingHouseName: house?.name || 'Boarding House', monthlyRent: saved.monthlyRent, moveInDate: saved.moveInDate, status: values.status === 'active' ? 'confirmed' : 'cancelled_by_tenant' }, { where: { ownerId, tenantId: saved.tenantUserId, status: 'confirmed' }, transaction });
       await User.update({ selectedBoardingHouse: values.status === 'active' ? house?.name || null : null }, { where: { id: saved.tenantUserId }, transaction });
     }
     return saved;
@@ -165,7 +166,17 @@ function requirePropertySetup(owner, house, room) {
   }
 }
 
+export function offerMoveInDate(value) {
+  if (value == null || value === '') return null;
+  const date = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(value + 'T00:00:00Z') : null;
+  if (!date || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    fail('Enter a valid move-in date.');
+  }
+  return value;
+}
+
 export async function offerApplication(ownerId, tenantUserId, body) {
+  const moveInDate = offerMoveInDate(body.moveInDate);
   return sequelize.transaction(async transaction => {
     const owner = await ownerLock(ownerId, transaction);
     requireOwnerPaymentMethod(owner);
@@ -181,8 +192,8 @@ export async function offerApplication(ownerId, tenantUserId, body) {
     if (house?.approvalStatus !== 'approved') fail('This branch must be approved before offering rooms.');
     requirePropertySetup(owner, house, room);
     const occupantCount = integer(body.occupantCount || 1, 1, 'Household occupants');
-    if (occupantCount > room.capacity || (room.rentalBasis === 'bed' && occupantCount !== 1)) fail('The offered household size does not match this room.');
-    await app.update({ occupantCount, status: 'accepted_by_owner', roomId: room.id, boardingHouseId: house.id, boardingHouseName: house.name, monthlyRent: money(body.monthlyRent ?? Number(room.rentalPrice)*(room.rentalBasis === 'person' ? occupantCount : 1)), moveInDate: body.moveInDate || null, ownerNotes: String(body.notes || '').slice(0,2000), acceptedAt: new Date() }, { transaction });
+    if (occupantCount > room.availableSlots || (room.rentalBasis === 'bed' && occupantCount !== 1)) fail('The offered household size does not match this room.');
+    await app.update({ occupantCount, status: 'accepted_by_owner', roomId: room.id, boardingHouseId: house.id, boardingHouseName: house.name, monthlyRent: money(body.monthlyRent ?? Number(room.rentalPrice)*(room.rentalBasis === 'person' ? occupantCount : 1)), moveInDate, ownerNotes: String(body.notes || '').slice(0,2000), acceptedAt: new Date() }, { transaction });
     return app;
   });
 }

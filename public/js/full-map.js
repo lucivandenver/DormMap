@@ -248,6 +248,12 @@
     control.addTo(map);
     return open;
   };
+  window.dormMapMapStatus = (map, message) => {
+    const status = controls.get(map)?.querySelector('.dormmap-map-status');
+    if (!status) return false;
+    status.textContent = message;
+    return true;
+  };
   window.dormMapIsExpanded = map => controls.has(map);
   window.dormMapCloseExpanded = map => controls.get(map)?.close();
 
