@@ -8,18 +8,7 @@ export const handleDormigoChat = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Message is required' });
     }
 
-    const userContext = req.user ? {
-      id: req.user.id,
-      name: req.user.fullName,
-      accountType: req.user.accountType,
-      barangay: req.user.barangay
-    } : { accountType: 'guest' };
-
-    const result = await processDormigoChat({
-      message,
-      userContext,
-      history: history || []
-    });
+    const result = await processDormigoChat({ message, history: history || [] });
 
     return res.json({
       success: true,
@@ -33,7 +22,7 @@ export const handleDormigoChat = async (req, res) => {
       data: {
         reply: 'Dormigo is temporarily unavailable. Please try again or open the interactive map.',
         suggestions: ['View the map', 'Boarding houses in Poblacion'],
-        actionCards: [{ title: 'Explore Map', link: '/#map', label: 'Buksan ang Mapa', icon: 'map' }]
+        actionCards: [{ title: 'Explore Map', link: '/#map', label: 'Open Map', icon: 'map' }]
       }
     });
   }
@@ -53,10 +42,10 @@ export const getDormigoKnowledge = async (req, res) => {
     const dbContext = await fetchLiveDatabaseContext();
     return res.json({
       success: true,
-      knowledge: SYSTEM_KNOWLEDGE,
+      knowledge: { ...SYSTEM_KNOWLEDGE, barangays: dbContext.barangays, schools: dbContext.schools.map(school => school.name) },
       liveData: dbContext
     });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(503).json({ success: false, error: 'Live DormMap records are unavailable.' });
   }
 };

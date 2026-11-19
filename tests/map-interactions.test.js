@@ -61,9 +61,12 @@ function fixture(cartoKey = '', mapTilerKey = '') {
   const layers = new Set();
   const events = new Map();
   let wheel = false;
+  let zoom = 13;
   let zoomPosition = 'topleft';
   const map = {
     getContainer: () => container,
+    getZoom: () => zoom,
+    setView(point, level) { this.center = point; zoom = level; },
     scrollWheelZoom: {
       enabled: () => wheel, enable: () => { wheel = true; }, disable: () => { wheel = false; }
     },
@@ -87,7 +90,15 @@ function fixture(cartoKey = '', mapTilerKey = '') {
       tiles.push(layer);
       return layer;
     },
-    control() { return { addTo() {} }; },
+    control() { return { addTo() {}, remove() {} }; },
+    circleMarker(point) {
+      return {
+        point, setLatLng(value) { this.point = value; },
+        addTo(target) { target.addLayer(this); return this; },
+        bindPopup(text) { this.text = text; return this; },
+        openPopup() {}
+      };
+    },
     DomUtil: { create: () => new Element() },
     DomEvent: { disableClickPropagation() {} },
     divIcon: options => options,
@@ -138,9 +149,13 @@ test('full map and satellite switches keep listing markers and restore the previ
   dialog.querySelector('[data-satellite]').onclick();
   satellite.events.tileerror();
   satellite.events.load({ target: satellite });
-  assert.ok(layers.has(street));
+  const backup = tiles.find(layer => layer.url.includes('World_Imagery'));
+  assert.ok(layers.has(backup));
   assert.ok(!layers.has(satellite));
-  assert.ok(!tiles.some(layer => /World_Imagery|s2cloudless/.test(layer.url)));
+  assert.ok(!tiles.some(layer => layer.url.includes('s2cloudless')));
+  backup.events.tileerror();
+  backup.events.load({ target: backup });
+  assert.ok(layers.has(street));
   assert.match(dialog.querySelector('[role="status"]').textContent, /Satellite imagery could not load/);
 
   dialog.close();
@@ -149,6 +164,29 @@ test('full map and satellite switches keep listing markers and restore the previ
   assert.equal(map.zoomControl.getPosition(), 'topleft');
   assert.ok(layers.has(street));
   assert.ok(layers.has(marker));
+});
+
+test('location focuses the map and reuses one location marker', async () => {
+  const { context, map, leaflet, layers } = fixture();
+  await context.window.dormMapLocate(leaflet, map);
+  assert.equal(map.getZoom(), 16);
+  assert.equal(map.center.join(','), '12.72,121.47');
+  const [pin] = layers;
+  assert.equal(pin.text, 'Your current location');
+  context.navigator.geolocation.getCurrentPosition = resolve => resolve({ coords: { latitude: 12.73, longitude: 121.48 } });
+  await context.window.dormMapLocate(leaflet, map);
+  assert.equal(layers.size, 1);
+  assert.equal(pin.point.join(','), '12.73,121.48');
+});
+
+test('satellite is selectable without a MapTiler key', () => {
+  const { context, map, leaflet, layers, body, tiles } = fixture();
+  const street = leaflet.tileLayer('street').addTo(map);
+  context.window.dormMapFullMap(leaflet, map, street)(new Element('button'));
+  const dialog = body.children.find(node => node.tagName === 'dialog');
+  dialog.querySelector('[data-satellite]').onclick();
+  assert.ok(layers.has(tiles.find(layer => layer.url.includes('World_Imagery'))));
+  assert.ok(!tiles.some(layer => layer.url.includes('api.maptiler.com')));
 });
 
 test('configured Voyager preserves pins, switches layers and falls back to Street on tile failure', () => {

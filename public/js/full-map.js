@@ -2,13 +2,46 @@
   const key = document.querySelector('meta[name="dormmap-maptiler-key"]')?.content;
   const cartoKey = document.querySelector('meta[name="dormmap-carto-basemap-key"]')?.content;
   const controls = new WeakMap();
+  const locationPins = new WeakMap();
+  const locationRequests = new WeakMap();
+
+  window.dormMapLocate = (leaflet, map) => {
+    if (!navigator.geolocation) return Promise.reject(new Error('This browser does not support location access.'));
+    if (locationRequests.has(map)) return locationRequests.get(map);
+    const request = new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(({ coords }) => {
+        resolve([coords.latitude, coords.longitude]);
+      }, error => reject(new Error(error.code === 1
+        ? 'Location access is blocked. Allow it in your browser and try again.'
+        : 'Your current location could not be determined. Try again.')),
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 });
+    }).then(point => {
+      let pin = locationPins.get(map);
+      if (pin) pin.setLatLng(point);
+      else {
+        pin = leaflet.circleMarker(point, { radius: 8, color: '#fff', weight: 2, fillColor: '#2563eb', fillOpacity: 1 })
+          .addTo(map).bindPopup('Your current location');
+        locationPins.set(map, pin);
+      }
+      map.setView(point, Math.max(map.getZoom(), 16));
+      pin.openPopup();
+      return point;
+    }).finally(() => locationRequests.delete(map));
+    locationRequests.set(map, request);
+    return request;
+  };
 
   window.dormMapFullMap = (leaflet, map, street, picker, listings) => {
     const container = map.getContainer();
-    const satellite = key ? leaflet.tileLayer(
-      `https://api.maptiler.com/maps/satellite-v4/{z}/{x}/{y}.jpg?key=${encodeURIComponent(key)}`,
+    const mapTiler = key ? leaflet.tileLayer(
+      `https://api.maptiler.com/maps/satellite-v4/{z}/{x}/{y}.png?key=${encodeURIComponent(key)}`,
       { tileSize: 512, zoomOffset: -1, maxZoom: 21, attribution: '© <a href="https://www.maptiler.com/copyright/">MapTiler</a>' }
     ) : null;
+    const esri = leaflet.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?blankTile=false',
+      { maxNativeZoom: 17, maxZoom: 18, attribution: 'Tiles © Esri, Maxar, Earthstar Geographics, and the GIS User Community' }
+    );
+    const satellite = mapTiler || esri;
     const voyager = cartoKey ? leaflet.tileLayer(
       `https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${encodeURIComponent(cartoKey)}`,
       { maxNativeZoom: 19, maxZoom: 20, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> © <a href="https://carto.com/basemaps/">CARTO</a>' }
@@ -18,7 +51,7 @@
     control.onAdd = () => {
       const button = leaflet.DomUtil.create('button', 'dormmap-expand-map');
       button.type = 'button';
-      button.textContent = 'Open full map';
+      button.innerHTML = '<svg width="17" height="17" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3zM9 3v15m6-12v15"/></svg> Open full map';
       leaflet.DomEvent.disableClickPropagation(button);
       button.addEventListener('click', () => open(button));
       return button;
@@ -33,7 +66,7 @@
         <strong>${picker ? 'Choose property location' : 'DormMap'}</strong>
         <div aria-label="Map layer"><button type="button" data-street>Street</button>
         ${voyager ? '<button type="button" data-voyager>Voyager</button>' : ''}
-        <button type="button" data-satellite ${satellite ? '' : 'disabled title="Satellite imagery is unavailable"'}>Satellite</button></div>
+        <button type="button" data-satellite>Satellite</button></div>
         <button type="button" data-close>${picker ? 'Cancel' : 'Close'}</button>
       </div><p class="dormmap-map-status" role="status"></p>
       <div class="dormmap-map-stage">${listings ? `<aside class="dormmap-map-sidebar" aria-label="Boarding house listings">
@@ -55,7 +88,7 @@
 
       let loadedTiles = 0;
       let failedTiles = 0;
-      const alternateLayers = [voyager, satellite].filter(Boolean);
+      const alternateLayers = [voyager, mapTiler, esri].filter(Boolean);
       const startTiles = () => { loadedTiles = failedTiles = 0; };
       const tileLoaded = () => { loadedTiles++; };
       const tileFailed = () => { failedTiles++; };
@@ -63,7 +96,7 @@
       function selectLayer(layer) {
         streetButton.setAttribute('aria-pressed', String(layer === street));
         voyagerButton?.setAttribute('aria-pressed', String(layer === voyager));
-        satelliteButton.setAttribute('aria-pressed', String(layer === satellite));
+        satelliteButton.setAttribute('aria-pressed', String(layer === mapTiler || layer === esri));
         if (layer === activeLayer) return;
         map.removeLayer(activeLayer);
         activeLayer = layer;
@@ -73,6 +106,11 @@
 
       function tilesFinished(event) {
         if (event.target !== activeLayer || !failedTiles || loadedTiles) return;
+        if (activeLayer === mapTiler) {
+          selectLayer(esri);
+          status.textContent = 'Showing Esri satellite imagery.';
+          return;
+        }
         const failedLayer = activeLayer === voyager ? 'Voyager tiles' : 'Satellite imagery';
         selectLayer(street);
         status.textContent = `${failedLayer} could not load. Showing Street view.`;
@@ -88,13 +126,35 @@
       }
       streetButton.onclick = () => changeLayer(street);
       if (voyagerButton) voyagerButton.onclick = () => changeLayer(voyager);
-      if (satellite) satelliteButton.onclick = () => changeLayer(satellite);
+      satelliteButton.onclick = () => changeLayer(satellite);
       selectLayer(activeLayer);
       const resize = () => map.invalidateSize({ animate: false, pan: false });
       const scrollEnabled = map.scrollWheelZoom.enabled();
       const zoomPosition = map.zoomControl?.getPosition();
       map.scrollWheelZoom.enable();
       map.zoomControl?.setPosition('topright');
+      const locationControl = leaflet.control({ position: 'topright' });
+      locationControl.onAdd = () => {
+        const wrapper = leaflet.DomUtil.create('div', 'dormmap-location-control');
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.title = 'Use my current location';
+        button.setAttribute('aria-label', button.title);
+        button.innerHTML = '<svg width="18" height="18" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="7"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/><circle cx="12" cy="12" r="1"/></svg>';
+        wrapper.append(button);
+        leaflet.DomEvent.disableClickPropagation(wrapper);
+        button.onclick = async () => {
+          button.disabled = true;
+          status.textContent = 'Finding your location…';
+          try {
+            await window.dormMapLocate(leaflet, map);
+            status.textContent = picker ? 'Tap the map to place the property pin.' : '';
+          } catch (error) { status.textContent = error.message; }
+          finally { button.disabled = false; }
+        };
+        return wrapper;
+      };
+      locationControl.addTo(map);
       const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(resize) : null;
       observer?.observe(stage);
       window.addEventListener('resize', resize);
@@ -163,6 +223,7 @@
         observer?.disconnect();
         window.removeEventListener('resize', resize);
         if (!scrollEnabled) map.scrollWheelZoom.disable();
+        locationControl.remove();
         if (zoomPosition) map.zoomControl?.setPosition(zoomPosition);
         if (draft) draft.remove();
         picker?.existingMarker?.addTo(map);

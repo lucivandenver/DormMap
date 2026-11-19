@@ -13,8 +13,12 @@
   color: white;
 }
 .dormmap-map-toolbar button:disabled { opacity: .5; cursor: default; }
+html:has(.dormmap-full-map[open]) { overflow: hidden; }
 .dormmap-full-map {
-  width: 100dvw;
+  position: fixed;
+  inset: 0;
+  box-sizing: border-box;
+  width: 100%;
   height: 100dvh;
   max-width: none;
   max-height: none;
@@ -26,7 +30,7 @@
 }
 .dormmap-full-map[open] { display: flex; flex-direction: column; }
 .dormmap-full-map::backdrop { background: #0f172acc; }
-.dormmap-map-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; padding: .65rem; }
+.dormmap-map-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; padding: .65rem max(1rem, env(safe-area-inset-right)) .65rem max(1rem, env(safe-area-inset-left)); }
 .dormmap-map-status { margin: 0; padding: 0 .65rem; font-size: .85rem; }
 .dormmap-map-status:not(:empty) { padding-bottom: .5rem; }
 .dormmap-map-stage { flex: 1; min-height: 0; position: relative; }
@@ -38,9 +42,26 @@
   margin: 0 !important;
 }
 
+.dormmap-map-stage .leaflet-top.leaflet-right { right: max(6px, env(safe-area-inset-right)); }
+.dormmap-map-stage .leaflet-control-zoom { overflow: hidden; border-radius: 12px; }
+.dormmap-map-stage .leaflet-control-zoom a { width: 38px; height: 38px; line-height: 38px; }
+.dormmap-location-control button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+  color: #2563eb;
+  cursor: pointer;
+}
 .dormmap-map-stage .dormmap-expand-map { display: none; }
 
 .dormmap-expand-map {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
   border: 0;
   border-radius: 999px;
   padding: .7rem 1.1rem;
@@ -142,4 +163,10 @@
   .dormmap-map-sidebar { inset: auto 8px 24px; width: auto; max-width: none; max-height: 28%; padding: 10px; border-radius: 14px; }
   .dormmap-sidebar-heading { margin-bottom: .5rem; }
   .dormmap-map-listing-card { padding: .65rem; }
+}
+@media (max-width: 420px) {
+  .dormmap-map-toolbar > [aria-label="Map layer"] {
+    order: 1;
+    flex-basis: 100%;
+  }
 }
