@@ -13,7 +13,7 @@
   color: white;
 }
 .dormmap-map-toolbar button:disabled { opacity: .5; cursor: default; }
-html:has(.dormmap-full-map[open]) { overflow: hidden; }
+html:has(.dormmap-full-map[open], .dormmap-property-dialog[open]) { overflow: hidden; }
 .dormmap-full-map {
   position: fixed;
   inset: 0;
@@ -169,4 +169,32 @@ html:has(.dormmap-full-map[open]) { overflow: hidden; }
     order: 1;
     flex-basis: 100%;
   }
+}
+
+
+.dormmap-property-dialog {
+  position: fixed;
+  inset: 0;
+  width: min(42rem, calc(100% - 1.5rem));
+  max-width: none;
+  max-height: calc(100dvh - 1.5rem);
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 1.5rem;
+  background: white;
+  overflow-y: auto;
+}
+.dormmap-property-dialog > div { margin: 0; }
+.dormmap-property-dialog::backdrop { background: #020617bf; backdrop-filter: blur(8px); }
+
+@media (max-width: 600px) {
+  .dormmap-listing-pin-popup .leaflet-popup-content { margin: 11px 16px 10px 12px; }
+  .dormmap-listing-pin-popup .dormmap-listing-popup { width: min(216px, calc(100vw - 96px)); font-size: 12px; }
+  .dormmap-listing-pin-popup .dormmap-listing-popup p { margin: .3rem 0; }
+  .dormmap-listing-pin-popup .dormmap-listing-avatar { width: 29px; height: 29px; font-size: 14px; }
+  .dormmap-listing-pin-popup .dormmap-listing-distance { font-size: .7rem; }
+  .dormmap-listing-pin-popup .dormmap-listing-actions { gap: .25rem; }
+  .dormmap-listing-pin-popup .dormmap-listing-actions button { min-height: 32px; padding: .35rem .48rem; font-size: .68rem; }
+  .dormmap-listing-pin-popup .dormmap-google-directions { width: 32px; height: 32px; }
 }

@@ -663,7 +663,7 @@
   <script src="https://unpkg.com/lucide@latest"></script>
 
   <!-- Property Detail Modal -->
-  <div id="propertyDetailModal" class="fixed inset-0 z-[9999] hidden items-center justify-center bg-slate-950/75 p-3 sm:p-4 backdrop-blur-md overflow-y-auto">
+  <dialog id="propertyDetailModal" class="dormmap-property-dialog" aria-labelledby="detailTitle">
     <div class="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden my-6 animate-in fade-in zoom-in duration-200">
       
       <!-- Prominent Image Carousel (Wireframe Image 4 Style) -->
@@ -765,7 +765,7 @@
         </div>
       </div>
     </div>
-  </div>
+  </dialog>
 
   {{> authModal }}
 
@@ -968,9 +968,7 @@
       }
 
       const modal = document.getElementById('propertyDetailModal');
-      modal.classList.remove('hidden');
-      modal.classList.add('flex');
-      document.body.style.overflow = 'hidden';
+      if (!modal.open) modal.showModal();
     };
 
     // Haversine formula — returns distance in km between two lat/lng points
@@ -1147,9 +1145,7 @@
 
     window.closePropertyDetailModal = function() {
       const modal = document.getElementById('propertyDetailModal');
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
-      document.body.style.overflow = '';
+      modal.close();
     };
 
     window.handleInquireClick = function() {
@@ -1161,6 +1157,8 @@
 
       // Close the property detail modal first
       closePropertyDetailModal();
+
+      window.dormMapCloseExpanded(window.map);
 
       // Open the auth modal in Register → Tenant mode using the global API
       if (typeof window.openDormmapAuth === 'function') {
@@ -1239,136 +1237,57 @@
     window.handleGiveDirectionsClick = function() {
       const house = window.currentSelectedHouse;
       if (!house) return;
-
-      if (!DormMapSearch.hasCoordinates(house)) { Swal.fire('Location unavailable', 'This owner has not provided a map pin yet.', 'info'); return; }
-      const houseLat = Number(house.latitude);
-      const houseLng = Number(house.longitude);
-
-      if (!navigator.geolocation) {
-        Swal.fire('GPS Error', 'Geolocation is not supported by your browser.', 'error');
+      closePropertyDetailModal();
+      if (!DormMapSearch.hasCoordinates(house)) {
+        showLandingMapStatus(window.map, 'This listing does not have a map pin.');
         return;
       }
-
-      closePropertyDetailModal();
-      document.getElementById('landingMap')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-        const userLat = pos.coords.latitude;
-        const userLng = pos.coords.longitude;
-
-        if (window.currentDirectionRoute) {
-          window.map.removeLayer(window.currentDirectionRoute);
-        }
-        if (window.userLocationMarker) {
-          window.map.removeLayer(window.userLocationMarker);
-        }
-
-        // Add user location marker
-        window.userLocationMarker = L.marker([userLat, userLng], {
-          icon: L.divIcon({
-            className: 'user-gps-pin',
-            html: `<div class="flex items-center justify-center h-8 w-8 rounded-full bg-emerald-600 text-white shadow-lg border-2 border-white font-bold"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></svg></div>`,
-            iconSize: [32, 32],
-            iconAnchor: [16, 16]
-          })
-        }).addTo(window.map).bindPopup("<b>Your Current Location</b>").openPopup();
-
-        // Fetch turn-by-turn road route from OSRM
-        try {
-          const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${userLng},${userLat};${houseLng},${houseLat}?overview=full&geometries=geojson`;
-          const routeRes = await fetch(osrmUrl);
-          const routeData = await routeRes.json();
-
-          let routeCoords = [[userLat, userLng], [houseLat, houseLng]];
-          if (routeData.code === 'Ok' && routeData.routes && routeData.routes[0]) {
-            routeCoords = routeData.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
-          }
-
-          // Solid green Google Maps style navigation line
-          window.currentDirectionRoute = L.polyline(routeCoords, {
-            color: '#047857',
-            weight: 6,
-            opacity: 0.95,
-            lineCap: 'round',
-            lineJoin: 'round'
-          }).addTo(window.map);
-
-          window.map.fitBounds(window.currentDirectionRoute.getBounds(), { padding: [60, 60] });
-
-          Swal.fire({
-            icon: 'success',
-            title: 'Directions Active',
-            text: `Solid green road route calculated from your GPS location to ${house.boardingHouseName || 'selected boarding house'}!`,
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false,
-            timer: 4000
-          });
-        } catch (err) {
-          // Fallback solid green polyline
-          window.currentDirectionRoute = L.polyline([[userLat, userLng], [houseLat, houseLng]], {
-            color: '#047857',
-            weight: 6,
-            opacity: 0.95
-          }).addTo(window.map);
-          const bounds = L.latLngBounds([[userLat, userLng], [houseLat, houseLng]]);
-          window.map.fitBounds(bounds, { padding: [60, 60] });
-        }
-      }, (err) => {
-        Swal.fire('Location Access', 'Please allow GPS location access to get directions to this boarding house.', 'warning');
-      });
+      window._getDirectionsToCoords(Number(house.latitude), Number(house.longitude), listingTitle(house));
     };
 
-    // Shared Get Directions function — called directly from Leaflet popup buttons
+    function showLandingMapStatus(map, message) {
+      if (window.dormMapMapStatus(map, message)) return;
+      const status = document.getElementById('landingLocationStatus');
+      status.hidden = false;
+      status.textContent = message;
+    }
+
+    let directionRequest;
     window._getDirectionsToCoords = async function(destLat, destLng, label) {
-      if (!navigator.geolocation) {
-        Swal.fire('GPS Error', 'Geolocation is not supported by your browser.', 'error');
-        return;
+      directionRequest?.abort();
+      const request = new AbortController();
+      directionRequest = request;
+      const map = window.map;
+      const showStatus = message => showLandingMapStatus(map, message);
+      if (!window.dormMapIsExpanded(map)) {
+        document.getElementById('map').scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
-
-      document.getElementById('landingMap')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      if (window.map) window.map.closePopup();
-
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-        const userLat = pos.coords.latitude;
-        const userLng = pos.coords.longitude;
-
-        if (window.currentDirectionRoute) window.map.removeLayer(window.currentDirectionRoute);
-        if (window.userLocationMarker) window.map.removeLayer(window.userLocationMarker);
-
-        window.userLocationMarker = L.circleMarker([userLat, userLng], {
-          radius: 10, color: '#047857', fillColor: '#10b981', fillOpacity: 0.9, weight: 3
-        }).addTo(window.map).bindPopup('<strong class="text-sm">📍 Your Current Location</strong>').openPopup();
-
-        try {
-          const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${userLng},${userLat};${destLng},${destLat}?overview=full&geometries=geojson`;
-          const routeRes = await fetch(osrmUrl);
-          const routeData = await routeRes.json();
-
-          let routeCoords = [[userLat, userLng], [destLat, destLng]];
-          if (routeData.code === 'Ok' && routeData.routes?.[0]) {
-            routeCoords = routeData.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-          }
-
-          window.currentDirectionRoute = L.polyline(routeCoords, {
-            color: '#047857', weight: 6, opacity: 0.95, lineCap: 'round', lineJoin: 'round'
-          }).addTo(window.map);
-          window.map.fitBounds(window.currentDirectionRoute.getBounds(), { padding: [60, 60] });
-
-          Swal.fire({
-            icon: 'success', title: 'Directions Active',
-            text: `Route calculated to ${label || 'destination'} from your GPS location!`,
-            toast: true, position: 'top-end', showConfirmButton: false, timer: 3500
-          });
-        } catch {
-          window.currentDirectionRoute = L.polyline([[userLat, userLng], [destLat, destLng]], {
-            color: '#047857', weight: 6, opacity: 0.95
-          }).addTo(window.map);
-          window.map.fitBounds(L.latLngBounds([[userLat, userLng], [destLat, destLng]]), { padding: [60, 60] });
-        }
-      }, () => {
-        Swal.fire('Location Access', 'Please allow GPS location to get directions.', 'warning');
-      }, { enableHighAccuracy: true, timeout: 10000 });
+      map.closePopup();
+      if (window.currentDirectionRoute) {
+        map.removeLayer(window.currentDirectionRoute);
+        window.currentDirectionRoute = null;
+      }
+      showStatus('Finding your current location…');
+      try {
+        const [userLat, userLng] = await window.dormMapLocate(L, map);
+        if (request.signal.aborted) return;
+        showStatus('Finding a driving route…');
+        const url = `https://router.project-osrm.org/route/v1/driving/${userLng},${userLat};${destLng},${destLat}?overview=full&geometries=geojson`;
+        const response = await fetch(url, { signal: request.signal });
+        if (!response.ok) throw new Error('The driving route could not be loaded. Try again or open Google Maps from the listing pin.');
+        const data = await response.json();
+        const coordinates = data.routes?.[0]?.geometry?.coordinates;
+        if (data.code !== 'Ok' || !coordinates?.length) throw new Error('No driving route was found. Try Google Maps from the listing pin.');
+        if (request.signal.aborted) return;
+        window.currentDirectionRoute = L.polyline(coordinates.map(([lng, lat]) => [lat, lng]), {
+          color: '#047857', weight: 6, opacity: 0.95, lineCap: 'round', lineJoin: 'round'
+        }).addTo(map);
+        map.closePopup();
+        map.fitBounds(window.currentDirectionRoute.getBounds(), { padding: [44, 44], maxZoom: 17 });
+        showStatus(`Driving route to ${label || 'the selected boarding house'}.`);
+      } catch (error) {
+        if (!request.signal.aborted) showStatus(error.message || 'Directions could not be loaded.');
+      }
     };
 
     // Global event listener for View Details button inside map popups
@@ -1585,19 +1504,13 @@
       houses.forEach(house => {
         if (!DormMapSearch.hasCoordinates(house)) return;
         const popup = window.dormMapListingPopup(house, {
-          onDetails: () => {
-            window.dormMapCloseExpanded(map);
-            window.openPropertyDetailModal(house.id);
-          },
-          onDirections: () => {
-            window.dormMapCloseExpanded(map);
-            window._getDirectionsToCoords(Number(house.latitude), Number(house.longitude), listingTitle(house));
-          }
+          onDetails: () => window.openPropertyDetailModal(house.id),
+          onDirections: () => window._getDirectionsToCoords(Number(house.latitude), Number(house.longitude), listingTitle(house))
         });
         const marker = L.marker([Number(house.latitude), Number(house.longitude)], {
           icon: dormMapPropertyPin(L, house.registrationStatus === 'unregistered', house),
           listingId: house.id, title: listingTitle(house)
-        }).addTo(map).bindPopup(popup, { maxWidth: 300, autoPanPadding: [25, 25] });
+        }).addTo(map).bindPopup(popup, { className: 'dormmap-listing-pin-popup', maxWidth: 300, autoPanPadding: [25, 25] });
         marker.on('popupopen', () => {
           window.dormMapRefreshListingDistance(L, popup, house);
           renderSingleHouseCard(house);

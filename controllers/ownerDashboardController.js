@@ -257,8 +257,13 @@ export const getRooms = async (req, res, next) => {
     if (req.query.boardingHouseId) where.boardingHouseId = Number(req.query.boardingHouseId);
     const data = await OwnerRoom.findAll({ where, order: [['roomNumber', 'ASC']] });
     const tenants = await OwnerTenant.findAll({ where: { ownerId: oid(req), status: 'active' }, attributes: ['id','roomId','fullName','occupantCount','bedNumber'] });
-    const houses = await BoardingHouse.findAll({ where: { ownerId: oid(req) }, attributes: ['id','name'] });
-    res.json({ data: data.map(room => ({ ...room.toJSON(), boardingHouseName: houses.find(house => house.id === room.boardingHouseId)?.name || '', occupants: tenants.filter(tenant => tenant.roomId === room.id), occupiedPeople: tenants.filter(tenant => tenant.roomId === room.id).reduce((sum, tenant) => sum + tenant.occupantCount, 0) })) });
+    const houses = await BoardingHouse.findAll({ where: { ownerId: oid(req) }, attributes: ['id','name','approvalStatus'] });
+    res.json({ data: data.map(room => {
+      const house = houses.find(item => item.id === room.boardingHouseId);
+      const occupants = tenants.filter(tenant => tenant.roomId === room.id);
+      return { ...room.toJSON(), boardingHouseName: house?.name || '', branchApprovalStatus: house?.approvalStatus || null,
+        occupants, occupiedPeople: occupants.reduce((sum, tenant) => sum + tenant.occupantCount, 0) };
+    }) });
   } catch (err) { next(err); }
 };
 
@@ -1157,7 +1162,9 @@ export const getPendingApplications = async (req, res, next) => {
         gender: tenantUser ? tenantUser.gender : '',
         profilePicture: tenantUser ? tenantUser.profilePicture : '',
         validIdPicture: tenantUser ? tenantUser.validIdPicture : '',
+        boardingHouseId: app.boardingHouseId,
         boardingHouseName: app.boardingHouseName,
+        occupantCount: app.occupantCount,
         requestedRoomType: app.requestedRoomType || 'Any',
         message: app.message,
         status: app.status,
@@ -1192,28 +1199,27 @@ export const declineTenantApplication = async (req, res, next) => {
     const tenantUser = await User.findOne({ where: { id: userId, accountType: 'tenant' } });
     if (!tenantUser) return res.status(404).json({ error: 'Tenant user not found.' });
 
-    const owner = await User.findByPk(ownerId, { attributes: ['boardingHouseName', 'fullName'] });
-
-    // Update TenantApplication status to 'declined_by_owner'
-    const app = await TenantApplication.findOne({
-      where: {
-        tenantId: userId,
-        ownerId,
-        status: { [Op.in]: ['pending_owner', 'accepted_by_owner'] }
-      },
-      order: [['createdAt', 'DESC']]
+    const { owner, houseName } = await sequelize.transaction(async transaction => {
+      const owner = await ownerLock(ownerId, transaction);
+      const app = await TenantApplication.findOne({
+        where: {
+          tenantId: userId, ownerId,
+          ...(req.query.applicationId ? { id: req.query.applicationId } : {}),
+          status: { [Op.in]: ['pending_owner', 'accepted_by_owner'] }
+        },
+        order: [['createdAt', 'DESC']],
+        transaction, lock: transaction.LOCK.UPDATE
+      });
+      if (!app) fail('This application is no longer pending or offered.', 409);
+      await app.update({ status: 'declined_by_owner' }, { transaction });
+      return { owner, houseName: app.boardingHouseName };
     });
-
-    if (app) {
-      app.status = 'declined_by_owner';
-      await app.save();
-    }
 
     // Send notification to tenant
     await BarangayNotification.create({
       userId: tenantUser.id,
       title: 'Boarding House Application Update',
-      body: `${owner?.boardingHouseName || owner?.fullName || 'The Landlord'} was unable to accept your application at this time. You may browse and apply to other boarding houses on DormMap.`,
+      body: `${houseName || owner.boardingHouseName || owner.fullName || 'The landlord'} was unable to accept your application at this time. You may browse and apply to other boarding houses on DormMap.`,
       type: 'application_declined',
       isRead: false,
     }).catch(() => {});

@@ -144,10 +144,7 @@
           map.setView([item.latitude, item.longitude], 17);
           markers.get(item.id)?.openPopup();
         },
-        onDetails: item => {
-          window.dormMapCloseExpanded(map);
-          showBranchGallery(item);
-        },
+        onDetails: showBranchGallery,
         onDirections: item => {
           window.open(`https://www.openstreetmap.org/directions?to=${Number(item.latitude)},${Number(item.longitude)}`, '_blank', 'noopener');
         }
@@ -167,10 +164,7 @@
     markers.clear();
     located.forEach(item => {
       const popup = window.dormMapListingPopup(item, {
-        onDetails: () => {
-          window.dormMapCloseExpanded(map);
-          showBranchGallery(item);
-        }
+        onDetails: () => showBranchGallery(item)
       });
       const button = document.createElement('button');
       button.type = 'button';
@@ -183,7 +177,7 @@
       const marker = window.L.marker([item.latitude, item.longitude], {
         icon: window.dormMapPropertyPin(window.L, item.registrationStatus === 'unregistered', item),
         title: title(item)
-      }).addTo(markerLayer).bindPopup(popup);
+      }).addTo(markerLayer).bindPopup(popup, { className: 'dormmap-listing-pin-popup' });
       marker.on('popupopen', () => {
         window.dormMapRefreshListingDistance(window.L, popup, item);
         map.fire('dormmap:listing-selected', { id: item.id });

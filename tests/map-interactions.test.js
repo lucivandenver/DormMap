@@ -132,6 +132,9 @@ test('full map and satellite switches keep listing markers and restore the previ
   assert.equal(map.scrollWheelZoom.enabled(), true);
   assert.equal(map.zoomControl.getPosition(), 'topright');
   assert.notEqual(container.parent, original);
+  assert.equal(context.window.dormMapMapStatus(map, 'Finding a driving route…'), true);
+  assert.equal(dialog.querySelector('.dormmap-map-status').textContent, 'Finding a driving route…');
+  assert.equal(dialog.open, true);
 
   dialog.querySelector('[data-satellite]').onclick();
   const satellite = tiles.find(layer => layer.url.includes('satellite-v4'));
@@ -159,6 +162,7 @@ test('full map and satellite switches keep listing markers and restore the previ
   assert.match(dialog.querySelector('[role="status"]').textContent, /Satellite imagery could not load/);
 
   dialog.close();
+  assert.equal(context.window.dormMapMapStatus(map, 'Done'), false);
   assert.equal(container.parent, original);
   assert.equal(map.scrollWheelZoom.enabled(), false);
   assert.equal(map.zoomControl.getPosition(), 'topleft');
