@@ -1,9 +1,10 @@
+import { sequelize } from '../models/db.js';
 import { ownerPaymentConfig } from '../services/ownerPaymentConfig.js';
 import { manilaToday, submitRentPayment } from '../services/manualPaymentService.js';
 import { createTenantApplication, closeDuplicatePendingApplications, findApplicationProperty } from '../services/tenantApplicationService.js';
 import { storeReviewFile } from '../services/reviewFileService.js';
 import { orderBranches } from '../services/propertyBranchesService.js';
-import { confirmOffer } from '../services/occupancyService.js';
+import { confirmOffer, requestMoveOut } from '../services/occupancyService.js';
 import { listTenantDorms } from '../services/dormListingService.js';
 import { Op, fn, col } from 'sequelize';
 import bcrypt from 'bcrypt';
@@ -236,7 +237,7 @@ export const getMyRoom = async (req, res, next) => {
 
     if (!tenantRec) {
       const app = await TenantApplication.findOne({
-        where: { tenantId: user.id, status: { [Op.in]: ['confirmed', 'accepted_by_owner'] } },
+        where: { tenantId: user.id, status: 'confirmed' },
         order: [['createdAt', 'DESC']]
       });
       if (app) {
@@ -276,6 +277,40 @@ export const getMyRoom = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+export const getStayHistory = async (req, res, next) => {
+  try {
+    const current = await getTenantRecord(req.currentUser);
+    const stays = await OwnerTenant.findAll({
+      where: { [Op.or]: [{ tenantUserId: req.currentUser.id }, ...(current ? [{ id: current.id }] : [])] },
+      order: [['moveInDate', 'DESC'], ['id', 'DESC']]
+    });
+    const roomIds = new Set(stays.flatMap(stay => [stay.roomId, ...(stay.roomTransfers || []).flatMap(transfer => [transfer.fromRoomId, transfer.toRoomId])]).filter(Boolean));
+    const rooms = await OwnerRoom.findAll({ where: { id: { [Op.in]: [...roomIds] } } });
+    const houses = await BoardingHouse.findAll({ where: { id: { [Op.in]: rooms.map(room => room.boardingHouseId).filter(Boolean) } } });
+    const owners = await User.findAll({ where: { id: { [Op.in]: stays.map(stay => stay.ownerId) } }, attributes: ['id', 'boardingHouseName'] });
+    const place = (roomId, stay) => {
+      const room = rooms.find(item => item.id === roomId && item.ownerId === stay.ownerId);
+      const house = houses.find(item => item.id === room?.boardingHouseId);
+      return {
+        boardingHouseName: house?.name || owners.find(owner => owner.id === stay.ownerId)?.boardingHouseName || 'Boarding House',
+        floor: room?.floor || null, roomNumber: room?.roomNumber || null
+      };
+    };
+    res.json({ stays: stays.map(stay => ({
+      id: stay.id, status: stay.status, moveInDate: stay.moveInDate, moveOutDate: stay.moveOutDate,
+      requestedDate: stay.moveOutRequestedDate, ...place(stay.roomId, stay),
+      transfers: (stay.roomTransfers || []).map(({ date, fromRoomId, toRoomId }) => ({ date, from: place(fromRoomId, stay), to: place(toRoomId, stay) }))
+    })) });
+  } catch (error) { next(error); }
+};
+
+export const submitMoveOut = async (req, res, next) => {
+  try {
+    await requestMoveOut(req.currentUser.id, req.body.date);
+    res.json({ message: 'Move-out request sent to your owner.' });
+  } catch (error) { next(error); }
+};
+
 // ─── Payment History Module ──────────────────────────────────────────────────
 
 export const getPaymentHistory = async (req, res, next) => {
@@ -283,12 +318,10 @@ export const getPaymentHistory = async (req, res, next) => {
     const user = req.currentUser;
     const tenantRec = await getTenantRecord(user);
 
-    if (!tenantRec) {
-      return res.json({ payments: [], totalPaid: 0, totalBalance: 0 });
-    }
-
-    const { search = '', status = 'all' } = req.query;
-    const where = { tenantId: tenantRec.id };
+    const stays = await OwnerTenant.findAll({ where: { tenantUserId: user.id }, attributes: ['id', 'ownerId'] });
+    const stayIds = [...new Set([...stays.map(stay => stay.id), ...(tenantRec ? [tenantRec.id] : [])])];
+    const { status = 'all' } = req.query;
+    const where = { tenantId: { [Op.in]: stayIds } };
 
     if (status !== 'all') where.status = status;
 
@@ -300,9 +333,11 @@ export const getPaymentHistory = async (req, res, next) => {
     const totalPaid = payments.filter(p => p.status === 'paid').reduce((s, p) => s + Number(p.amount) + Number(p.penalty || 0), 0);
     const totalBalance = payments.filter(p => p.status === 'pending').reduce((s, p) => s + Number(p.amount) + Number(p.penalty || 0), 0);
 
-    const owner = await User.findByPk(tenantRec.ownerId, { attributes: ['paymentMethods', 'gcashQrCode', 'qrPhCode'] });
+    const owners = await User.findAll({ where: { id: { [Op.in]: [...new Set(stays.map(stay => stay.ownerId))] } }, attributes: ['id', 'boardingHouseName'] });
+    const houseByStay = new Map(stays.map(stay => [stay.id, owners.find(owner => owner.id === stay.ownerId)?.boardingHouseName]));
+    const owner = tenantRec ? await User.findByPk(tenantRec.ownerId, { attributes: ['paymentMethods', 'gcashQrCode', 'qrPhCode'] }) : null;
     res.json({
-      payments,
+      payments: payments.map(payment => ({ ...payment.toJSON(), boardingHouseName: houseByStay.get(payment.tenantId) || null, currentStay: payment.tenantId === tenantRec?.id })),
       paymentOptions: ownerPaymentConfig(owner),
       today: manilaToday(),
       totalPaid,
@@ -328,7 +363,7 @@ export const getRentalInformation = async (req, res, next) => {
 
     if (!tenantRec) {
       const app = await TenantApplication.findOne({
-        where: { tenantId: user.id, status: { [Op.in]: ['confirmed', 'accepted_by_owner'] } },
+        where: { tenantId: user.id, status: 'confirmed' },
         order: [['createdAt', 'DESC']]
       });
       if (app) {
@@ -777,8 +812,7 @@ export const applyBoardingHouse = async (req, res, next) => {
 
 export const confirmApplication = async (req, res, next) => {
   try {
-    const application = await confirmOffer(req.currentUser.id, req.params.id);
-    await OwnerNotification.create({ ownerId: application.ownerId, title: 'Tenancy confirmed', body: `${req.currentUser.fullName} confirmed the room offer for ${application.boardingHouseName}.`, type: 'tenant_confirmed' });
+    await confirmOffer(req.currentUser.id, req.params.id);
     res.json({ success: true, message: 'Tenancy confirmed. Your room assignment and available slots have been updated.' });
   } catch (error) { next(error); }
 };
@@ -788,17 +822,15 @@ export const cancelApplication = async (req, res, next) => {
     const user = req.currentUser;
     const { id } = req.params;
 
-    const app = await TenantApplication.findOne({
-      where: { id, tenantId: user.id }
+    const app = await sequelize.transaction(async transaction => {
+      await User.findByPk(user.id, { transaction, lock: transaction.LOCK.UPDATE });
+      const application = await TenantApplication.findOne({ where: { id, tenantId: user.id }, transaction, lock: transaction.LOCK.UPDATE });
+      if (!application) throw Object.assign(new Error('Application not found.'), { status: 404 });
+      if (!['pending_owner', 'accepted_by_owner'].includes(application.status)) {
+        throw Object.assign(new Error('This application is no longer open.'), { status: 409 });
+      }
+      return application.update({ status: 'cancelled_by_tenant' }, { transaction });
     });
-
-    if (!app) {
-      return res.status(404).json({ error: 'Application not found.' });
-    }
-
-    if (app.status === 'confirmed') return res.status(409).json({ error: 'Contact your owner to record move-out from an active tenancy.' });
-    app.status = 'cancelled_by_tenant';
-    await app.save();
 
     // Notify owner
     await OwnerNotification.create({

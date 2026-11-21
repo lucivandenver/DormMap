@@ -58,6 +58,8 @@ export const OwnerTenant = sequelize.define('OwnerTenant', {
   emergencyPhone:   { type: DataTypes.STRING,  allowNull: true },
   moveInDate:       { type: DataTypes.DATEONLY, allowNull: true },
   moveOutDate:      { type: DataTypes.DATEONLY, allowNull: true },
+  moveOutRequestedDate: { type: DataTypes.DATEONLY, allowNull: true },
+  roomTransfers: { type: DataTypes.JSON, allowNull: true },
   monthlyRent:      { type: DataTypes.DECIMAL(10,2), allowNull: true },
   balance:          { type: DataTypes.DECIMAL(10,2), allowNull: false, defaultValue: 0 },
   contractStart:    { type: DataTypes.DATEONLY, allowNull: true },

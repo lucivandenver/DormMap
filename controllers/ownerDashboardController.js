@@ -291,7 +291,7 @@ export const getTenants = async (req, res, next) => {
     const houses = await BoardingHouse.findAll({ where: { ownerId: oid(req) } });
     res.json({ data: data.map(tenant => {
       const room = rooms.find(room => room.id === tenant.roomId);
-      return { ...tenant.toJSON(), roomNumber: room?.roomNumber || null, boardingHouseName: houses.find(house => house.id === room?.boardingHouseId)?.name || null };
+      return { ...tenant.toJSON(), roomNumber: room?.roomNumber || null, floor: room?.floor || null, boardingHouseName: houses.find(house => house.id === room?.boardingHouseId)?.name || null };
     }) });
   } catch (err) { next(err); }
 };
@@ -1139,7 +1139,7 @@ export const getPendingApplications = async (req, res, next) => {
       }
     }
 
-    applications = await closeDuplicatePendingApplications(applications);
+    applications = (await closeDuplicatePendingApplications(applications)).filter(app => ['pending_owner', 'accepted_by_owner'].includes(app.status));
 
     // Attach tenant user information & room details to each application
     const enriched = await Promise.all(applications.map(async (app) => {
@@ -1186,9 +1186,17 @@ export const getPendingApplications = async (req, res, next) => {
 export const acceptTenantApplication = async (req, res, next) => {
   try {
     const data = await offerApplication(oid(req), req.params.userId, req.body);
-    await BarangayNotification.create({ userId: data.tenantId, title: 'Room offer received', body: `Review the offer for ${data.boardingHouseName} and confirm on your tenant dashboard. A slot is assigned only after confirmation.`, type: 'application_offered' });
     res.json({ success: true, data, message: 'Offer sent. The tenant must confirm; vacancy is checked again at confirmation.' });
-  } catch (error) { next(error); }
+  } catch (error) {
+    if (error.code === 'ACTIVE_TENANCY') {
+      await BarangayNotification.create({
+        userId: req.params.userId, title: 'Move-out needed before a new offer',
+        body: 'An owner tried to send you a room offer. Ask your current owner to record move-out before accepting a new tenancy.',
+        type: 'application_active_tenancy'
+      }).catch(() => {});
+    }
+    next(error);
+  }
 };
 
 export const declineTenantApplication = async (req, res, next) => {
@@ -1200,6 +1208,7 @@ export const declineTenantApplication = async (req, res, next) => {
     if (!tenantUser) return res.status(404).json({ error: 'Tenant user not found.' });
 
     const { owner, houseName } = await sequelize.transaction(async transaction => {
+      await User.findByPk(userId, { transaction, lock: transaction.LOCK.UPDATE });
       const owner = await ownerLock(ownerId, transaction);
       const app = await TenantApplication.findOne({
         where: {

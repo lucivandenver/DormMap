@@ -25,20 +25,30 @@ function checkUpload(file, types, label) {
 export function validateOwnerSetup(body, files) {
   const metadata = propertyMetadata(body);
   const declaredBranches = Number(body.declaredBranches);
-  const declaredRooms = Number(body.roomsAvailable);
-  if (![declaredBranches, declaredRooms].every(count => Number.isInteger(count) && count >= 1 && count <= 100)) {
-    throw Object.assign(new Error('Enter between 1 and 100 branches and rooms.'), { status: 422 });
+  if (!Number.isInteger(declaredBranches) || declaredBranches < 1 || declaredBranches > 100) {
+    throw invalidSetup('Enter between 1 and 100 branches.');
   }
-  const branches = [{ floors: metadata.floorCount, rooms: declaredRooms }];
-  for (let number = 2; number <= declaredBranches; number++) {
-    const floors = Number(body[`branchFloors${number}`]);
-    const rooms = Number(body[`branchRooms${number}`]);
-    if (!Number.isInteger(floors) || floors < 1 || floors > 50 || !Number.isInteger(rooms) || rooms < 1 || rooms > 100) {
-      throw Object.assign(new Error(`Enter valid floors and rooms for branch ${number}.`), { status: 422 });
+  const branches = Array.from({ length: declaredBranches }, (_, index) => {
+    const number = index + 1;
+    const floors = index ? Number(body[`branchFloors${number}`]) : metadata.floorCount;
+    if (!Number.isInteger(floors) || floors < 1 || floors > 50) throw invalidSetup(`Enter valid floors for branch ${number}.`);
+    const submitted = body[prefixFor(index) + 'roomsPerFloor'];
+    let roomsPerFloor;
+    let rooms;
+    if (submitted !== undefined) {
+      try { roomsPerFloor = JSON.parse(submitted); } catch { throw invalidSetup(`Enter the rooms on each floor of branch ${number}.`); }
+      if (!Array.isArray(roomsPerFloor) || roomsPerFloor.length !== floors ||
+          !roomsPerFloor.every(count => Number.isInteger(count) && count >= 0 && count <= 100)) {
+        throw invalidSetup(`Enter the rooms on each floor of branch ${number}.`);
+      }
+      rooms = roomsPerFloor.reduce((total, count) => total + count, 0);
+    } else {
+      rooms = Number(index ? body[`branchRooms${number}`] : body.roomsAvailable);
     }
-    branches.push({ floors, rooms });
-  }
-  Object.assign(metadata, { declaredBranches, declaredRooms });
+    if (!Number.isInteger(rooms) || rooms < 1 || rooms > 100) throw invalidSetup(`Enter between 1 and 100 total rooms for branch ${number}.`);
+    return { floors, rooms, ...(roomsPerFloor ? { roomsPerFloor } : {}) };
+  });
+  Object.assign(metadata, { declaredBranches, declaredRooms: branches[0].rooms });
   for (const field of ['validIdPicture', 'businessPermit', 'barangayClearance']) {
     checkUpload(files?.[field]?.[0], [...imageTypes, 'application/pdf'], field.replace(/([A-Z])/g, ' $1').toLowerCase());
   }
@@ -109,7 +119,7 @@ export async function registerPropertyInventory(user, setup, files, transaction)
       ownerId: user.id,
       isPrimary: false,
       approvalStatus: 'approved',
-      registrationSubmission: { submittedWithOwner: true },
+      registrationSubmission: { submittedWithOwner: true, roomsPerFloor: branch.roomsPerFloor },
       propertyType: setup.metadata.propertyType,
       floorCount: branch.floors,
       declaredRooms: branch.rooms,

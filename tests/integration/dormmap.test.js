@@ -486,7 +486,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
     });
     await t.test('owner signup photos and gallery replacements survive a clean upload directory', async () => {
       const form = new FormData();
-      const data = { accountType:'boarding_house_owner', fullName:'Registered Room Owner', email:`layout-${suffix}@example.test`, password:fixturePassword,confirmPassword:fixturePassword,acceptTerms:'on',boardingHouseName:'Layout Main',boardingHouseAddress:'Orconuma',streetAddress:'Purok 2, Main Street',roomsAvailable:'2',declaredBranches:'2',contactNumber:'09171234567',paymentMethods:'Cash',mapPin:'Lat 12.668945, Lon 121.491777',boardingHouseLatitude:'12.668945',boardingHouseLongitude:'121.491777',propertyType:'Mixed',floorCount:'2' };
+      const data = { accountType:'boarding_house_owner', fullName:'Registered Room Owner', email:`layout-${suffix}@example.test`, password:fixturePassword,confirmPassword:fixturePassword,acceptTerms:'on',boardingHouseName:'Layout Main',boardingHouseAddress:'Orconuma',streetAddress:'Purok 2, Main Street',declaredBranches:'2',contactNumber:'09171234567',paymentMethods:'Cash',mapPin:'Lat 12.668945, Lon 121.491777',boardingHouseLatitude:'12.668945',boardingHouseLongitude:'121.491777',propertyType:'Mixed',floorCount:'2',roomsPerFloor:'[1,1]' };
       Object.assign(data, {
         branchFloors2: '3', branchRooms2: '6', branch2_boardingHouseAddress: 'Labasan',
         branch2_streetAddress: 'Centro', branch2_boardingHouseLatitude: '12.774815',
@@ -506,7 +506,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.equal(created.gcashQrCode, null);
       assert.equal(created.contactNumber, data.contactNumber);
       for(const value of [created.profilePicture,created.boardingHousePicture,created.validIdPicture,created.businessPermit,created.barangayClearance,created.rentalPermit,...JSON.parse(created.galleryImages || '[]'),...Object.values(JSON.parse(created.supportingDocuments || '{}'))]) if(typeof value==='string'&&value.startsWith('/uploads/'))uploadedFiles.push(new URL('../../public'+value,import.meta.url));
-      const primary=await BoardingHouse.findOne({where:{ownerId:created.id,isPrimary:true}});assert.equal(primary.floorCount,2);assert.equal(primary.address,'Purok 2, Main Street');
+      const primary=await BoardingHouse.findOne({where:{ownerId:created.id,isPrimary:true}});assert.equal(primary.floorCount,2);assert.equal(primary.address,'Purok 2, Main Street');assert.deepEqual(primary.registrationSubmission.branches[0].roomsPerFloor,[1,1]);
       const rooms=await OwnerRoom.findAll({where:{ownerId:created.id},order:[['roomNumber','ASC']]});assert.equal(rooms.length,0);assert.equal(primary.declaredRooms,2);assert.equal(primary.declaredBranches,2);assert.equal(created.roomsAvailable,0);assert.equal(created.applicationStatus,'pending');
 
       const originalPhotos = JSON.parse(created.galleryImages);
@@ -732,6 +732,50 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const repairNotices=await(await request('/api/portal/notifications',secondCookie)).json();assert.ok(repairNotices.items.some(item=>item.type==='maintenance'&&item.url==='/tenant-dashboard#maintenance'));
       await repair.destroy();
       await OwnerMessage.destroy({where:{ownerId:owner.id}});await OwnerNotification.destroy({where:{ownerId:owner.id}});await BarangayNotification.destroy({where:{userId:second.id}});
+    });
+    await t.test('first confirmed offer closes competing offers and former stays remain in history', async () => {
+      const applicant = await User.create({ fullName: 'Returning Tenant', email: `returning-${suffix}@example.test`, password, accountType: 'tenant', emailVerified: true });
+      ids.push(applicant.id);
+      const otherOwner = await User.create({ fullName: 'Alternate Owner', email: `alternate-${suffix}@example.test`, password, accountType: 'boarding_house_owner', applicationStatus: 'approved', emailVerified: true });
+      ids.push(otherOwner.id);
+      const otherHouse = await BoardingHouse.create({ ownerId: otherOwner.id, name: 'Alternate Boarding House', approvalStatus: 'approved', floorCount: 1, barangay: 'Labasan' });
+      const roomA = await saveRoom(owner.id, null, { boardingHouseId: house.id, roomNumber: 'Lifecycle A', capacity: 1, rentalPrice: 800 });
+      const roomB = await saveRoom(otherOwner.id, null, { boardingHouseId: otherHouse.id, roomNumber: 'Lifecycle B', capacity: 1, rentalPrice: 800 });
+      await owner.update({ paymentMethods: '["Cash"]' });
+      const make = (id, property) => TenantApplication.create({ tenantId: applicant.id, ownerId: id, boardingHouseId: property.id, boardingHouseName: property.name });
+      const first = await make(owner.id, house);
+      const secondOffer = await make(otherOwner.id, otherHouse);
+      await Promise.all([
+        offerApplication(owner.id, applicant.id, { applicationId: first.id, roomId: roomA.id }),
+        offerApplication(otherOwner.id, applicant.id, { applicationId: secondOffer.id, roomId: roomB.id })
+      ]);
+      const results = await Promise.allSettled([confirmOffer(applicant.id, first.id), confirmOffer(applicant.id, secondOffer.id)]);
+      assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
+      const winner = results.find(result => result.status === 'fulfilled').value;
+      const other = winner.id === first.id ? secondOffer : first;
+      const openRoom = winner.id === first.id ? roomB : roomA;
+      assert.equal((await other.reload()).status, 'another_offer_accepted');
+      const former = await OwnerTenant.findOne({ where: { tenantUserId: applicant.id, status: 'active' } });
+      assert.equal(former.ownerId, winner.ownerId);
+      const activeBill = await OwnerPayment.create({ ownerId: winner.ownerId, tenantId: former.id, roomId: former.roomId, month: '2026-12', amount: 800, status: 'paid', dueDate: '2026-12-01' });
+      const newApp = await make(other.ownerId, other.id === first.id ? house : otherHouse);
+      await assert.rejects(offerApplication(other.ownerId, applicant.id, { applicationId: newApp.id, roomId: openRoom.id }), /active tenancy/);
+      const applicantCookie = await login(applicant.email);
+      const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Manila' }).format(new Date());
+      const moveOut = await request('/tenant-dashboard/api/stays/move-out', applicantCookie, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: today }) });
+      assert.equal(moveOut.status, 200, await moveOut.clone().text());
+      assert.equal((await former.reload()).moveOutRequestedDate, today);
+      await saveTenant(winner.ownerId, former.id, { status: 'moved_out', moveOutDate: today });
+      await offerApplication(other.ownerId, applicant.id, { applicationId: newApp.id, roomId: openRoom.id });
+      await confirmOffer(applicant.id, newApp.id);
+      const history = await (await request('/tenant-dashboard/api/stays', applicantCookie)).json();
+      assert.deepEqual(history.stays.map(stay => stay.status), ['active', 'moved_out']);
+      assert.equal(history.stays[1].moveOutDate, today);
+      const payments = await (await request('/tenant-dashboard/api/payments', applicantCookie)).json();
+      assert.ok(payments.payments.some(payment => payment.id === activeBill.id && !payment.currentStay));
+      const losingOwnerCookie = await login(winner.ownerId === owner.id ? otherOwner.email : owner.email);
+      const pendingList = await (await request('/owner-dashboard/api/pending-applications', losingOwnerCookie)).json();
+      assert.ok(!pendingList.data.some(application => application.id === other.id));
     });
     await request(`/tenant-dashboard/api/saved-dorms/${key}`, cookie, { method: 'DELETE' });
     assert.equal(await SavedDorm.count({ where: { tenantId: tenant.id } }), 0);

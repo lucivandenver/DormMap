@@ -3,8 +3,9 @@ import { floorNumber, floorLabel, ROOM_TYPES } from './roomPlanService.js';
 import { Op } from 'sequelize';
 import { sequelize } from '../models/db.js';
 import { User } from '../models/userModel.js';
-import { BoardingHouse, OwnerRoom, OwnerTenant, OwnerPayment } from '../models/ownerModels.js';
+import { BoardingHouse, OwnerRoom, OwnerTenant, OwnerPayment, OwnerNotification } from '../models/ownerModels.js';
 import { TenantApplication } from '../models/tenantModels.js';
+import { BarangayNotification } from '../models/adminModels.js';
 
 export const fail = (message, status = 422) => { throw Object.assign(new Error(message), { status }); };
 const pick = (body, fields) => Object.fromEntries(fields.filter(key => body[key] !== undefined).map(key => [key, body[key]]));
@@ -79,20 +80,62 @@ export async function saveRoom(ownerId, id, body) {
     return saved.reload({ transaction });
   });
 }
+const today = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Manila' }).format(new Date());
+const openApplications = ['pending_owner', 'accepted_by_owner'];
+
+async function activeStay(user, transaction, exceptId) {
+  return OwnerTenant.findOne({ where: {
+    status: 'active',
+    [Op.or]: [{ tenantUserId: user.id }, { tenantUserId: null, email: user.email }],
+    ...(exceptId ? { id: { [Op.ne]: exceptId } } : {})
+  }, transaction });
+}
+
+async function closeOtherOffers(userId, transaction, confirmedId) {
+  await TenantApplication.update({ status: 'another_offer_accepted' }, { where: {
+    tenantId: userId, status: { [Op.in]: openApplications },
+    id: { [Op.ne]: confirmedId }
+  }, transaction });
+}
+
 export async function saveTenant(ownerId, id, body, { transaction: suppliedTransaction, trustedUserId = null } = {}) {
+  const previous = id ? await OwnerTenant.findOne({ where: { id, ownerId } }) : null;
+  const linkedId = trustedUserId || previous?.tenantUserId;
+  const email = String(body.email ?? previous?.email ?? '').trim().toLowerCase();
+  const identity = linkedId ? { id: linkedId } : email ? { email } : null;
   const run = async transaction => {
+    const account = identity ? await User.findOne({ where: { ...identity, accountType: 'tenant' }, transaction, lock: transaction.LOCK.UPDATE }) : null;
     await ownerLock(ownerId, transaction);
     const tenant = id ? await OwnerTenant.findOne({ where: { id, ownerId }, transaction, lock: transaction.LOCK.UPDATE }) : null;
     if (id && !tenant) fail('Tenant not found.', 404);
+    if (tenant?.tenantUserId && tenant.tenantUserId !== account?.id) fail('Tenant assignment changed. Refresh and try again.', 409);
     const oldRoomId = tenant?.roomId;
     const values = pick(body, ['fullName','email','contactNumber','emergencyContact','emergencyPhone','moveInDate','moveOutDate','contractStart','contractEnd','notes']);
     if (!(values.fullName ?? tenant?.fullName)?.trim()) fail('Tenant name is required.');
     values.status = body.status ?? tenant?.status ?? 'active';
     if (!['active','moved_out','inactive','evicted'].includes(values.status)) fail('Invalid tenant status.');
-    if (tenant?.status === 'active' && values.status !== 'active' && !values.moveOutDate) {
-      values.moveOutDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Manila' }).format(new Date());
+    const ending = tenant?.status === 'active' && values.status !== 'active';
+    const returning = tenant && tenant.status !== 'active' && values.status === 'active';
+    if (ending) {
+      values.moveOutDate = offerMoveInDate(values.moveOutDate || today());
+      if (values.moveOutDate > today() || (tenant.moveInDate && values.moveOutDate < tenant.moveInDate)) {
+        fail('Move-out must be on or after move-in and cannot be in the future.');
+      }
+      values.moveOutRequestedDate = null;
     }
-    if (tenant && tenant.status !== 'active' && values.status === 'active') values.moveOutDate = null;
+    if (returning) {
+      values.moveInDate = offerMoveInDate(body.moveInDate);
+      if (!values.moveInDate || values.moveInDate < today() || (tenant.moveOutDate && values.moveInDate < tenant.moveOutDate)) fail('Choose a new move-in date.');
+      values.moveOutDate = null;
+    }
+    if (tenant && tenant.status !== 'active' && !returning) fail('This stay is already closed.', 409);
+    if (account && values.status === 'active' && await activeStay(account, transaction, returning ? null : tenant?.id)) {
+      fail('This tenant already has an active tenancy. Their current owner must record move-out first.', 409);
+    }
+    if (account && !trustedUserId && (!tenant || returning) && values.status === 'active' &&
+        await TenantApplication.count({ where: { tenantId: account.id, status: { [Op.in]: openApplications } }, transaction })) {
+      fail('This tenant has open inquiries or offers. Use the offer workflow so the tenant can confirm their choice.', 409);
+    }
     values.roomId = body.roomId === undefined ? tenant?.roomId || null : body.roomId ? integer(body.roomId, 1, 'Room') : null;
     values.occupantCount = integer(body.occupantCount ?? tenant?.occupantCount ?? 1, 1, 'Household occupants');
     if (values.occupantCount > 100) fail('Household occupants cannot exceed 100.');
@@ -124,19 +167,34 @@ export async function saveTenant(ownerId, id, body, { transaction: suppliedTrans
     }
     for (const key of ['moveInDate','moveOutDate','contractStart','contractEnd']) if (values[key] === '') values[key] = null;
     if (values.email) values.email = values.email.trim().toLowerCase();
-    const email = values.email ?? tenant?.email;
+    if (account && tenant?.tenantUserId) values.email = account.email;
     if (email && values.status === 'active' && await OwnerTenant.findOne({ where: { ownerId, email, status: 'active', ...(id ? { id: { [Op.ne]: id } } : {}) }, transaction })) fail('This tenant already has an active record with this owner.', 409);
-    if (!trustedUserId && !tenant?.tenantUserId && email) {
-      const account = await User.findOne({ where: { email, accountType: 'tenant' }, transaction });
-      if (account && await TenantApplication.findOne({ where: { tenantId: account.id, ownerId, status: 'confirmed' }, transaction })) values.tenantUserId = account.id;
+    if (account) values.tenantUserId = account.id;
+    if (returning && !values.roomId) fail('Choose a room for the new stay.');
+    if (ending) {
+      values.roomId = oldRoomId;
+      values.bedNumber = tenant.bedNumber;
+      values.moveInDate = tenant.moveInDate;
     }
-    const saved = tenant ? await tenant.update(values, { transaction }) : await OwnerTenant.create({ ...values, ownerId }, { transaction });
+    if (tenant?.status === 'active' && values.status === 'active' && values.roomId !== oldRoomId) {
+      values.roomTransfers = [...(tenant.roomTransfers || []), { fromRoomId: oldRoomId, toRoomId: values.roomId, date: today() }];
+    }
+    const saved = tenant && !returning ? await tenant.update(values, { transaction }) : await OwnerTenant.create({
+      ...(returning ? pick(tenant, ['fullName','email','contactNumber','emergencyContact','emergencyPhone']) : {}),
+      ...values, ownerId
+    }, { transaction });
     await syncOccupancy(ownerId, [oldRoomId, saved.roomId], transaction);
-    if (saved.tenantUserId) {
+    if (saved.tenantUserId && (ending || values.status === 'active')) {
       const room = saved.roomId ? await ownedRoom(ownerId, saved.roomId, transaction) : null;
       const house = room ? await BoardingHouse.findByPk(room.boardingHouseId, { transaction }) : null;
-      await TenantApplication.update({ roomId: saved.roomId, boardingHouseId: house?.id || null, boardingHouseName: house?.name || 'Boarding House', monthlyRent: saved.monthlyRent, moveInDate: saved.moveInDate, status: values.status === 'active' ? 'confirmed' : 'cancelled_by_tenant' }, { where: { ownerId, tenantId: saved.tenantUserId, status: 'confirmed' }, transaction });
-      await User.update({ selectedBoardingHouse: values.status === 'active' ? house?.name || null : null }, { where: { id: saved.tenantUserId }, transaction });
+      await TenantApplication.update({ roomId: saved.roomId, boardingHouseId: house?.id || null, boardingHouseName: house?.name || 'Boarding House', monthlyRent: saved.monthlyRent, moveInDate: saved.moveInDate, status: ending ? 'tenancy_ended' : 'confirmed' }, { where: { ownerId, tenantId: saved.tenantUserId, status: 'confirmed' }, transaction });
+      // A legacy duplicate can exist. Ending one stay should not erase the currently linked property.
+      if (!ending || !await activeStay(account, transaction)) {
+        await account.update({ selectedBoardingHouse: ending ? null : house?.name || null }, { transaction });
+      }
+      if (ending) {
+        await BarangayNotification.create({ userId: account.id, title: 'Move-out recorded', body: `Your owner recorded move-out on ${saved.moveOutDate}. Your stay is available in Boarding House History.`, type: 'tenancy_ended' }, { transaction });
+      }
     }
     return saved;
   };
@@ -171,10 +229,15 @@ export function offerMoveInDate(value) {
 export async function offerApplication(ownerId, tenantUserId, body) {
   const moveInDate = offerMoveInDate(body.moveInDate);
   return sequelize.transaction(async transaction => {
+    const user = await User.findOne({ where: { id: tenantUserId, accountType: 'tenant' }, transaction, lock: transaction.LOCK.UPDATE });
+    if (!user) fail('Tenant not found.', 404);
     const owner = await ownerLock(ownerId, transaction);
     requireOwnerPaymentMethod(owner);
     const app = await TenantApplication.findOne({ where: { ownerId, tenantId: tenantUserId, ...(body.applicationId ? { id: body.applicationId } : {}), status: { [Op.in]: ['pending_owner','accepted_by_owner'] } }, order: [['createdAt','DESC']], transaction, lock: transaction.LOCK.UPDATE });
-    if (!app) fail('No pending application from this tenant to this owner.', 404);
+    if (!app) fail('This inquiry is no longer pending or offered.', 409);
+    if (await activeStay(user, transaction)) {
+      throw Object.assign(new Error('This tenant already has an active tenancy. Their current owner must record move-out before you can send an offer.'), { status: 409, code: 'ACTIVE_TENANCY' });
+    }
     if (!body.roomId) fail('Choose a room to offer.');
     const room = await ownedRoom(ownerId, body.roomId, transaction);
     if (app.boardingHouseId && app.boardingHouseId !== room.boardingHouseId) fail('Offer a room in the boarding house the tenant applied to.');
@@ -189,6 +252,7 @@ export async function offerApplication(ownerId, tenantUserId, body) {
     const monthlyRent = money(body.monthlyRent ?? rate);
     if (monthlyRent <= 0) fail('Enter a monthly total greater than zero in the Review form.');
     await app.update({ occupantCount, status: 'accepted_by_owner', roomId: room.id, boardingHouseId: house.id, boardingHouseName: house.name, monthlyRent, moveInDate, ownerNotes: String(body.notes || '').slice(0,2000), acceptedAt: new Date() }, { transaction });
+    await BarangayNotification.create({ userId: app.tenantId, title: 'Room offer received', body: `Review and confirm the offer for ${app.boardingHouseName} on your tenant dashboard.`, type: 'application_offered' }, { transaction });
     return app;
   });
 }
@@ -196,23 +260,38 @@ export async function confirmOffer(userId, applicationId) {
   const initial = await TenantApplication.findOne({ where: { id: applicationId, tenantId: userId } });
   if (!initial) fail('Application not found.', 404);
   return sequelize.transaction(async transaction => {
+    const user = await User.findByPk(userId, { transaction, lock: transaction.LOCK.UPDATE });
     const owner = await ownerLock(initial.ownerId, transaction);
     if (owner.isSuspended || owner.isArchived || owner.publicMapUnregistered || !['approved','approved_barangay'].includes(owner.applicationStatus)) fail('This establishment is not currently eligible for tenancy.');
-    const user = await User.findByPk(userId, { transaction, lock: transaction.LOCK.UPDATE });
     const app = await TenantApplication.findByPk(applicationId, { transaction, lock: transaction.LOCK.UPDATE });
     if (app.status === 'confirmed') return app;
+    if (app.status !== 'accepted_by_owner') fail('This offer is no longer available for confirmation.', 409);
     requireOwnerPaymentMethod(owner);
     const branch = app.boardingHouseId ? await BoardingHouse.findByPk(app.boardingHouseId, { transaction }) : null;
     if (branch?.approvalStatus !== 'approved') fail('This branch is not currently approved.');
-    if (app.status !== 'accepted_by_owner') fail('This offer is not available for confirmation.');
-    const otherActive = await OwnerTenant.findOne({ where: { tenantUserId: userId, status: 'active' }, transaction });
-    if (otherActive) fail('You already have an active tenancy. Arrange move-out before confirming another.', 409);
-    const existing = await OwnerTenant.findOne({ where: { ownerId: app.ownerId, email: user.email }, transaction });
-    await saveTenant(app.ownerId, existing?.id, { occupantCount: app.occupantCount || 1, fullName: user.fullName, email: user.email, contactNumber: user.contactNumber, roomId: app.roomId, monthlyRent: app.monthlyRent, moveInDate: app.moveInDate || new Date().toISOString().slice(0,10), status: 'active' }, { transaction, trustedUserId: userId });
+    if (await activeStay(user, transaction)) fail('You already have an active tenancy. Arrange move-out before confirming another.', 409);
+    await saveTenant(app.ownerId, null, { occupantCount: app.occupantCount || 1, fullName: user.fullName, email: user.email, contactNumber: user.contactNumber, roomId: app.roomId, monthlyRent: app.monthlyRent, moveInDate: app.moveInDate || today(), status: 'active' }, { transaction, trustedUserId: userId });
     await app.update({ status: 'confirmed', confirmedAt: new Date() }, { transaction });
     await user.update({ selectedBoardingHouse: app.boardingHouseName, applicationStatus: 'approved' }, { transaction });
-    await TenantApplication.update({ status: 'cancelled_by_tenant' }, { where: { tenantId: userId, id: { [Op.ne]: app.id }, status: { [Op.in]: ['pending_owner','accepted_by_owner'] } }, transaction });
+    await closeOtherOffers(userId, transaction, app.id);
+    await OwnerNotification.create({ ownerId: app.ownerId, title: 'Tenancy confirmed', body: `${user.fullName} confirmed the room offer for ${app.boardingHouseName}.`, type: 'tenant_confirmed', link: '#tenants' }, { transaction });
     return app;
+  });
+}
+export async function requestMoveOut(userId, value) {
+  const date = offerMoveInDate(value);
+  if (!date || date < today()) fail('Choose today or a future move-out date.');
+  return sequelize.transaction(async transaction => {
+    const user = await User.findByPk(userId, { transaction, lock: transaction.LOCK.UPDATE });
+    const stay = await activeStay(user, transaction);
+    if (!stay) fail('No current tenancy found.', 404);
+    if (stay.moveInDate && date < stay.moveInDate) fail('Move-out cannot be before move-in.');
+    if (stay.moveOutRequestedDate === date) return stay;
+    await stay.update({ moveOutRequestedDate: date, tenantUserId: userId }, { transaction });
+    await OwnerNotification.create({
+      ownerId: stay.ownerId, title: 'Move-out requested', body: `${user.fullName} requested move-out on ${date}.`, type: 'tenant_move_out', link: '#tenants'
+    }, { transaction });
+    return stay;
   });
 }
 export async function removeTenant(ownerId, id) {

@@ -2,10 +2,10 @@
   <label>Branches including the main property<input type="number" name="declaredBranches" min="1" max="100" required value="{{authValues.declaredBranches}}"></label>
   <fieldset>
     <legend>Main property</legend>
-    <div class="owner-count-grid">
-      <label>Floors<input type="number" name="floorCount" min="1" max="50" required value="{{authValues.floorCount}}"></label>
-      <label>Rooms<input type="number" name="roomsAvailable" min="1" max="100" required value="{{authValues.roomsAvailable}}"></label>
-    </div>
+    <label>Number of floors<input type="number" name="floorCount" data-floor-count min="1" max="50" required value="{{authValues.floorCount}}"></label>
+    <input type="hidden" name="roomsPerFloor" data-floor-layout value="{{authValues.roomsPerFloor}}">
+    <div data-floor-rows></div>
+    <p data-total-rooms aria-live="polite"></p>
   </fieldset>
   <div data-additional-branches></div>
 </div>

@@ -518,7 +518,6 @@ export const registerUser = async (req, res) => {
       positionTitle,
       boardingHouseName,
       boardingHouseAddress,
-      roomsAvailable,
       mapPin,
       boardingHouseLatitude,
       boardingHouseLongitude,
@@ -600,7 +599,7 @@ export const registerUser = async (req, res) => {
     }
 
     if (normalizedAccountType === "boarding_house_owner") {
-      if (!boardingHouseName || !boardingHouseAddress || !roomsAvailable || !businessPermit || !mapPin) {
+      if (!boardingHouseName || !boardingHouseAddress || !businessPermit || !mapPin) {
         return renderRegisterPage(res, {
           authAccountType: normalizedAccountType,
           authError: "Boarding house owner registration needs the required property and business documents plus a street map pin.",
@@ -633,7 +632,7 @@ export const registerUser = async (req, res) => {
         positionTitle: accountType === "barangay" ? positionTitle || null : null,
         boardingHouseName: accountType === "boarding_house_owner" ? boardingHouseName : null,
         boardingHouseAddress: accountType === "boarding_house_owner" ? boardingHouseAddress : null,
-        roomsAvailable: accountType === "boarding_house_owner" ? Number(roomsAvailable) || null : null,
+        roomsAvailable: accountType === "boarding_house_owner" ? setup?.metadata.declaredRooms ?? null : null,
         mapPin: accountType === "boarding_house_owner" ? mapPin || null : null,
         boardingHouseLatitude: accountType === "boarding_house_owner" ? boardingHouseLatitude || null : null,
         boardingHouseLongitude: accountType === "boarding_house_owner" ? boardingHouseLongitude : null,
