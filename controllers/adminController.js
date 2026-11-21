@@ -1033,11 +1033,26 @@ export const adminMapData = async (req, res, next) => {
       })
     ]);
 
+    const branchesByOwner = new Map();
+    if (rawOwners.length) {
+      const branches = await BoardingHouse.findAll({
+        where: { ownerId: { [Op.in]: rawOwners.map(owner => owner.id) }, isPrimary: false },
+        attributes: ['ownerId', 'name', 'address', 'barangay'],
+        raw: true,
+        order: [['id', 'ASC']]
+      });
+      for (const { ownerId, ...branch } of branches) {
+        if (!branchesByOwner.has(ownerId)) branchesByOwner.set(ownerId, []);
+        branchesByOwner.get(ownerId).push(branch);
+      }
+    }
+
     const owners = rawOwners.map(o => {
       const plain = o.get({ plain: true });
       const coords = resolveCoordinates(plain, 1);
       return {
         ...plain,
+        branches: branchesByOwner.get(plain.id) || [],
         lat: coords.lat,
         lng: coords.lng,
         type: 'owner'

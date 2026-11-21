@@ -44,9 +44,12 @@
   window.dormMapListingTitle = house => house.propertyName && house.branchNumber
     ? `${house.propertyName} · Branch ${house.branchNumber}`
     : house.boardingHouseName || house.name || 'Boarding house';
-  window.dormMapListingLocation = house => [
-    house.barangay, house.town || 'Bongabong'
-  ].filter(Boolean).join(', ');
+  window.dormMapListingLocation = house => {
+    const street = String(house.address || house.boardingHouseAddress || '').trim();
+    const barangay = String(house.barangay || '').trim();
+    const town = house.town || 'Bongabong';
+    return [...new Set([street, barangay, town].filter(Boolean))].join(', ');
+  };
 
   let position;
   let requestedAt = 0;

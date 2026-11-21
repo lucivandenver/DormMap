@@ -18,20 +18,23 @@ test('invalid capacities, floors, prices and duplicate room/floor identities are
  assert.throws(()=>parseRoomPlan([],1),/Add between/);
 });
 test('required photos/documents and a real map pin are enforced on the server',()=>{
- const body={declaredBranches:1,roomsAvailable:3,floorCount:2,boardingHouseAddress:'Orconuma',boardingHouseLatitude:'12.668945',boardingHouseLongitude:'121.491777'};
+ const body={declaredBranches:1,roomsAvailable:3,floorCount:2,boardingHouseAddress:'Orconuma',streetAddress:'  Purok 2, Main Street  ',boardingHouseLatitude:'12.668945',boardingHouseLongitude:'121.491777'};
  assert.throws(()=>validateOwnerSetup(body,{}),/upload/);
  const fields=['profilePicture','galleryOutdoor','galleryLivingArea','galleryBedroom','galleryDining','galleryBathroom','validIdPicture','businessPermit','barangayClearance','proofOfOwnership','rentalPermit'];
  const files=Object.fromEntries(fields.map(name=>[name,[{mimetype:'image/png',size:100}]]));
  assert.equal(validateOwnerSetup(body,files).metadata.declaredRooms,3);
+ assert.throws(() => validateOwnerSetup({...body, streetAddress:'   '},files), /street address for branch 1/);
+ assert.throws(() => validateOwnerSetup({...body, streetAddress:'orconuma'},files), /street address for branch 1/);
  assert.throws(() => validateOwnerSetup({...body, declaredBranches:2},files), /branch 2/);
  const crossBarangay = {...body, declaredBranches:2, branchFloors2:4, branchRooms2:9,
    branch2_boardingHouseAddress:'Labasan', branch2_streetAddress:'Centro',
    branch2_boardingHouseLatitude:'12.774815', branch2_boardingHouseLongitude:'121.470195'};
+ assert.throws(() => validateOwnerSetup({...crossBarangay, branch2_streetAddress:''},files), /street address for branch 2/);
  assert.throws(() => validateOwnerSetup(crossBarangay, files), /Outdoor Spaces for branch 2/);
  const branchPhotos = Object.fromEntries(fields.filter(field => field.startsWith('gallery'))
    .map(field => ['branch2_' + field, files[field]]));
  assert.deepEqual(validateOwnerSetup(crossBarangay, {...files, ...branchPhotos}).branches, [
-   {floors:2, rooms:3, barangay:'Orconuma', latitude:12.668945, longitude:121.491777, mapPin:'Lat 12.668945, Lon 121.491777', address:'Orconuma'},
+   {floors:2, rooms:3, barangay:'Orconuma', latitude:12.668945, longitude:121.491777, mapPin:'Lat 12.668945, Lon 121.491777', address:'Purok 2, Main Street'},
    {floors:4, rooms:9, barangay:'Labasan', latitude:12.774815, longitude:121.470195, mapPin:'Lat 12.774815, Lon 121.470195', address:'Centro'}
  ]);
  assert.equal(validateOwnerSetup(crossBarangay, {...files, ...branchPhotos, branch2_galleryExtra3: files.galleryOutdoor}).branches.length, 2);

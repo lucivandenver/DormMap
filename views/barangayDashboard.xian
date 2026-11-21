@@ -1657,6 +1657,7 @@ async function loadMap() {
         L.marker([a, b], { icon: dormMapPropertyPin(L, x.publicMapUnregistered, x) }).addTo(barangayMapPins).bindPopup(`
           <div class="p-1">
             <b class="text-emerald-800 text-sm">${esc(x.boardingHouseName)}</b><br>
+            <span class="text-xs text-slate-600">Address: ${esc(x.boardingHouseAddress || x.barangay || '—')}</span><br>
             <span class="text-xs text-slate-600">Owner: ${esc(x.fullName)}</span><br>
             ${x.roomsAvailable == null ? '' : `<span class="text-xs text-slate-600">Vacant Rooms: <b>${x.roomsAvailable}</b> | Occupied: <b>${x.occupiedRooms ?? 0}</b></span><br>`}
             <span class="text-xs text-slate-600">Contact: ${esc(x.contactNumber || '—')}</span><br>

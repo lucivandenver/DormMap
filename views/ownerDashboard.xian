@@ -364,23 +364,14 @@
               <input type="text" name="boardingHouseName" maxlength="255" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/10 outline-none" required>
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-500 mb-1">Contact Number</label>
-              <input type="text" name="contactNumber" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/10 outline-none">
+              <label for="ownerPropertyContact" class="block text-xs font-bold text-slate-500 mb-1">Contact Number</label>
+              <input id="ownerPropertyContact" type="tel" name="contactNumber" autocomplete="tel" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/10 outline-none">
             </div>
             <div class="md:col-span-2">
-              <label class="block text-xs font-bold text-slate-500 mb-1">Barangay Location (Bongabong, Oriental Mindoro)</label>
-              <select name="boardingHouseAddress" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 outline-none">
-                <option value="">— Select Barangay —</option>
-                <option>Anilao</option><option>Aplaya</option><option>Bagong Bayan I</option><option>Bagong Bayan II</option>
-                <option>Batangan</option><option>Bukal</option><option>Camantigue</option><option>Carmundo</option>
-                <option>Cawayan</option><option>Dayhagan</option><option>Formon</option><option>Hagan</option>
-                <option>Hagupit</option><option>Ipil</option><option>Kaligtasan</option><option>Labasan</option>
-                <option>Labonan</option><option>Libertad</option><option>Lisap</option><option>Luna</option>
-                <option>Malitbog</option><option>Mapang</option><option>Masaguisi</option><option>Mina de Oro</option>
-                <option>Morente</option><option>Ogbot</option><option>Orconuma</option><option>Poblacion</option>
-                <option>Pulosahi</option><option>Sagana</option><option>San Isidro</option><option>San Jose</option>
-                <option>San Juan</option><option>Sta. Cruz</option><option>Sigange</option><option>Tawas</option>
-              </select>
+              <label for="ownerPropertyStreetAddress" class="block text-xs font-bold text-slate-500 mb-1">Street address</label>
+              <input id="ownerPropertyStreetAddress" type="text" name="boardingHouseAddress" maxlength="255" autocomplete="address-line1"
+                class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 outline-none">
+              <p id="ownerPropertyBarangay" class="mt-1 text-xs text-slate-600"></p>
             </div>
             <div class="md:col-span-2">
               <label class="block text-xs font-bold text-slate-500 mb-1">Description / About</label>
@@ -401,7 +392,7 @@
               </div>
             </div>
           </div>
-          <button type="submit" class="bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-800 transition">
+          <button type="submit" disabled class="bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-800 transition disabled:opacity-50">
             💾 Save Property Changes
           </button>
         </form>
@@ -1478,19 +1469,19 @@
   // ─── Property Profile ───
   async function loadProfile() {
     loadBoardingHouses();
-    const res = await fetch('/owner-dashboard/api/profile');
-    const { data } = await res.json();
-    if (!data) return;
     const form = document.getElementById('profileForm');
-    for (const key in data) {
-      const el = form.elements[key];
-      if (!el) continue;
-      if (el.tagName === 'SELECT') {
-        // Set selected option
-        [...el.options].forEach(o => { o.selected = (o.value === data[key] || o.text === data[key]); });
-      } else {
-        el.value = data[key] ?? '';
+    const button = form.querySelector('button[type=submit]');
+    button.disabled = true;
+    try {
+      const { data } = await ownerRequest('/owner-dashboard/api/profile');
+      for (const control of form.elements) {
+        if (control.name && Object.hasOwn(data, control.name)) control.value = data[control.name] ?? '';
       }
+      document.getElementById('ownerPropertyBarangay').textContent =
+        [data.barangay, 'Bongabong, Oriental Mindoro'].filter(Boolean).join(', ');
+      button.disabled = false;
+    } catch (error) {
+      ownerToast(error.message, true);
     }
   }
 

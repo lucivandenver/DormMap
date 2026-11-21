@@ -100,7 +100,6 @@
 
   function showBranchGallery(item) {
     const slides = window.DormBranchGallery.slidesFor(item).filter(slide => safeImage(slide.url));
-    if (!slides.length) return;
     const dialog = el('tenantBranchGallery');
     const photo = el('tenantBranchGalleryPhoto');
     const unavailable = el('tenantBranchGalleryUnavailable');
@@ -117,10 +116,20 @@
       el('tenantBranchGalleryNext').disabled = index === slides.length - 1;
     }
     photo.onerror = () => { photo.hidden = true; unavailable.hidden = false; };
-    el('tenantBranchGalleryTitle').textContent = item.propertyName || item.name;
+    el('tenantBranchGalleryTitle').textContent = title(item);
+    el('tenantBranchGalleryAddress').textContent = window.dormMapListingLocation(item);
     el('tenantBranchGalleryPrev').onclick = () => { index--; render(); };
     el('tenantBranchGalleryNext').onclick = () => { index++; render(); };
-    render();
+    if (slides.length) render();
+    else {
+      photo.hidden = true;
+      photo.removeAttribute('src');
+      unavailable.hidden = false;
+      el('tenantBranchGalleryCaption').textContent = '';
+      el('tenantBranchGalleryCount').textContent = '';
+      el('tenantBranchGalleryPrev').disabled = true;
+      el('tenantBranchGalleryNext').disabled = true;
+    }
     dialog.showModal();
   }
 

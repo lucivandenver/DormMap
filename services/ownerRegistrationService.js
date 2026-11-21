@@ -46,6 +46,10 @@ export function validateOwnerSetup(body, files) {
     const prefix = prefixFor(index);
     const barangay = String(body[prefix + 'boardingHouseAddress'] || '').trim();
     if (!barangay || (index > 0 && !barangays.has(barangay))) throw invalidSetup(`Select a Bongabong barangay for branch ${index + 1}.`);
+    const address = String(body[prefix + 'streetAddress'] || '').trim();
+    if (!address || address.toLowerCase() === barangay.toLowerCase() || address.length > 255) {
+      throw invalidSetup(`Enter a street address for branch ${index + 1} (up to 255 characters).`);
+    }
     const lat = Number(body[prefix + 'boardingHouseLatitude']);
     const lng = Number(body[prefix + 'boardingHouseLongitude']);
     if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < 12.48 || lat > 12.91 || lng < 121.05 || lng > 121.58) {
@@ -53,7 +57,7 @@ export function validateOwnerSetup(body, files) {
     }
     Object.assign(branch, {
       barangay, latitude: lat, longitude: lng, mapPin: pinLabel(lat, lng),
-      address: String(body[prefix + 'streetAddress'] || '').trim().slice(0, 255) || barangay
+      address
     });
     for (const category of GALLERY_CATEGORIES) {
       const file = files?.[prefix + category.field]?.[0];

@@ -11,6 +11,10 @@ function ownerRegistrationLocations(form, step, onChange) {
   const field = name => active().querySelector(`[data-location-field="${name}"]`);
 
   first.querySelectorAll('[name]').forEach(input => { input.dataset.locationField = input.name; });
+  step.addEventListener('input', event => {
+    if (event.target.dataset.locationField === 'streetAddress') event.target.setCustomValidity('');
+    if (event.target.dataset.locationField === 'boardingHouseAddress') field('streetAddress').setCustomValidity('');
+  });
 
   function select(next) {
     index = next;
@@ -41,6 +45,11 @@ function ownerRegistrationLocations(form, step, onChange) {
   }
 
   function issue(panel) {
+    const street = panel.querySelector('[data-location-field="streetAddress"]');
+    const barangay = panel.querySelector('[data-location-field="boardingHouseAddress"]');
+    const address = street.value.trim().toLowerCase();
+    street.setCustomValidity(address && address !== barangay.value.trim().toLowerCase()
+      ? '' : 'Enter the street, purok, or sitio for this branch.');
     const invalid = panel.querySelector('input:invalid, select:invalid, textarea:invalid');
     if (invalid) return invalid;
     const latitude = panel.querySelector('[data-location-field="boardingHouseLatitude"]');

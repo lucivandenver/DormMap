@@ -504,6 +504,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const created=await User.findOne({where:{email:data.email}});assert.ok(created);ids.push(created.id);
       assert.deepEqual(JSON.parse(created.paymentMethods), ['Cash', 'GCash']);
       assert.equal(created.gcashQrCode, null);
+      assert.equal(created.contactNumber, data.contactNumber);
       for(const value of [created.profilePicture,created.boardingHousePicture,created.validIdPicture,created.businessPermit,created.barangayClearance,created.rentalPermit,...JSON.parse(created.galleryImages || '[]'),...Object.values(JSON.parse(created.supportingDocuments || '{}'))]) if(typeof value==='string'&&value.startsWith('/uploads/'))uploadedFiles.push(new URL('../../public'+value,import.meta.url));
       const primary=await BoardingHouse.findOne({where:{ownerId:created.id,isPrimary:true}});assert.equal(primary.floorCount,2);assert.equal(primary.address,'Purok 2, Main Street');
       const rooms=await OwnerRoom.findAll({where:{ownerId:created.id},order:[['roomNumber','ASC']]});assert.equal(rooms.length,0);assert.equal(primary.declaredRooms,2);assert.equal(primary.declaredBranches,2);assert.equal(created.roomsAvailable,0);assert.equal(created.applicationStatus,'pending');
@@ -523,6 +524,8 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const mainOfficialCookie = await login(official.email);
       const primaryApps = await request('/barangay-dashboard/api/applications', mainOfficialCookie);
       const application = (await primaryApps.json()).data.find(item => item.id === created.id);
+      assert.equal(application.branches[0].address, data.streetAddress);
+      assert.equal(application.branches[1].address, data.branch2_streetAddress);
       assert.equal(application.branches[1].galleryImages[0], branch.picture);
       const branchExtra = application.branches[1].galleryImages[7];
       assert.match(branchExtra, /^\/uploads\/property-/);
@@ -541,14 +544,25 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.equal((await request(applicationPath, branchOfficialCookie, approve)).status, 404);
       assert.equal((await request(applicationPath, mainOfficialCookie, approve)).status, 200);
       assert.ok((await publicListings()).some(item => item.id === `bh-${branch.id}` &&
-        item.boardingHousePicture === branch.picture && item.galleryImages.includes(branchExtra)));
+        item.boardingHousePicture === branch.picture && item.galleryImages.includes(branchExtra) &&
+        item.boardingHouseAddress === data.branch2_streetAddress && item.contactNumber === data.contactNumber));
       const local = await inspectBranches();
       assert.ok(local.groups.find(group => group.id === created.id).branches.some(item => item.id === branch.id));
       assert.ok(!local.data.some(item => item.id === branch.id));
       const map = await request('/barangay-dashboard/api/map-houses', branchOfficialCookie);
-      assert.ok((await map.json()).data.some(item => item.id === `bh-${branch.id}`));
+      assert.ok((await map.json()).data.some(item => item.id === `bh-${branch.id}` && item.boardingHouseAddress === data.branch2_streetAddress));
       assert.equal((await request(`/barangay-dashboard/api/branches/${branch.id}/review`, branchOfficialCookie, approve)).status, 403);
       const ownerCookie = await login(created.email);
+      const profile = await request('/owner-dashboard/api/profile', ownerCookie);
+      assert.equal(profile.status, 200);
+      const ownerProfile = (await profile.json()).data;
+      assert.equal(ownerProfile.contactNumber, data.contactNumber);
+      assert.equal(ownerProfile.boardingHouseAddress, data.streetAddress);
+      const adminMap = await request('/admin/api/map-data', await login(admin.email));
+      assert.equal(adminMap.status, 200);
+      const mappedOwner = (await adminMap.json()).data.owners.find(item => item.id === created.id);
+      assert.equal(mappedOwner.boardingHouseAddress, data.streetAddress);
+      assert.ok(mappedOwner.branches.some(item => item.address === data.branch2_streetAddress && item.barangay === 'Labasan'));
       const renamed = await request('/owner-dashboard/api/profile', ownerCookie, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ boardingHouseName: '  Updated Boarding House  ' })

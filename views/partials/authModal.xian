@@ -1,4 +1,4 @@
-<script src="/js/owner-registration-locations.js"></script>
+<script src="/js/owner-registration-locations.js?v=2"></script>
 <style>
   .dormmap-auth-shell {
     font-family: 'Inter', sans-serif;
@@ -427,8 +427,8 @@
                 </label>
 
                 <label class="sm:col-span-2">
-                  <span class="mb-1 block text-[13px] font-semibold text-slate-700">Street address (optional)</span>
-                  <input name="streetAddress" maxlength="255" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm">
+                  <span class="mb-1 block text-[13px] font-semibold text-slate-700">Street address *</span>
+                  <input name="streetAddress" value="{{authValues.streetAddress}}" maxlength="255" autocomplete="address-line1" placeholder="Street, purok, or sitio" required class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm">
                 </label>
                 <label data-map-placement class="sm:col-span-2">
                   <div class="mb-1 flex items-center justify-between gap-3">
