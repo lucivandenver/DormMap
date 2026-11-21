@@ -159,13 +159,6 @@ function requireOwnerPaymentMethod(owner) {
   if (!payment.methods.length) fail('Configure an accepted rent payment method before accepting tenants.');
 }
 
-function requirePropertySetup(owner, house, room) {
-  if (!house?.declaredRooms) return;
-  if (!owner.contactNumber?.trim() || !house.address?.trim() || house.address.trim() === house.barangay || !(Number(room?.rentalPrice) > 0)) {
-    fail('Before accepting tenants, add your contact number, the property street address, and a positive monthly rent for the room in the owner dashboard.');
-  }
-}
-
 export function offerMoveInDate(value) {
   if (value == null || value === '') return null;
   const date = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(value + 'T00:00:00Z') : null;
@@ -190,10 +183,12 @@ export async function offerApplication(ownerId, tenantUserId, body) {
     if (!room.availableSlots || room.status === 'maintenance') fail('This room is full or unavailable.', 409);
     const house = await BoardingHouse.findByPk(room.boardingHouseId, { transaction });
     if (house?.approvalStatus !== 'approved') fail('This branch must be approved before offering rooms.');
-    requirePropertySetup(owner, house, room);
     const occupantCount = integer(body.occupantCount || 1, 1, 'Household occupants');
     if (occupantCount > room.availableSlots || (room.rentalBasis === 'bed' && occupantCount !== 1)) fail('The offered household size does not match this room.');
-    await app.update({ occupantCount, status: 'accepted_by_owner', roomId: room.id, boardingHouseId: house.id, boardingHouseName: house.name, monthlyRent: money(body.monthlyRent ?? Number(room.rentalPrice)*(room.rentalBasis === 'person' ? occupantCount : 1)), moveInDate, ownerNotes: String(body.notes || '').slice(0,2000), acceptedAt: new Date() }, { transaction });
+    const rate = Number(room.rentalPrice) * (room.rentalBasis === 'person' ? occupantCount : 1);
+    const monthlyRent = money(body.monthlyRent ?? rate);
+    if (monthlyRent <= 0) fail('Enter a monthly total greater than zero in the Review form.');
+    await app.update({ occupantCount, status: 'accepted_by_owner', roomId: room.id, boardingHouseId: house.id, boardingHouseName: house.name, monthlyRent, moveInDate, ownerNotes: String(body.notes || '').slice(0,2000), acceptedAt: new Date() }, { transaction });
     return app;
   });
 }
@@ -209,7 +204,6 @@ export async function confirmOffer(userId, applicationId) {
     requireOwnerPaymentMethod(owner);
     const branch = app.boardingHouseId ? await BoardingHouse.findByPk(app.boardingHouseId, { transaction }) : null;
     if (branch?.approvalStatus !== 'approved') fail('This branch is not currently approved.');
-    if (branch.declaredRooms) requirePropertySetup(owner, branch, await ownedRoom(owner.id, app.roomId, transaction));
     if (app.status !== 'accepted_by_owner') fail('This offer is not available for confirmation.');
     const otherActive = await OwnerTenant.findOne({ where: { tenantUserId: userId, status: 'active' }, transaction });
     if (otherActive) fail('You already have an active tenancy. Arrange move-out before confirming another.', 409);
