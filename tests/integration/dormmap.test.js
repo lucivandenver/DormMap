@@ -34,7 +34,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
   const uploadedFiles = [];
   const fixturePassword = `Test1-${crypto.randomUUID()}`;
   const sessionSecret = crypto.randomUUID();
-  const mockPaymentKey = crypto.randomUUID();
+  const mockPaymentKey = `sk_test_${crypto.randomBytes(16).toString('hex')}`;
   const mockWebhookSecret = crypto.randomUUID();
   async function start({ deniedUploads = false, freshUploads = false } = {}) {
     const probe = net.createServer().listen(0, '127.0.0.1');
