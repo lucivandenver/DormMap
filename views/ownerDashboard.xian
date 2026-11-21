@@ -641,7 +641,7 @@
         </div>
 
         <div class="flex justify-between items-center">
-          <h2 class="text-lg font-bold text-slate-800">Registered Tenants</h2>
+          <h2 class="text-lg font-bold text-slate-800">Current Tenants</h2>
           <button onclick="openTenantModal()" class="bg-emerald-700 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-emerald-800 transition flex items-center gap-2 shadow-sm active:scale-95">
             <span class="text-base leading-none">＋</span> Register Tenant
           </button>
@@ -659,6 +659,7 @@
               </tr>
             </thead>
             <tbody id="tenantsTable"><tr><td colspan="6" class="p-8 text-center text-slate-400 text-xs">Loading tenants...</td></tr></tbody>
+            <tbody id="formerTenantsTable"></tbody>
           </table>
         </div>
       </section>
@@ -1165,6 +1166,18 @@
   </div>
 </div>
 
+<dialog id="endTenantDialog" class="m-auto w-[calc(100%_-_2rem)] max-w-sm rounded-2xl p-5 backdrop:bg-slate-900/60" aria-labelledby="endTenantTitle">
+  <form id="endTenantForm" class="space-y-3">
+    <h3 id="endTenantTitle" class="font-bold">End tenancy</h3>
+    <label class="block text-sm">Actual move-out date<input type="date" name="moveOutDate" required class="mt-1 w-full rounded-lg border p-2"></label>
+    <p id="endTenantError" role="alert" class="text-sm text-rose-700"></p>
+    <div class="flex justify-end gap-2">
+      <button type="button" onclick="document.getElementById('endTenantDialog').close()" class="rounded-lg border px-3 py-2 text-sm">Cancel</button>
+      <button class="rounded-lg bg-emerald-800 px-3 py-2 text-sm text-white">End tenancy</button>
+    </div>
+  </form>
+</dialog>
+
 <div id="tenantModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
   <div class="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-2xl">
     <div class="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -1189,6 +1202,8 @@
         <div>
           <label for="tenantBranchSelect" class="block text-xs font-bold text-slate-500 mb-1">Boarding house / branch</label>
           <select id="tenantBranchSelect" class="mb-2 w-full rounded-lg border border-slate-200 p-2.5 text-sm"></select>
+          <label for="tenantFloorSelect" class="block text-xs font-bold text-slate-500 mb-1">Floor</label>
+          <select id="tenantFloorSelect" class="mb-2 w-full rounded-lg border border-slate-200 p-2.5 text-sm"></select>
           <label for="tenantRoomSelect" class="block text-xs font-bold text-slate-500 mb-1">Assigned Room</label>
           <select name="roomId" id="tenantRoomSelect" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-600 outline-none"></select>
         </div>
@@ -2186,33 +2201,33 @@
       const { data } = await res.json();
       const tbody = document.getElementById('tenantsTable');
 
-      if (!data || data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="p-10 text-center">
-          <div class="flex flex-col items-center gap-3">
-            <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            <p class="text-sm font-bold text-slate-500">No registered tenants yet</p>
-            <p class="text-xs text-slate-400">Accept pending applications or register a tenant manually.</p>
-          </div>
-        </td></tr>`;
-      } else {
-        tbody.innerHTML = data.map(t => `
+      const tenants = data || [];
+      const current = tenants.filter(t => t.status === 'active');
+      const former = tenants.filter(t => t.status !== 'active');
+      const tenantRow = t => `
           <tr class="border-b border-slate-100 hover:bg-slate-50/50 transition">
-            <td class="p-4 font-bold text-slate-800">${esc(t.fullName)}<p class="text-xs font-medium text-slate-500">${esc(t.status)} · ${t.occupantCount || 1} occupant(s)${t.bedNumber ? ' · Bed '+Number(t.bedNumber) : ''}</p></td>
+            <td class="p-4 font-bold text-slate-800">${esc(t.fullName)}<p class="text-xs font-medium text-slate-500">${esc(t.status)} · ${t.occupantCount || 1} occupant(s)${t.bedNumber ? ' · Bed '+Number(t.bedNumber) : ''}</p>${t.moveOutRequestedDate ? `<p class="mt-1 text-xs text-amber-800">Move-out requested for ${esc(t.moveOutRequestedDate)}</p>` : ''}${t.moveOutDate ? `<p class="mt-1 text-xs text-slate-500">Moved out ${esc(t.moveOutDate)}</p>` : ''}</td>
             <td class="p-4 text-xs text-slate-500">${esc(t.contactNumber || t.email || '—')}</td>
-            <td class="p-4">${t.roomId ? 'Room ' + esc(t.roomNumber || t.roomId) : '<span class="text-slate-400 text-xs">Unassigned</span>'}<p class="text-xs text-slate-500">${esc(t.boardingHouseName || '')}</p></td>
+            <td class="p-4">${t.roomId ? 'Room ' + esc(t.roomNumber || t.roomId) : '<span class="text-slate-400 text-xs">Unassigned</span>'}<p class="text-xs text-slate-500">${[t.boardingHouseName, t.floor].filter(Boolean).map(esc).join(' · ')}</p></td>
             <td class="p-4 font-semibold text-emerald-700">₱${Number(t.monthlyRent || 0).toLocaleString()}</td>
             <td class="p-4">
               <span class="font-bold ${Number(t.balance) > 0 ? 'text-rose-600' : 'text-slate-700'}">₱${Number(t.balance).toLocaleString()}</span>
             </td>
             <td class="p-4">
               <div class="flex gap-2">
-                <button onclick='editTenant(${esc(JSON.stringify(t))})' class="text-xs text-slate-700 font-semibold hover:text-emerald-700 transition flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Edit</button>
-                <button onclick="deleteTenant(${t.id})" class="text-xs text-slate-500 font-semibold hover:text-rose-600 transition flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2 2v2"/></svg> Remove</button>
+                ${t.status === 'active' ? `
+                  <button type="button" onclick='editTenant(${esc(JSON.stringify(t))})' class="text-xs font-semibold text-emerald-800">Edit assignment</button>
+                  <button type="button" onclick='openEndTenant(${esc(JSON.stringify(t))})' class="text-xs font-semibold text-rose-700">End tenancy</button>
+                ` : `<button type="button" onclick='openTenantModal(${esc(JSON.stringify(t))}, true)' class="text-xs font-semibold text-emerald-800">Start new stay</button>`}
+                ${t.tenantUserId ? '' : `<button type="button" onclick="deleteTenant(${t.id})" class="text-xs font-semibold text-slate-600">Remove</button>`}
               </div>
             </td>
           </tr>
-        `).join('');
-      }
+        `;
+      tbody.innerHTML = current.map(tenantRow).join('') || '<tr><td colspan="6" class="p-8 text-center text-sm text-slate-500">No current tenants.</td></tr>';
+      document.getElementById('formerTenantsTable').innerHTML = former.length
+        ? '<tr><th colspan="6" class="border-t bg-slate-50 p-4 text-left">Former Tenants</th></tr>' + former.map(tenantRow).join('')
+        : '';
 
     } catch (err) {
       console.error('Error loading tenants:', err);
@@ -2412,26 +2427,42 @@
   });
 
   function setTenantRoomOptions(selectedRoomId = '') {
-    const branchSelect = document.getElementById('tenantBranchSelect');
+    const branch = document.getElementById('tenantBranchSelect').value;
+    const floor = document.getElementById('tenantFloorSelect').value;
     const roomSelect = document.getElementById('tenantRoomSelect');
-    roomSelect.replaceChildren(new Option('No room assigned', ''));
+    roomSelect.replaceChildren(new Option('Choose a room', ''));
     for (const room of tenantAssignmentRooms) {
-      if (String(room.boardingHouseId || '') !== branchSelect.value) continue;
-      roomSelect.add(new Option(roomLabel(room), room.id));
+      if (String(room.boardingHouseId || '') !== branch || (room.floor || '') !== floor) continue;
+      const option = new Option(roomLabel(room), room.id);
+      option.disabled = String(room.id) !== String(selectedRoomId) && (room.status === 'maintenance' || !Number(room.availableSlots));
+      roomSelect.add(option);
     }
     roomSelect.value = String(selectedRoomId || '');
   }
 
-  document.getElementById('tenantBranchSelect').addEventListener('change', event => {
+  function setTenantFloorOptions(assigned) {
+    const branch = document.getElementById('tenantBranchSelect').value;
+    const floor = document.getElementById('tenantFloorSelect');
+    const floors = [...new Set(tenantAssignmentRooms.filter(room => String(room.boardingHouseId || '') === branch && room.floor).map(room => room.floor))];
+    floors.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    floor.replaceChildren(...floors.map(value => new Option(value, value)));
+    floor.value = assigned?.floor || floors[0] || '';
+    setTenantRoomOptions(assigned?.id);
+  }
+
+  document.getElementById('tenantBranchSelect').addEventListener('change', () => {
+    setTenantFloorOptions();
+    document.getElementById('tenantForm').elements.bedNumber.value = '';
+  });
+  document.getElementById('tenantFloorSelect').addEventListener('change', () => {
     setTenantRoomOptions();
-    document.getElementById('tenantRoomSelect').required = Boolean(event.target.value);
     document.getElementById('tenantForm').elements.bedNumber.value = '';
   });
   document.getElementById('tenantRoomSelect').addEventListener('change', () => {
     document.getElementById('tenantForm').elements.bedNumber.value = '';
   });
 
-  async function openTenantModal(tenant) {
+  async function openTenantModal(tenant, returning = false) {
     try {
       const { data } = await ownerRequest('/owner-dashboard/api/rooms');
       tenantAssignmentRooms = data || [];
@@ -2446,19 +2477,25 @@
     const form = document.getElementById('tenantForm');
     form.reset();
     form.elements.id.value = tenant?.id || '';
-    document.getElementById('tenantModalTitle').textContent = tenant ? 'Edit Tenant Assignment' : 'Register Tenant Manually';
-    document.getElementById('tenantSaveButton').textContent = tenant ? 'Save Changes' : 'Register';
+    document.getElementById('tenantModalTitle').textContent = returning ? 'Start New Stay' : tenant ? 'Edit Tenant Assignment' : 'Register Tenant Manually';
+    document.getElementById('tenantSaveButton').textContent = returning ? 'Start New Stay' : tenant ? 'Save Changes' : 'Register';
     const branchSelect = document.getElementById('tenantBranchSelect');
     const branches = new Map(tenantAssignmentRooms.filter(room => room.boardingHouseId).map(room => [room.boardingHouseId, room.boardingHouseName]));
     branchSelect.replaceChildren(new Option('Choose a branch', ''), ...Array.from(branches, ([id, name]) => new Option(name, id)));
     const assigned = tenantAssignmentRooms.find(room => room.id === tenant?.roomId);
     branchSelect.value = String(assigned?.boardingHouseId || branches.keys().next().value || '');
-    setTenantRoomOptions(tenant?.roomId);
-    document.getElementById('tenantRoomSelect').required = false;
+    setTenantFloorOptions(returning ? null : assigned);
+    document.getElementById('tenantRoomSelect').required = Boolean(returning || assigned);
     if (tenant) {
       for (const key of ['fullName', 'email', 'contactNumber', 'monthlyRent', 'status', 'occupantCount', 'bedNumber', 'moveInDate']) {
         if (tenant[key] != null) form.elements[key].value = tenant[key];
       }
+    }
+    form.elements.moveInDate.required = returning;
+    if (returning) {
+      form.elements.status.value = 'active';
+      form.elements.moveInDate.value = '';
+      form.elements.bedNumber.value = '';
     }
     document.getElementById('tenantModal').classList.remove('hidden');
   }
@@ -2481,6 +2518,40 @@
       await ownerRequest(url, { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       closeTenantModal(); ownerToast('Tenant and room occupancy updated.'); loadTenants(); loadRooms(); loadOverview();
     } catch (error) { ownerToast(error.message, true); }
+  });
+
+  const endTenantForm = document.getElementById('endTenantForm');
+  const endTenantDialog = document.getElementById('endTenantDialog');
+  function openEndTenant(tenant) {
+    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Manila' }).format(new Date());
+    endTenantForm.dataset.tenantId = tenant.id;
+    const date = endTenantForm.elements.moveOutDate;
+    date.max = today;
+    date.min = tenant.moveInDate || '';
+    date.value = tenant.moveOutRequestedDate && tenant.moveOutRequestedDate <= today ? tenant.moveOutRequestedDate : today;
+    document.getElementById('endTenantError').textContent = '';
+    endTenantDialog.showModal();
+  }
+
+  endTenantForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = event.submitter;
+    button.disabled = true;
+    try {
+      await ownerRequest(`/owner-dashboard/api/tenants/${endTenantForm.dataset.tenantId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'moved_out', moveOutDate: endTenantForm.elements.moveOutDate.value })
+      });
+      endTenantDialog.close();
+      ownerToast('Tenancy ended.');
+      loadTenants();
+      loadRooms();
+      loadOverview();
+    } catch (error) {
+      document.getElementById('endTenantError').textContent = error.message;
+    } finally {
+      button.disabled = false;
+    }
   });
 
   async function deleteTenant(id) {

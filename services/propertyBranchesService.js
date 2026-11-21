@@ -1,5 +1,6 @@
 import { Op } from 'sequelize';
 import { BoardingHouse, OwnerRoom, OwnerTenant } from '../models/ownerModels.js';
+import { manilaToday } from './manualPaymentService.js';
 import { User } from '../models/userModel.js';
 
 export function orderBranches(houses) {
@@ -26,6 +27,10 @@ export async function tenantBranchAssignments({ barangay, ownerId, search = '' }
   if (!owners.length) return [];
   const where = { ownerId: { [Op.in]: owners.map(owner => owner.id) } };
   const tenantWhere = { ...where };
+  if (barangay) {
+    tenantWhere.status = 'active';
+    tenantWhere.moveInDate = { [Op.or]: [null, { [Op.lte]: manilaToday() }] };
+  }
   if (search) tenantWhere[Op.or] = ['fullName', 'email', 'contactNumber']
     .map(field => ({ [field]: { [Op.like]: `%${search}%` } }));
   const [tenants, rooms, houses] = await Promise.all([

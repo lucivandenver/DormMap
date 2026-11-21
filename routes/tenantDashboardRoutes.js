@@ -9,6 +9,8 @@ import {
   tenantDashboardPage,
   overview,
   getMyRoom,
+  getStayHistory,
+  submitMoveOut,
   getPaymentHistory,
   submitPayment,
   getRentalInformation,
@@ -60,6 +62,8 @@ router.get('/', tenantDashboardPage);
 // API Endpoints
 router.get('/api/overview', overview);
 router.get('/api/my-room', getMyRoom);
+router.get('/api/stays', getStayHistory);
+router.post('/api/stays/move-out', submitMoveOut);
 router.get('/api/payments', getPaymentHistory);
 const paymentProofUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, fields: 4 } });
 router.post('/api/payments/:id/submit', (req, res, next) => {
