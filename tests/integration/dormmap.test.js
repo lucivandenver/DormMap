@@ -736,9 +736,14 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
     await t.test('first confirmed offer closes competing offers and former stays remain in history', async () => {
       const applicant = await User.create({ fullName: 'Returning Tenant', email: `returning-${suffix}@example.test`, password, accountType: 'tenant', emailVerified: true });
       ids.push(applicant.id);
-      const otherOwner = await User.create({ fullName: 'Alternate Owner', email: `alternate-${suffix}@example.test`, password, accountType: 'boarding_house_owner', applicationStatus: 'approved', emailVerified: true });
+      const houseName = 'Alternate Boarding House';
+      const otherOwner = await User.create({
+        fullName: 'Alternate Owner', email: `alternate-${suffix}@example.test`, password,
+        accountType: 'boarding_house_owner', applicationStatus: 'approved', emailVerified: true,
+        boardingHouseName: houseName, barangay: 'Labasan', mapPin: 'Lat 12.773, Lon 121.475'
+      });
       ids.push(otherOwner.id);
-      const otherHouse = await BoardingHouse.create({ ownerId: otherOwner.id, name: 'Alternate Boarding House', approvalStatus: 'approved', floorCount: 1, barangay: 'Labasan' });
+      const otherHouse = await BoardingHouse.create({ ownerId: otherOwner.id, name: houseName, approvalStatus: 'approved', floorCount: 1, barangay: 'Labasan' });
       const roomA = await saveRoom(owner.id, null, { boardingHouseId: house.id, roomNumber: 'Lifecycle A', capacity: 1, rentalPrice: 800 });
       const roomB = await saveRoom(otherOwner.id, null, { boardingHouseId: otherHouse.id, roomNumber: 'Lifecycle B', capacity: 1, rentalPrice: 800 });
       await owner.update({ paymentMethods: '["Cash"]' });
@@ -774,7 +779,9 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const payments = await (await request('/tenant-dashboard/api/payments', applicantCookie)).json();
       assert.ok(payments.payments.some(payment => payment.id === activeBill.id && !payment.currentStay));
       const losingOwnerCookie = await login(winner.ownerId === owner.id ? otherOwner.email : owner.email);
-      const pendingList = await (await request('/owner-dashboard/api/pending-applications', losingOwnerCookie)).json();
+      const pendingResponse = await request('/owner-dashboard/api/pending-applications', losingOwnerCookie);
+      assert.equal(pendingResponse.status, 200, await pendingResponse.clone().text());
+      const pendingList = await pendingResponse.json();
       assert.ok(!pendingList.data.some(application => application.id === other.id));
     });
     await request(`/tenant-dashboard/api/saved-dorms/${key}`, cookie, { method: 'DELETE' });
