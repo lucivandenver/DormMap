@@ -32,6 +32,10 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
   let base;
   let ids = [];
   const uploadedFiles = [];
+  const fixturePassword = `Test1-${crypto.randomUUID()}`;
+  const sessionSecret = crypto.randomUUID();
+  const mockPaymentKey = `sk_test_${crypto.randomBytes(16).toString('hex')}`;
+  const mockWebhookSecret = crypto.randomUUID();
   async function start({ deniedUploads = false, freshUploads = false } = {}) {
     const probe = net.createServer().listen(0, '127.0.0.1');
     await once(probe, 'listening');
@@ -50,7 +54,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
     `);
     server = spawn(process.execPath, [...(deniedUploads ? ['--import', preload] : []), 'index.js'], {
       cwd: new URL('../../', import.meta.url),
-      env: { ...process.env, NODE_ENV: 'development', PORT: String(port), UPLOAD_DIR: deniedUploads ? path.join(directory, 'denied-mount') : (freshUploads ? path.join(directory, 'fresh-uploads') : directory), UPLOAD_DIR_STRICT: 'false', SESSION_SECRET: 'integration-session-secret-keep-between-restarts', PAYMONGO_SECRET_KEY: 'sk_test_integration_webhook', PAYMONGO_WEBHOOK_SECRET_KEY: 'integration-only-webhook-secret' },
+      env: { ...process.env, NODE_ENV: 'development', PORT: String(port), UPLOAD_DIR: deniedUploads ? path.join(directory, 'denied-mount') : (freshUploads ? path.join(directory, 'fresh-uploads') : directory), UPLOAD_DIR_STRICT: 'false', SESSION_SECRET: sessionSecret, PAYMONGO_SECRET_KEY: mockPaymentKey, PAYMONGO_WEBHOOK_SECRET_KEY: mockWebhookSecret },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     await new Promise((resolve, reject) => {
@@ -73,7 +77,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
   }
   const request = (url, cookie, options = {}) => fetch(base + url, { ...options, headers: { ...options.headers, ...(cookie ? { Cookie: cookie } : {}) }, redirect: 'manual' });
   async function login(email) {
-    const response = await request('/login', null, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ email, password: 'test-password-123' }) });
+    const response = await request('/login', null, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ email, password: fixturePassword }) });
     assert.equal(response.status, 302);
     return response.headers.get('set-cookie').split(';')[0];
   }
@@ -81,8 +85,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
     await migrateSchema({ createDatabase: true });
     const suffix = Date.now();
     // A bcrypt 5 hash must remain usable after updating the runtime to bcrypt 6.
-    const password = '$2b$04$l.BV6KSMb9VAGyiF9pJpV.CWCrM5qEs2tNQ0ysFRyG4wS.5wObq0i';
-    assert.equal(await bcrypt.compare('test-password-123', password), true);
+    const password = await bcrypt.hash(fixturePassword, 4);
     const users = await User.bulkCreate([
       { fullName: 'Review Tenant', email: `review-${suffix}@example.test`, password, accountType: 'tenant', emailVerified: true },
       { fullName: 'Second Tenant', email: `second-${suffix}@example.test`, password, accountType: 'tenant', emailVerified: true },
@@ -155,7 +158,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.equal((await request(`/admin/api/barangay-accounts/${official.id}/review`, adminCookie, suspended)).status, 200);
       assert.equal((await request('/barangay-dashboard/api/overview', officialCookie)).status, 403);
       assert.ok(!(await (await request('/api/eligible-barangays')).json()).includes('Review Barangay'));
-      const rejected = await request('/register', null, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ accountType: 'boarding_house_owner', fullName: 'Blocked Owner', email: `blocked-${suffix}@example.test`, password: 'test-password-123', confirmPassword: 'test-password-123', acceptTerms: 'on', boardingHouseAddress: 'Review Barangay' }) });
+      const rejected = await request('/register', null, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ accountType: 'boarding_house_owner', fullName: 'Blocked Owner', email: `blocked-${suffix}@example.test`, password: fixturePassword, confirmPassword: fixturePassword, acceptTerms: 'on', boardingHouseAddress: 'Review Barangay' }) });
       assert.match(await rejected.text(), /does not have an approved, active official/);
       assert.equal(await User.count({ where: { email: `blocked-${suffix}@example.test` } }), 0);
     });
@@ -268,8 +271,16 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
         assert.ok(response.status < 500, `BPLO ${path}: ${await response.clone().text()}`);
       }
     });
-    await t.test('room offers consume a slot only on tenant confirmation and cannot overbook', async () => {
-      const offeredRoom = await saveRoom(owner.id, null, { boardingHouseId: house.id, roomNumber: 'Offered', capacity: 1, rentalPrice: 1500 });
+    await t.test('room offers consume a slot only on tenant confirmation and cannot overbook', async testCase => {
+      const offeredRoom = await saveRoom(owner.id, null, { boardingHouseId: house.id, roomNumber: 'Offered', capacity: 1, rentalPrice: 0 });
+      const originalHouse = { address: house.address, declaredRooms: house.declaredRooms };
+      const originalContact = owner.contactNumber;
+      testCase.after(async () => {
+        await house.update(originalHouse);
+        await owner.update({ contactNumber: originalContact });
+      });
+      await house.update({ address: house.barangay, declaredRooms: 1 });
+      await owner.update({ contactNumber: null });
       const app = await TenantApplication.create({ tenantId: second.id, ownerId: owner.id, boardingHouseId: house.id, boardingHouseName: house.name });
       const offer = { applicationId: app.id, roomId: offeredRoom.id, monthlyRent: 1500 };
       await owner.update({ paymentMethods: '["GCash"]' });
@@ -277,7 +288,9 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       await owner.update({ paymentMethods: '["Cash","GCash"]' });
       await assert.rejects(offerApplication(owner.id, second.id, offer), /Upload your GCash QR code/);
       await owner.update({ paymentMethods: '["Cash"]' });
+      await assert.rejects(offerApplication(owner.id, second.id, { ...offer, monthlyRent: 0 }), /monthly total greater than zero/);
       const datedOffer = await offerApplication(owner.id, second.id, { ...offer, moveInDate: '2027-01-22' });
+      assert.equal(Number(datedOffer.monthlyRent), 1500);
       assert.equal(datedOffer.moveInDate, '2027-01-22');
       assert.equal((await OwnerRoom.findByPk(offeredRoom.id)).availableSlots, 1);
       assert.equal(await OwnerTenant.count({ where: { tenantUserId: second.id } }), 0);
@@ -426,7 +439,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       await linked.update({ balance: 1550 });
       const foreignBill = await OwnerPayment.create({ ownerId: owner.id, tenantId: other.id, amount: 900, dueDate: '2026-12-01', month: '2026-12' });
       await assert.rejects(initiateRentPayment({ user: second, tenantPaymentId: foreignBill.id, billingMonth: '2026-12' }), /does not belong/);
-      const originalKey = process.env.PAYMONGO_SECRET_KEY; process.env.PAYMONGO_SECRET_KEY = 'sk_test_integration_contract';
+      const originalKey = process.env.PAYMONGO_SECRET_KEY; process.env.PAYMONGO_SECRET_KEY = mockPaymentKey;
       let checkouts = 0;
       const originalFetch = globalThis.fetch;
       globalThis.fetch = async (url, options) => {
@@ -451,7 +464,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       await assert.rejects(handlePaymongoWebhookPayload(wrong), /amount/);
       const raw = JSON.stringify(payload);
       const timestamp = String(Math.floor(Date.now()/1000));
-      const signature = crypto.createHmac('sha256', 'integration-only-webhook-secret').update(`${timestamp}.${raw}`).digest('hex');
+      const signature = crypto.createHmac('sha256', mockWebhookSecret).update(`${timestamp}.${raw}`).digest('hex');
       const signedResponse = await request('/api/payments/paymongo/webhook', null, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Paymongo-Signature': `t=${timestamp},te=${signature}` }, body: raw });
       assert.equal(signedResponse.status, 200, await signedResponse.clone().text());
       await Promise.all([handlePaymongoWebhookPayload(payload), handlePaymongoWebhookPayload(payload)]);
@@ -473,7 +486,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
     });
     await t.test('owner signup photos and gallery replacements survive a clean upload directory', async () => {
       const form = new FormData();
-      const data = { accountType:'boarding_house_owner', fullName:'Registered Room Owner', email:`layout-${suffix}@example.test`, password:'test-password-123',confirmPassword:'test-password-123',acceptTerms:'on',boardingHouseName:'Layout Main',boardingHouseAddress:'Orconuma',streetAddress:'Purok 2, Main Street',roomsAvailable:'2',declaredBranches:'2',contactNumber:'09171234567',paymentMethods:'Cash',mapPin:'Lat 12.668945, Lon 121.491777',boardingHouseLatitude:'12.668945',boardingHouseLongitude:'121.491777',propertyType:'Mixed',floorCount:'2' };
+      const data = { accountType:'boarding_house_owner', fullName:'Registered Room Owner', email:`layout-${suffix}@example.test`, password:fixturePassword,confirmPassword:fixturePassword,acceptTerms:'on',boardingHouseName:'Layout Main',boardingHouseAddress:'Orconuma',streetAddress:'Purok 2, Main Street',roomsAvailable:'2',declaredBranches:'2',contactNumber:'09171234567',paymentMethods:'Cash',mapPin:'Lat 12.668945, Lon 121.491777',boardingHouseLatitude:'12.668945',boardingHouseLongitude:'121.491777',propertyType:'Mixed',floorCount:'2' };
       Object.assign(data, {
         branchFloors2: '3', branchRooms2: '6', branch2_boardingHouseAddress: 'Labasan',
         branch2_streetAddress: 'Centro', branch2_boardingHouseLatitude: '12.774815',
@@ -491,6 +504,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const created=await User.findOne({where:{email:data.email}});assert.ok(created);ids.push(created.id);
       assert.deepEqual(JSON.parse(created.paymentMethods), ['Cash', 'GCash']);
       assert.equal(created.gcashQrCode, null);
+      assert.equal(created.contactNumber, data.contactNumber);
       for(const value of [created.profilePicture,created.boardingHousePicture,created.validIdPicture,created.businessPermit,created.barangayClearance,created.rentalPermit,...JSON.parse(created.galleryImages || '[]'),...Object.values(JSON.parse(created.supportingDocuments || '{}'))]) if(typeof value==='string'&&value.startsWith('/uploads/'))uploadedFiles.push(new URL('../../public'+value,import.meta.url));
       const primary=await BoardingHouse.findOne({where:{ownerId:created.id,isPrimary:true}});assert.equal(primary.floorCount,2);assert.equal(primary.address,'Purok 2, Main Street');
       const rooms=await OwnerRoom.findAll({where:{ownerId:created.id},order:[['roomNumber','ASC']]});assert.equal(rooms.length,0);assert.equal(primary.declaredRooms,2);assert.equal(primary.declaredBranches,2);assert.equal(created.roomsAvailable,0);assert.equal(created.applicationStatus,'pending');
@@ -510,6 +524,8 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const mainOfficialCookie = await login(official.email);
       const primaryApps = await request('/barangay-dashboard/api/applications', mainOfficialCookie);
       const application = (await primaryApps.json()).data.find(item => item.id === created.id);
+      assert.equal(application.branches[0].address, data.streetAddress);
+      assert.equal(application.branches[1].address, data.branch2_streetAddress);
       assert.equal(application.branches[1].galleryImages[0], branch.picture);
       const branchExtra = application.branches[1].galleryImages[7];
       assert.match(branchExtra, /^\/uploads\/property-/);
@@ -528,14 +544,25 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.equal((await request(applicationPath, branchOfficialCookie, approve)).status, 404);
       assert.equal((await request(applicationPath, mainOfficialCookie, approve)).status, 200);
       assert.ok((await publicListings()).some(item => item.id === `bh-${branch.id}` &&
-        item.boardingHousePicture === branch.picture && item.galleryImages.includes(branchExtra)));
+        item.boardingHousePicture === branch.picture && item.galleryImages.includes(branchExtra) &&
+        item.boardingHouseAddress === data.branch2_streetAddress && item.contactNumber === data.contactNumber));
       const local = await inspectBranches();
       assert.ok(local.groups.find(group => group.id === created.id).branches.some(item => item.id === branch.id));
       assert.ok(!local.data.some(item => item.id === branch.id));
       const map = await request('/barangay-dashboard/api/map-houses', branchOfficialCookie);
-      assert.ok((await map.json()).data.some(item => item.id === `bh-${branch.id}`));
+      assert.ok((await map.json()).data.some(item => item.id === `bh-${branch.id}` && item.boardingHouseAddress === data.branch2_streetAddress));
       assert.equal((await request(`/barangay-dashboard/api/branches/${branch.id}/review`, branchOfficialCookie, approve)).status, 403);
       const ownerCookie = await login(created.email);
+      const profile = await request('/owner-dashboard/api/profile', ownerCookie);
+      assert.equal(profile.status, 200);
+      const ownerProfile = (await profile.json()).data;
+      assert.equal(ownerProfile.contactNumber, data.contactNumber);
+      assert.equal(ownerProfile.boardingHouseAddress, data.streetAddress);
+      const adminMap = await request('/admin/api/map-data', await login(admin.email));
+      assert.equal(adminMap.status, 200);
+      const mappedOwner = (await adminMap.json()).data.owners.find(item => item.id === created.id);
+      assert.equal(mappedOwner.boardingHouseAddress, data.streetAddress);
+      assert.ok(mappedOwner.branches.some(item => item.address === data.branch2_streetAddress && item.barangay === 'Labasan'));
       const renamed = await request('/owner-dashboard/api/profile', ownerCookie, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ boardingHouseName: '  Updated Boarding House  ' })

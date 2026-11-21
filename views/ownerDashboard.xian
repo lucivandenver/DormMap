@@ -356,7 +356,7 @@
             <h2 class="text-base font-bold text-slate-800">Main Property Profile Settings</h2>
             <span class="text-xs bg-emerald-50 text-emerald-700 font-bold px-3 py-1.5 rounded-full">Primary Property</span>
           </div>
-          <p class="text-sm text-slate-600">Before accepting tenants, save your contact and payment settings, set the property street address under Boarding Houses, and add priced rooms under Rooms.</p>
+          <p class="text-sm text-slate-600">Set up payment methods in My Profile &amp; Documents and add available rooms under Rooms. You can enter the agreed rent when sending a rental offer.</p>
           <form id="profileForm" class="space-y-4">
           <div class="grid gap-4 md:grid-cols-2">
             <div>
@@ -364,23 +364,14 @@
               <input type="text" name="boardingHouseName" maxlength="255" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/10 outline-none" required>
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-500 mb-1">Contact Number</label>
-              <input type="text" name="contactNumber" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/10 outline-none">
+              <label for="ownerPropertyContact" class="block text-xs font-bold text-slate-500 mb-1">Contact Number</label>
+              <input id="ownerPropertyContact" type="tel" name="contactNumber" autocomplete="tel" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/10 outline-none">
             </div>
             <div class="md:col-span-2">
-              <label class="block text-xs font-bold text-slate-500 mb-1">Barangay Location (Bongabong, Oriental Mindoro)</label>
-              <select name="boardingHouseAddress" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 outline-none">
-                <option value="">— Select Barangay —</option>
-                <option>Anilao</option><option>Aplaya</option><option>Bagong Bayan I</option><option>Bagong Bayan II</option>
-                <option>Batangan</option><option>Bukal</option><option>Camantigue</option><option>Carmundo</option>
-                <option>Cawayan</option><option>Dayhagan</option><option>Formon</option><option>Hagan</option>
-                <option>Hagupit</option><option>Ipil</option><option>Kaligtasan</option><option>Labasan</option>
-                <option>Labonan</option><option>Libertad</option><option>Lisap</option><option>Luna</option>
-                <option>Malitbog</option><option>Mapang</option><option>Masaguisi</option><option>Mina de Oro</option>
-                <option>Morente</option><option>Ogbot</option><option>Orconuma</option><option>Poblacion</option>
-                <option>Pulosahi</option><option>Sagana</option><option>San Isidro</option><option>San Jose</option>
-                <option>San Juan</option><option>Sta. Cruz</option><option>Sigange</option><option>Tawas</option>
-              </select>
+              <label for="ownerPropertyStreetAddress" class="block text-xs font-bold text-slate-500 mb-1">Street address</label>
+              <input id="ownerPropertyStreetAddress" type="text" name="boardingHouseAddress" maxlength="255" autocomplete="address-line1"
+                class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 outline-none">
+              <p id="ownerPropertyBarangay" class="mt-1 text-xs text-slate-600"></p>
             </div>
             <div class="md:col-span-2">
               <label class="block text-xs font-bold text-slate-500 mb-1">Description / About</label>
@@ -401,7 +392,7 @@
               </div>
             </div>
           </div>
-          <button type="submit" class="bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-800 transition">
+          <button type="submit" disabled class="bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-800 transition disabled:opacity-50">
             💾 Save Property Changes
           </button>
         </form>
@@ -1221,40 +1212,44 @@
 </div>
 
 <!-- Tenant application review -->
-<div id="acceptAppModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
-  <div class="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-2xl">
-    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+<div id="acceptAppModal" role="dialog" aria-modal="true" aria-labelledby="tenantReviewTitle" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 hidden">
+  <div class="flex w-full max-w-xl max-h-[92dvh] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-6">
       <div>
-        <h3 class="text-base font-bold text-slate-800">Review Tenant Application</h3>
+        <h3 id="tenantReviewTitle" class="text-base font-bold text-slate-800">Review Tenant Application</h3>
         <p id="acceptAppName" class="text-xs text-slate-500 mt-0.5"></p>
       </div>
-      <button onclick="closeAcceptAppModal()" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
+      <button type="button" id="closeTenantReview" aria-label="Close review" onclick="closeAcceptAppModal()" class="rounded-lg px-2 py-1 text-lg font-bold text-slate-600 hover:bg-slate-100">✕</button>
     </div>
-    <section id="reviewApplicantDetails" class="space-y-2 text-sm"></section>
-    <form id="tenantOfferForm" class="space-y-3">
-      <div id="tenantOfferFields" class="space-y-3 border-t border-slate-100 pt-3">
-        <p class="text-xs text-slate-600">The tenant must confirm the offer before the room is assigned.</p>
-        <label class="block text-xs font-bold text-slate-600">Room to offer
-          <select id="acceptAppRoomSelect" required class="mt-1 w-full rounded-lg border border-slate-200 p-2.5 text-sm"></select>
-        </label>
-        <div class="grid grid-cols-2 gap-3">
-          <label class="block text-xs font-bold text-slate-600">Household occupants
-            <input id="acceptAppOccupants" type="number" required min="1" max="100" value="1" class="mt-1 w-full rounded-lg border p-2.5">
+    <div id="tenantOfferMessage" role="status" aria-live="polite" aria-atomic="true" class="shrink-0 px-4 pt-3 sm:px-6" hidden>
+      <p id="tenantOfferMessageText" class="rounded-lg border px-3 py-2 text-sm font-medium"></p>
+    </div>
+    <div id="tenantReviewScroll" class="min-h-0 overflow-y-auto px-4 py-4 sm:px-6 space-y-4">
+      <section id="reviewApplicantDetails" class="space-y-2 text-sm"></section>
+      <form id="tenantOfferForm" class="space-y-3">
+        <div id="tenantOfferFields" class="space-y-3 border-t border-slate-100 pt-3">
+          <p class="text-xs text-slate-600">The tenant must confirm the offer before the room is assigned.</p>
+          <label class="block text-xs font-bold text-slate-600">Room to offer
+            <select id="acceptAppRoomSelect" required class="mt-1 w-full rounded-lg border border-slate-200 p-2.5 text-sm"></select>
           </label>
-          <label class="block text-xs font-bold text-slate-600">Monthly total (₱)
-            <input type="number" id="acceptAppRent" step="0.01" min="0.01" required class="mt-1 w-full rounded-lg border p-2.5">
+          <div class="grid grid-cols-2 gap-3">
+            <label class="block text-xs font-bold text-slate-600">Household occupants
+              <input id="acceptAppOccupants" type="number" required min="1" max="100" value="1" class="mt-1 w-full rounded-lg border p-2.5">
+            </label>
+            <label class="block text-xs font-bold text-slate-600">Monthly total (₱)
+              <input type="number" id="acceptAppRent" step="0.01" min="0.01" required class="mt-1 w-full rounded-lg border p-2.5">
+            </label>
+          </div>
+          <label class="block text-xs font-bold text-slate-600">Move-in date
+            <input type="date" id="acceptAppMoveIn" required class="mt-1 w-full rounded-lg border p-2.5">
           </label>
         </div>
-        <label class="block text-xs font-bold text-slate-600">Move-in date
-          <input type="date" id="acceptAppMoveIn" required class="mt-1 w-full rounded-lg border p-2.5">
-        </label>
-      </div>
-      <p id="tenantOfferMessage" role="status" class="text-xs text-slate-600"></p>
-      <div class="flex flex-wrap justify-end gap-2">
-        <button type="button" id="declineTenantReview" class="rounded-lg border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700">Decline</button>
-        <button type="submit" id="sendTenantOffer" class="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Accept &amp; Send Offer</button>
-      </div>
-    </form>
+        <div class="flex flex-wrap justify-end gap-2">
+          <button type="button" id="declineTenantReview" class="rounded-lg border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700">Decline</button>
+          <button type="submit" id="sendTenantOffer" class="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Accept &amp; Send Offer</button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 
@@ -1474,19 +1469,19 @@
   // ─── Property Profile ───
   async function loadProfile() {
     loadBoardingHouses();
-    const res = await fetch('/owner-dashboard/api/profile');
-    const { data } = await res.json();
-    if (!data) return;
     const form = document.getElementById('profileForm');
-    for (const key in data) {
-      const el = form.elements[key];
-      if (!el) continue;
-      if (el.tagName === 'SELECT') {
-        // Set selected option
-        [...el.options].forEach(o => { o.selected = (o.value === data[key] || o.text === data[key]); });
-      } else {
-        el.value = data[key] ?? '';
+    const button = form.querySelector('button[type=submit]');
+    button.disabled = true;
+    try {
+      const { data } = await ownerRequest('/owner-dashboard/api/profile');
+      for (const control of form.elements) {
+        if (control.name && Object.hasOwn(data, control.name)) control.value = data[control.name] ?? '';
       }
+      document.getElementById('ownerPropertyBarangay').textContent =
+        [data.barangay, 'Bongabong, Oriental Mindoro'].filter(Boolean).join(', ');
+      button.disabled = false;
+    } catch (error) {
+      ownerToast(error.message, true);
     }
   }
 
@@ -2271,18 +2266,20 @@
     }[status] || status;
   }
 
-  async function openTenantReview(id) {
-    const app = applicationReviews.get(id);
-    if (!app) return;
-    reviewingApplication = app;
-    declineArmed = false;
-    const actionable = ['pending_owner', 'accepted_by_owner'].includes(app.status);
-    const date = document.getElementById('acceptAppMoveIn');
-    const roomSelect = document.getElementById('acceptAppRoomSelect');
-    const offerButton = document.getElementById('sendTenantOffer');
-    const declineButton = document.getElementById('declineTenantReview');
-    const message = document.getElementById('tenantOfferMessage');
-    document.getElementById('acceptAppName').textContent = app.fullName;
+  function showTenantReviewMessage(text, kind = 'info') {
+    const banner = document.getElementById('tenantOfferMessage');
+    const message = document.getElementById('tenantOfferMessageText');
+    const colors = {
+      info: 'border-slate-200 bg-slate-50 text-slate-800',
+      error: 'border-rose-200 bg-rose-50 text-rose-900',
+      success: 'border-emerald-200 bg-emerald-50 text-emerald-900'
+    };
+    message.className = 'rounded-lg border px-3 py-2 text-sm font-medium ' + colors[kind];
+    banner.hidden = !text;
+    message.textContent = text;
+  }
+
+  function renderTenantReviewDetails(app) {
     document.getElementById('reviewApplicantDetails').innerHTML = `
       <dl class="grid gap-2 sm:grid-cols-2">${[
         ['Boarding house / branch', app.boardingHouseName], ['Requested room', app.requestedRoomType],
@@ -2292,6 +2289,21 @@
       ].map(([label, value]) => `<div><dt class="font-semibold">${label}</dt><dd>${esc(value || '—')}</dd></div>`).join('')}</dl>
       <p class="whitespace-pre-wrap">${esc(app.message || 'No inquiry message submitted.')}</p>
       <div><h4 class="font-semibold">Government ID</h4>${DormMapPreview.render(app.validIdPicture, 'Government ID')}</div>`;
+  }
+
+  async function openTenantReview(id) {
+    const selected = applicationReviews.get(id);
+    if (!selected) return;
+    const app = { ...selected };
+    reviewingApplication = app;
+    declineArmed = false;
+    const actionable = ['pending_owner', 'accepted_by_owner'].includes(app.status);
+    const date = document.getElementById('acceptAppMoveIn');
+    const roomSelect = document.getElementById('acceptAppRoomSelect');
+    const offerButton = document.getElementById('sendTenantOffer');
+    const declineButton = document.getElementById('declineTenantReview');
+    document.getElementById('acceptAppName').textContent = app.fullName;
+    renderTenantReviewDetails(app);
     document.getElementById('tenantOfferFields').hidden = !actionable;
     declineButton.hidden = offerButton.hidden = !actionable;
     offerButton.disabled = true;
@@ -2302,8 +2314,10 @@
     document.getElementById('acceptAppRent').value = app.monthlyRent ?? '';
     date.value = app.moveInDate || new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Manila' }).format(new Date());
     roomSelect.replaceChildren(new Option('Choose a room', ''));
-    message.textContent = actionable ? 'Loading available rooms…' : '';
+    showTenantReviewMessage(actionable ? 'Loading available rooms…' : '');
     document.getElementById('acceptAppModal').classList.remove('hidden');
+    document.getElementById('tenantReviewScroll').scrollTop = 0;
+    document.getElementById('closeTenantReview').focus({ preventScroll: true });
     if (!actionable) return;
 
     try {
@@ -2312,12 +2326,16 @@
       const rooms = data.filter(room => room.branchApprovalStatus === 'approved' &&
         (!app.boardingHouseId || room.boardingHouseId === app.boardingHouseId) &&
         room.status === 'available' && Number(room.availableSlots) > 0);
-      for (const room of rooms) roomSelect.add(new Option(`${room.boardingHouseName} · ${roomLabel(room)}`, room.id));
+      for (const room of rooms) {
+        const option = new Option(`${room.boardingHouseName} · ${roomLabel(room)}`, room.id);
+        option.dataset.roomNumber = room.roomNumber;
+        roomSelect.add(option);
+      }
       if (rooms.some(room => room.id === app.roomId)) roomSelect.value = app.roomId;
       offerButton.disabled = !rooms.length;
-      message.textContent = rooms.length ? '' : 'No available rooms for this application.';
+      showTenantReviewMessage(rooms.length ? '' : 'No available rooms for this application.');
     } catch (error) {
-      if (reviewingApplication === app) message.textContent = error.message;
+      if (reviewingApplication === app) showTenantReviewMessage(error.message, 'error');
     } finally {
       if (reviewingApplication === app) declineButton.disabled = false;
     }
@@ -2335,8 +2353,9 @@
     const decline = document.getElementById('declineTenantReview');
     if (accept ? offer.disabled : decline.disabled) return;
     const offerDisabled = offer.disabled;
-    const message = document.getElementById('tenantOfferMessage');
     offer.disabled = decline.disabled = true;
+    showTenantReviewMessage(accept ? 'Sending the offer…' : 'Updating the application…');
+    let saved = false;
     const url = `/owner-dashboard/api/pending-applications/${app.userId}`;
     try {
       const response = accept
@@ -2349,21 +2368,35 @@
             })
           })
         : await ownerRequest(url + '/decline?' + new URLSearchParams({ applicationId: app.applicationId }), { method: 'DELETE' });
-      if (reviewingApplication === app) closeAcceptAppModal();
-      ownerToast(response.message);
+      saved = true;
+      if (reviewingApplication === app) {
+        const savedApp = accept ? {
+          ...app, ...response.data,
+          room: { roomNumber: document.getElementById('acceptAppRoomSelect').selectedOptions[0]?.dataset.roomNumber }
+        } : { ...app, status: 'declined_by_owner' };
+        renderTenantReviewDetails(savedApp);
+        showTenantReviewMessage(response.message, 'success');
+        document.getElementById('tenantOfferFields').hidden = true;
+        offer.hidden = decline.hidden = true;
+        document.getElementById('tenantReviewScroll').scrollTop = 0;
+        document.getElementById('closeTenantReview').focus({ preventScroll: true });
+      } else ownerToast(response.message);
       loadTenants();
       loadOverview();
     } catch (error) {
-      if (reviewingApplication === app) message.textContent = error.message;
+      if (reviewingApplication === app) showTenantReviewMessage(error.message, 'error');
       else ownerToast(error.message, true);
     } finally {
-      if (reviewingApplication === app) {
+      if (reviewingApplication === app && !saved) {
         offer.disabled = offerDisabled;
         decline.disabled = false;
       }
     }
   }
 
+  document.getElementById('tenantOfferForm').addEventListener('invalid', () => {
+    showTenantReviewMessage('Check the highlighted field before sending the offer.', 'error');
+  }, true);
   document.getElementById('tenantOfferForm').addEventListener('submit', event => {
     event.preventDefault();
     saveApplicationReview(true);
@@ -2375,7 +2408,7 @@
     }
     declineArmed = true;
     event.currentTarget.textContent = reviewingApplication?.status === 'accepted_by_owner' ? 'Confirm Cancellation' : 'Confirm Decline';
-    document.getElementById('tenantOfferMessage').textContent = 'Confirm to notify the tenant and close this application.';
+    showTenantReviewMessage('Confirm to notify the tenant and close this application.');
   });
 
   function setTenantRoomOptions(selectedRoomId = '') {

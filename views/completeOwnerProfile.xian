@@ -500,7 +500,7 @@
             <p style="font-size:0.72rem;color:#94a3b8;margin-top:0.6rem;">✓ JPG, PNG, or WEBP accepted. Max 5MB per photo. These replace the old single photo requirement.</p>
           </div>
 
-          <label><span>Street address (optional)</span><input name="streetAddress" maxlength="255"></label>
+          <label><span>Street address *</span><input name="streetAddress" value="{{authValues.streetAddress}}" maxlength="255" autocomplete="address-line1" placeholder="Street, purok, or sitio" required></label>
           <!-- Map Pin -->
           <div>
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.35rem;">
@@ -620,7 +620,7 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="/js/owner-registration-locations.js"></script>
+  <script src="/js/owner-registration-locations.js?v=2"></script>
   <script>
     let mapInitialized = false;
     let map, marker;

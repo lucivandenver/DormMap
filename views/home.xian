@@ -102,9 +102,6 @@
       width: 100%;
       transition: transform 320ms cubic-bezier(0.25, 1, 0.5, 1);
     }
-    .detail-carousel-dot {
-      transition: all 200ms ease;
-    }
   </style>
 </head>
 <body class="antialiased text-slate-800">
@@ -683,33 +680,25 @@
           <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
         </button>
 
-        <!-- Carousel Dots -->
-        <div id="detailCarouselDots" class="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-20 bg-black/40 backdrop-blur-sm px-3 py-1 rounded-full">
-          <!-- Rendered dynamically -->
-        </div>
-
         <!-- Carousel Counter Badge (e.g. 1 / 3) -->
         <div id="detailCarouselCounter" class="absolute top-4 left-4 z-20 px-2.5 py-0.5 rounded-full bg-black/60 text-white text-[11px] font-semibold backdrop-blur-md">1 / 1</div>
 
         <!-- Close Button -->
         <button type="button" onclick="closePropertyDetailModal()" class="absolute top-4 right-4 z-20 flex items-center justify-center w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 text-white font-bold text-sm backdrop-blur-md shadow transition cursor-pointer" title="Close">✕</button>
 
-        <!-- Title & Location Overlay -->
-        <div class="absolute inset-x-0 bottom-7 pt-16 pb-2 px-5 bg-gradient-to-t from-slate-950/95 via-slate-950/60 to-transparent z-10 pointer-events-none text-white">
-          <div class="flex items-center gap-1.5 flex-wrap">
-            <span id="detailBadge" class="bg-emerald-600 text-white text-[9px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider inline-block">✓ Verified</span>
-            <span id="detailDistanceBadge" class="bg-slate-900/80 text-white text-[9px] font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 backdrop-blur-md hidden border border-white/20">
-              <span class="text-emerald-400">📍</span>
-              <span id="detailDistanceText">-- km away</span>
-            </span>
-          </div>
-          <h3 id="detailTitle" class="text-xl sm:text-2xl font-black mt-1 leading-tight text-white drop-shadow"></h3>
-          <p id="detailAddress" class="text-xs text-slate-200 mt-0.5 flex items-center gap-1"></p>
-        </div>
       </div>
 
-      <!-- Compact Details Section (Small Fonts and Proportional Buttons as requested) -->
       <div class="p-4 sm:p-5 space-y-3.5 max-h-[50vh] overflow-y-auto">
+        <header class="space-y-1">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span id="detailBadge" class="inline-block rounded-full bg-emerald-600 px-2.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-white">Registered</span>
+            <span id="detailDistanceBadge" class="hidden rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-semibold text-slate-700">
+              <span id="detailDistanceText"></span>
+            </span>
+          </div>
+          <h3 id="detailTitle" class="break-words text-xl font-black leading-tight text-slate-950 sm:text-2xl"></h3>
+          <p id="detailAddress" class="text-xs text-slate-600"></p>
+        </header>
         <div id="detailRegistrationStatus" role="status" hidden class="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800"></div>
         <div id="detailRoomInventory"></div>
         
@@ -790,7 +779,6 @@
       detailCarouselCurrentIndex = 0;
 
       const track = document.getElementById('detailCarouselTrack');
-      const dotsContainer = document.getElementById('detailCarouselDots');
       const prevBtn = document.getElementById('carouselPrevBtn');
       const nextBtn = document.getElementById('carouselNextBtn');
       const counter = document.getElementById('detailCarouselCounter');
@@ -805,7 +793,6 @@
             <span class="text-xs font-semibold text-slate-400">No photos uploaded for this boarding house yet</span>
           </div>
         `;
-        if (dotsContainer) dotsContainer.style.display = 'none';
         if (prevBtn) prevBtn.style.display = 'none';
         if (nextBtn) nextBtn.style.display = 'none';
         if (counter) counter.style.display = 'none';
@@ -823,28 +810,12 @@
         </div>
       `).join('');
 
-      // Build dots and arrows
-      if (detailCarouselSlides.length > 1) {
-        if (dotsContainer) {
-          dotsContainer.style.display = 'flex';
-          dotsContainer.innerHTML = detailCarouselSlides.map((_, idx) => `
-            <button type="button" onclick="goToDetailSlide(${idx})" class="detail-carousel-dot w-2 h-2 rounded-full transition-all cursor-pointer ${idx === 0 ? 'bg-white scale-125' : 'bg-white/40 hover:bg-white/70'}" title="Photo ${idx + 1}"></button>
-          `).join('');
-        }
-        if (prevBtn) prevBtn.style.display = 'flex';
-        if (nextBtn) nextBtn.style.display = 'flex';
-        if (counter) {
-          counter.style.display = 'block';
-          counter.textContent = `1 / ${detailCarouselSlides.length}`;
-        }
-      } else {
-        if (dotsContainer) dotsContainer.style.display = 'none';
-        if (prevBtn) prevBtn.style.display = 'none';
-        if (nextBtn) nextBtn.style.display = 'none';
-        if (counter) {
-          counter.style.display = 'block';
-          counter.textContent = `1 / 1`;
-        }
+      const hasMorePhotos = detailCarouselSlides.length > 1;
+      if (prevBtn) prevBtn.style.display = hasMorePhotos ? 'flex' : 'none';
+      if (nextBtn) nextBtn.style.display = hasMorePhotos ? 'flex' : 'none';
+      if (counter) {
+        counter.style.display = 'block';
+        counter.textContent = `1 / ${detailCarouselSlides.length}`;
       }
 
       track.style.transform = 'translateX(0%)';
@@ -865,16 +836,6 @@
       if (track) {
         track.style.transform = `translateX(-${index * 100}%)`;
       }
-
-      // Update dots
-      const dots = document.querySelectorAll('.detail-carousel-dot');
-      dots.forEach((dot, idx) => {
-        if (idx === index) {
-          dot.className = 'detail-carousel-dot w-2.5 h-2 rounded-full transition-all cursor-pointer bg-white scale-125';
-        } else {
-          dot.className = 'detail-carousel-dot w-2 h-2 rounded-full transition-all cursor-pointer bg-white/40 hover:bg-white/70';
-        }
-      });
 
       // Update counter
       const counter = document.getElementById('detailCarouselCounter');
@@ -902,7 +863,8 @@
       warning.hidden = !unregistered;
       warning.textContent = unregistered ? 'UNREGISTERED — Published by the barangay for public information. Applications are unavailable until registration is approved.' : '';
 
-      document.getElementById('detailTitle').textContent = listingTitle(house);
+      document.getElementById('detailTitle').textContent =
+        house.propertyName || house.boardingHouseName || house.fullName || 'Boarding House';
       document.getElementById('detailAddress').textContent = (house.boardingHouseAddress || house.barangay || 'Bongabong, Oriental Mindoro');
       document.getElementById('detailRooms').textContent = (house.roomsAvailable ?? 0) + ' vacant rooms';
       document.getElementById('detailOwner').textContent = house.fullName || 'Registered Owner';

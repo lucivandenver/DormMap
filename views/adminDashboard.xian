@@ -1215,6 +1215,13 @@ function inspectHouse(id) {
       </div>
     </div>
 
+    ${o.branches?.length ? `<section class="rounded-xl border border-slate-200 p-4">
+      <h3 class="text-xs font-bold text-slate-800">Other branch addresses</h3>
+      <ul class="mt-2 space-y-2 text-xs text-slate-700">${o.branches.map(branch => `
+        <li><strong>${esc(branch.name)}</strong><br>${esc([...new Set([branch.address, branch.barangay].filter(Boolean))].join(', ') || 'Address not provided')}</li>
+      `).join('')}</ul>
+    </section>` : ''}
+
     <div class="rounded-xl border border-slate-200 p-4 bg-white">
       <p class="text-xs font-bold text-slate-800">Geospatial Coordinates</p>
       <p class="text-xs text-slate-500 mt-0.5">Latitude: <b>${o.lat.toFixed(6)}</b> · Longitude: <b>${o.lng.toFixed(6)}</b></p>

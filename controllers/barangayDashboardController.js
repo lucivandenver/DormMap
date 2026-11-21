@@ -620,7 +620,7 @@ export const applications = async (req, res, next) => {
     }
     const owners = await User.findAll({
       where, order: [['createdAt', 'DESC']],
-      attributes: ['id', 'fullName', 'email', 'profilePicture', 'publicMapUnregistered', 'boardingHouseName', 'barangay', 'mapPin', 'galleryImages', 'boardingHouseLatitude', 'boardingHouseLongitude',
+      attributes: ['id', 'fullName', 'email', 'profilePicture', 'publicMapUnregistered', 'boardingHouseName', 'boardingHouseAddress', 'barangay', 'mapPin', 'galleryImages', 'boardingHouseLatitude', 'boardingHouseLongitude',
         'validIdPicture', 'businessPermit', 'barangayClearance', 'proofOfOwnership', 'rentalPermit', 'supportingDocuments', 'applicationStatus', 'applicationReviewNote', 'createdAt']
     });
     const houses = await BoardingHouse.findAll({
@@ -647,7 +647,7 @@ export const applications = async (req, res, next) => {
         branches: house?.declaredRooms ? [{ floors: house.floorCount, rooms: house.declaredRooms }] : []
       };
       const mainLocation = {
-        barangay: submission.barangay, latitude: legacy.boardingHouseLatitude, longitude: legacy.boardingHouseLongitude,
+        barangay: submission.barangay, address: house?.address || legacy.boardingHouseAddress, latitude: legacy.boardingHouseLatitude, longitude: legacy.boardingHouseLongitude,
         galleryImages: galleryByHouse.get(house?.id) || legacy.galleryImages || submission.galleryImages
       };
       const branches = (submission.branches || []).map((branch, index) => {
@@ -655,7 +655,7 @@ export const applications = async (req, res, next) => {
         const property = ownerHouses.find(item => item.id === branch.boardingHouseId) ||
           ownerHouses.find(item => item.registrationSubmission?.submittedWithOwner &&
             item.name.endsWith(` — Branch ${index + 1}`) && item.barangay === branch.barangay);
-        return { ...branch, galleryImages: galleryByHouse.get(property?.id) || branch.galleryImages };
+        return { ...branch, address: property?.address || branch.address, galleryImages: galleryByHouse.get(property?.id) || branch.galleryImages };
       }).filter((branch, index) => index === 0 || branch.barangay);
       if (!branches.length) branches.push(mainLocation);
       return { ...submission, branches, id, applicationStatus, applicationReviewNote, createdAt,

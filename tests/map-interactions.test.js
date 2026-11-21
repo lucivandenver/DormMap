@@ -237,6 +237,7 @@ test('listing pins use owner photos and popups show branch, barangay, town and c
   assert.equal(pin.html.children[0].children[0].src, house.ownerProfilePicture);
   assert.equal(context.window.dormMapListingTitle(house), 'Sample House · Branch 2');
   assert.equal(context.window.dormMapListingLocation(house), 'Labasan, Bongabong');
+  assert.equal(context.window.dormMapListingLocation({ ...house, address: 'Purok 2, Main Street' }), 'Purok 2, Main Street, Labasan, Bongabong');
   const unregistered = context.window.dormMapPropertyPin(leaflet, true, house);
   assert.match(unregistered.html.className, /is-unregistered/);
   const popup = context.window.dormMapListingPopup(house, { onDetails() {} });
