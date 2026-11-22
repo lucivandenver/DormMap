@@ -25,8 +25,18 @@ const audit = (req, action, entityType, entityId, details = {}) =>
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
-export const ownerDashboardPage = (req, res) =>
-  res.render('ownerDashboard', { title: 'DormMap | Owner Dashboard', userName: req.session.userName, pendingStatus: null });
+export const ownerDashboardPage = async (req, res, next) => {
+  try {
+    const user = await User.findByPk(oid(req), { attributes: ['fullName', 'email', 'profilePicture'] });
+    res.render('ownerDashboard', {
+      title: 'DormMap | Owner Dashboard',
+      userName: user?.fullName || req.session.userName || 'Property Owner',
+      userEmail: user?.email || '',
+      profilePicture: user?.profilePicture || '',
+      pendingStatus: null,
+    });
+  } catch (error) { next(error); }
+};
 
 // ─── Overview / Dashboard Cards ───────────────────────────────────────────────
 

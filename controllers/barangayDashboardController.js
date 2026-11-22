@@ -19,8 +19,17 @@ const audit = (req, action, entityType, entityId, details = {}) =>
   AdminAuditLog.create({ actorId: req.session.userId, action, entityType, entityId, details, ipAddress: req.ip });
 const ownersWhere = (barangay) => ({ accountType: 'boarding_house_owner', barangay, isArchived: false });
 
-export const barangayDashboardPage = (req, res) => 
-  res.render('barangayDashboard', { title: 'DormMap | Barangay Dashboard', userName: req.session.userName });
+export const barangayDashboardPage = async (req, res, next) => {
+  try {
+    const user = await User.findByPk(req.session.userId, { attributes: ['fullName', 'email', 'profilePicture'] });
+    res.render('barangayDashboard', {
+      title: 'DormMap | Barangay Dashboard',
+      userName: user?.fullName || req.session.userName || 'Barangay Official',
+      userEmail: user?.email || '',
+      profilePicture: user?.profilePicture || '',
+    });
+  } catch (error) { next(error); }
+};
 
 export const overview = async (req, res, next) => {
   try {

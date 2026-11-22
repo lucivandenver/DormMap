@@ -8,9 +8,9 @@
       <button id="menuToggle" class="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden focus:outline-none" aria-label="Toggle Navigation">
         <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
-      <a href="/" class="flex items-center gap-2 font-bold text-emerald-950 text-lg">
-        <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-700 text-white font-black text-sm">D</span>
-        <span>DormMap <span class="hidden font-normal text-xs text-slate-400 sm:inline">/ Barangay Office</span></span>
+      <a href="/" class="flex items-center gap-2.5 font-bold text-emerald-950 text-lg">
+        <span class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-800 to-emerald-950 text-white font-black text-lg shadow-md">D</span>
+        <span class="flex flex-col"><span class="leading-none text-slate-900 font-extrabold tracking-tight">DormMap</span><span class="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700">Barangay Portal</span></span>
       </a>
       <span class="hidden md:inline-block text-slate-300">|</span>
       <div class="hidden md:flex items-center gap-2 text-xs text-slate-500" id="breadcrumbNav">
@@ -28,15 +28,15 @@
       </div>
 
       <div class="relative" id="barangayProfileMenu">
-        <button id="barangayProfileButton" type="button" aria-expanded="false" aria-controls="barangayProfileDropdown" class="flex items-center gap-2 rounded-xl border border-slate-200 p-1.5 hover:bg-slate-50">
-          <span class="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-700 text-white font-bold text-sm uppercase">{{userName.[0]}}</span>
-          <span class="hidden text-left sm:block"><span class="block text-xs font-bold text-slate-800">{{userName}}</span><span class="block text-[10px] text-slate-500">Barangay Official</span></span>
-          <i data-lucide="chevron-down" class="h-4 w-4 text-slate-500"></i>
+        <button id="barangayProfileButton" type="button" aria-label="Open profile menu" aria-expanded="false" aria-controls="barangayProfileDropdown" class="flex items-center gap-2 rounded-2xl border border-transparent p-1 hover:border-slate-200 hover:bg-slate-50 focus:outline-none">
+          <span class="rounded-2xl border border-slate-200 bg-white p-1 shadow-sm"><img src="{{profilePicture}}" onerror="this.onerror=null;this.src='https://ui-avatars.com/api/?name={{userName}}&background=023020&color=fff'" alt="{{userName}} profile" class="h-10 w-10 rounded-xl object-cover ring-2 ring-emerald-600/20"></span>
+          <span class="hidden text-left sm:block"><span class="block max-w-36 truncate text-xs font-bold text-slate-900">{{userName}}</span><span class="block text-[10px] font-semibold text-emerald-700">Barangay Official</span></span>
         </button>
-        <div id="barangayProfileDropdown" class="hidden absolute right-0 mt-2 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl z-50">
-          <button type="button" onclick="show('profile'); toggleBarangayMenu(false)" class="block w-full px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50">Profile</button>
-          <button type="button" onclick="show('settings'); toggleBarangayMenu(false)" class="block w-full border-t border-slate-100 px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50">Settings</button>
-          <a href="/logout" class="block border-t border-slate-100 px-4 py-3 text-sm font-bold text-rose-600 hover:bg-rose-50">Logout</a>
+        <div id="barangayProfileDropdown" class="hidden absolute right-0 mt-2 w-[min(20rem,calc(100vw-1rem))] overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-xl z-50">
+          <div class="border-b border-slate-100 px-5 py-4"><p class="text-sm font-bold text-slate-900">{{userName}}</p><p class="mt-0.5 truncate text-xs text-slate-500">{{userEmail}}</p></div>
+          <button type="button" onclick="show('profile'); toggleBarangayMenu(false)" class="flex w-full items-center gap-3 px-5 py-3.5 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-user-pen w-5 text-center text-slate-500"></i>Profile</button>
+          <button type="button" onclick="show('settings'); toggleBarangayMenu(false)" class="flex w-full items-center gap-3 px-5 py-3.5 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-gear w-5 text-center text-slate-500"></i>Settings</button>
+          <a href="/logout" class="flex w-full items-center gap-3 border-t border-slate-100 px-5 py-4 text-sm font-bold text-rose-600 hover:bg-rose-50"><i class="fa-solid fa-right-from-bracket w-5 text-center"></i>Sign Out</a>
         </div>
       </div>
     </div>

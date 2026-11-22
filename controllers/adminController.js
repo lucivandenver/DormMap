@@ -23,9 +23,17 @@ const audit = (req, action, entityType, entityId, details = {}) => AdminAuditLog
   actorId: req.session.userId, action, entityType, entityId, details, ipAddress: req.ip,
 });
 
-export const adminDashboardPage = (req, res) => res.render('adminDashboard', {
-  title: 'DormMap | BPLO Administration & Data Management', userName: req.session.userName,
-});
+export const adminDashboardPage = async (req, res, next) => {
+  try {
+    const user = await User.findByPk(req.session.userId, { attributes: ['fullName', 'email', 'profilePicture'] });
+    res.render('adminDashboard', {
+      title: 'DormMap | BPLO Administration & Data Management',
+      userName: user?.fullName || req.session.userName || 'Administrator',
+      userEmail: user?.email || '',
+      profilePicture: user?.profilePicture || '',
+    });
+  } catch (error) { next(error); }
+};
 
 export const overview = async (req, res, next) => {
   try {
