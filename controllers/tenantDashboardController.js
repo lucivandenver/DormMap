@@ -12,11 +12,12 @@ import { User } from '../models/userModel.js';
 import { Announcement, BarangayNotification } from '../models/adminModels.js';
 import {
   BoardingHouse, OwnerRoom, OwnerTenant, OwnerPayment,
-  OwnerMessage, OwnerNotification, OwnerActivityLog, OwnerInquiry
+  OwnerMessage, OwnerNotification, OwnerActivityLog, OwnerInquiry, BoardingHouseReview
 } from '../models/ownerModels.js';
 import { MaintenanceRequest, TenantDocument, TenantApplication } from '../models/tenantModels.js';
 
 import { findActiveRental } from '../services/rentalIdentityService.js';
+import { summarizeRatings, validateRatingPayload } from '../services/boardingHouseRatingService.js';
 const getTenantRecord = findActiveRental;
 async function propertyOwnerView(owner, room) {
   if (!owner) return null;
@@ -27,8 +28,51 @@ async function propertyOwnerView(owner, room) {
   result.propertyName = owner.boardingHouseName || house?.name;
   result.branchNumber = index >= 0 ? index + 1 : room && !room.boardingHouseId ? 1 : null;
   if (house) Object.assign(result, { boardingHouseName: house.name, boardingHouseAddress: house.address, barangay: house.barangay, boardingHousePicture: house.picture, boardingHouseLatitude: house.latitude, boardingHouseLongitude: house.longitude, amenities: house.amenities, houseRules: house.houseRules, description: house.description });
+  if (house) result.establishmentId = house.id;
   return result;
 }
+
+async function tenantRatingState(user, tenantRec, room, owner) {
+  let house = room?.boardingHouseId
+    ? await BoardingHouse.findOne({ where: { id: room.boardingHouseId, ownerId: tenantRec?.ownerId || owner?.id } })
+    : null;
+  if (!house && owner?.id) house = await BoardingHouse.findOne({ where: { ownerId: owner.id, isPrimary: true } });
+  if (!house) return { ratingAverage: 0, ratingCount: 0, myRating: null, canRate: false };
+  const [reviews, myReview] = await Promise.all([
+    BoardingHouseReview.findAll({ where: { boardingHouseId: house.id }, attributes: ['rating'] }),
+    BoardingHouseReview.findOne({ where: { boardingHouseId: house.id, tenantUserId: user.id } }),
+  ]);
+  const summary = summarizeRatings(reviews);
+  return {
+    ...summary,
+    myRating: myReview?.rating || null,
+    canRate: Boolean(tenantRec?.status === 'active' && room && house.approvalStatus === 'approved' &&
+      owner && ['approved', 'approved_barangay'].includes(owner.applicationStatus) && !owner.isSuspended && !owner.isArchived),
+  };
+}
+
+export const submitBoardingHouseRating = async (req, res, next) => {
+  try {
+    const { rating, comment } = validateRatingPayload(req.body);
+    const user = req.currentUser;
+    const tenantRec = await getTenantRecord(user);
+    if (!tenantRec || tenantRec.status !== 'active' || !tenantRec.roomId) return res.status(403).json({ error: 'Only tenants with an active room assignment can rate a boarding house.' });
+    const room = await OwnerRoom.findOne({ where: { id: tenantRec.roomId, ownerId: tenantRec.ownerId } });
+    if (!room) return res.status(403).json({ error: 'An active room assignment is required to rate a boarding house.' });
+    let house = room?.boardingHouseId ? await BoardingHouse.findOne({ where: { id: room.boardingHouseId, ownerId: tenantRec.ownerId } }) : null;
+    if (!house) house = await BoardingHouse.findOne({ where: { ownerId: tenantRec.ownerId, isPrimary: true } });
+    const owner = await User.findOne({ where: { id: tenantRec.ownerId, accountType: 'boarding_house_owner', isSuspended: false, isArchived: false, applicationStatus: { [Op.in]: ['approved', 'approved_barangay'] } } });
+    if (!house || house.approvalStatus !== 'approved' || !owner) return res.status(403).json({ error: 'This boarding house is not currently available for public ratings.' });
+
+    const [review, created] = await BoardingHouseReview.findOrCreate({
+      where: { boardingHouseId: house.id, tenantUserId: user.id },
+      defaults: { boardingHouseId: house.id, ownerId: owner.id, ownerTenantId: tenantRec.id, tenantUserId: user.id, rating, comment },
+    });
+    if (!created) await review.update({ ownerId: owner.id, ownerTenantId: tenantRec.id, rating, comment });
+    const reviews = await BoardingHouseReview.findAll({ where: { boardingHouseId: house.id }, attributes: ['rating'] });
+    res.json({ message: created ? 'Your rating was submitted.' : 'Your rating was updated.', ...summarizeRatings(reviews), myRating: rating });
+  } catch (error) { next(error); }
+};
 
 
 // ─── Render Page ─────────────────────────────────────────────────────────────
@@ -243,13 +287,15 @@ export const getMyRoom = async (req, res, next) => {
       if (app) {
         const room = app.roomId ? await OwnerRoom.findByPk(app.roomId) : null;
         const owner = app.ownerId ? await User.findByPk(app.ownerId, {
-          attributes: ['id', 'fullName', 'boardingHouseName', 'boardingHouseAddress', 'contactNumber', 'email', 'profilePicture', 'houseRules', 'amenities', 'boardingHousePicture', 'boardingHouseLatitude', 'boardingHouseLongitude', 'operatingHours']
+          attributes: ['id', 'fullName', 'boardingHouseName', 'boardingHouseAddress', 'contactNumber', 'email', 'profilePicture', 'houseRules', 'amenities', 'boardingHousePicture', 'boardingHouseLatitude', 'boardingHouseLongitude', 'operatingHours', 'applicationStatus', 'isSuspended', 'isArchived']
         }) : null;
+        const boardingHouse = await propertyOwnerView(owner, room);
         return res.json({
           hasRoom: !!room,
           tenantRecord: { monthlyRent: app.monthlyRent, moveInDate: app.moveInDate },
           room: room ? room.get({ plain: true }) : null,
-          boardingHouse: await propertyOwnerView(owner, room),
+          boardingHouse,
+          rating: await tenantRatingState(user, null, room, owner),
         });
       }
       return res.json({
@@ -260,7 +306,7 @@ export const getMyRoom = async (req, res, next) => {
 
     const room = tenantRec.roomId ? await OwnerRoom.findByPk(tenantRec.roomId) : null;
     const owner = tenantRec.ownerId ? await User.findByPk(tenantRec.ownerId, {
-      attributes: ['id', 'fullName', 'boardingHouseName', 'boardingHouseAddress', 'contactNumber', 'email', 'profilePicture', 'houseRules', 'amenities', 'boardingHousePicture', 'boardingHouseLatitude', 'boardingHouseLongitude', 'operatingHours']
+      attributes: ['id', 'fullName', 'boardingHouseName', 'boardingHouseAddress', 'contactNumber', 'email', 'profilePicture', 'houseRules', 'amenities', 'boardingHousePicture', 'boardingHouseLatitude', 'boardingHouseLongitude', 'operatingHours', 'applicationStatus', 'isSuspended', 'isArchived']
     }) : null;
 
     const roommates = room ? await OwnerTenant.findAll({
@@ -273,6 +319,7 @@ export const getMyRoom = async (req, res, next) => {
       tenantRecord: tenantRec.get({ plain: true }),
       room: room ? room.get({ plain: true }) : null,
       boardingHouse: await propertyOwnerView(owner, room),
+      rating: await tenantRatingState(user, tenantRec, room, owner),
     });
   } catch (err) { next(err); }
 };

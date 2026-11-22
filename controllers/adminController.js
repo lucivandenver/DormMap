@@ -5,6 +5,9 @@ import bcrypt from 'bcrypt';
 import { submittedOwnerWhere } from '../services/registrationPolicy.js';
 import { inventorySummary } from '../services/inventorySummaryService.js';
 import { setPublicMapStatus } from '../services/publicMapStatusService.js';
+import { publicDormListings } from '../services/landingService.js';
+import { broadcastEvent } from '../services/websocketService.js';
+import { pushPublicUpdate } from '../services/liveEventService.js';
 import { uploadDir } from '../config/storage.js';
 import { Op, fn, col } from 'sequelize';
 import { User } from '../models/userModel.js';
@@ -698,6 +701,51 @@ export const getSystemSettings = async (req, res, next) => {
   try {
     const settings = await BploSystemSetting.findAll({ order: [['category', 'ASC'], ['key', 'ASC']] });
     res.json({ data: settings.filter(setting => setting.key !== dormigoQuestionsKey), dormigoQuestions: await getDormigoQuestions(), qrPh: getQrPhConfiguration() });
+  } catch (error) { next(error); }
+};
+
+const featuredListingSettingKey = 'featured_boarding_house_ids';
+const latestFeaturedDefaults = listings => listings
+  .slice().sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0))
+  .slice(0, 3).map(item => String(item.id));
+
+export const getFeaturedListings = async (req, res, next) => {
+  try {
+    const [listings, setting] = await Promise.all([
+      publicDormListings(), BploSystemSetting.findByPk(featuredListingSettingKey),
+    ]);
+    const eligible = listings.filter(item => item.registrationStatus === 'registered');
+    const eligibleIds = new Set(eligible.map(item => String(item.id)));
+    let selected = [];
+    try { selected = JSON.parse(setting?.value || '[]'); } catch { /* Use the newest approved listings as defaults. */ }
+    selected = [...new Set((Array.isArray(selected) ? selected : []).map(String).filter(id => eligibleIds.has(id)))].slice(0, 3);
+    for (const id of latestFeaturedDefaults(eligible)) {
+      if (selected.length === 3) break;
+      if (!selected.includes(id)) selected.push(id);
+    }
+    res.json({ listings: eligible, listingIds: selected });
+  } catch (error) { next(error); }
+};
+
+export const updateFeaturedListings = async (req, res, next) => {
+  try {
+    const listingIds = req.body?.listingIds;
+    if (!Array.isArray(listingIds) || listingIds.some(id => typeof id !== 'string') || new Set(listingIds).size !== listingIds.length || listingIds.length > 3) {
+      return res.status(422).json({ error: 'Choose up to three unique verified boarding houses.' });
+    }
+    const listings = (await publicDormListings()).filter(item => item.registrationStatus === 'registered');
+    const eligibleIds = new Set(listings.map(item => String(item.id)));
+    if (listingIds.length !== Math.min(3, eligibleIds.size) || listingIds.some(id => !eligibleIds.has(id))) {
+      return res.status(422).json({ error: `Select ${Math.min(3, eligibleIds.size)} verified listing${eligibleIds.size === 1 ? '' : 's'}.` });
+    }
+    await BploSystemSetting.upsert({
+      key: featuredListingSettingKey, value: JSON.stringify(listingIds), category: 'listings',
+      description: 'Boarding houses shown in the landing page featured section', updatedBy: req.session.userId,
+    });
+    await audit(req, 'update_featured_listings', 'BploSystemSetting', null, { listingIds });
+    broadcastEvent('landing_updated', {});
+    pushPublicUpdate({});
+    res.json({ message: 'Featured boarding houses updated.', listingIds });
   } catch (error) { next(error); }
 };
 

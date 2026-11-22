@@ -252,6 +252,7 @@
         <p class="auth-legal">By logging in, you agree to DormMap's <a href="https://bstm-9m6x.onrender.com/terms" target="_blank" rel="noopener">Terms</a> &amp; <a href="https://bstm-9m6x.onrender.com/privacy" target="_blank" rel="noopener">Data use</a>.</p>
         <form id="registerForm" class="mt-3 hidden space-y-3.5" method="POST" action="/register" enctype="multipart/form-data">
           <input type="hidden" name="accountType" id="registerAccountType" value="{{authAccountType}}">
+          <div id="ownerRegistrationStatus" class="hidden rounded-2xl border px-4 py-3 text-sm leading-relaxed" role="status" aria-live="polite"></div>
 
           <div class="rounded-[20px] border border-slate-200 bg-white p-3 shadow-sm">
             <div class="flex items-center justify-between gap-3">
@@ -490,8 +491,8 @@
                     </label>
                   </div>
                 <details class="my-2 rounded-xl border border-slate-200 bg-white p-3">
-                  <summary class="cursor-pointer text-sm font-semibold text-emerald-800">Add extra property photos</summary>
-                  <p class="my-2 text-xs text-slate-600">Upload up to five extra photos for this branch.</p>
+                  <summary class="cursor-pointer text-sm font-semibold text-emerald-800">Add extra property photos (optional)</summary>
+                  <p class="my-2 text-xs text-slate-600">Upload any number from zero to five. These photos are optional; you can continue without them.</p>
                   <div class="grid gap-2 sm:grid-cols-2">
                   <label class="block text-xs font-semibold">Extra Photo 1<input class="mt-1 block w-full text-xs" type="file" name="galleryExtra1" accept="image/jpeg,image/png,image/webp"></label>
                   <label class="block text-xs font-semibold">Extra Photo 2<input class="mt-1 block w-full text-xs" type="file" name="galleryExtra2" accept="image/jpeg,image/png,image/webp"></label>
@@ -818,6 +819,33 @@
       syncInputs(owner, true);
       owner.querySelector('[data-owner-payment-setup]')?.dispatchEvent(new Event('change'));
     }, true);
+
+    registerForm.addEventListener('submit', async event => {
+      if (state.role !== 'boarding_house_owner') return;
+      event.preventDefault();
+      const status = document.getElementById('ownerRegistrationStatus');
+      const submitButton = registerForm.querySelector('button[type="submit"]');
+      status.hidden = false;
+      status.className = 'rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-relaxed text-emerald-800';
+      status.textContent = 'Submitting your application…';
+      if (submitButton) { submitButton.disabled = true; submitButton.querySelector('span').textContent = 'Submitting…'; }
+      try {
+        const response = await fetch('/register', {
+          method: 'POST',
+          headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          body: new FormData(registerForm),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.success) throw new Error(data.error || 'Registration failed. Please check the required fields and try again.');
+        status.textContent = data.message || 'Application submitted. Please wait for the responsible office to approve your account.';
+        Array.from(registerForm.children).forEach(child => { if (child !== status) child.hidden = true; });
+        registerForm.reset();
+      } catch (error) {
+        status.className = 'rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-relaxed text-rose-800';
+        status.textContent = error.message;
+        if (submitButton) { submitButton.disabled = false; submitButton.querySelector('span').textContent = 'Create account'; }
+      }
+    });
 
     const resetTenantSelection = () => {
       if (!tenantHouseSelect) return;

@@ -1,10 +1,11 @@
 import { Op } from 'sequelize';
 import { listTenantDorms, approvedOwnerWhere } from './dormListingService.js';
 import { User } from '../models/userModel.js';
-import { OwnerTenant, OwnerGallery } from '../models/ownerModels.js';
-import { Barangay, EducationalInstitution } from '../models/adminModels.js';
+import { OwnerTenant, OwnerGallery, BoardingHouseReview } from '../models/ownerModels.js';
+import { Barangay, EducationalInstitution, BploSystemSetting } from '../models/adminModels.js';
 import { activeBarangayWhere } from './registrationPolicy.js';
 import { broadcastEvent } from './websocketService.js';
+import { pushPublicUpdate } from './liveEventService.js';
 import { BoardingHouse, OwnerRoom } from '../models/ownerModels.js';
 
 function parseList(value) {
@@ -33,17 +34,28 @@ export async function publicDormListings() {
 }
 
 export async function landingSnapshot() {
-  const [listings, owners, institutions, officials] = await Promise.all([
+  const [listings, owners, institutions, officials, featuredSetting] = await Promise.all([
     publicDormListings(), User.findAll({ where: approvedOwnerWhere, attributes: ['id'] }),
     EducationalInstitution.count({ where: { isActive: true } }),
     User.findAll({ where: activeBarangayWhere, attributes: ['barangay'] }),
+    BploSystemSetting.findByPk('featured_boarding_house_ids'),
   ]);
+  let savedFeaturedIds = [];
+  try { savedFeaturedIds = JSON.parse(featuredSetting?.value || '[]'); } catch { /* Fall back to current verified listings. */ }
+  const registered = listings.filter(item => item.registrationStatus === 'registered');
+  const validIds = new Set(registered.map(item => String(item.id)));
+  const featuredListingIds = [...new Set((Array.isArray(savedFeaturedIds) ? savedFeaturedIds : [])
+    .map(String).filter(id => validIds.has(id)))].slice(0, 3);
+  for (const listing of [...registered].sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0))) {
+    if (featuredListingIds.length === 3) break;
+    if (!featuredListingIds.includes(String(listing.id))) featuredListingIds.push(String(listing.id));
+  }
   const activeTenants = owners.length ? await OwnerTenant.sum('occupantCount', { where: { ownerId: { [Op.in]: owners.map(owner => owner.id) }, status: 'active' } }) : 0;
   const now = new Date();
   // Calendar month in the Philippines, including the last eight hours of the prior UTC day.
   const ph = new Date(now.getTime() + 8 * 3600000);
   const start = Date.UTC(ph.getUTCFullYear(), ph.getUTCMonth(), 1) - 8 * 3600000;
-  return { listings, stats: {
+  return { listings, featuredListingIds, stats: {
     registeredHouses: listings.filter(item => item.registrationStatus === 'registered').length,
     newHousesThisMonth: listings.filter(item => item.registrationStatus === 'registered' && new Date(item.createdAt).getTime() >= start).length,
     activeTenants: Number(activeTenants || 0), institutions,
@@ -52,11 +64,14 @@ export async function landingSnapshot() {
 }
 
 export function installLandingUpdates() {
-  for (const Model of [User, BoardingHouse, OwnerRoom, OwnerTenant, OwnerGallery, Barangay, EducationalInstitution]) {
+  for (const Model of [User, BoardingHouse, OwnerRoom, OwnerTenant, OwnerGallery, BoardingHouseReview, Barangay, EducationalInstitution]) {
     for (const hook of ['afterCreate', 'afterUpdate', 'afterDestroy', 'afterBulkCreate', 'afterBulkUpdate', 'afterBulkDestroy']) {
       Model.addHook(hook, 'landing-public-refresh', (...args) => {
         const options = args.at(-1);
-        const emit = () => broadcastEvent('landing_updated', {});
+        const emit = () => {
+          broadcastEvent('landing_updated', {});
+          pushPublicUpdate({});
+        };
         if (options?.transaction) options.transaction.afterCommit(emit);
         else emit();
       });

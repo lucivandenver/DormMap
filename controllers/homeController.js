@@ -30,6 +30,7 @@ import { Barangay } from '../models/adminModels.js';
 import { publicDormListings, landingSnapshot } from '../services/landingService.js';
 import { activeBarangayWhere } from '../services/registrationPolicy.js';
 import { lookupPlace, storedPlace } from '../services/mapPlaceService.js';
+import { openPublicStream } from '../services/liveEventService.js';
 
 export const homePage = (req, res) => {
   res.render("home", {
@@ -52,6 +53,16 @@ export const aboutPage = (req, res) => {
     currentRole: req.session.accountType || null,
   });
 };
+
+export const boardingHousesPage = (req, res) => {
+  res.render('boardingHouses', {
+    title: 'Verified Boarding Houses | DormMap',
+    currentUser: req.session.userName || null,
+    currentRole: req.session.accountType || null,
+  });
+};
+
+export const landingEvents = (req, res) => openPublicStream(req, res);
 
 export const boardingHousesApi = async (req, res) => {
   try { res.json(await publicDormListings()); }

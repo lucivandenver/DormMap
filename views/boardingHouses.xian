@@ -1,0 +1,96 @@
+{{> head}}
+<body class="min-h-screen bg-slate-50 text-slate-800 antialiased">
+  <header class="fixed inset-x-0 top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
+    <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+      <a href="/" class="flex items-center gap-3 text-slate-950 no-underline">
+        <img src="/images/dormmap-logo.png" alt="" class="h-11 w-11 rounded-full border border-emerald-100 bg-white object-contain p-1">
+        <span><strong class="block text-lg font-extrabold leading-tight">DormMap</strong><span class="block text-[10px] font-bold uppercase tracking-wider text-emerald-800">Bongabong boarding houses</span></span>
+      </a>
+      <nav class="flex items-center gap-2 text-sm font-semibold sm:gap-5"><a class="text-slate-700 hover:text-emerald-800" href="/">Home</a><a class="text-slate-700 hover:text-emerald-800" href="/#map">Map</a><a class="rounded-full bg-emerald-950 px-4 py-2 text-white hover:bg-emerald-800" href="/login">Sign in</a></nav>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-7xl px-4 pb-14 pt-28 sm:px-6 lg:px-8">
+    <section class="mb-7">
+      <p class="text-xs font-bold uppercase tracking-[0.22em] text-slate-500">Verified public listings</p>
+      <div class="mt-2 flex flex-wrap items-end justify-between gap-3"><div><h1 class="text-3xl font-extrabold text-slate-950">All Boarding Houses</h1><p class="mt-2 text-sm text-slate-600">Search all approved boarding houses by name, barangay, monthly price, or boarding type.</p></div><a href="/#map" class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-emerald-300">View map</a></div>
+    </section>
+
+    <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-label="Filter boarding houses">
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <label class="lg:col-span-2"><span class="mb-1 block text-xs font-bold text-slate-600">Name</span><input id="listingSearch" type="search" placeholder="Search boarding house name" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-100"></label>
+        <label><span class="mb-1 block text-xs font-bold text-slate-600">Barangay</span><select id="listingBarangay" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="">All barangays</option></select></label>
+        <label><span class="mb-1 block text-xs font-bold text-slate-600">Boarding type</span><select id="listingType" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="">All types</option></select></label>
+        <div class="grid grid-cols-2 gap-2"><label><span class="mb-1 block text-xs font-bold text-slate-600">Min price</span><input id="listingMinPrice" type="number" min="0" inputmode="decimal" placeholder="₱0" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"></label><label><span class="mb-1 block text-xs font-bold text-slate-600">Max price</span><input id="listingMaxPrice" type="number" min="0" inputmode="decimal" placeholder="No limit" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"></label></div>
+      </div>
+      <p id="listingResultsStatus" role="status" class="mt-4 text-sm text-slate-500">Loading listings…</p>
+    </section>
+
+    <section id="allBoardingHouseListings" class="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3" aria-live="polite"></section>
+  </main>
+
+  <script>
+    (() => {
+      const results = document.getElementById('allBoardingHouseListings');
+      const status = document.getElementById('listingResultsStatus');
+      const controls = ['listingSearch', 'listingBarangay', 'listingType', 'listingMinPrice', 'listingMaxPrice'].map(id => document.getElementById(id));
+      const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+      const title = house => [house.propertyName || house.boardingHouseName || house.name || 'Boarding House', house.branchNumber ? `Branch ${house.branchNumber}` : ''].filter(Boolean).join(' · ');
+      const price = house => {
+        const min = Number(house.rentalPriceMin || house.rentPerHead || house.rentPerRoom || 0);
+        const max = Number(house.rentalPriceMax || 0);
+        if (min > 0 && max > 0 && min !== max) return `₱${min.toLocaleString()}–₱${max.toLocaleString()} / month`;
+        return min > 0 ? `₱${min.toLocaleString()} / month` : 'Contact for price';
+      };
+      const basePrice = house => Number(house.rentalPriceMin || house.rentPerHead || house.rentPerRoom || 0) || null;
+      const rating = house => {
+        const average = Number(house.ratingAverage || 0), count = Number(house.ratingCount || 0);
+        const stars = '★'.repeat(Math.round(average)) + '☆'.repeat(5 - Math.round(average));
+        const label = count ? `${average.toFixed(1)} · ${count} ${count === 1 ? 'tenant rating' : 'tenant ratings'}` : 'No tenant ratings yet';
+        return `<div class="flex items-center gap-2" aria-label="${escape(count ? `${average.toFixed(1)} out of 5 from ${count} tenant ratings` : 'No tenant ratings yet')}"><span class="text-lg tracking-wide text-amber-400" aria-hidden="true">${stars}</span><span class="text-xs font-semibold text-slate-600">${label}</span></div>`;
+      };
+      let houses = [];
+      function draw() {
+        const query = controls[0].value.trim().toLowerCase();
+        const barangay = controls[1].value;
+        const type = controls[2].value;
+        const minimum = controls[3].value === '' ? null : Number(controls[3].value);
+        const maximum = controls[4].value === '' ? null : Number(controls[4].value);
+        const filtered = houses.filter(house => {
+          const name = title(house).toLowerCase();
+          if (query && !name.includes(query)) return false;
+          if (barangay && house.barangay !== barangay) return false;
+          const types = [house.propertyType, ...(Array.isArray(house.roomTypes) ? house.roomTypes : [])].filter(Boolean);
+          if (type && !types.includes(type)) return false;
+          const amount = basePrice(house);
+          if ((minimum !== null || maximum !== null) && amount === null) return false;
+          if (minimum !== null && amount < minimum) return false;
+          if (maximum !== null && amount > maximum) return false;
+          return true;
+        });
+        status.textContent = `${filtered.length} verified boarding house${filtered.length === 1 ? '' : 's'} found.`;
+        results.innerHTML = filtered.map(house => {
+          const cover = house.boardingHousePicture || house.galleryImages?.find(Boolean) || '';
+          const types = [...new Set([house.propertyType, ...(Array.isArray(house.roomTypes) ? house.roomTypes : [])].filter(Boolean))];
+          const image = cover ? `<img src="${escape(cover)}" alt="${escape(title(house))}" loading="lazy" class="h-48 w-full object-cover" onerror="this.remove()">` : '<div class="flex h-48 items-center justify-center bg-slate-100 text-sm font-semibold text-slate-400">No property photo</div>';
+          return `<article class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div class="relative">${image}<span class="absolute left-3 top-3 rounded-full bg-white px-3 py-1 text-xs font-bold text-emerald-900 shadow-sm">✓ Verified</span></div><div class="space-y-3 p-4"><div><h2 class="truncate text-lg font-bold text-slate-950">${escape(title(house))}</h2><p class="mt-1 text-sm text-slate-600">${escape(house.barangay || house.boardingHouseAddress || 'Bongabong')}</p></div>${rating(house)}<div class="flex flex-wrap gap-2 text-xs"><span class="rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-700">${Number(house.roomsAvailable || 0)} available rooms</span>${types.map(item => `<span class="rounded-full bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-800">${escape(item)}</span>`).join('')}</div><div class="flex items-center justify-between gap-3 border-t border-slate-100 pt-3"><span class="font-bold text-emerald-950">${price(house)}</span><a class="shrink-0 rounded-full bg-emerald-950 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800" href="/?listing=${encodeURIComponent(house.id)}#map">View details</a></div></div></article>`;
+        }).join('') || '<div class="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 sm:col-span-2 xl:col-span-3">No verified boarding houses match those filters.</div>';
+      }
+      controls.forEach(input => input.addEventListener('input', draw));
+      controls.slice(1, 3).forEach(input => input.addEventListener('change', draw));
+      fetch('/api/boarding-houses', { cache: 'no-store' }).then(response => {
+        if (!response.ok) throw new Error('Listings are temporarily unavailable. Please reload the page.');
+        return response.json();
+      }).then(data => {
+        houses = (Array.isArray(data) ? data : []).filter(house => house.registrationStatus === 'registered');
+        const barangays = [...new Set(houses.map(house => house.barangay).filter(Boolean))].sort();
+        const types = [...new Set(houses.flatMap(house => [house.propertyType, ...(Array.isArray(house.roomTypes) ? house.roomTypes : [])]).filter(Boolean))].sort();
+        for (const item of barangays) controls[1].add(new Option(item, item));
+        for (const item of types) controls[2].add(new Option(item, item));
+        draw();
+      }).catch(error => { status.textContent = error.message; results.innerHTML = ''; });
+      const events = new EventSource('/api/landing/events');
+      events.addEventListener('landing-update', () => fetch('/api/boarding-houses', { cache: 'no-store' }).then(response => response.json()).then(data => { houses = data.filter(house => house.registrationStatus === 'registered'); draw(); }).catch(() => {}));
+    })();
+  </script>
+</body>

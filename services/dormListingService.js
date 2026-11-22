@@ -1,8 +1,8 @@
 import { orderBranches } from './propertyBranchesService.js';
 import { GALLERY_CATEGORIES } from './propertyPhotoService.js';
-import { Op } from 'sequelize';
+import { Op, fn, col } from 'sequelize';
 import { User } from '../models/userModel.js';
-import { BoardingHouse, OwnerRoom, OwnerTenant, OwnerGallery } from '../models/ownerModels.js';
+import { BoardingHouse, OwnerRoom, OwnerTenant, OwnerGallery, BoardingHouseReview } from '../models/ownerModels.js';
 import { TenantApplication } from '../models/tenantModels.js';
 import { SavedDorm } from '../models/savedDormModel.js';
 
@@ -67,6 +67,15 @@ export async function listTenantDorms(tenantId, query = {}, { includeUnregistere
     OwnerTenant.findAll({ where: { ownerId: { [Op.in]: ownerIds }, status: 'active' }, attributes: ['ownerId','roomId','occupantCount','bedNumber'] }),
     OwnerGallery.findAll({ where: { ownerId: { [Op.in]: ownerIds } }, order: [['sortOrder', 'ASC'], ['id', 'ASC']] }),
   ]);
+  const reviews = houses.length ? await BoardingHouseReview.findAll({
+    where: { boardingHouseId: { [Op.in]: houses.map(house => house.id) } },
+    attributes: ['boardingHouseId', [fn('AVG', col('rating')), 'ratingAverage'], [fn('COUNT', col('id')), 'ratingCount']],
+    group: ['boardingHouseId'], raw: true,
+  }) : [];
+  const ratingsByHouse = new Map(reviews.map(review => [Number(review.boardingHouseId), {
+    ratingAverage: Math.round(Number(review.ratingAverage || 0) * 10) / 10,
+    ratingCount: Number(review.ratingCount || 0),
+  }]));
   const savedKeys = new Set(saved.map(item => item.listingKey));
   const listings = [];
   for (const owner of owners) {
@@ -108,6 +117,7 @@ export async function listTenantDorms(tenantId, query = {}, { includeUnregistere
       const name = house?.name || owner.boardingHouseName || `${owner.fullName}'s Boarding House`;
       const houseRooms = rooms.filter(room => room.ownerId === owner.id &&
         (!house || room.boardingHouseId === house.id || (!room.boardingHouseId && house.isPrimary)));
+      const rating = ratingsByHouse.get(Number(house?.id)) || { ratingAverage: 0, ratingCount: 0 };
       const available = houseRooms.filter(room => room.status === 'available' && Number(room.availableSlots) > 0);
       const prices = (available.length ? available : houseRooms).map(room => price(room.rentalPrice)).filter(value => value !== null);
       const app = applications.find(item => item.ownerId === owner.id &&
@@ -137,6 +147,8 @@ export async function listTenantDorms(tenantId, query = {}, { includeUnregistere
         paymentMethods: owner.paymentMethods,
         galleryImages,
         establishmentId: house?.id || null,
+        ratingAverage: rating.ratingAverage,
+        ratingCount: rating.ratingCount,
         ownerId: owner.id,
         ownerName: owner.fullName,
         ownerProfilePicture: owner.profilePicture || null,

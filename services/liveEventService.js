@@ -1,7 +1,12 @@
 // SSE carries invalidation signals only. Authenticated REST endpoints supply scoped data.
 const clients = new Map();
+const publicClients = new Set();
 export function pushUserUpdate(userId, data = {}) {
   for (const res of clients.get(String(userId)) || []) res.write(`event: portal-update\ndata: ${JSON.stringify(data)}\n\n`);
+}
+export function pushPublicUpdate(data = {}) {
+  const message = `event: landing-update\ndata: ${JSON.stringify(data)}\n\n`;
+  for (const res of publicClients) res.write(message);
 }
 export function openUserStream(req, res) {
   const key = String(req.session.userId);
@@ -13,4 +18,13 @@ export function openUserStream(req, res) {
   const heartbeat = setInterval(()=>res.write(': heartbeat\n\n'),25000);
   const expiry = setTimeout(()=>res.end(),5*60*1000); // reconnect revalidates session and account
   res.on('close',()=>{clearInterval(heartbeat);clearTimeout(expiry);set.delete(res);if(!set.size)clients.delete(key);});
+}
+export function openPublicStream(req, res) {
+  res.status(200).set({ 'Content-Type':'text/event-stream', 'Cache-Control':'no-cache, no-transform', Connection:'keep-alive', 'X-Accel-Buffering':'no' });
+  res.flushHeaders();
+  publicClients.add(res);
+  res.write('retry: 5000\nevent: landing-update\ndata: {"connected":true}\n\n');
+  const heartbeat = setInterval(()=>res.write(': heartbeat\n\n'),25000);
+  const expiry = setTimeout(()=>res.end(),5*60*1000);
+  res.on('close',()=>{clearInterval(heartbeat);clearTimeout(expiry);publicClients.delete(res);});
 }

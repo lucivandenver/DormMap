@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BoardingHouse, OwnerGallery, OwnerRoom, OwnerTenant } from '../models/ownerModels.js';
+import { BoardingHouse, BoardingHouseReview, OwnerGallery, OwnerRoom, OwnerTenant } from '../models/ownerModels.js';
 import { User } from '../models/userModel.js';
 import { listTenantDorms } from '../services/dormListingService.js';
 import { tenantBranchAssignments } from '../services/propertyBranchesService.js';
@@ -15,6 +15,7 @@ test('approved branches share the owner name and include five ordered photos per
   t.mock.method(BoardingHouse, 'findAll', async () => [branch, pending, main]);
   t.mock.method(OwnerRoom, 'findAll', async () => []);
   t.mock.method(OwnerTenant, 'findAll', async () => []);
+  t.mock.method(BoardingHouseReview, 'findAll', async () => []);
   t.mock.method(OwnerGallery, 'findAll', async () =>
     [main, branch, pending].flatMap(house => Array.from({ length: 5 }, (_, index) => ({
       ownerId: owner.id, boardingHouseId: house.id, sortOrder: index + 1, imageUrl: `/uploads/${house.id}-${index + 1}.jpg`

@@ -9,6 +9,11 @@
   const markers = new Map();
   const el = id => document.getElementById(id);
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const ratingMarkup = item => {
+    const average = Number(item.ratingAverage || 0), count = Number(item.ratingCount || 0);
+    const rounded = Math.max(0, Math.min(5, Math.round(average)));
+    return `<span class="inline-flex flex-wrap items-center gap-x-2" role="img" aria-label="${escapeHtml(count ? `${average.toFixed(1)} out of 5 from ${count} tenant ratings` : 'No tenant ratings yet')}"><span aria-hidden="true" class="text-amber-400 tracking-wide">${'★'.repeat(rounded)}<span class="text-slate-300">${'☆'.repeat(5-rounded)}</span></span><span class="text-xs font-semibold text-slate-600">${count ? `${average.toFixed(1)} · ${count} ${count === 1 ? 'rating' : 'ratings'}` : 'No ratings yet'}</span></span>`;
+  };
   const money = value => value === null || value === undefined ? 'Ask owner' : `₱${Number(value).toLocaleString('en-PH')}`;
   const rate = item => item.rentalPriceMin === null ? 'Ask owner for price' : `${money(item.rentalPriceMin)}${item.rentalPriceMax !== null && item.rentalPriceMax !== item.rentalPriceMin ? ` – ${money(item.rentalPriceMax)}` : ''} / month`;
   const safeImage = value => {
@@ -79,6 +84,7 @@
         </div>
         <div class="p-4 space-y-3">
           <div><h4 class="font-bold text-slate-900">${escapeHtml(title(item))}</h4><p class="text-xs text-slate-500">${escapeHtml(item.address || item.barangay || 'Address not provided')}</p></div>
+          ${ratingMarkup(item)}
           <p class="text-emerald-800 font-bold text-xs">${escapeHtml(rate(item))}<br><span class="font-normal">${escapeHtml(item.pricingLabel || 'Confirm price basis')}</span></p>
           <p class="text-xs text-slate-500">${escapeHtml(item.ownerName)} · ${escapeHtml(item.barangay)}</p>
           <p class="text-xs text-slate-600">${escapeHtml(item.propertyType)} · ${item.floorCount || 'Unspecified'} floors · ${Number(item.availableBeds || 0)} bedspaces available</p>
@@ -118,6 +124,7 @@
     photo.onerror = () => { photo.hidden = true; unavailable.hidden = false; };
     el('tenantBranchGalleryTitle').textContent = title(item);
     el('tenantBranchGalleryAddress').textContent = window.dormMapListingLocation(item);
+    el('tenantBranchGalleryRating').innerHTML = ratingMarkup(item);
     el('tenantBranchGalleryPrev').onclick = () => { index--; render(); };
     el('tenantBranchGalleryNext').onclick = () => { index++; render(); };
     if (slides.length) render();

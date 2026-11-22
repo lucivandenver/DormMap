@@ -124,6 +124,8 @@ const renderRegisterPage = (res, options = {}) => {
     authValues = {},
   } = options;
 
+  if (res.locals.registrationWantsJson) return res.status(422).json({ error: authError || 'Registration could not be completed. Please review the form.' });
+
   return renderAuthHome(res, {
     authMode: "register",
     authOpen: true,
@@ -231,6 +233,7 @@ export const registerPage = (req, res) => {
     authOpen: true,
     authAccountType: normalizeAccountType(req.query.accountType) || "boarding_house_owner",
     authError: flashErrStr,
+    authSuccess: req.query.pendingApproval === '1' ? 'Application submitted. Please wait for the responsible office to approve your account.' : '',
     authValues: {},
   });
 };
@@ -506,6 +509,9 @@ export const loginUser = async (req, res) => {
 };
 
 export const registerUser = async (req, res) => {
+  res.locals ||= {};
+  const acceptHeader = req.get?.('accept') || req.headers?.accept || '';
+  res.locals.registrationWantsJson = Boolean(req.xhr || String(acceptHeader).includes('application/json'));
   try {
     const {
       accountType,
@@ -672,11 +678,10 @@ export const registerUser = async (req, res) => {
     req.registrationSaved = true;
 
     if (normalizedAccountType !== "super_admin") {
-      try {
-        await sendVerificationEmail(email, verificationToken);
-      } catch (mailError) {
-        console.error("Verification email failed:", mailError);
-      }
+      void sendVerificationEmail(email, verificationToken).catch(mailError => console.error("Verification email failed:", mailError));
+      const approvalMessage = 'Application submitted. Please wait for the responsible office to approve your account.';
+      if (res.locals.registrationWantsJson) return res.status(201).json({ success: true, message: approvalMessage });
+      if (normalizedAccountType === 'boarding_house_owner') return res.redirect('/register?accountType=boarding_house_owner&pendingApproval=1');
       return res.redirect(['barangay', 'boarding_house_owner'].includes(normalizedAccountType) ? "/login?pendingApproval=1" : "/login?registered=1");
     }
 

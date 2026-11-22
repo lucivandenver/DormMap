@@ -9,6 +9,8 @@ router.use(requireSuperAdmin);
 router.get('/', controller.adminDashboardPage);
 router.get('/api/overview', controller.overview);
 router.get('/api/map-data', controller.adminMapData);
+router.get('/api/featured-listings', controller.getFeaturedListings);
+router.post('/api/featured-listings', controller.updateFeaturedListings);
 
 router.get('/api/barangay-accounts', controller.listBarangayAccounts);
 router.post('/api/barangay-accounts', controller.saveBarangayAccount);
