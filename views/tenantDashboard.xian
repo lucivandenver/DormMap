@@ -96,13 +96,13 @@
       <button id="menuToggle" aria-label="Toggle Navigation Menu" class="rounded-xl p-2 text-slate-600 hover:bg-slate-100 lg:hidden focus:outline-none transition active:scale-95">
         <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
-      <a href="/" class="flex items-center gap-2.5 font-bold text-emerald-950 text-lg group">
-        <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-800 to-emerald-950 text-white font-black text-base shadow-md group-hover:scale-105 transition-transform">D</span>
-        <div class="flex flex-col">
-          <span class="leading-none text-slate-900 font-extrabold tracking-tight">DormMap</span>
-          <span class="text-[10px] font-semibold text-emerald-700 tracking-wider uppercase mt-0.5">Tenant Portal</span>
+      <div role="img" aria-label="DormMap Tenant Portal" class="flex items-center gap-2.5 font-bold text-emerald-950 text-lg select-none">
+        <span class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-800 to-emerald-950 text-white font-black text-lg shadow-md">D</span>
+        <div class="flex flex-col gap-0">
+          <span class="relative top-[1px] leading-none text-slate-900 font-extrabold tracking-tight">DormMap</span>
+          <span class="-mt-0.5 text-[10px] font-semibold uppercase leading-tight tracking-wider text-emerald-700">Tenant Portal</span>
         </div>
-      </a>
+      </div>
       <span class="hidden md:inline-block text-slate-300 mx-1">|</span>
       <span class="hidden md:inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-900 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>

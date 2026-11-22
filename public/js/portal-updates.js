@@ -12,21 +12,23 @@
   panel.innerHTML='<div class="portal-notification-heading"><strong>Activity</strong><button type="button" data-read-all>Mark all read</button><button type="button" data-close aria-label="Close activity">×</button></div><p class="portal-live-state" aria-live="polite">Connecting to live updates…</p><div data-notification-items></div>';
   document.body.append(panel);
   const state=panel.querySelector('.portal-live-state');
+  const notificationItems=panel.querySelector('[data-notification-items]');
   const toggle=()=>{panel.hidden=!panel.hidden;bell.setAttribute('aria-expanded',String(!panel.hidden));if(!panel.hidden){refresh();panel.querySelector('[data-read-all]').focus();}};
   bell.addEventListener('click',toggle);
   panel.querySelector('[data-close]').onclick=()=>{panel.hidden=true;bell.setAttribute('aria-expanded','false');bell.focus();};
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!panel.hidden)panel.querySelector('[data-close]').click();});
   document.addEventListener('click',event=>{if(!panel.hidden&&!panel.contains(event.target)&&!bell.contains(event.target)){panel.hidden=true;bell.setAttribute('aria-expanded','false');}});
   async function read(id,source){const res=await fetch('/api/portal/notifications/read',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(id?{id,source}:{})});if(!res.ok)throw Error('Unable to mark notification as read.');}
-  panel.querySelector('[data-read-all]').onclick=async()=>{try{await read();await refresh();}catch(error){state.textContent=error.message;}};
+  function setUnread(value){unread=Math.max(0,Number(value)||0);count.textContent=unread>99?'99+':String(unread);count.hidden=!unread;bell.classList.toggle('has-updates',unread>0);bell.setAttribute('aria-label',`Activity: ${unread} unread`);}
+  panel.querySelector('[data-read-all]').onclick=async()=>{try{await read();setUnread(0);renderItems(notificationItems,[]);await refresh();}catch(error){state.textContent=error.message;}};
   function renderItems(container,items){
     container.innerHTML=items.length?items.map(n=>`<button type="button" class="portal-notification-item ${n.isRead?'':'is-unread'}" data-notice="${esc(n.source)}:${Number(n.id)}"><strong>${esc(n.title)}</strong><span>${esc(n.body)}</span><small>${esc(new Date(n.createdAt).toLocaleString())}${n.isRead?'':' · Unread'}</small></button>`).join(''):'<p class="portal-empty">You are all caught up.</p>';
-    container.querySelectorAll('[data-notice]').forEach(button=>button.onclick=async()=>{const item=items.find(n=>`${n.source}:${n.id}`===button.dataset.notice);try{await read(item.id,item.source);panel.hidden=true;location.hash=new URL(item.url,location.origin).hash;await refresh();}catch(error){state.textContent=error.message;}});
+    container.querySelectorAll('[data-notice]').forEach(button=>button.onclick=async()=>{const item=items.find(n=>`${n.source}:${n.id}`===button.dataset.notice);try{await read(item.id,item.source);if(!item.isRead)setUnread(unread-1);button.remove();if(container===notificationItems&&!container.querySelector('[data-notice]'))renderItems(container,[]);panel.hidden=true;location.hash=new URL(item.url,location.origin).hash;await refresh();}catch(error){state.textContent=error.message;}});
   }
   async function refresh(){if(loading){queued=true;return;}loading=true;try{
     const res=await fetch('/api/portal/notifications',{cache:'no-store'});if(!res.ok){if([401,403].includes(res.status))state.textContent='Sign in again to receive updates.';return;}const data=await res.json();unread=data.unread;
-    count.textContent=unread>99?'99+':String(unread);count.hidden=!unread;bell.classList.toggle('has-updates',unread>0);bell.setAttribute('aria-label',`Activity: ${unread} unread`);
-    renderItems(panel.querySelector('[data-notification-items]'),data.items);
+    setUnread(data.unread);
+    renderItems(notificationItems,data.items.filter(item=>!item.isRead));
     const containers=document.querySelectorAll('#notificationsList,#notificationsContainer,#notificationList');containers.forEach(el=>renderItems(el,data.items));
     const categories={messages:0,applications:0,owners:0,barangays:0,dashboard:0,houses:0};data.items.filter(n=>!n.isRead).forEach(n=>{const hash=new URL(n.url,location.origin).hash.slice(1);if(hash in categories)categories[hash]++;});
     Object.entries(data.pending||{}).forEach(([key,value])=>{categories[key]=Math.max(categories[key]||0,value);});
