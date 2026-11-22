@@ -45,7 +45,7 @@ export function installPortalActivity(app) {
     res.json({unread:unread+extraUnread,pending,role:normalizeRole(user.accountType),items:items.map(row=>({...row,url:notificationTarget(user.accountType,row.type,row.link)}))});
   }catch(error){next(error);}});
   app.patch('/api/portal/notifications/read',auth,async(req,res,next)=>{try{const user=req.portalUser,owner=user.accountType==='boarding_house_owner';const ownerSource=owner&&req.body.source!=='barangay';const where=ownerSource?{ownerId:user.id}:{userId:user.id};if(req.body.id){if(!/^\d+$/.test(String(req.body.id)))return res.status(422).json({error:'Invalid notification.'});where.id=req.body.id;}await(ownerSource?OwnerNotification:BarangayNotification).update({isRead:true},{where});if(owner&&!req.body.id)await BarangayNotification.update({isRead:true},{where:{userId:user.id}});emitToUser(user.id,'portal_update',{kind:'read'});res.json({message:'Notifications updated.'});}catch(error){next(error);}});
-  const committed=(options,fn)=>{const run=()=>Promise.resolve().then(fn).catch(error=>console.error('Portal update:',error.message));if(options.transaction)options.transaction.afterCommit(run);else return run();};
+  const committed=(options,fn)=>{const run=()=>Promise.resolve().then(fn).catch(error=>console.error('Portal update:',error.message));if(options.transaction)options.transaction.afterCommit(()=>setImmediate(run));else return run();};
   for(const model of [OwnerNotification,BarangayNotification]) {
     const notify=row=>emitToUser(row.ownerId||row.userId,'portal_update',{kind:'notification'});
     model.addHook('afterCreate','portal-notification',(row,options)=>committed(options,()=>notify(row)));
