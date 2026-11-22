@@ -70,6 +70,18 @@ export const OwnerTenant = sequelize.define('OwnerTenant', {
   notes:            { type: DataTypes.TEXT,    allowNull: true },
 }, { tableName: 'OwnerTenants' });
 
+export const BoardingHouseReview = sequelize.define('BoardingHouseReview', {
+  boardingHouseId: { type: DataTypes.INTEGER, allowNull: false },
+  ownerId: { type: DataTypes.INTEGER, allowNull: false },
+  ownerTenantId: { type: DataTypes.INTEGER, allowNull: false },
+  tenantUserId: { type: DataTypes.INTEGER, allowNull: false },
+  rating: { type: DataTypes.INTEGER, allowNull: false },
+  comment: { type: DataTypes.TEXT, allowNull: true },
+}, {
+  tableName: 'BoardingHouseReviews',
+  indexes: [{ unique: true, fields: ['boardingHouseId', 'tenantUserId'] }],
+});
+
 const manualPaymentColumns = {
   submissionId: { type: DataTypes.CHAR(36), allowNull: true },
   submissionNotes: { type: DataTypes.TEXT, allowNull: true },
@@ -151,6 +163,7 @@ export const ensureOwnerSchema = async () => {
   await BoardingHouse.sync();
   await OwnerRoom.sync();
   await OwnerTenant.sync();
+  await BoardingHouseReview.sync();
   await OwnerPayment.sync();
   await OwnerInquiry.sync();
   await OwnerMessage.sync();

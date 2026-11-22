@@ -71,7 +71,8 @@ export function validateOwnerSetup(body, files) {
     });
     for (const category of GALLERY_CATEGORIES) {
       const file = files?.[prefix + category.field]?.[0];
-      if (category.index <= 5 || file) checkUpload(file, imageTypes, `${category.label} for branch ${index + 1}`);
+      const requiredCategory = category.index <= 5;
+      if (requiredCategory || file) checkUpload(file, imageTypes, `${category.label} for branch ${index + 1}`);
     }
   });
   return { metadata, branches };

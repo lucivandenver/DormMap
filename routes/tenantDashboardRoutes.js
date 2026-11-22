@@ -31,6 +31,7 @@ import {
   getProfile,
   updateProfile,
   changePassword,
+  submitBoardingHouseRating,
 } from '../controllers/tenantDashboardController.js';
 
 const router = express.Router();
@@ -62,6 +63,7 @@ router.get('/', tenantDashboardPage);
 // API Endpoints
 router.get('/api/overview', overview);
 router.get('/api/my-room', getMyRoom);
+router.post('/api/boarding-house-rating', submitBoardingHouseRating);
 router.get('/api/stays', getStayHistory);
 router.post('/api/stays/move-out', submitMoveOut);
 router.get('/api/payments', getPaymentHistory);
