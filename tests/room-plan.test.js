@@ -52,11 +52,15 @@ test('a reported unavailable whole-room lease is not advertised as partial bedsp
 test('registration accepts selected payment methods before the owner uploads QR codes', () => {
  const contactNumber = '09171234567';
  assert.deepEqual(validateOwnerPaymentSetup({ contactNumber, paymentMethods: 'Cash' }, {}), {
-   contactNumber, paymentMethods: '["Cash"]', qrUploads: { gcashQrCode: null, qrPhCode: null }
+   contactNumber, paymentMethods: '["Cash"]', rentPerRoom: null, rentPerHead: null, qrUploads: { gcashQrCode: null, qrPhCode: null }
  });
  assert.deepEqual(validateOwnerPaymentSetup({ contactNumber, paymentMethods: ['Cash', 'GCash', 'QR Ph'] }, {}), {
-   contactNumber, paymentMethods: '["Cash","GCash","QR Ph"]', qrUploads: { gcashQrCode: null, qrPhCode: null }
+   contactNumber, paymentMethods: '["Cash","GCash","QR Ph"]', rentPerRoom: null, rentPerHead: null, qrUploads: { gcashQrCode: null, qrPhCode: null }
  });
+ const rates = validateOwnerPaymentSetup({ contactNumber, paymentMethods: 'Cash', rentPerRoom: '3200', rentPerHead: '1000' }, {});
+ assert.equal(rates.rentPerRoom, 3200);
+ assert.equal(rates.rentPerHead, 1000);
+ assert.throws(() => validateOwnerPaymentSetup({ contactNumber, paymentMethods: 'Cash', rentPerRoom: '-1' }, {}), /valid monthly rent per room/);
  assert.throws(() => validateOwnerPaymentSetup({ contactNumber }, {}), /Select at least one/);
  const qr = { mimetype: 'image/png' };
  assert.equal(validateOwnerPaymentSetup({ contactNumber, paymentMethods: 'GCash' }, { gcashQrCode: [qr] }).qrUploads.gcashQrCode, qr);
