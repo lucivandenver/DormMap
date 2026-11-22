@@ -6,14 +6,14 @@
   <!-- Top Navigation Header -->
   <header class="fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur lg:px-6 shadow-xs">
     <div class="flex items-center gap-3">
-      <button id="menuToggle" class="rounded-lg p-2 text-slate-700 hover:bg-slate-100 transition lg:hidden" aria-label="Toggle Navigation" aria-controls="sidebar" aria-expanded="false">
-        <svg class="icon-bw" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      <button id="menuToggle" class="rounded-xl p-2 text-slate-700 hover:bg-slate-100 transition lg:hidden" aria-label="Toggle Navigation" aria-controls="sidebar" aria-expanded="false">
+        <svg class="h-6 w-6" width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
-      <a href="/" class="flex items-center gap-2.5 font-bold text-emerald-950 text-lg group">
+      <div role="img" aria-label="DormMap Admin Portal" class="flex items-center gap-2.5 font-bold text-emerald-950 text-lg select-none">
         <span class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-800 to-emerald-950 text-white font-black text-lg shadow-md">D</span>
-        <div class="flex flex-col">
-          <span class="leading-none text-slate-900 font-extrabold tracking-tight">DormMap</span>
-          <span class="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700">Admin Portal</span>
+        <div class="flex flex-col gap-0">
+          <span class="relative top-[1px] leading-none text-slate-900 font-extrabold tracking-tight">DormMap</span>
+          <span class="-mt-0.5 text-[10px] font-semibold uppercase leading-tight tracking-wider text-emerald-700">Admin Portal</span>
         </div>
       </a>
     </div>
@@ -681,6 +681,11 @@
 
 <style>
   body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+  @media (max-width: 1023px) {
+    #adminApp header #menuToggle { display: inline-flex !important; width: 2.75rem; height: 2.75rem; min-width: 2.75rem; flex: 0 0 2.75rem; align-items: center; justify-content: center; }
+    #adminApp header #menuToggle svg { display: block; width: 1.5rem; height: 1.5rem; }
+    #adminApp header > div:first-child { min-width: 0; gap: .4rem; }
+  }
   .nav-item {
     display: flex;
     align-items: center;

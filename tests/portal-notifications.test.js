@@ -72,3 +72,21 @@ test('all portal profile menus use the compact card and admin has one activity b
   assert.match(admin, /id="mobileOverlay"[^>]*hidden[^>]*lg:hidden/, 'admin mobile navigation should include a dismissible backdrop');
   assert.match(admin, /setAdminSidebarOpen\(document\.getElementById\('sidebar'\)\.classList\.contains\('-translate-x-full'\)\)/, 'admin menu button should open and close the mobile drawer');
 });
+
+test('portal headers are non-link branding and notification dropdown keeps a scrollable unread list', async () => {
+  const { readFileSync } = await import('node:fs');
+  for (const portal of ['adminDashboard', 'ownerDashboard', 'barangayDashboard', 'tenantDashboard']) {
+    const html = readFileSync(new URL(`../views/${portal}.xian`, import.meta.url), 'utf8');
+    const header = html.slice(0, html.indexOf('</header>'));
+    assert.doesNotMatch(header, /<a\s+href="\/"/, `${portal} brand should not link to the homepage`);
+    assert.match(header, /role="img" aria-label="DormMap .* Portal"/, `${portal} should expose its non-clickable brand label`);
+  }
+  const admin = readFileSync(new URL('../views/adminDashboard.xian', import.meta.url), 'utf8');
+  assert.match(admin, /#adminApp header #menuToggle \{ display: inline-flex !important/, 'admin hamburger must remain visible on mobile');
+  const updates = readFileSync(new URL('../public/js/portal-updates.js', import.meta.url), 'utf8');
+  const styles = readFileSync(new URL('../public/css/portal-updates.css', import.meta.url), 'utf8');
+  assert.match(updates, /renderItems\(notificationItems,data\.items\.filter\(item=>!item\.isRead\)\)/, 'the dropdown should only list unread notices');
+  assert.match(updates, /setUnread\(0\);renderItems\(notificationItems,\[\]\)/, 'mark all read should clear the dropdown and unread badge');
+  assert.match(styles, /\.portal-notification-panel\{[^}]*overflow:hidden/, 'notification card dimensions should stay capped');
+  assert.match(styles, /\.portal-notification-panel \[data-notification-items\]\{[^}]*overflow-y:auto/, 'long notification lists should scroll inside the card');
+});

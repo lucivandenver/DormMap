@@ -8,10 +8,10 @@
       <button id="menuToggle" class="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden focus:outline-none" aria-label="Toggle Navigation">
         <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
-      <a href="/" class="flex items-center gap-2.5 font-bold text-emerald-950 text-lg">
+      <div role="img" aria-label="DormMap Barangay Portal" class="flex items-center gap-2.5 font-bold text-emerald-950 text-lg select-none">
         <span class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-800 to-emerald-950 text-white font-black text-lg shadow-md">D</span>
-        <span class="flex flex-col"><span class="leading-none text-slate-900 font-extrabold tracking-tight">DormMap</span><span class="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700">Barangay Portal</span></span>
-      </a>
+        <span class="flex flex-col gap-0"><span class="relative top-[1px] leading-none text-slate-900 font-extrabold tracking-tight">DormMap</span><span class="-mt-0.5 text-[10px] font-semibold uppercase leading-tight tracking-wider text-emerald-700">Barangay Portal</span></span>
+      </div>
       <span class="hidden md:inline-block text-slate-300">|</span>
       <div class="hidden md:flex items-center gap-2 text-xs text-slate-500" id="breadcrumbNav">
         <span class="font-semibold text-emerald-700">Barangay Official</span>
