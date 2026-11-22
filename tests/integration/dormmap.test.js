@@ -57,8 +57,8 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       env: { ...process.env, NODE_ENV: 'development', PORT: String(port), UPLOAD_DIR: deniedUploads ? path.join(directory, 'denied-mount') : (freshUploads ? path.join(directory, 'fresh-uploads') : directory), UPLOAD_DIR_STRICT: 'false', SESSION_SECRET: sessionSecret, PAYMONGO_SECRET_KEY: mockPaymentKey, PAYMONGO_WEBHOOK_SECRET_KEY: mockWebhookSecret },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    let output = '';
     await new Promise((resolve, reject) => {
-      let output = '';
       const deadline = setTimeout(() => reject(new Error(`Server startup timed out: ${output}`)), 20000);
       server.stdout.on('data', data => {
         output += data;
@@ -68,6 +68,19 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       server.once('exit', code => { clearTimeout(deadline); reject(new Error(`Server exited ${code}: ${output}`)); });
     });
     base = `http://127.0.0.1:${port}`;
+
+    // The HTTP port opens before database/session initialization so Render can
+    // detect it promptly. Wait for the readiness endpoint before assertions.
+    const readyDeadline = Date.now() + 20000;
+    while (Date.now() < readyDeadline) {
+      if (server.exitCode !== null) throw new Error(`Server exited ${server.exitCode}: ${output}`);
+      try {
+        const response = await fetch(`${base}/healthz`, { signal: AbortSignal.timeout(1000) });
+        if (response.status === 200) return;
+      } catch { /* Retry while the database and session store are starting. */ }
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    throw new Error(`Server readiness timed out: ${output}`);
   }
   async function stop() {
     if (!server || server.exitCode !== null) return;
