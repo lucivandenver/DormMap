@@ -82,9 +82,16 @@ export function validateOwnerPaymentSetup(body, files) {
     throw invalidSetup('Enter a valid contact number.');
   }
   const methods = validatePaymentMethods(body.paymentMethods, null, { requireQr: false });
+  const rate = field => {
+    const raw = body[field];
+    if (raw === undefined || String(raw).trim() === '') return null;
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < 0 || value > 10000000) throw invalidSetup(`Enter a valid monthly ${field === 'rentPerRoom' ? 'rent per room' : 'rent per head'}.`);
+    return value;
+  };
   const qrUploads = Object.fromEntries(Object.entries(PAYMENT_QR_FIELDS).map(([method, field]) =>
     [field, methods.includes(method) ? files?.[field]?.[0] || null : null]));
-  return { contactNumber, paymentMethods: JSON.stringify(methods), qrUploads };
+  return { contactNumber, paymentMethods: JSON.stringify(methods), rentPerRoom: rate('rentPerRoom'), rentPerHead: rate('rentPerHead'), qrUploads };
 }
 
 export async function registerPropertyInventory(user, setup, files, transaction) {
@@ -103,7 +110,7 @@ export async function registerPropertyInventory(user, setup, files, transaction)
     galleryImages: JSON.parse(user.galleryImages || '[]'),
     validIdPicture: user.validIdPicture, businessPermit: user.businessPermit, barangayClearance: user.barangayClearance
   };
-  const values = { ...setup.metadata, registrationSubmission, address: branches[0].address, mapPin: branches[0].mapPin, name: user.boardingHouseName, barangay: user.barangay, ownerId: user.id, latitude: user.boardingHouseLatitude, longitude: user.boardingHouseLongitude, picture: user.boardingHousePicture, isPrimary: true, approvalStatus: 'approved' };
+  const values = { ...setup.metadata, rentPerRoom: user.rentPerRoom, rentPerHead: user.rentPerHead, registrationSubmission, address: branches[0].address, mapPin: branches[0].mapPin, name: user.boardingHouseName, barangay: user.barangay, ownerId: user.id, latitude: user.boardingHouseLatitude, longitude: user.boardingHouseLongitude, picture: user.boardingHousePicture, isPrimary: true, approvalStatus: 'approved' };
   house = house ? await house.update(values, { transaction }) : await BoardingHouse.create(values, { transaction });
 
   await user.update({ boardingHouseAddress: house.address, amenities: house.amenities, houseRules: house.houseRules, description: house.description, roomsAvailable: 0, roomTypes: '[]' }, { transaction });
@@ -121,6 +128,8 @@ export async function registerPropertyInventory(user, setup, files, transaction)
       approvalStatus: 'approved',
       registrationSubmission: { submittedWithOwner: true, roomsPerFloor: branch.roomsPerFloor },
       propertyType: setup.metadata.propertyType,
+      rentPerRoom: user.rentPerRoom,
+      rentPerHead: user.rentPerHead,
       floorCount: branch.floors,
       declaredRooms: branch.rooms,
       address: branch.address,

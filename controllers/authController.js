@@ -638,6 +638,8 @@ export const registerUser = async (req, res) => {
         boardingHouseLongitude: accountType === "boarding_house_owner" ? boardingHouseLongitude : null,
         roomTypes: accountType === "boarding_house_owner" ? JSON.stringify(normalizeList(roomTypes)) : null,
         paymentMethods: setup?.payment.paymentMethods ?? null,
+        rentPerRoom: setup?.payment.rentPerRoom ?? null,
+        rentPerHead: setup?.payment.rentPerHead ?? null,
         selectedBoardingHouse: accountType === "tenant" ? selectedBoardingHouse || null : null,
         contactNumber: setup?.payment.contactNumber || contactNumber || null,
         notes: notes || null,

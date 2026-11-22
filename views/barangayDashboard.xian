@@ -10,7 +10,7 @@
       </button>
       <a href="/" class="flex items-center gap-2 font-bold text-emerald-950 text-lg">
         <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-700 text-white font-black text-sm">D</span>
-        <span>DormMap <span class="font-normal text-xs text-slate-400">/ Barangay Office</span></span>
+        <span>DormMap <span class="hidden font-normal text-xs text-slate-400 sm:inline">/ Barangay Office</span></span>
       </a>
       <span class="hidden md:inline-block text-slate-300">|</span>
       <div class="hidden md:flex items-center gap-2 text-xs text-slate-500" id="breadcrumbNav">
@@ -21,27 +21,23 @@
     </div>
     
     <div class="flex items-center gap-3">
-      <button id="themeToggle" class="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition">
-        <span>◐</span> <span class="hidden sm:inline">Theme</span>
-      </button>
-
       <div class="relative">
         <button id="notifBtn" onclick="show('notifications')" class="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100" title="Activity">
           <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
         </button>
       </div>
 
-      <div class="flex items-center gap-2 border-l border-slate-200 pl-3">
-        <div class="h-8 w-8 rounded-full bg-emerald-700 text-white flex items-center justify-center font-bold text-sm uppercase">
-          {{userName.[0]}}
+      <div class="relative" id="barangayProfileMenu">
+        <button id="barangayProfileButton" type="button" aria-expanded="false" aria-controls="barangayProfileDropdown" class="flex items-center gap-2 rounded-xl border border-slate-200 p-1.5 hover:bg-slate-50">
+          <span class="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-700 text-white font-bold text-sm uppercase">{{userName.[0]}}</span>
+          <span class="hidden text-left sm:block"><span class="block text-xs font-bold text-slate-800">{{userName}}</span><span class="block text-[10px] text-slate-500">Barangay Official</span></span>
+          <i data-lucide="chevron-down" class="h-4 w-4 text-slate-500"></i>
+        </button>
+        <div id="barangayProfileDropdown" class="hidden absolute right-0 mt-2 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl z-50">
+          <button type="button" onclick="show('profile'); toggleBarangayMenu(false)" class="block w-full px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50">Profile</button>
+          <button type="button" onclick="show('settings'); toggleBarangayMenu(false)" class="block w-full border-t border-slate-100 px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50">Settings</button>
+          <a href="/logout" class="block border-t border-slate-100 px-4 py-3 text-sm font-bold text-rose-600 hover:bg-rose-50">Logout</a>
         </div>
-        <div class="hidden text-left sm:block">
-          <p class="text-xs font-bold text-slate-800 leading-tight">{{userName}}</p>
-          <p class="text-[10px] text-slate-400">Barangay Official</p>
-        </div>
-        <a href="/logout" title="Logout" class="ml-2 rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">
-          Logout
-        </a>
       </div>
     </div>
   </header>
@@ -618,6 +614,14 @@
           <button class="button w-full !bg-emerald-700">Save Profile Changes</button>
         </form>
       </section>
+      <section data-panel="settings" class="hidden">
+        <div class="max-w-xl rounded-2xl border border-slate-100 bg-white p-6 shadow-xs">
+          <h2 class="text-lg font-bold text-slate-900">Account Settings</h2>
+          <p class="mt-2 text-sm text-slate-600">Manage your official profile or reset your account password.</p>
+          <button type="button" onclick="show('profile')" class="button mt-4 !bg-emerald-700 !text-white">Open Profile</button>
+          <a href="/forgotpassword" class="ml-2 inline-flex rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">Reset Password</a>
+        </div>
+      </section>
     </div>
   </main>
 </div>
@@ -833,11 +837,6 @@
   .status-revision_requested, .status-revision_required { background: #fffbeb; color: #92400e; }
   .status-approved_barangay, .status-forwarded_to_bplo, .status-approved, .status-bplo_approved, .status-active { background: #dcfce7; color: #166534; }
   .status-rejected, .status-suspended, .status-expired, .status-overdue { background: #fee2e2; color: #991b1b; }
-  .dark { background-color: #0f172a; color: #e2e8f0; }
-  .dark header, .dark aside, .dark .bg-white { background-color: #1e293b !important; border-color: #334155 !important; color: #e2e8f0 !important; }
-  .dark th { background-color: #0f172a !important; color: #94a3b8 !important; }
-  .dark td, .dark th { border-color: #334155 !important; }
-  .dark .field { background-color: #0f172a !important; border-color: #475569 !important; color: #fff !important; }
 </style>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
@@ -861,7 +860,8 @@ const labels = {
   reports: 'Reports & Masterlists',
   notifications: 'Activity',
   audit: 'Audit Logs',
-  profile: 'Profile Settings'
+  profile: 'Profile Settings',
+  settings: 'Account Settings'
 };
 
 let map;
@@ -917,13 +917,15 @@ function refreshCurrentView() {
 
 document.querySelectorAll('.nav').forEach(e => e.onclick = () => show(e.dataset.view));
 document.getElementById('menuToggle').onclick = () => document.getElementById('sidebar').classList.toggle('-translate-x-full');
-
-const toggleTheme = () => {
-  document.body.classList.toggle('dark');
-  localStorage.setItem('dormap-theme', document.body.classList.contains('dark') ? 'dark' : 'light');
-};
-document.getElementById('themeToggle').onclick = toggleTheme;
-if (localStorage.getItem('dormap-theme') === 'dark') document.body.classList.add('dark');
+function toggleBarangayMenu(force) {
+  const dropdown = document.getElementById('barangayProfileDropdown');
+  const button = document.getElementById('barangayProfileButton');
+  const open = force === undefined ? dropdown.classList.contains('hidden') : force;
+  dropdown.classList.toggle('hidden', !open);
+  button.setAttribute('aria-expanded', String(open));
+}
+document.getElementById('barangayProfileButton').onclick = () => toggleBarangayMenu();
+document.addEventListener('click', (event) => { if (!document.getElementById('barangayProfileMenu').contains(event.target)) toggleBarangayMenu(false); });
 
 function closeModal(id) {
   const el = document.getElementById(id);

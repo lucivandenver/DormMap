@@ -27,22 +27,17 @@
         <span class="h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
         Maintenance Mode ON
       </div>
-      <button id="themeToggle" class="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition">
-        <svg class="icon-bw-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
-        <span class="hidden sm:inline">Theme</span>
-      </button>
-      <div class="flex items-center gap-2 border-l border-slate-200 pl-3">
-        <div class="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-900 text-white font-bold text-xs uppercase shadow-xs">
-          {{userName.[0]}}
+      <div class="relative" id="adminProfileMenu">
+        <button id="adminProfileButton" type="button" class="flex items-center gap-2 rounded-xl border border-slate-200 p-1.5 hover:bg-slate-50" aria-expanded="false" aria-controls="adminProfileDropdown">
+          <span class="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-900 text-white font-bold text-xs uppercase">{{userName.[0]}}</span>
+          <span class="hidden text-left sm:block"><span class="block text-xs font-bold text-slate-800 leading-tight">{{userName}}</span><span class="block text-[10px] text-emerald-700 font-semibold">BPLO Super Admin</span></span>
+          <i data-lucide="chevron-down" class="h-4 w-4 text-slate-500"></i>
+        </button>
+        <div id="adminProfileDropdown" class="hidden absolute right-0 mt-2 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl z-50">
+          <button type="button" onclick="setPanel('profile'); toggleAccountMenu(false)" class="block w-full px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50">Profile</button>
+          <button type="button" onclick="setPanel('settings'); toggleAccountMenu(false)" class="block w-full border-t border-slate-100 px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50">Settings</button>
+          <a href="/logout" class="block border-t border-slate-100 px-4 py-3 text-sm font-bold text-rose-600 hover:bg-rose-50">Logout</a>
         </div>
-        <div class="hidden text-left sm:block">
-          <p class="text-xs font-bold text-slate-800 leading-tight">{{userName}}</p>
-          <p class="text-[10px] text-emerald-700 font-semibold">BPLO Super Admin</p>
-        </div>
-        <a href="/logout" class="ml-2 flex items-center gap-1.5 rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition">
-          <svg class="icon-bw-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          Logout
-        </a>
       </div>
     </div>
   </header>
@@ -473,6 +468,15 @@
         </div>
       </section>
 
+      <section data-view="profile" class="hidden space-y-6">
+        <div class="max-w-2xl rounded-2xl border border-slate-100 bg-white p-6 shadow-xs">
+          <h2 class="text-lg font-bold text-slate-900">Administrator Profile</h2>
+          <p class="mt-1 text-sm text-slate-500">Signed in to the BPLO Super Admin portal.</p>
+          <div class="mt-5 rounded-xl bg-slate-50 p-4"><p class="text-xs font-semibold uppercase text-slate-400">Name</p><p class="mt-1 font-bold text-slate-900">{{userName}}</p></div>
+          <button type="button" onclick="setPanel('settings')" class="button !mt-4 !bg-emerald-700 !text-white">Open Settings</button>
+        </div>
+      </section>
+
       <!-- VIEW 10: SYSTEM MAINTENANCE & MONITORING -->
       <section data-view="maintenance" class="hidden space-y-6">
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" id="maintenanceStatusCards"></div>
@@ -758,18 +762,13 @@
   .status-under_review { background: #faf5ff; color: #6b21a8; border-color: #e9d5ff; }
   .status-revision_requested, .status-revision_required { background: #fffbeb; color: #92400e; border-color: #fde68a; }
   .status-rejected, .status-expired, .status-cancelled, .status-overdue { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
-  .dark { background: #0f172a; color: #e2e8f0; }
-  .dark header, .dark aside, .dark .bg-white { background: #1e293b !important; color: #e2e8f0; border-color: #334155 !important; }
-  .dark th { background: #1e293b; }
-  .dark td, .dark th { border-color: #334155; }
-  .dark .field { background: #0f172a; border-color: #475569; color: white; }
-  .dark .button { background: #1e293b; color: #f1f5f9; border-color: #475569; }
 </style>
 
 <script>
 const api = '/admin/api';
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 const titles = {
+  profile: 'Administrator Profile',
   overview: 'Municipal Overview',
   gis_map: 'Municipal GIS Geolocation & Establishments Map',
   data_requests: 'BPLO Data Requests Hub',
@@ -815,11 +814,15 @@ function setPanel(panel) {
 
 document.querySelectorAll('.nav-item').forEach(x => x.onclick = () => setPanel(x.dataset.panel));
 document.getElementById('menuToggle').onclick = () => document.getElementById('sidebar').classList.toggle('-translate-x-full');
-document.getElementById('themeToggle').onclick = () => {
-  document.body.classList.toggle('dark');
-  localStorage.setItem('dormap-theme', document.body.classList.contains('dark') ? 'dark' : 'light');
-};
-if (localStorage.getItem('dormap-theme') === 'dark') document.body.classList.add('dark');
+function toggleAccountMenu(force) {
+  const dropdown = document.getElementById('adminProfileDropdown');
+  const button = document.getElementById('adminProfileButton');
+  const open = force === undefined ? dropdown.classList.contains('hidden') : force;
+  dropdown.classList.toggle('hidden', !open);
+  button.setAttribute('aria-expanded', String(open));
+}
+document.getElementById('adminProfileButton').onclick = () => toggleAccountMenu();
+document.addEventListener('click', (event) => { if (!document.getElementById('adminProfileMenu').contains(event.target)) toggleAccountMenu(false); });
 
 function closeModal(id) {
   const el = document.getElementById(id);
