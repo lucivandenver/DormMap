@@ -32,11 +32,11 @@
           <span class="rounded-2xl border border-slate-200 bg-white p-1 shadow-sm"><img src="{{profilePicture}}" onerror="this.onerror=null;this.src='https://ui-avatars.com/api/?name={{userName}}&background=023020&color=fff'" alt="{{userName}} profile" class="h-10 w-10 rounded-xl object-cover ring-2 ring-emerald-600/20"></span>
           <span class="hidden text-left sm:block"><span class="block max-w-36 truncate text-xs font-bold text-slate-900">{{userName}}</span><span class="block text-[10px] font-semibold text-emerald-700">Barangay Official</span></span>
         </button>
-        <div id="barangayProfileDropdown" class="hidden absolute right-0 mt-2 w-[min(20rem,calc(100vw-1rem))] overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-xl z-50">
-          <div class="border-b border-slate-100 px-5 py-4"><p class="text-sm font-bold text-slate-900">{{userName}}</p><p class="mt-0.5 truncate text-xs text-slate-500">{{userEmail}}</p></div>
-          <button type="button" onclick="show('profile'); toggleBarangayMenu(false)" class="flex w-full items-center gap-3 px-5 py-3.5 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-user-pen w-5 text-center text-slate-500"></i>Profile</button>
-          <button type="button" onclick="show('settings'); toggleBarangayMenu(false)" class="flex w-full items-center gap-3 px-5 py-3.5 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-gear w-5 text-center text-slate-500"></i>Settings</button>
-          <a href="/logout" class="flex w-full items-center gap-3 border-t border-slate-100 px-5 py-4 text-sm font-bold text-rose-600 hover:bg-rose-50"><i class="fa-solid fa-right-from-bracket w-5 text-center"></i>Sign Out</a>
+        <div id="barangayProfileDropdown" class="hidden absolute right-0 mt-2 w-[min(14rem,calc(100vw-1rem))] overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-xl z-50">
+          <div class="border-b border-slate-100 px-4 py-3"><p class="text-sm font-bold text-slate-900">{{userName}}</p><p class="mt-0.5 truncate text-xs text-slate-500">{{userEmail}}</p></div>
+          <button type="button" onclick="show('profile'); toggleBarangayMenu(false)" class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-user-pen w-5 text-center text-slate-500"></i>Profile</button>
+          <button type="button" onclick="show('settings'); toggleBarangayMenu(false)" class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-gear w-5 text-center text-slate-500"></i>Settings</button>
+          <a href="/logout" class="flex w-full items-center gap-3 border-t border-slate-100 px-4 py-3 text-sm font-bold text-rose-600 hover:bg-rose-50"><i class="fa-solid fa-right-from-bracket w-5 text-center"></i>Sign Out</a>
         </div>
       </div>
     </div>

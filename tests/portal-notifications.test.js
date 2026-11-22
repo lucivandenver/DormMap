@@ -56,3 +56,19 @@ test('each portal bell renders a single live unread badge', async () => {
     assert.equal(badges[0].hidden, false);
   }
 });
+
+test('all portal profile menus use the compact card and admin has one activity bell with a mobile drawer backdrop', async () => {
+  const { readFileSync } = await import('node:fs');
+  const portals = ['adminDashboard', 'ownerDashboard', 'barangayDashboard', 'tenantDashboard'];
+  for (const portal of portals) {
+    const html = readFileSync(new URL(`../views/${portal}.xian`, import.meta.url), 'utf8');
+    assert.match(html, /w-\[min\(14rem,calc\(100vw-1rem\)\)\]/, `${portal} profile dropdown should match the compact tenant card`);
+    assert.match(html, /fa-user-pen[^>]*><\/i>\s*Profile/, `${portal} profile action should include its icon`);
+    assert.match(html, /fa-gear[^>]*><\/i>\s*Settings/, `${portal} settings action should include its icon`);
+    assert.match(html, /fa-right-from-bracket[^>]*><\/i>\s*Sign Out/, `${portal} sign out action should include its red icon`);
+  }
+  const admin = readFileSync(new URL('../views/adminDashboard.xian', import.meta.url), 'utf8');
+  assert.equal((admin.match(/id="notifBtn"/g) || []).length, 1, 'admin should render one activity bell that portal-updates can bind');
+  assert.match(admin, /id="mobileOverlay"[^>]*hidden[^>]*lg:hidden/, 'admin mobile navigation should include a dismissible backdrop');
+  assert.match(admin, /setAdminSidebarOpen\(document\.getElementById\('sidebar'\)\.classList\.contains\('-translate-x-full'\)\)/, 'admin menu button should open and close the mobile drawer');
+});
