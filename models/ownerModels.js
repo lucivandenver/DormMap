@@ -13,6 +13,8 @@ export const BoardingHouse = sequelize.define('BoardingHouse', {
   description:  { type: DataTypes.TEXT,    allowNull: true },
   amenities:    { type: DataTypes.TEXT,    allowNull: true },
   houseRules:   { type: DataTypes.TEXT,    allowNull: true },
+  rentPerRoom:  { type: DataTypes.DECIMAL(10,2), allowNull: true },
+  rentPerHead:  { type: DataTypes.DECIMAL(10,2), allowNull: true },
   propertyType: { type: DataTypes.STRING, allowNull: false, defaultValue: 'Boarding House' },
   declaredBranches: { type: DataTypes.INTEGER, allowNull: true },
   registrationSubmission: { type: DataTypes.JSON, allowNull: true },
@@ -164,6 +166,9 @@ export const ensureOwnerSchema = async () => {
   }
   const houseColumns = await queryInterface.describeTable('BoardingHouses');
   if (!houseColumns.registrationSubmission) await queryInterface.addColumn('BoardingHouses', 'registrationSubmission', { type: DataTypes.JSON, allowNull: true });
+  for (const column of ['rentPerRoom', 'rentPerHead']) {
+    if (!houseColumns[column]) await queryInterface.addColumn('BoardingHouses', column, { type: DataTypes.DECIMAL(10,2), allowNull: true });
+  }
   for (const column of ['declaredBranches', 'declaredRooms']) {
     if (!houseColumns[column]) await queryInterface.addColumn('BoardingHouses', column, { type: DataTypes.INTEGER, allowNull: true });
   }
@@ -189,6 +194,8 @@ export const ensureOwnerSchema = async () => {
     description:    { type: DataTypes.TEXT,   allowNull: true },
     rentalPriceMin: { type: DataTypes.DECIMAL(10,2), allowNull: true },
     rentalPriceMax: { type: DataTypes.DECIMAL(10,2), allowNull: true },
+    rentPerRoom: { type: DataTypes.DECIMAL(10,2), allowNull: true },
+    rentPerHead: { type: DataTypes.DECIMAL(10,2), allowNull: true },
     positionTitle:  { type: DataTypes.STRING, allowNull: true },
   };
   for (const [col, def] of Object.entries(extras)) {

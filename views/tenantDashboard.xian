@@ -134,10 +134,10 @@
             <p class="text-[11px] text-slate-500 truncate">{{userEmail}}</p>
           </div>
           <button onclick="switchTab('profile'); closeProfileMenu();" class="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition">
-            <i class="fa-solid fa-user-pen text-slate-500 w-4 text-center"></i> Edit Profile
+            <i class="fa-solid fa-user-pen text-slate-500 w-4 text-center"></i> Profile
           </button>
           <button onclick="switchTab('settings'); closeProfileMenu();" class="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition">
-            <i class="fa-solid fa-gear text-slate-500 w-4 text-center"></i> Account Settings
+            <i class="fa-solid fa-gear text-slate-500 w-4 text-center"></i> Settings
           </button>
           <div class="border-t border-slate-100 my-1"></div>
           <a href="/logout" class="block w-full text-left px-4 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 transition">

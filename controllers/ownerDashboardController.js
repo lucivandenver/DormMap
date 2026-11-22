@@ -113,6 +113,13 @@ export const overview = async (req, res, next) => {
 
 // ─── Profile ─────────────────────────────────────────────────────────────────
 
+function validatedRate(raw, label) {
+  if (raw === null || raw === undefined || String(raw).trim() === '') return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0 || value > 10000000) fail(`Enter a valid monthly rent per ${label}.`, 422);
+  return value;
+}
+
 export const getProfile = async (req, res, next) => {
   try {
     const user = await User.findByPk(oid(req), { attributes: { exclude: ['password', 'verificationToken', 'resetPasswordToken'] } });
@@ -130,7 +137,7 @@ export const updateProfile = async (req, res, next) => {
   try {
     const allowed = [
       'boardingHouseName', 'boardingHouseAddress', 'contactNumber', 'description',
-      'operatingHours', 'rentalPriceMin', 'rentalPriceMax', 'amenities', 'houseRules',
+      'operatingHours', 'rentalPriceMin', 'rentalPriceMax', 'rentPerRoom', 'rentPerHead', 'amenities', 'houseRules',
       'boardingHouseLatitude', 'boardingHouseLongitude', 'mapPin', 'gcashNumber', 'gcashName', 'gcashQrCode'
     ];
     const updates = {};
@@ -160,7 +167,7 @@ export const getBoardingHouses = async (req, res, next) => {
       const user = await ownerLock(ownerId, transaction);
       let records = await BoardingHouse.findAll({ where: { ownerId }, order: [['isPrimary','DESC'],['id','ASC']], transaction });
       if (!records.length) {
-        const house = await BoardingHouse.create({ ownerId, name: user.boardingHouseName || `${user.fullName}'s Boarding House`, address: user.boardingHouseAddress || '', barangay: user.barangay, latitude: user.boardingHouseLatitude || null, longitude: user.boardingHouseLongitude || null, mapPin: user.mapPin || null, picture: user.boardingHousePicture || '', amenities: user.amenities || '', houseRules: user.houseRules || '', isPrimary: true }, { transaction });
+        const house = await BoardingHouse.create({ ownerId, name: user.boardingHouseName || `${user.fullName}'s Boarding House`, address: user.boardingHouseAddress || '', barangay: user.barangay, latitude: user.boardingHouseLatitude || null, longitude: user.boardingHouseLongitude || null, mapPin: user.mapPin || null, picture: user.boardingHousePicture || '', amenities: user.amenities || '', houseRules: user.houseRules || '', rentPerRoom: user.rentPerRoom, rentPerHead: user.rentPerHead, isPrimary: true }, { transaction });
         records = [house];
       }
       const primary = records.find(house => house.isPrimary) || records[0];
@@ -202,6 +209,7 @@ export const createBoardingHouse = async (req, res, next) => {
       description: description || '',
       amenities: amenities || '',
       houseRules: houseRules || '',
+      rentPerRoom: validatedRate(req.body.rentPerRoom, 'room'), rentPerHead: validatedRate(req.body.rentPerHead, 'head'),
       ...propertyMetadata({ ...req.body, streetAddress: address }),
       isPrimary: false,
       approvalStatus: 'pending'
@@ -217,7 +225,8 @@ export const updateBoardingHouse = async (req, res, next) => {
     const house = await BoardingHouse.findOne({ where: { id: req.params.id, ownerId } });
     if (!house) return res.status(404).json({ error: 'Boarding house not found.' });
     if (req.body.barangay && req.body.barangay !== house.barangay) fail('An existing property cannot silently move jurisdictions. Register a separate branch or contact BPLO about a transfer.');
-    const safeBody = Object.fromEntries(['name','address','latitude','longitude','picture','description','amenities','houseRules','propertyType','floorCount'].filter(key => req.body[key] !== undefined).map(key => [key, req.body[key]]));
+    const safeBody = Object.fromEntries(['name','address','latitude','longitude','picture','description','amenities','houseRules','propertyType','floorCount','rentPerRoom','rentPerHead'].filter(key => req.body[key] !== undefined).map(key => [key, req.body[key]]));
+    for (const field of ['rentPerRoom', 'rentPerHead']) if (field in safeBody) safeBody[field] = validatedRate(safeBody[field], field === 'rentPerRoom' ? 'room' : 'head');
     if ('propertyType' in safeBody || 'floorCount' in safeBody) { const metadata = propertyMetadata({ propertyType: safeBody.propertyType || house.propertyType, floorCount: safeBody.floorCount || house.floorCount || 1 }); safeBody.propertyType = metadata.propertyType; safeBody.floorCount = metadata.floorCount; }
     if (safeBody.floorCount && (await OwnerRoom.findAll({ where: { ownerId, boardingHouseId: house.id } })).some(room => floorNumber(room.floor) > safeBody.floorCount)) fail('Move or update rooms on higher floors before reducing this property’s floor count.');
     if (!house.isPrimary && ['rejected','revision_requested'].includes(house.approvalStatus)) safeBody.approvalStatus = 'pending';
@@ -226,7 +235,7 @@ export const updateBoardingHouse = async (req, res, next) => {
     if ('longitude' in safeBody && safeBody.longitude !== '' && (!Number.isFinite(Number(safeBody.longitude)) || Math.abs(Number(safeBody.longitude)) > 180)) fail('Invalid longitude.');
     if (safeBody.latitude !== undefined || safeBody.longitude !== undefined) safeBody.mapPin = `Lat ${safeBody.latitude ?? house.latitude}, Lon ${safeBody.longitude ?? house.longitude}`;
     await house.update(safeBody);
-    if (house.isPrimary) await User.update({ boardingHouseName: house.name, boardingHouseAddress: house.address, boardingHouseLatitude: house.latitude, boardingHouseLongitude: house.longitude, mapPin: house.mapPin, amenities: house.amenities, houseRules: house.houseRules }, { where: { id: ownerId } });
+    if (house.isPrimary) await User.update({ boardingHouseName: house.name, boardingHouseAddress: house.address, boardingHouseLatitude: house.latitude, boardingHouseLongitude: house.longitude, mapPin: house.mapPin, amenities: house.amenities, houseRules: house.houseRules, rentPerRoom: house.rentPerRoom, rentPerHead: house.rentPerHead }, { where: { id: ownerId } });
     await audit(req, 'update_boarding_house', 'BoardingHouse', house.id, safeBody);
     res.json({ data: house, message: 'Boarding house updated.' });
   } catch (err) { next(err); }
@@ -1038,6 +1047,7 @@ export const updateMyProfile = async (req, res, next) => {
     if (req.body.contactNumber) updates.contactNumber = req.body.contactNumber;
     if (req.body.gcashNumber !== undefined) updates.gcashNumber = req.body.gcashNumber;
     if (req.body.gcashName !== undefined) updates.gcashName = req.body.gcashName;
+    for (const field of ['rentPerRoom', 'rentPerHead']) if (req.body[field] !== undefined) updates[field] = validatedRate(req.body[field], field === 'rentPerRoom' ? 'room' : 'head');
 
     const profilePic = req.files?.['profilePicture']?.[0];
     if (profilePic) updates.profilePicture = `/uploads/${profilePic.filename}`;

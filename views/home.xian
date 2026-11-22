@@ -870,6 +870,10 @@
       document.getElementById('detailOwner').textContent = house.fullName || 'Registered Owner';
       document.getElementById('detailContact').textContent = house.contactNumber || house.email || 'Not provided';
       document.getElementById('detailPrice').textContent = (() => {
+        const perRoom = Number(house.rentPerRoom);
+        const perHead = Number(house.rentPerHead);
+        const declaredRates = [perRoom > 0 ? `₱${perRoom.toLocaleString()} / room` : '', perHead > 0 ? `₱${perHead.toLocaleString()} / head` : ''].filter(Boolean);
+        if (declaredRates.length) return `${declaredRates.join(' · ')} /mo`;
         const min = Number(house.rentalPriceMin);
         const max = Number(house.rentalPriceMax);
         if (min > 0 && max > 0 && min !== max) return `₱${min.toLocaleString()} – ₱${max.toLocaleString()}/mo`;

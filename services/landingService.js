@@ -24,7 +24,7 @@ export async function publicDormListings() {
     fullName: item.ownerName, contactNumber: item.ownerContact,
     boardingHousePicture: item.picture, latitude: item.latitude, longitude: item.longitude,
     roomsAvailable: item.roomsAvailable, availableSlots: item.availableSlots,
-    rentalPriceMin: item.rentalPriceMin, rentalPriceMax: item.rentalPriceMax,
+    rentalPriceMin: item.rentalPriceMin, rentalPriceMax: item.rentalPriceMax, rentPerRoom: item.rentPerRoom, rentPerHead: item.rentPerHead,
     roomTypes: item.roomTypes.length ? item.roomTypes : parseList(item.legacyRoomTypes),
     paymentMethods: parseList(item.paymentMethods), amenities: item.amenities, houseRules: item.houseRules,
     description: item.description, createdAt: item.createdAt,

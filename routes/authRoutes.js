@@ -259,6 +259,8 @@ router.post("/complete-owner-profile", cleanFailedRegistration, registerUpload, 
       user.barangay = boardingHouseAddress; // Sort by barangay
       user.roomsAvailable = Number(roomsAvailable) || 1;
       user.paymentMethods = setup.payment.paymentMethods;
+      user.rentPerRoom = setup.payment.rentPerRoom;
+      user.rentPerHead = setup.payment.rentPerHead;
       user.contactNumber = setup.payment.contactNumber;
       for (const [field, file] of Object.entries(setup.payment.qrUploads)) {
         user[field] = await storeReviewFile(file, user.id, 'payment-qr', transaction);

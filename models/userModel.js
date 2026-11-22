@@ -47,6 +47,8 @@ export const User = sequelize.define("User", {
   selectedBoardingHouse: { type: DataTypes.STRING, allowNull: true },
   validIdPicture: { type: DataTypes.TEXT, allowNull: true },
   paymentMethods: { type: DataTypes.TEXT, allowNull: true },
+  rentPerRoom: { type: DataTypes.DECIMAL(10,2), allowNull: true },
+  rentPerHead: { type: DataTypes.DECIMAL(10,2), allowNull: true },
   gcashNumber: { type: DataTypes.STRING, allowNull: true },
   gcashName: { type: DataTypes.STRING, allowNull: true },
   gcashQrCode: { type: DataTypes.TEXT, allowNull: true },

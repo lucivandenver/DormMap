@@ -56,7 +56,7 @@ export async function listTenantDorms(tenantId, query = {}, { includeUnregistere
     where: includeUnregistered ? { accountType: 'boarding_house_owner', isSuspended: false, isArchived: false, [Op.or]: [{ applicationStatus: { [Op.in]: ['approved','approved_barangay'] }, publicMapUnregistered: false }, { publicMapUnregistered: true, publicMapPublished: true }] } : approvedOwnerWhere,
     attributes: ['id', 'fullName', 'profilePicture', 'contactNumber', 'boardingHouseName', 'boardingHouseAddress',
       'boardingHousePicture', 'barangay', 'boardingHouseLatitude', 'boardingHouseLongitude',
-      'rentalPriceMin', 'rentalPriceMax', 'amenities', 'houseRules', 'roomTypes', 'paymentMethods', 'galleryImages', 'createdAt', 'publicMapUnregistered'],
+      'rentalPriceMin', 'rentalPriceMax', 'rentPerRoom', 'rentPerHead', 'amenities', 'houseRules', 'roomTypes', 'paymentMethods', 'galleryImages', 'createdAt', 'publicMapUnregistered'],
   });
   const ownerIds = owners.map(owner => owner.id);
   const [houses, rooms, applications, saved, occupants, gallery] = await Promise.all([
@@ -153,6 +153,8 @@ export async function listTenantDorms(tenantId, query = {}, { includeUnregistere
         houseRules: house?.houseRules || owner.houseRules || '',
         roomsAvailable: available.length,
         availableSlots: available.reduce((sum, room) => sum + Number(room.availableSlots), 0),
+        rentPerRoom: price(house?.rentPerRoom) ?? price(owner.rentPerRoom),
+        rentPerHead: price(house?.rentPerHead) ?? price(owner.rentPerHead),
         rentalPriceMin: prices.length ? Math.min(...prices) : price(owner.rentalPriceMin),
         rentalPriceMax: prices.length ? Math.max(...prices) : price(owner.rentalPriceMax),
         availableRooms: roomInventory.filter(room => room.availableSlots > 0),
