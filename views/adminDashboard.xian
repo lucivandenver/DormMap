@@ -6,7 +6,7 @@
   <!-- Top Navigation Header -->
   <header class="fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur lg:px-6 shadow-xs">
     <div class="flex items-center gap-3">
-      <button id="menuToggle" class="rounded-lg p-2 text-slate-700 hover:bg-slate-100 transition lg:hidden" aria-label="Toggle Navigation">
+      <button id="menuToggle" class="rounded-lg p-2 text-slate-700 hover:bg-slate-100 transition lg:hidden" aria-label="Toggle Navigation" aria-controls="sidebar" aria-expanded="false">
         <svg class="icon-bw" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
       <a href="/" class="flex items-center gap-2.5 font-bold text-emerald-950 text-lg group">
@@ -22,7 +22,7 @@
         <span class="h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
         Maintenance Mode ON
       </div>
-      <button type="button" onclick="setPanel('audit')" title="Activity" aria-label="Open activity log" class="relative rounded-xl p-2.5 text-slate-600 transition hover:bg-slate-100">
+      <button id="notifBtn" type="button" title="Activity" aria-label="Open activity" class="relative rounded-xl p-2.5 text-slate-600 transition hover:bg-slate-100">
         <i class="fa-regular fa-bell text-lg"></i>
       </button>
       <div class="relative" id="adminProfileMenu">
@@ -30,17 +30,18 @@
           <span class="rounded-2xl border border-slate-200 bg-white p-1 shadow-sm"><img src="{{profilePicture}}" onerror="this.onerror=null;this.src='https://ui-avatars.com/api/?name={{userName}}&background=023020&color=fff'" alt="{{userName}} profile" class="h-10 w-10 rounded-xl object-cover ring-2 ring-emerald-600/20"></span>
           <span class="hidden text-left sm:block"><span class="block max-w-36 truncate text-xs font-bold text-slate-900 leading-tight">{{userName}}</span><span class="block text-[10px] text-emerald-700 font-semibold">BPLO Super Admin</span></span>
         </button>
-        <div id="adminProfileDropdown" class="hidden absolute right-0 mt-2 w-[min(20rem,calc(100vw-1rem))] overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-xl z-50">
-          <div class="border-b border-slate-100 px-5 py-4"><p class="text-sm font-bold text-slate-900">{{userName}}</p><p class="mt-0.5 truncate text-xs text-slate-500">{{userEmail}}</p></div>
-          <button type="button" onclick="setPanel('profile'); toggleAccountMenu(false)" class="flex w-full items-center gap-3 px-5 py-3.5 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-user-pen w-5 text-center text-slate-500"></i>Profile</button>
-          <button type="button" onclick="setPanel('settings'); toggleAccountMenu(false)" class="flex w-full items-center gap-3 px-5 py-3.5 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-gear w-5 text-center text-slate-500"></i>Settings</button>
-          <a href="/logout" class="flex w-full items-center gap-3 border-t border-slate-100 px-5 py-4 text-sm font-bold text-rose-600 hover:bg-rose-50"><i class="fa-solid fa-right-from-bracket w-5 text-center"></i>Sign Out</a>
+        <div id="adminProfileDropdown" class="hidden absolute right-0 mt-2 w-[min(14rem,calc(100vw-1rem))] overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-xl z-50">
+          <div class="border-b border-slate-100 px-4 py-3"><p class="text-sm font-bold text-slate-900">{{userName}}</p><p class="mt-0.5 truncate text-xs text-slate-500">{{userEmail}}</p></div>
+          <button type="button" onclick="setPanel('profile'); toggleAccountMenu(false)" class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-user-pen w-5 text-center text-slate-500"></i>Profile</button>
+          <button type="button" onclick="setPanel('settings'); toggleAccountMenu(false)" class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-gear w-5 text-center text-slate-500"></i>Settings</button>
+          <a href="/logout" class="flex w-full items-center gap-3 border-t border-slate-100 px-4 py-3 text-sm font-bold text-rose-600 hover:bg-rose-50"><i class="fa-solid fa-right-from-bracket w-5 text-center"></i>Sign Out</a>
         </div>
       </div>
     </div>
   </header>
 
   <!-- Sidebar Navigation -->
+  <div id="mobileOverlay" class="fixed inset-0 z-20 hidden bg-slate-950/40 backdrop-blur-[1px] lg:hidden" aria-hidden="true"></div>
   <aside id="sidebar" class="fixed inset-y-16 left-0 z-30 w-64 -translate-x-full overflow-y-auto border-r border-slate-200 bg-white p-3 transition-transform duration-200 lg:translate-x-0">
     <div class="px-3 py-2 border-b border-slate-100 pb-3 mb-2">
       <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Administration Portal</p>
@@ -795,7 +796,7 @@ function setPanel(panel) {
   document.querySelectorAll('[data-view]').forEach(x => x.classList.toggle('hidden', x.dataset.view !== panel));
   document.querySelectorAll('.nav-item').forEach(x => x.classList.toggle('active', x.dataset.panel === panel));
   document.getElementById('pageTitle').textContent = titles[panel] || 'Admin Portal';
-  document.getElementById('sidebar').classList.add('-translate-x-full');
+  setAdminSidebarOpen(false);
 
   if (panel === 'overview') loadOverview();
   if (panel === 'gis_map') loadGisMap();
@@ -811,7 +812,15 @@ function setPanel(panel) {
 }
 
 document.querySelectorAll('.nav-item').forEach(x => x.onclick = () => setPanel(x.dataset.panel));
-document.getElementById('menuToggle').onclick = () => document.getElementById('sidebar').classList.toggle('-translate-x-full');
+function setAdminSidebarOpen(open) {
+  document.getElementById('sidebar').classList.toggle('-translate-x-full', !open);
+  document.getElementById('mobileOverlay').classList.toggle('hidden', !open);
+  document.getElementById('menuToggle').setAttribute('aria-expanded', String(open));
+}
+document.getElementById('menuToggle').onclick = () => {
+  setAdminSidebarOpen(document.getElementById('sidebar').classList.contains('-translate-x-full'));
+};
+document.getElementById('mobileOverlay').onclick = () => setAdminSidebarOpen(false);
 function toggleAccountMenu(force) {
   const dropdown = document.getElementById('adminProfileDropdown');
   const button = document.getElementById('adminProfileButton');
