@@ -15,8 +15,14 @@ export async function migrateSchema({ createDatabase = false } = {}) {
   const lock = await mysql.createConnection({ ...connectionOptions, user });
   const lockName = `dormmap-schema-${database}`.slice(0, 64);
   try {
-    const [[result]] = await lock.query('SELECT GET_LOCK(?, 30) AS acquired', [lockName]);
-    if (Number(result.acquired) !== 1) throw new Error('Another schema update is running. Try again later.');
+    // Render can briefly start overlapping instances during a deploy. Keep the
+    // second migration alive until the first releases its database-wide lock.
+    let [[result]] = await lock.query('SELECT GET_LOCK(?, 0) AS acquired', [lockName]);
+    if (Number(result.acquired) !== 1) {
+      console.log('Another schema update is running; waiting up to five minutes.');
+      [[result]] = await lock.query('SELECT GET_LOCK(?, 300) AS acquired', [lockName]);
+    }
+    if (Number(result.acquired) !== 1) throw new Error('Timed out waiting for the other schema update to finish.');
     if (createDatabase) {
       if (process.env.NODE_ENV === 'production') throw new Error('Create the production database in Aiven Console first.');
       await lock.query('CREATE DATABASE IF NOT EXISTS ??', [database]);
