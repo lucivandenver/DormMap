@@ -57,6 +57,7 @@ import { initWebSocket } from "./services/websocketService.js";
 const app = express();
 const httpServer = http.createServer(app);
 const PORT = Number(process.env.PORT || 3000);
+let databaseReady = false;
 const production = process.env.NODE_ENV === 'production';
 if (production) app.set('trust proxy', 1);
 app.disable('x-powered-by');
@@ -65,6 +66,7 @@ prepareUploads();
 // Render probes this route without creating a login session.
 app.get('/healthz', async (req, res) => {
   res.set('Cache-Control', 'no-store');
+  if (!databaseReady) return res.status(503).json({ status: 'starting' });
   try {
     await sequelize.query('SELECT 1', { retry: { max: 0 } });
     res.json({ status: 'ok' });
@@ -227,18 +229,22 @@ app.use((error, req, res, next) => {
 export default app;
 
 const startServer = async () => {
+  if (!process.env.ELECTRON) {
+    httpServer.on('error', (err) => {
+      console.error('❌ Server failed to start:', err);
+      process.exit(1);
+    });
+    // Bind immediately so Render can detect the service while the database
+    // and session store finish their startup checks.
+    httpServer.listen(PORT, '0.0.0.0', () => console.log(`🔥 XianFire running on port ${PORT}`));
+  }
+
   try {
     await sequelize.authenticate();
     // Migrations run explicitly before starting. Startup never alters tables.
     await sessionStore.sessionModel.findOne({ attributes: ['sid'] });
-
-    if (!process.env.ELECTRON) {
-      httpServer.listen(PORT, '0.0.0.0', () => console.log(`🔥 XianFire running on port ${PORT}`));
-      httpServer.on('error', (err) => {
-        console.error('❌ Server failed to start:', err);
-        process.exit(1);
-      });
-    }
+    databaseReady = true;
+    console.log('✅ Database and session store are ready.');
   } catch (err) {
     console.error("❌ Database sync failed:", err);
     process.exit(1);
