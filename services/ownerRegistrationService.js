@@ -1,7 +1,8 @@
 import { PAYMENT_QR_FIELDS, validatePaymentMethods } from './ownerPaymentConfig.js';
-import { BoardingHouse, OwnerRoom, OwnerTenant } from '../models/ownerModels.js';
+import { BoardingHouse, OwnerGallery, OwnerRoom, OwnerTenant } from '../models/ownerModels.js';
 import { propertyMetadata } from './roomPlanService.js';
-import { GALLERY_CATEGORIES, saveGallerySlot, storeRegistrationPhotos } from './propertyPhotoService.js';
+import { branchName } from './propertyBranchesService.js';
+import { GALLERY_CATEGORIES } from './propertyPhotoService.js';
 
 const barangays = new Set([
   'Anilao', 'Aplaya', 'Bagong Bayan I', 'Bagong Bayan II', 'Batangan', 'Bukal', 'Camantigue', 'Carmundo',
@@ -95,35 +96,40 @@ export function validateOwnerPaymentSetup(body, files) {
   return { contactNumber, paymentMethods: JSON.stringify(methods), rentPerRoom: rate('rentPerRoom'), rentPerHead: rate('rentPerHead'), qrUploads };
 }
 
-export async function registerPropertyInventory(user, setup, files, transaction) {
+export async function registerPropertyInventory(user, setup, galleries, transaction) {
   let house = await BoardingHouse.findOne({ where: { ownerId: user.id, isPrimary: true }, transaction, lock: transaction.LOCK.UPDATE });
   if (house && (house.registrationSubmission || await OwnerRoom.count({ where: { boardingHouseId: house.id }, transaction }) || await OwnerTenant.count({ where: { ownerId: user.id }, transaction }))) throw Object.assign(new Error('This account already has a property registration or room inventory. Manage branches and rooms from the owner dashboard.'), { status: 409 });
-  const branches = [];
-  for (const [index, branch] of setup.branches.entries()) {
-    const galleryImages = index
-      ? await storeRegistrationPhotos(files, user.id, transaction, prefixFor(index))
-      : JSON.parse(user.galleryImages || '[]');
-    branches.push({ ...branch, galleryImages });
-  }
+  const branches = setup.branches.map((branch, index) => ({ ...branch, galleryImages: galleries[index] }));
   const registrationSubmission = {
     fullName: user.fullName, email: user.email, boardingHouseName: user.boardingHouseName,
     barangay: user.barangay, mapPin: user.mapPin, branches,
-    galleryImages: JSON.parse(user.galleryImages || '[]'),
+    galleryImages: galleries[0],
     validIdPicture: user.validIdPicture, businessPermit: user.businessPermit, barangayClearance: user.barangayClearance
   };
   const values = { ...setup.metadata, rentPerRoom: user.rentPerRoom, rentPerHead: user.rentPerHead, registrationSubmission, address: branches[0].address, mapPin: branches[0].mapPin, name: user.boardingHouseName, barangay: user.barangay, ownerId: user.id, latitude: user.boardingHouseLatitude, longitude: user.boardingHouseLongitude, picture: user.boardingHousePicture, isPrimary: true, approvalStatus: 'approved' };
+  const previousPrimary = Boolean(house);
   house = house ? await house.update(values, { transaction }) : await BoardingHouse.create(values, { transaction });
 
   await user.update({ boardingHouseAddress: house.address, amenities: house.amenities, houseRules: house.houseRules, description: house.description, roomsAvailable: 0, roomTypes: '[]' }, { transaction });
-  for (const category of GALLERY_CATEGORIES) {
-    const url = registrationSubmission.galleryImages[category.index - 1];
-    if (url) await saveGallerySlot(user.id, house.id, category, url, transaction);
-  }
+  const previousSlots = previousPrimary ? await OwnerGallery.findAll({
+    where: { ownerId: user.id, boardingHouseId: house.id }, transaction
+  }) : [];
+  const slots = [];
+  const addSlots = async (boardingHouseId, gallery, existing = []) => {
+    for (const category of GALLERY_CATEGORIES) {
+      const imageUrl = gallery[category.index - 1];
+      if (!imageUrl) continue;
+      const values = { imageUrl, caption: category.label, imageType: category.key };
+      const slot = existing.find(row => row.sortOrder === category.index);
+      if (slot) await slot.update(values, { transaction });
+      else slots.push({ ...values, ownerId: user.id, boardingHouseId, sortOrder: category.index });
+    }
+  };
+  await addSlots(house.id, galleries[0], previousSlots);
   for (let index = 1; index < branches.length; index++) {
     const branch = branches[index];
-    const suffix = ` — Branch ${index + 1}`;
     const listing = await BoardingHouse.create({
-      name: user.boardingHouseName.slice(0, 255 - suffix.length) + suffix,
+      name: branchName(user.boardingHouseName, index + 1),
       ownerId: user.id,
       isPrimary: false,
       approvalStatus: 'approved',
@@ -141,11 +147,9 @@ export async function registerPropertyInventory(user, setup, files, transaction)
       picture: branch.galleryImages[0]
     }, { transaction });
     branch.boardingHouseId = listing.id;
-    for (const category of GALLERY_CATEGORIES) {
-      const url = branch.galleryImages[category.index - 1];
-      if (url) await saveGallerySlot(user.id, listing.id, category, url, transaction);
-    }
+    await addSlots(listing.id, branch.galleryImages);
   }
+  if (slots.length) await OwnerGallery.bulkCreate(slots, { transaction });
   if (branches.length > 1) {
     await house.update({ registrationSubmission: { ...registrationSubmission, branches: [...branches] } }, { transaction });
   }

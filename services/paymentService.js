@@ -1,7 +1,7 @@
 import { findActiveRental } from './rentalIdentityService.js';
 import { sequelize } from '../models/db.js';
 import { User } from '../models/userModel.js';
-import { OwnerTenant, OwnerRoom, OwnerPayment } from '../models/ownerModels.js';
+import { BoardingHouse, OwnerTenant, OwnerRoom, OwnerPayment } from '../models/ownerModels.js';
 import { Payment, PaymentWebhook, PaymentAuditLog } from '../models/paymentModels.js';
 import { generatePaymentReference } from '../utils/paymentReference.js';
 import { PAYMENT_STATUS } from '../utils/paymentStatus.js';
@@ -52,9 +52,14 @@ export const initiateRentPayment = async ({ user, billingMonth, tenantPaymentId 
   const baseUrl = (process.env.APP_BASE_URL || process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000').replace(/\/+$/, '');
   const successReturnUrl = `${baseUrl}/payments/processing?ref=${reference}`;
   const failureReturnUrl = `${baseUrl}/payments/failure?ref=${reference}`;
+  const billedRoom = bill && bill.roomId !== room?.id
+    ? (bill.roomId && await OwnerRoom.findOne({ where: { id: bill.roomId, ownerId: owner.id }, transaction })) : room;
+  const primary = !bill?.boardingHouseId && !billedRoom?.boardingHouseId &&
+    await BoardingHouse.findOne({ where: { ownerId: owner.id, isPrimary: true }, transaction });
+  const boardingHouseId = bill?.boardingHouseId || billedRoom?.boardingHouseId || primary?.id || null;
   const session = await createPaymongoCheckoutSession({ reference, amount, description: `Rent for ${owner.boardingHouseName || 'Boarding House'} — ${month}`, billing: { name: user.fullName, email: user.email, phone: user.contactNumber || '' }, successReturnUrl, failureReturnUrl, metadata: { owner_id: owner.id, tenant_id: user.id, owner_tenant_id: tenantRec.id, billing_month: month } });
   if (!session.checkout_url || !session.id) throw new Error('Payment provider did not return a checkout session.');
-  const values = { checkoutKey, ownerTenantId: tenantRec.id, tenantId: user.id, ownerId: owner.id, roomId: tenantRec.roomId, tenantPaymentId: bill?.id || null, billingMonth: month, billingYear: Number(month.slice(0,4)), internalReference: reference, paymongoCheckoutId: session.id, paymentMethod: 'QRPH', paymentChannel: 'QRPH', currency: 'PHP', amount, baseAmount, penaltyAmount, status: 'PENDING', checkoutUrl: session.checkout_url, successReturnUrl, failureReturnUrl, expiresAt: null };
+  const values = { checkoutKey, boardingHouseId, ownerTenantId: tenantRec.id, tenantId: user.id, ownerId: owner.id, roomId: billedRoom?.id || null, tenantPaymentId: bill?.id || null, billingMonth: month, billingYear: Number(month.slice(0,4)), internalReference: reference, paymongoCheckoutId: session.id, paymentMethod: 'QRPH', paymentChannel: 'QRPH', currency: 'PHP', amount, baseAmount, penaltyAmount, status: 'PENDING', checkoutUrl: session.checkout_url, successReturnUrl, failureReturnUrl, expiresAt: null };
   payment = payment ? await payment.update(values, { transaction }) : await Payment.create(values, { transaction });
   await PaymentAuditLog.create({ paymentId: payment.id, userId: user.id, action: 'PAYMENT_CREATED', metadata: { reference, amount } }, { transaction });
   return { payment, checkoutUrl: payment.checkoutUrl, isExisting: false };
@@ -93,7 +98,7 @@ export const handlePaymongoWebhookPayload = async payload => {
       const method = payment.paymentMethod === 'QRPH' ? 'QR Ph' : 'GCash Online';
       if (bill) await bill.update({ status: 'paid', paidDate: paidAt, method, reference: payment.internalReference }, { transaction });
       else {
-        bill = await OwnerPayment.create({ ownerId: payment.ownerId, tenantId: tenant.id, roomId: payment.roomId, amount: payment.baseAmount, penalty: payment.penaltyAmount, dueDate: paidAt, paidDate: paidAt, status: 'paid', method, reference: payment.internalReference, month: payment.billingMonth }, { transaction });
+        bill = await OwnerPayment.create({ ownerId: payment.ownerId, tenantId: tenant.id, roomId: payment.roomId, boardingHouseId: payment.boardingHouseId, amount: payment.baseAmount, penalty: payment.penaltyAmount, dueDate: paidAt, paidDate: paidAt, status: 'paid', method, reference: payment.internalReference, month: payment.billingMonth }, { transaction });
         payment.tenantPaymentId = bill.id;
       }
       await tenant.update({ balance: Math.max(0, Number(tenant.balance)-Number(payment.amount)) }, { transaction });

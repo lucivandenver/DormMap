@@ -6,6 +6,7 @@ import { GALLERY_CATEGORIES, saveGallerySlot, storePropertyPhoto } from '../serv
 import { BarangayMessage } from '../models/adminModels.js';
 import { namedMessages } from '../services/messageIdentityService.js';
 import { propertyMetadata, floorNumber } from '../services/roomPlanService.js';
+import { branchName, branchNumbers } from '../services/propertyBranchesService.js';
 import { syncPrimaryHouse } from '../services/primaryHouseService.js';
 import { saveRoom, saveTenant, removeRoom, removeTenant, offerApplication, ownerLock, fail } from '../services/occupancyService.js';
 import { hasApprovedBarangay } from '../services/registrationPolicy.js';
@@ -20,6 +21,13 @@ import { TenantApplication, MaintenanceRequest } from '../models/tenantModels.js
 import { sequelize } from '../models/db.js';
 
 const oid = (req) => req.session.userId;
+const selectedBranch = value => {
+  if (value === undefined || value === '') return null;
+  const id = Number(value);
+  if (!Number.isSafeInteger(id) || id < 1) fail('Select a valid boarding house branch.', 422);
+  return id;
+};
+const propertyForRoom = (room, houses) => room?.boardingHouseId || houses.find(house => house.isPrimary)?.id || null;
 const audit = (req, action, entityType, entityId, details = {}) =>
   OwnerActivityLog.create({ ownerId: oid(req), action, entityType, entityId, details, ipAddress: req.ip }).catch(() => {});
 
@@ -152,6 +160,9 @@ export const updateProfile = async (req, res, next) => {
     ];
     const updates = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
+    for (const field of ['rentPerRoom', 'rentPerHead']) {
+      if (field in updates) updates[field] = validatedRate(updates[field], field === 'rentPerRoom' ? 'room' : 'head');
+    }
     if (Object.hasOwn(updates, 'boardingHouseName')) {
       const name = typeof updates.boardingHouseName === 'string' ? updates.boardingHouseName.trim() : '';
       if (!name || name.length > 255) fail('Enter a boarding house name of up to 255 characters.');
@@ -170,20 +181,32 @@ export const updateProfile = async (req, res, next) => {
 
 // ─── Boarding Houses (Multiple Establishments per Owner) ────────────────────
 
+async function ensurePrimaryProperty(owner, records, transaction) {
+  const existing = records.find(house => house.isPrimary);
+  if (existing) return existing;
+  if (owner.boardingHouseName) {
+    const legacy = records.find(house => house.name === owner.boardingHouseName);
+    if (legacy) return legacy.update({ isPrimary: true }, { transaction });
+  }
+  return BoardingHouse.create({
+    ownerId: owner.id, name: owner.boardingHouseName || `${owner.fullName}'s Boarding House`,
+    address: owner.boardingHouseAddress || '', barangay: owner.barangay, description: owner.description,
+    latitude: owner.boardingHouseLatitude || null, longitude: owner.boardingHouseLongitude || null,
+    mapPin: owner.mapPin || null, picture: owner.boardingHousePicture || '', amenities: owner.amenities || '',
+    houseRules: owner.houseRules || '', rentPerRoom: owner.rentPerRoom, rentPerHead: owner.rentPerHead, isPrimary: true
+  }, { transaction });
+}
+
 export const getBoardingHouses = async (req, res, next) => {
   try {
     const ownerId = oid(req);
     const { houses, mapOwner } = await sequelize.transaction(async transaction => {
       const user = await ownerLock(ownerId, transaction);
-      let records = await BoardingHouse.findAll({ where: { ownerId }, order: [['isPrimary','DESC'],['id','ASC']], transaction });
-      if (!records.length) {
-        const house = await BoardingHouse.create({ ownerId, name: user.boardingHouseName || `${user.fullName}'s Boarding House`, address: user.boardingHouseAddress || '', barangay: user.barangay, latitude: user.boardingHouseLatitude || null, longitude: user.boardingHouseLongitude || null, mapPin: user.mapPin || null, picture: user.boardingHousePicture || '', amenities: user.amenities || '', houseRules: user.houseRules || '', rentPerRoom: user.rentPerRoom, rentPerHead: user.rentPerHead, isPrimary: true }, { transaction });
-        records = [house];
-      }
-      const primary = records.find(house => house.isPrimary) || records[0];
+      const records = await BoardingHouse.findAll({ where: { ownerId }, order: [['id','ASC']], transaction });
+      const primary = await ensurePrimaryProperty(user, records, transaction);
       await OwnerRoom.update({ boardingHouseId: primary.id }, { where: { ownerId, boardingHouseId: null }, transaction });
       return {
-        houses: records,
+        houses: [primary, ...records.filter(house => house.id !== primary.id)],
         mapOwner: {
           fullName: user.fullName,
           profilePicture: user.profilePicture,
@@ -192,37 +215,35 @@ export const getBoardingHouses = async (req, res, next) => {
       };
     });
 
-    res.json({ data: houses, mapOwner });
+    const numbers = branchNumbers(houses);
+    res.json({ data: houses.map(house => ({ ...house.toJSON(), branchNumber: numbers.get(house.id) })), mapOwner });
   } catch (err) { next(err); }
 };
 
 export const createBoardingHouse = async (req, res, next) => {
   try {
     const ownerId = oid(req);
-    const { name, address, barangay, latitude, longitude, mapPin, picture, description, amenities, houseRules } = req.body;
-    if (!name) {
-      return res.status(400).json({ error: 'Boarding House name is required.' });
-    }
-    const owner = await User.findByPk(ownerId);
+    const { address, barangay, latitude, longitude, picture, description, amenities, houseRules } = req.body;
     if (!barangay || !await hasApprovedBarangay(barangay)) return res.status(422).json({ error: 'Choose a barangay with an approved, active official. Each new branch requires its own barangay review.' });
     if (!latitude || !longitude) return res.status(422).json({ error: 'Select the actual property location on the map.' });
-    if ((latitude && (!Number.isFinite(Number(latitude)) || Math.abs(Number(latitude)) > 90)) || (longitude && (!Number.isFinite(Number(longitude)) || Math.abs(Number(longitude)) > 180))) return res.status(422).json({ error: 'Invalid map coordinates.' });
-    const house = await BoardingHouse.create({
-      ownerId,
-      name,
-      address: address || '',
-      barangay: barangay || address || '',
-      latitude: latitude || null,
-      longitude: longitude || null,
-      mapPin: latitude && longitude ? `Lat ${latitude}, Lon ${longitude}` : null,
-      picture: picture || '',
-      description: description || '',
-      amenities: amenities || '',
-      houseRules: houseRules || '',
-      rentPerRoom: validatedRate(req.body.rentPerRoom, 'room'), rentPerHead: validatedRate(req.body.rentPerHead, 'head'),
-      ...propertyMetadata({ ...req.body, streetAddress: address }),
-      isPrimary: false,
-      approvalStatus: 'pending'
+    if (!Number.isFinite(Number(latitude)) || Math.abs(Number(latitude)) > 90 ||
+        !Number.isFinite(Number(longitude)) || Math.abs(Number(longitude)) > 180) {
+      return res.status(422).json({ error: 'Invalid map coordinates.' });
+    }
+    const house = await sequelize.transaction(async transaction => {
+      const owner = await ownerLock(ownerId, transaction);
+      const houses = await BoardingHouse.findAll({ where: { ownerId }, transaction });
+      const primary = await ensurePrimaryProperty(owner, houses, transaction);
+      const number = Math.max(1, ...branchNumbers(houses).values()) + 1;
+      return BoardingHouse.create({
+        ...propertyMetadata({ ...req.body, streetAddress: address }),
+        ownerId, name: branchName(primary.name, number),
+        address: address || '', barangay, latitude, longitude,
+        mapPin: `Lat ${latitude}, Lon ${longitude}`,
+        picture: picture || '', description: description || '', amenities: amenities || '', houseRules: houseRules || '',
+        rentPerRoom: validatedRate(req.body.rentPerRoom, 'room'), rentPerHead: validatedRate(req.body.rentPerHead, 'head'),
+        isPrimary: false, approvalStatus: 'pending'
+      }, { transaction });
     });
     await audit(req, 'create_boarding_house', 'BoardingHouse', house.id, { name: house.name });
     res.status(201).json({ data: house, message: 'Branch saved. Add its rooms, then wait for barangay review before it appears publicly.' });
@@ -232,20 +253,33 @@ export const createBoardingHouse = async (req, res, next) => {
 export const updateBoardingHouse = async (req, res, next) => {
   try {
     const ownerId = oid(req);
-    const house = await BoardingHouse.findOne({ where: { id: req.params.id, ownerId } });
-    if (!house) return res.status(404).json({ error: 'Boarding house not found.' });
-    if (req.body.barangay && req.body.barangay !== house.barangay) fail('An existing property cannot silently move jurisdictions. Register a separate branch or contact BPLO about a transfer.');
-    const safeBody = Object.fromEntries(['name','address','latitude','longitude','picture','description','amenities','houseRules','propertyType','floorCount','rentPerRoom','rentPerHead'].filter(key => req.body[key] !== undefined).map(key => [key, req.body[key]]));
-    for (const field of ['rentPerRoom', 'rentPerHead']) if (field in safeBody) safeBody[field] = validatedRate(safeBody[field], field === 'rentPerRoom' ? 'room' : 'head');
-    if ('propertyType' in safeBody || 'floorCount' in safeBody) { const metadata = propertyMetadata({ propertyType: safeBody.propertyType || house.propertyType, floorCount: safeBody.floorCount || house.floorCount || 1 }); safeBody.propertyType = metadata.propertyType; safeBody.floorCount = metadata.floorCount; }
-    if (safeBody.floorCount && (await OwnerRoom.findAll({ where: { ownerId, boardingHouseId: house.id } })).some(room => floorNumber(room.floor) > safeBody.floorCount)) fail('Move or update rooms on higher floors before reducing this property’s floor count.');
-    if (!house.isPrimary && ['rejected','revision_requested'].includes(house.approvalStatus)) safeBody.approvalStatus = 'pending';
-    if ('name' in safeBody && !String(safeBody.name).trim()) fail('Boarding house name cannot be empty.');
-    if ('latitude' in safeBody && safeBody.latitude !== '' && (!Number.isFinite(Number(safeBody.latitude)) || Math.abs(Number(safeBody.latitude)) > 90)) fail('Invalid latitude.');
-    if ('longitude' in safeBody && safeBody.longitude !== '' && (!Number.isFinite(Number(safeBody.longitude)) || Math.abs(Number(safeBody.longitude)) > 180)) fail('Invalid longitude.');
-    if (safeBody.latitude !== undefined || safeBody.longitude !== undefined) safeBody.mapPin = `Lat ${safeBody.latitude ?? house.latitude}, Lon ${safeBody.longitude ?? house.longitude}`;
-    await house.update(safeBody);
-    if (house.isPrimary) await User.update({ boardingHouseName: house.name, boardingHouseAddress: house.address, boardingHouseLatitude: house.latitude, boardingHouseLongitude: house.longitude, mapPin: house.mapPin, amenities: house.amenities, houseRules: house.houseRules, rentPerRoom: house.rentPerRoom, rentPerHead: house.rentPerHead }, { where: { id: ownerId } });
+    const { house, safeBody } = await sequelize.transaction(async transaction => {
+      const owner = await ownerLock(ownerId, transaction);
+      const house = await BoardingHouse.findOne({ where: { id: req.params.id, ownerId }, transaction, lock: transaction.LOCK.UPDATE });
+      if (!house) fail('Boarding house not found.', 404);
+      if (req.body.barangay && req.body.barangay !== house.barangay) fail('An existing property cannot silently move jurisdictions. Register a separate branch or contact BPLO about a transfer.');
+      const safeBody = Object.fromEntries(['name','address','latitude','longitude','picture','description','amenities','houseRules','propertyType','floorCount','rentPerRoom','rentPerHead'].filter(key => req.body[key] !== undefined).map(key => [key, req.body[key]]));
+      for (const field of ['rentPerRoom', 'rentPerHead']) if (field in safeBody) safeBody[field] = validatedRate(safeBody[field], field === 'rentPerRoom' ? 'room' : 'head');
+      if ('propertyType' in safeBody || 'floorCount' in safeBody) { const metadata = propertyMetadata({ propertyType: safeBody.propertyType || house.propertyType, floorCount: safeBody.floorCount || house.floorCount || 1 }); safeBody.propertyType = metadata.propertyType; safeBody.floorCount = metadata.floorCount; }
+      if (safeBody.floorCount && (await OwnerRoom.findAll({ where: { ownerId, boardingHouseId: house.id } })).some(room => floorNumber(room.floor) > safeBody.floorCount)) fail('Move or update rooms on higher floors before reducing this property’s floor count.');
+      if (!house.isPrimary && ['rejected','revision_requested'].includes(house.approvalStatus)) safeBody.approvalStatus = 'pending';
+      if ('name' in safeBody) {
+        const name = typeof safeBody.name === 'string' ? safeBody.name.trim() : '';
+        if (!name || name.length > 255) fail('Enter a boarding house name of up to 255 characters.');
+        if (house.isPrimary) safeBody.name = name;
+        else delete safeBody.name;
+      }
+      if ('latitude' in safeBody && safeBody.latitude !== '' && (!Number.isFinite(Number(safeBody.latitude)) || Math.abs(Number(safeBody.latitude)) > 90)) fail('Invalid latitude.');
+      if ('longitude' in safeBody && safeBody.longitude !== '' && (!Number.isFinite(Number(safeBody.longitude)) || Math.abs(Number(safeBody.longitude)) > 180)) fail('Invalid longitude.');
+      if (safeBody.latitude !== undefined || safeBody.longitude !== undefined) safeBody.mapPin = `Lat ${safeBody.latitude ?? house.latitude}, Lon ${safeBody.longitude ?? house.longitude}`;
+      await house.update(safeBody, { transaction });
+      if (house.isPrimary) await owner.update({
+        boardingHouseName: house.name, boardingHouseAddress: house.address, boardingHouseLatitude: house.latitude,
+        boardingHouseLongitude: house.longitude, mapPin: house.mapPin, description: house.description,
+        amenities: house.amenities, houseRules: house.houseRules, rentPerRoom: house.rentPerRoom, rentPerHead: house.rentPerHead
+      }, { transaction });
+      return { house, safeBody };
+    });
     await audit(req, 'update_boarding_house', 'BoardingHouse', house.id, safeBody);
     res.json({ data: house, message: 'Boarding house updated.' });
   } catch (err) { next(err); }
@@ -258,7 +292,7 @@ export const deleteBoardingHouse = async (req, res, next) => {
       const house = await BoardingHouse.findOne({ where: { id: req.params.id, ownerId }, transaction, lock: transaction.LOCK.UPDATE });
       if (!house) fail('Boarding house not found.', 404);
       if (house.isPrimary) fail('Cannot delete the primary boarding house.');
-      if (await OwnerRoom.count({ where: { ownerId, boardingHouseId: house.id }, transaction }) || await TenantApplication.count({ where: { ownerId, boardingHouseId: house.id }, transaction })) fail('This property has room or application history and cannot be deleted.', 409);
+      if (await OwnerRoom.count({ where: { ownerId, boardingHouseId: house.id }, transaction }) || await OwnerPayment.count({ where: { ownerId, boardingHouseId: house.id }, transaction }) || await TenantApplication.count({ where: { ownerId, boardingHouseId: house.id }, transaction })) fail('This property has room or application history and cannot be deleted.', 409);
       await OwnerGallery.destroy({ where: { ownerId, boardingHouseId: house.id }, transaction });
       await house.destroy({ transaction });
     });
@@ -305,12 +339,22 @@ export const getTenants = async (req, res, next) => {
     if (req.query.search) {
       where[Op.or] = ['fullName', 'email', 'contactNumber'].map(f => ({ [f]: { [Op.like]: `%${req.query.search}%` } }));
     }
-    const data = await OwnerTenant.findAll({ where, order: [['createdAt', 'DESC']] });
-    const rooms = await OwnerRoom.findAll({ where: { ownerId: oid(req) } });
-    const houses = await BoardingHouse.findAll({ where: { ownerId: oid(req) } });
-    res.json({ data: data.map(tenant => {
-      const room = rooms.find(room => room.id === tenant.roomId);
-      return { ...tenant.toJSON(), roomNumber: room?.roomNumber || null, floor: room?.floor || null, boardingHouseName: houses.find(house => house.id === room?.boardingHouseId)?.name || null };
+    const branchId = selectedBranch(req.query.boardingHouseId);
+    const [tenants, rooms, houses] = await Promise.all([
+      OwnerTenant.findAll({ where, order: [['createdAt', 'DESC']] }),
+      OwnerRoom.findAll({ where: { ownerId: oid(req) }, attributes: ['id', 'roomNumber', 'floor', 'boardingHouseId'] }),
+      BoardingHouse.findAll({ where: { ownerId: oid(req) }, attributes: ['id', 'name', 'isPrimary'] })
+    ]);
+    const roomsById = new Map(rooms.map(room => [room.id, room]));
+    const housesById = new Map(houses.map(house => [house.id, house]));
+    res.json({ data: tenants.flatMap(tenant => {
+      const room = roomsById.get(tenant.roomId);
+      const boardingHouseId = propertyForRoom(room, houses);
+      if (branchId && boardingHouseId !== branchId) return [];
+      return [{
+        ...tenant.toJSON(), boardingHouseId, roomNumber: room?.roomNumber || null, floor: room?.floor || null,
+        boardingHouseName: housesById.get(boardingHouseId)?.name || null
+      }];
     }) });
   } catch (err) { next(err); }
 };
@@ -332,19 +376,28 @@ export const getPayments = async (req, res, next) => {
     const where = { ownerId: oid(req) };
     if (req.query.status) where.status = req.query.status;
     if (req.query.tenantId) where.tenantId = req.query.tenantId;
-    const payments = await OwnerPayment.findAll({ where, order: [['dueDate', 'DESC']] });
-    
-    const tenants = await OwnerTenant.findAll({ where: { ownerId: oid(req) }, attributes: ['id', 'fullName'] });
-    const tenantMap = {};
-    tenants.forEach(t => { tenantMap[t.id] = t.fullName; });
-
-    const data = payments.map(p => {
-      const plain = p.toJSON();
-      plain.totalAmount = Number(p.amount) + Number(p.penalty || 0);
-      plain.tenantName = tenantMap[p.tenantId] || `Tenant #${p.tenantId}`;
-      return plain;
+    const branchId = selectedBranch(req.query.boardingHouseId);
+    const [payments, tenants, rooms, houses] = await Promise.all([
+      OwnerPayment.findAll({ where, order: [['dueDate', 'DESC']] }),
+      OwnerTenant.findAll({ where: { ownerId: oid(req) }, attributes: ['id', 'fullName', 'roomId'] }),
+      OwnerRoom.findAll({ where: { ownerId: oid(req) }, attributes: ['id', 'roomNumber', 'boardingHouseId'] }),
+      BoardingHouse.findAll({ where: { ownerId: oid(req) }, attributes: ['id', 'name', 'isPrimary'] })
+    ]);
+    const tenantsById = new Map(tenants.map(tenant => [tenant.id, tenant]));
+    const roomsById = new Map(rooms.map(room => [room.id, room]));
+    const housesById = new Map(houses.map(house => [house.id, house]));
+    const data = payments.flatMap(payment => {
+      const tenant = tenantsById.get(payment.tenantId);
+      const room = roomsById.get(payment.roomId || tenant?.roomId);
+      const boardingHouseId = payment.boardingHouseId || propertyForRoom(room, houses);
+      if (branchId && boardingHouseId !== branchId) return [];
+      return [{
+        ...payment.toJSON(), boardingHouseId, roomNumber: room?.roomNumber || null,
+        boardingHouseName: housesById.get(boardingHouseId)?.name || null,
+        totalAmount: Number(payment.amount) + Number(payment.penalty || 0),
+        tenantName: tenant?.fullName || `Tenant #${payment.tenantId}`
+      }];
     });
-
     res.json({ data, today: manilaToday() });
   } catch (err) { next(err); }
 };
@@ -359,6 +412,14 @@ export const createPayment = async (req, res, next) => {
         order: [['id', 'ASC']], transaction, lock: transaction.LOCK.UPDATE
       });
       if (!tenants.length) fail('Select an active tenant or a room with active tenants.');
+      const branchId = selectedBranch(req.body.boardingHouseId);
+      const roomId = tenants[0].roomId;
+      const room = roomId ? await OwnerRoom.findOne({ where: { id: roomId, ownerId }, transaction }) : null;
+      const primary = !room?.boardingHouseId && await BoardingHouse.findOne({ where: { ownerId, isPrimary: true }, transaction });
+      const billingBranch = room?.boardingHouseId || primary?.id || null;
+      if (branchId && (branchId !== billingBranch || (roomId && !room))) {
+        fail('Select a tenant or room from this boarding house.', 422);
+      }
       const amount = Number(req.body.amount), penalty = Number(req.body.penalty || 0);
       if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(penalty) || penalty < 0) fail('Enter a valid positive amount and non-negative penalty.');
       const dueDate = req.body.dueDate;
@@ -379,7 +440,7 @@ export const createPayment = async (req, res, next) => {
       for (const [index, tenant] of tenants.entries()) {
         const rent = share(amountCents, index);
         const fee = share(penaltyCents, index);
-        const bill = await OwnerPayment.create({ ownerId, tenantId: tenant.id, roomId: tenant.roomId, amount: rent, penalty: fee, dueDate, month, status: 'pending', notes: String(req.body.notes || '').slice(0,2000) }, { transaction });
+        const bill = await OwnerPayment.create({ ownerId, tenantId: tenant.id, roomId: tenant.roomId, boardingHouseId: billingBranch, amount: rent, penalty: fee, dueDate, month, status: 'pending', notes: String(req.body.notes || '').slice(0,2000) }, { transaction });
         await tenant.update({ balance: Number(tenant.balance) + rent + fee }, { transaction });
         bills.push(bill);
       }
@@ -1121,6 +1182,9 @@ export const getPendingApplications = async (req, res, next) => {
   try {
     const ownerId = oid(req);
     const owner = await User.findByPk(ownerId, { attributes: ['boardingHouseName'] });
+    const branchId = selectedBranch(req.query.boardingHouseId);
+    const branch = branchId && await BoardingHouse.findOne({ where: { id: branchId, ownerId }, attributes: ['id', 'isPrimary'] });
+    if (branchId && !branch) return res.json({ data: [] });
 
     let applications = await TenantApplication.findAll({
       where: { ownerId },
@@ -1128,7 +1192,7 @@ export const getPendingApplications = async (req, res, next) => {
     });
 
     // Legacy registrations saved a house name without an application ID.
-    const legacyHouseIsUnique = owner?.boardingHouseName && await User.count({
+    const legacyHouseIsUnique = (!branch || branch.isPrimary) && owner?.boardingHouseName && await User.count({
       where: { accountType: 'boarding_house_owner', isArchived: false, boardingHouseName: owner.boardingHouseName }
     }) === 1;
     if (legacyHouseIsUnique) {
@@ -1160,6 +1224,10 @@ export const getPendingApplications = async (req, res, next) => {
     }
 
     applications = (await closeDuplicatePendingApplications(applications)).filter(app => ['pending_owner', 'accepted_by_owner'].includes(app.status));
+
+    if (branch) applications = applications.filter(app =>
+      app.boardingHouseId === branch.id || (!app.boardingHouseId && branch.isPrimary)
+    );
 
     // Attach tenant user information & room details to each application
     const enriched = await Promise.all(applications.map(async (app) => {

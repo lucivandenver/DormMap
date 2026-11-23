@@ -1107,7 +1107,7 @@
                 </div>
               </div>
               <div class="p-5 pt-0">
-                <button type="button" onclick="const r = document.getElementById('dormmapAuthRoot'); if(r){ r.classList.remove('hidden'); r.classList.add('flex'); window.authShowMode?.('register'); }" class="inline-flex w-full items-center justify-center rounded-full px-4 py-3 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition cursor-pointer">Register Your Boarding House</button>
+                <button type="button" onclick="window.openDormmapAuth('register', 'boarding_house_owner')" class="inline-flex w-full items-center justify-center rounded-full px-4 py-3 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition cursor-pointer">Register Your Boarding House</button>
               </div>
             </article>
           `;

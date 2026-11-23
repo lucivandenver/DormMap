@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import bcrypt from 'bcrypt';
 import crypto from 'node:crypto';
+import signature from 'cookie-signature';
 
 test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
   skip: process.env.RUN_DB_TESTS !== 'true', timeout: 90000,
@@ -497,36 +498,79 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.equal((await request(`/api/payments/status/by-ref?ref=${checkout.payment.internalReference}`, cookie)).status, 403);
       assert.equal((await request(`/api/payments/${checkout.payment.id}/receipt/download`, secondCookie)).status, 200);
     });
-    await t.test('owner signup photos and gallery replacements survive a clean upload directory', async () => {
+    await t.test('staged owner signup for 12 branches and gallery replacements survive a clean upload directory', async () => {
       const form = new FormData();
-      const data = { accountType:'boarding_house_owner', fullName:'Registered Room Owner', email:`layout-${suffix}@example.test`, password:fixturePassword,confirmPassword:fixturePassword,acceptTerms:'on',boardingHouseName:'Layout Main',boardingHouseAddress:'Orconuma',streetAddress:'Purok 2, Main Street',declaredBranches:'2',contactNumber:'09171234567',paymentMethods:'Cash',mapPin:'Lat 12.668945, Lon 121.491777',boardingHouseLatitude:'12.668945',boardingHouseLongitude:'121.491777',propertyType:'Mixed',floorCount:'2',roomsPerFloor:'[1,1]' };
+      const data = { accountType:'boarding_house_owner', fullName:'Registered Room Owner', email:`layout-${suffix}@example.test`, password:fixturePassword,confirmPassword:fixturePassword,acceptTerms:'on',boardingHouseName:'Layout Main',boardingHouseAddress:'Orconuma',streetAddress:'Purok 2, Main Street',declaredBranches:'12',contactNumber:'09171234567',paymentMethods:'Cash',mapPin:'Lat 12.668945, Lon 121.491777',boardingHouseLatitude:'12.668945',boardingHouseLongitude:'121.491777',propertyType:'Mixed',floorCount:'2',roomsPerFloor:'[1,1]' };
       Object.assign(data, {
         branchFloors2: '3', branchRooms2: '6', branch2_boardingHouseAddress: 'Labasan',
         branch2_streetAddress: 'Centro', branch2_boardingHouseLatitude: '12.774815',
         branch2_boardingHouseLongitude: '121.470195'
       });
-      for (const [key,value] of Object.entries(data)) form.set(key,value);
-      form.append('paymentMethods', 'GCash');
-      const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5X8AAAAASUVORK5CYII=','base64');
-      for (const name of ['galleryOutdoor','galleryLivingArea','galleryBedroom','galleryDining','galleryBathroom','validIdPicture','businessPermit','barangayClearance']) form.set(name,new Blob([png],{type:'image/png'}),name+'.png');
-      for (const field of ['galleryOutdoor','galleryLivingArea','galleryBedroom','galleryDining','galleryBathroom']) {
-        form.set('branch2_' + field, new Blob([png], { type: 'image/png' }), field + '-branch2.png');
+      for (let number = 3; number <= 12; number++) {
+        const prefix = `branch${number}_`;
+        data[`branchFloors${number}`] = '1';
+        data[prefix + 'roomsPerFloor'] = '[1]';
+        data[prefix + 'boardingHouseAddress'] = 'Labasan';
+        data[prefix + 'streetAddress'] = `Centro ${number}`;
+        data[prefix + 'boardingHouseLatitude'] = '12.774815';
+        data[prefix + 'boardingHouseLongitude'] = '121.470195';
       }
-      form.set('branch2_galleryExtra3', new Blob([png], { type: 'image/png' }), 'branch2-extra.png');
-      const response=await request('/register',null,{method:'POST',body:form});assert.equal(response.status,302,await response.clone().text());
+      for (const [key, value] of Object.entries(data)) form.set(key, value);
+      form.append('paymentMethods', 'GCash');
+      const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5X8AAAAASUVORK5CYII=', 'base64');
+      const picture = new Blob([png], { type: 'image/png' });
+      const fields = ['validIdPicture', 'businessPermit', 'barangayClearance', 'branch2_galleryExtra3'];
+      const gallery = ['galleryOutdoor', 'galleryLivingArea', 'galleryBedroom', 'galleryDining', 'galleryBathroom'];
+      for (let number = 1; number <= 12; number++) {
+        fields.push(...gallery.map(field => number === 1 ? field : `branch${number}_${field}`));
+      }
+      const draftResponse = await request('/owner-registration/uploads', null, { method: 'POST' });
+      assert.equal(draftResponse.status, 201);
+      const draftCookie = draftResponse.headers.get('set-cookie').split(';')[0];
+      const { id } = await draftResponse.json();
+      const headers = { Accept: 'application/json' };
+      const upload = field => {
+        const body = new FormData();
+        body.set('file', picture, field + '.png');
+        return { method: 'POST', headers, body };
+      };
+      const wrongSession = await request(`/owner-registration/uploads/${id}/${fields[0]}`, null, upload(fields[0]));
+      assert.equal(wrongSession.status, 410);
+      const manifest = [];
+      for (let i = 0; i < fields.length; i += 3) {
+        await Promise.all(fields.slice(i, i + 3).map(async field => {
+          const response = await request(`/owner-registration/uploads/${id}/${field}`, draftCookie, upload(field));
+          assert.equal(response.status, 200, await response.clone().text());
+          manifest.push([field, (await response.json()).extension]);
+        }));
+      }
+      form.set('registrationDraft', id);
+      form.set('registrationFiles', JSON.stringify(manifest));
+      form.delete('acceptTerms');
+      const register = () => request('/register', draftCookie, { method: 'POST', headers, body: form });
+      const missingTerms = await register();
+      assert.equal(missingTerms.status, 422);
+      assert.match((await missingTerms.json()).error, /accept the Terms/);
+      form.set('acceptTerms', 'on');
+      const response = await register();
+      assert.equal(response.status, 201, await response.clone().text());
+      const retry = await register();
+      assert.equal(retry.status, 201);
+      assert.deepEqual(await retry.json(), await response.json());
       const created=await User.findOne({where:{email:data.email}});assert.ok(created);ids.push(created.id);
       assert.deepEqual(JSON.parse(created.paymentMethods), ['Cash', 'GCash']);
       assert.equal(created.gcashQrCode, null);
       assert.equal(created.contactNumber, data.contactNumber);
       for(const value of [created.profilePicture,created.boardingHousePicture,created.validIdPicture,created.businessPermit,created.barangayClearance,created.rentalPermit,...JSON.parse(created.galleryImages || '[]'),...Object.values(JSON.parse(created.supportingDocuments || '{}'))]) if(typeof value==='string'&&value.startsWith('/uploads/'))uploadedFiles.push(new URL('../../public'+value,import.meta.url));
       const primary=await BoardingHouse.findOne({where:{ownerId:created.id,isPrimary:true}});assert.equal(primary.floorCount,2);assert.equal(primary.address,'Purok 2, Main Street');assert.deepEqual(primary.registrationSubmission.branches[0].roomsPerFloor,[1,1]);
-      const rooms=await OwnerRoom.findAll({where:{ownerId:created.id},order:[['roomNumber','ASC']]});assert.equal(rooms.length,0);assert.equal(primary.declaredRooms,2);assert.equal(primary.declaredBranches,2);assert.equal(created.roomsAvailable,0);assert.equal(created.applicationStatus,'pending');
+      const rooms=await OwnerRoom.findAll({where:{ownerId:created.id},order:[['roomNumber','ASC']]});assert.equal(rooms.length,0);assert.equal(primary.declaredRooms,2);assert.equal(primary.declaredBranches,12);assert.equal(created.roomsAvailable,0);assert.equal(created.applicationStatus,'pending');
 
       const originalPhotos = JSON.parse(created.galleryImages);
       assert.equal(originalPhotos.length, 10);
       assert.ok(originalPhotos.slice(5).every(url => !url));
       assert.equal(primary.picture, originalPhotos[0]);
-      const branch = await BoardingHouse.findOne({ where: { ownerId: created.id, isPrimary: false } });
+      const branch = await BoardingHouse.findOne({ where: { ownerId: created.id, name: 'Layout Main Branch 2' } });
+      assert.equal(await BoardingHouse.count({ where: { ownerId: created.id } }), 12);
       assert.equal(branch.barangay, 'Labasan');
       assert.equal(branch.address, 'Centro');
       assert.equal(Number(branch.latitude), 12.774815);
@@ -645,11 +689,12 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.equal(info.occupiedBeds,1);assert.equal(info.unavailableReported,1);assert.equal(info.availableSlots,4);assert.equal(info.floor,'4th Floor');assert.ok(!JSON.stringify(item).includes('Bed Resident'));
       await saveTenant(owner.id,household.id,{status:'moved_out'});assert.equal((await OwnerRoom.findByPk(family.id)).availableSlots,4);
     });
-    await t.test('another barangay can approve its own branch without another owner account', async () => {
+    await t.test('branch profiles, tenants, and bills follow the selected boarding house', async () => {
       const local=await User.create({fullName:'Labasan Official',email:`labasan-${suffix}@example.test`,password,accountType:'barangay',applicationStatus:'approved',barangay:'Labasan',emailVerified:true});ids.push(local.id);
       const ownerCookie=await login(owner.email), originalOfficialCookie=await login(official.email),localCookie=await login(local.email);
       const response=await request('/owner-dashboard/api/boarding-houses',ownerCookie,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'Second Barangay Branch',barangay:'Labasan',address:'Labasan main road',latitude:12.773,longitude:121.475,floorCount:4,propertyType:'Bedspace Residence'})});assert.equal(response.status,201,await response.clone().text());
       const branch=(await response.json()).data;assert.equal(branch.ownerId,owner.id);assert.equal(branch.approvalStatus,'pending');
+      assert.equal(branch.name, house.name + ' Branch 2');
       const post={method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'approve'})};
       const adminCookie = await login(admin.email);
       const readBranches = async (cookie = localCookie) => {
@@ -664,13 +709,13 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.ok(pendingBranches.data.some(item => item.id === branch.id));
       assert.ok(!pendingBranches.groups.some(group => group.branches.some(item => item.id === branch.id)));
       const { BarangayNotification } = await import('../../models/adminModels.js');
-      assert.equal(await BarangayNotification.count({ where: { userId: admin.id, type: 'branch', body: 'Second Barangay Branch in Labasan is awaiting listing review.' } }), 0);
+      assert.equal(await BarangayNotification.count({ where: { userId: admin.id, type: 'branch', body: `${branch.name} in Labasan is awaiting listing review.` } }), 0);
       await BarangayNotification.create({ userId: admin.id, title: 'Legacy branch notification', body: 'Branch notice', type: 'branch' });
       const adminNotifications = await (await request('/api/portal/notifications', adminCookie)).json();
       assert.ok(!adminNotifications.items.some(item => item.type === 'branch'));
       assert.equal((await request(`/barangay-dashboard/api/branches/${branch.id}/review`,originalOfficialCookie,post)).status,404);
       assert.equal((await request(`/barangay-dashboard/api/branches/${branch.id}/review`,localCookie,post)).status,422);
-      await saveRoom(owner.id,null,{boardingHouseId:branch.id,roomNumber:'401',floor:'4th Floor',roomType:'Bedspace',capacity:4,bedCount:4,rentalBasis:'bed',rentalPrice:1600});
+      const branchRoom = await saveRoom(owner.id,null,{boardingHouseId:branch.id,roomNumber:'401',floor:'4th Floor',roomType:'Bedspace',capacity:4,bedCount:4,rentalBasis:'bed',rentalPrice:1600});
       const readLanding = async () => (await (await request('/api/landing-data')).json()).listings;
       assert.ok(!(await readLanding()).some(item => item.bhId === branch.id));
       assert.equal((await request(`/barangay-dashboard/api/branches/${branch.id}/review`, localCookie, post)).status, 200);
@@ -685,17 +730,42 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
 
       const landing = await readLanding();
       const branchListing = landing.find(item => item.bhId === branch.id);
-      assert.equal(branchListing.boardingHouseName, 'Second Barangay Branch');
+      assert.equal(branchListing.boardingHouseName, branch.name);
       assert.equal(branchListing.barangay, 'Labasan');
       assert.equal(branchListing.ownerId, owner.id);
       assert.deepEqual([branchListing.latitude, branchListing.longitude], [12.773, 121.475]);
       assert.equal(branchListing.registrationStatus, 'registered');
 
+      const branchTenant = await saveTenant(owner.id, null, { fullName: 'Branch resident A', roomId: branchRoom.id });
+      const otherTenant = await saveTenant(owner.id, null, { fullName: 'Branch resident B', roomId: branchRoom.id });
+      const loadBranch = async (endpoint, id) => (await (await request(
+        `/owner-dashboard/api/${endpoint}?boardingHouseId=${id}`, ownerCookie
+      )).json()).data;
+      assert.deepEqual(new Set((await loadBranch('tenants', branch.id)).map(tenant => tenant.id)), new Set([branchTenant.id, otherTenant.id]));
+      assert.ok(!(await loadBranch('tenants', house.id)).some(tenant => tenant.id === branchTenant.id));
+      const bill = (boardingHouseId, target) => request('/owner-dashboard/api/payments', ownerCookie, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ boardingHouseId, ...target, amount: '100.01', dueDate: '2027-03-10', month: target.roomId ? '2027-03' : '2027-02' })
+      });
+      assert.equal((await bill(house.id, { tenantId: branchTenant.id })).status, 422);
+      assert.equal((await bill(branch.id, { tenantId: branchTenant.id })).status, 201);
+      assert.equal((await bill(branch.id, { roomId: branchRoom.id })).status, 201);
+      const bills = await loadBranch('payments', branch.id);
+      assert.ok(bills.every(item => item.boardingHouseId === branch.id && item.roomNumber === '401'));
+      assert.deepEqual(bills.filter(item => item.month === '2027-03').map(item => item.amount).sort(), ['50.00', '50.01']);
+      assert.ok(!(await loadBranch('payments', house.id)).some(item => item.tenantId === branchTenant.id));
+      const primaryRoom = await saveRoom(owner.id, null, { boardingHouseId: house.id, roomNumber: 'Transfer Room', capacity: 1 });
+      await saveTenant(owner.id, branchTenant.id, { roomId: primaryRoom.id });
+      assert.ok((await loadBranch('tenants', house.id)).some(item => item.id === branchTenant.id));
+      assert.ok((await loadBranch('payments', branch.id)).some(item => item.tenantId === branchTenant.id));
+
       const moved = await request(`/owner-dashboard/api/boarding-houses/${branch.id}`, ownerCookie, {
         ...post,
-        body: JSON.stringify({ latitude: 12.774, longitude: 121.476 }),
+        body: JSON.stringify({ latitude: 12.774, longitude: 121.476, amenities: '["Wi-Fi"]', rentPerHead: 1600, rentPerRoom: 4900 }),
       });
       assert.equal(moved.status, 200);
+      assert.equal((await moved.json()).data.amenities, '["Wi-Fi"]');
+      assert.notEqual((await house.reload()).amenities, '["Wi-Fi"]');
       const listings = await (await request('/api/boarding-houses')).json();
       const movedBranch = listings.find(item => item.bhId === branch.id);
       assert.deepEqual([movedBranch.latitude, movedBranch.longitude], [12.774, 121.476]);
@@ -710,6 +780,40 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.ok(!remaining.some(item => item.bhId === branch.id));
       assert.ok(remaining.some(item => item.bhId === house.id));
     });
+    await t.test('Google tenant setup saves the selected approved branch by ID', async () => {
+      const googleTenant = await User.create({
+        fullName: 'Google registration tenant', email: `oauth-tenant-${suffix}@example.test`, password,
+        accountType: 'tenant', emailVerified: true
+      });
+      ids.push(googleTenant.id);
+      const { sessionStore } = await import('../../config/session.js');
+      const sid = crypto.randomUUID();
+      await sessionStore.set(sid, { cookie: { maxAge: 60_000 }, pendingTenantUserId: googleTenant.id });
+      const googleCookie = 'dormmap.sid=' + encodeURIComponent('s:' + signature.sign(sid, sessionSecret));
+      const name = `Same-name branch ${suffix}`;
+      const branch = await BoardingHouse.create({ ownerId: owner.id, name, barangay: 'Orconuma', approvalStatus: 'approved' });
+      await BoardingHouse.create({ ownerId: owner.id, name, barangay: 'Labasan', approvalStatus: 'approved' });
+      assert.match(await (await request('/complete-tenant-profile', googleCookie)).text(), /Complete your tenant profile/);
+      const body = new FormData();
+      body.set('selectedBoardingHouse', `bh-${branch.id}`);
+      body.set('contactNumber', '09171234567');
+      body.set('gender', 'prefer_not_to_say');
+      body.set('acceptTerms', 'on');
+      const submit = () => request('/complete-tenant-profile', googleCookie, {
+        method: 'POST', headers: { Accept: 'application/json' }, body
+      });
+      const invalid = await submit();
+      assert.equal(invalid.status, 422);
+      assert.match((await invalid.json()).error, /upload your student/i);
+      body.set('validIdPicture', new Blob(['%PDF-1.7'], { type: 'application/pdf' }), 'id.pdf');
+      const approved = await submit();
+      assert.equal(approved.status, 200, await approved.clone().text());
+      assert.equal((await approved.json()).redirect, '/tenant-dashboard');
+      const application = await TenantApplication.findOne({ where: { tenantId: googleTenant.id } });
+      assert.equal(application.boardingHouseId, branch.id);
+      assert.equal((await googleTenant.reload()).selectedBoardingHouse, branch.name);
+    });
+
     await t.test('named messaging, private notification reads and authenticated SSE updates', async () => {
       const { OwnerMessage, OwnerNotification } = await import('../../models/ownerModels.js');
       const { BarangayNotification } = await import('../../models/adminModels.js');

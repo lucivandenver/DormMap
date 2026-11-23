@@ -9,12 +9,22 @@ test('password barangay registration creates a pending account and explains appr
   let created;
   t.mock.method(sequelize, 'transaction', async callback => callback({}));
   t.mock.method(User, 'findOne', async () => null);
-  t.mock.method(User, 'create', async values => { created = values; return { id: 7, ...values }; });
+  t.mock.method(User, 'create', async values => {
+    created = { id: 7, ...values };
+    return { id: 7, update: async changes => Object.assign(created, changes) };
+  });
+  t.mock.method(sequelize.models.ReviewFile, 'create', async values => assert.equal(values.scope, 'barangay-registration'));
   t.mock.method(nodemailer, 'createTransport', () => ({ sendMail: async () => ({ messageId: 'local-test' }) }));
   const body = { accountType: 'barangay', fullName: 'Test Official', email: 'official@example.test', password: 'test-password-123', confirmPassword: 'test-password-123', acceptTerms: 'on', barangay: 'Labasan' };
   let redirect;
-  await registerUser({ body, files: {}, session: {} }, { redirect: value => { redirect = value; }, render: () => assert.fail('Registration should succeed') });
+  const files = { validIdPicture: [{ originalname: 'official.pdf', mimetype: 'application/pdf', buffer: Buffer.from('%PDF-1.7') }] };
+  let error;
+  await registerUser({ body, files: {}, session: {} }, { render: (_, values) => { error = values.authError; } });
+  assert.match(error, /government-issued ID/);
+  assert.equal(created, undefined);
+  await registerUser({ body, files, session: {} }, { redirect: value => { redirect = value; }, render: () => assert.fail('Registration should succeed') });
   assert.equal(created.applicationStatus, 'pending');
+  assert.match(created.validIdPicture, /^\/documents\/[^/]+\/official\.pdf$/);
   assert.equal(redirect, '/login?pendingApproval=1');
 });
 

@@ -8,6 +8,7 @@ export const Payment = sequelize.define('Payment', {
   tenantId: { type: DataTypes.INTEGER, allowNull: false },
   ownerId: { type: DataTypes.INTEGER, allowNull: false },
   roomId: { type: DataTypes.INTEGER, allowNull: true },
+  boardingHouseId: { type: DataTypes.INTEGER, allowNull: true },
   tenantPaymentId: { type: DataTypes.INTEGER, allowNull: true }, // Linked to OwnerPayment record
   billingMonth: { type: DataTypes.STRING, allowNull: false }, // e.g. "2026-08"
   billingYear: { type: DataTypes.INTEGER, allowNull: false },
@@ -97,6 +98,7 @@ export const ensurePaymentSchema = async () => {
 
   const queryInterface = sequelize.getQueryInterface();
   const paymentAdditions = {
+    boardingHouseId: { type: DataTypes.INTEGER, allowNull: true },
     paymongoCheckoutId: { type: DataTypes.STRING, allowNull: true },
     paymongoPaymentId: { type: DataTypes.STRING, allowNull: true },
     checkoutUrl: { type: DataTypes.TEXT, allowNull: true },

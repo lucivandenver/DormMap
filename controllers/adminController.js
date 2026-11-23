@@ -1,5 +1,5 @@
 import { getQrPhConfiguration } from '../services/paymongoService.js';
-import { orderBranches, tenantBranchAssignments } from '../services/propertyBranchesService.js';
+import { branchNumbers, orderBranches, tenantBranchAssignments } from '../services/propertyBranchesService.js';
 import { dormigoQuestionsKey, getDormigoQuestions, validateDormigoQuestions } from '../services/dormigoQuestionsService.js';
 import bcrypt from 'bcrypt';
 import { submittedOwnerWhere } from '../services/registrationPolicy.js';
@@ -916,14 +916,18 @@ export const listOwners = async (req, res, next) => {
     const result = await User.findAndCountAll({ where, attributes: { exclude: ['password', 'verificationToken', 'resetPasswordToken'] }, order: [['createdAt', 'DESC']], limit, offset: (current - 1) * limit });
     const houses = await BoardingHouse.findAll({
       where: { ownerId: { [Op.in]: result.rows.map(owner => owner.id) } },
-      attributes: ['id', 'ownerId', 'barangay', 'isPrimary', 'approvalStatus']
+      attributes: ['id', 'ownerId', 'name', 'barangay', 'isPrimary', 'approvalStatus']
     });
-    const data = result.rows.map(owner => ({
-      ...owner.get({ plain: true }),
-      branches: orderBranches(houses.filter(house => house.ownerId === owner.id)).map((house, index) => ({
-        number: index + 1, barangay: house.barangay, status: house.approvalStatus
-      }))
-    }));
+    const data = result.rows.map(owner => {
+      const branches = orderBranches(houses.filter(house => house.ownerId === owner.id));
+      const numbers = branchNumbers(branches);
+      return {
+        ...owner.get({ plain: true }),
+        branches: branches.map(house => ({
+          number: numbers.get(house.id), barangay: house.barangay, status: house.approvalStatus
+        }))
+      };
+    });
     res.json({ data, pagination: { page: current, limit, total: result.count, pages: Math.ceil(result.count / limit) } });
   } catch (error) { next(error); }
 };

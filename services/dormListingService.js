@@ -1,4 +1,4 @@
-import { orderBranches } from './propertyBranchesService.js';
+import { branchNumbers, orderBranches } from './propertyBranchesService.js';
 import { GALLERY_CATEGORIES } from './propertyPhotoService.js';
 import { Op, fn, col } from 'sequelize';
 import { User } from '../models/userModel.js';
@@ -85,7 +85,8 @@ export async function listTenantDorms(tenantId, query = {}, { includeUnregistere
     const ownerPhotos = gallery.filter(photo => photo.ownerId === owner.id);
     let legacyImages = [];
     try { legacyImages = JSON.parse(owner.galleryImages || '[]'); } catch { /* Missing legacy photos. */ }
-    const visible = properties.map((house, index) => ({ house, number: index + 1 })).filter(({ house }) =>
+    const numbers = branchNumbers(ownedHouses);
+    const visible = properties.map(house => ({ house, number: numbers.get(house?.id) || 1 })).filter(({ house }) =>
       (!house || house.approvalStatus === 'approved') &&
       (!owner.publicMapUnregistered || !house || house.barangay === owner.barangay)
     );
