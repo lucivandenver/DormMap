@@ -1,4 +1,5 @@
 import { storeReviewFile } from '../services/reviewFileService.js';
+import { createRegistrationInquiry, isTenantGender, notifyRegistrationInquiry, registrationApplicationDetails } from '../services/tenantApplicationService.js';
 import { passwordResetDelivery } from '../services/passwordResetMailService.js';
 import { validateOwnerSetup, validateOwnerPaymentSetup, registerPropertyInventory } from '../services/ownerRegistrationService.js';
 
@@ -529,7 +530,7 @@ export const registerUser = async (req, res) => {
       boardingHouseLongitude,
       roomTypes,
       contactNumber,
-      selectedBoardingHouse,
+      gender,
       notes,
     } = req.body;
 
@@ -618,9 +619,10 @@ export const registerUser = async (req, res) => {
       }
     }
 
-    // Tenants: selectedBoardingHouse and validIdPicture are now OPTIONAL.
-    // Undecided tenants can register without a boarding house selection.
-    // They can select/update their boarding house later from their dashboard.
+    const isTenant = normalizedAccountType === 'tenant';
+    if (isTenant && gender && !isTenantGender(gender)) {
+      return renderRegisterPage(res, { authAccountType: 'tenant', authError: 'Choose Male or Female.', authValues: req.body });
+    }
 
     let setup;
     if (normalizedAccountType === 'boarding_house_owner') {
@@ -628,10 +630,11 @@ export const registerUser = async (req, res) => {
     }
     const hashed = await bcrypt.hash(password, 10);
     const verificationToken = Math.random().toString(36).substring(2, 18);
-    const user = await sequelize.transaction(async transaction => {
+    const { user, inquiry } = await sequelize.transaction(async transaction => {
+      const details = isTenant ? await registrationApplicationDetails(req.body, transaction) : null;
       const created = await User.create({
         accountType: normalizedAccountType,
-        applicationStatus: ['boarding_house_owner', 'barangay'].includes(normalizedAccountType) ? 'pending' : 'approved',
+        applicationStatus: details ? 'pending_owner' : ['boarding_house_owner', 'barangay'].includes(normalizedAccountType) ? 'pending' : 'approved',
         fullName,
         email,
         password: hashed,
@@ -650,7 +653,8 @@ export const registerUser = async (req, res) => {
         paymentMethods: setup?.payment.paymentMethods ?? null,
         rentPerRoom: setup?.payment.rentPerRoom ?? null,
         rentPerHead: setup?.payment.rentPerHead ?? null,
-        selectedBoardingHouse: accountType === "tenant" ? selectedBoardingHouse || null : null,
+        selectedBoardingHouse: details?.boardingHouseName || null,
+        gender: isTenant ? gender || null : null,
         contactNumber: setup?.payment.contactNumber || contactNumber || null,
         notes: notes || null,
       }, { transaction });
@@ -677,10 +681,12 @@ export const registerUser = async (req, res) => {
         }, { transaction });
         await registerPropertyInventory(created, setup, galleries, transaction);
       }
-      return created;
+      const registered = details && await createRegistrationInquiry(created, details, transaction);
+      return { user: created, inquiry: registered?.created ? registered.application : null };
     });
 
     req.registrationSaved = true;
+    if (inquiry) void notifyRegistrationInquiry(user, inquiry);
 
     if (normalizedAccountType !== "super_admin") {
       void sendVerificationEmail(email, verificationToken).catch(mailError => console.error("Verification email failed:", mailError));

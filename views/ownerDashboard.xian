@@ -2403,7 +2403,7 @@
   function renderTenantReviewDetails(app) {
     document.getElementById('reviewApplicantDetails').innerHTML = `
       <dl class="grid gap-2 sm:grid-cols-2">${[
-        ['Boarding house / branch', app.boardingHouseName], ['Requested room', app.requestedRoomType],
+        ['Boarding house / branch', app.boardingHouseName], ['Preferred room (tenant’s choice)', app.preferredRoomLabel || app.requestedRoomType],
         ['Email', app.email], ['Phone', app.contactNumber], ['Gender', app.gender],
         ['Status', applicationStatusText(app.status)], ['Offered room', app.room?.roomNumber],
         ['Move-in date', app.moveInDate]

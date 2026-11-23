@@ -32,6 +32,7 @@ export const TenantApplication = sequelize.define('TenantApplication', {
   boardingHouseId:   { type: DataTypes.INTEGER, allowNull: true },  // BoardingHouse.id if assigned
   boardingHouseName: { type: DataTypes.STRING,  allowNull: false },
   requestedRoomType: { type: DataTypes.STRING,  allowNull: true },
+  preferredRoomLabel: { type: DataTypes.TEXT,   allowNull: true },
   roomId:            { type: DataTypes.INTEGER, allowNull: true },  // Room offered by owner
   monthlyRent:       { type: DataTypes.DECIMAL(10,2), allowNull: true },
   moveInDate:        { type: DataTypes.DATEONLY, allowNull: true },

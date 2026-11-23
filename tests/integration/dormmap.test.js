@@ -780,7 +780,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.ok(!remaining.some(item => item.bhId === branch.id));
       assert.ok(remaining.some(item => item.bhId === house.id));
     });
-    await t.test('Google tenant setup saves the selected approved branch by ID', async () => {
+    await t.test('tenant registrations store an available room preference for owner review without assigning it', async () => {
       const googleTenant = await User.create({
         fullName: 'Google registration tenant', email: `oauth-tenant-${suffix}@example.test`, password,
         accountType: 'tenant', emailVerified: true
@@ -792,8 +792,16 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const googleCookie = 'dormmap.sid=' + encodeURIComponent('s:' + signature.sign(sid, sessionSecret));
       const name = `Same-name branch ${suffix}`;
       const branch = await BoardingHouse.create({ ownerId: owner.id, name, barangay: 'Orconuma', approvalStatus: 'approved' });
-      await BoardingHouse.create({ ownerId: owner.id, name, barangay: 'Labasan', approvalStatus: 'approved' });
-      assert.match(await (await request('/complete-tenant-profile', googleCookie)).text(), /Complete your tenant profile/);
+      const sameNameBranch = await BoardingHouse.create({ ownerId: owner.id, name, barangay: 'Labasan', approvalStatus: 'approved' });
+      const [preferred, occupied, otherBranchRoom, alternative] = await OwnerRoom.bulkCreate([
+        { ownerId: owner.id, boardingHouseId: branch.id, roomNumber: 'B201', floor: '2nd Floor', roomType: 'Solo Room' },
+        { ownerId: owner.id, boardingHouseId: branch.id, roomNumber: 'B204', status: 'occupied', availableSlots: 0 },
+        { ownerId: owner.id, boardingHouseId: sameNameBranch.id, roomNumber: 'C103' },
+        { ownerId: owner.id, boardingHouseId: branch.id, roomNumber: 'B202' }
+      ]);
+      const page = await (await request('/complete-tenant-profile', googleCookie)).text();
+      assert.match(page, /Complete Your Tenant Profile/);
+      assert.doesNotMatch(page, /<select[^>]*name="selectedBoardingHouse"/);
       const body = new FormData();
       body.set('selectedBoardingHouse', `bh-${branch.id}`);
       body.set('contactNumber', '09171234567');
@@ -802,16 +810,56 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const submit = () => request('/complete-tenant-profile', googleCookie, {
         method: 'POST', headers: { Accept: 'application/json' }, body
       });
-      const invalid = await submit();
-      assert.equal(invalid.status, 422);
-      assert.match((await invalid.json()).error, /upload your student/i);
+      const invalidGender = await submit();
+      assert.equal(invalidGender.status, 422);
+      assert.match((await invalidGender.json()).error, /choose male or female/i);
+      body.set('gender', 'female');
+      const missingId = await submit();
+      assert.equal(missingId.status, 422);
+      assert.match((await missingId.json()).error, /upload your student/i);
       body.set('validIdPicture', new Blob(['%PDF-1.7'], { type: 'application/pdf' }), 'id.pdf');
+      for (const room of [occupied, otherBranchRoom]) {
+        body.set('requestedRoomId', room.id);
+        const invalidRoom = await submit();
+        assert.equal(invalidRoom.status, 422);
+        assert.match((await invalidRoom.json()).error, /no longer available at this boarding house/i);
+      }
+      body.set('requestedRoomId', preferred.id);
       const approved = await submit();
       assert.equal(approved.status, 200, await approved.clone().text());
       assert.equal((await approved.json()).redirect, '/tenant-dashboard');
-      const application = await TenantApplication.findOne({ where: { tenantId: googleTenant.id } });
-      assert.equal(application.boardingHouseId, branch.id);
-      assert.equal((await googleTenant.reload()).selectedBoardingHouse, branch.name);
+
+      const signup = new FormData();
+      const email = `password-tenant-${suffix}@example.test`;
+      for (const [field, value] of Object.entries({ accountType: 'tenant', email, fullName: 'Password registration tenant',
+        password: fixturePassword, confirmPassword: fixturePassword, acceptTerms: 'on', gender: 'male',
+        selectedBoardingHouse: `bh-${branch.id}`, requestedRoomId: String(preferred.id) })) signup.set(field, value);
+      const signedUp = await request('/register', null, { method: 'POST', body: signup });
+      assert.equal(signedUp.status, 302, await signedUp.clone().text());
+      assert.equal(signedUp.headers.get('location'), '/login?registered=1');
+      const passwordTenant = await User.findOne({ where: { email } });
+      assert.ok(passwordTenant);
+      ids.push(passwordTenant.id);
+      assert.equal(passwordTenant.gender, 'male');
+
+      const ownerCookie = await login(owner.email);
+      const ownerReview = await request(`/owner-dashboard/api/pending-applications?boardingHouseId=${branch.id}`, ownerCookie);
+      assert.equal(ownerReview.status, 200, await ownerReview.clone().text());
+      const applications = (await ownerReview.json()).data;
+      for (const tenant of [await googleTenant.reload(), passwordTenant]) {
+        const review = applications.find(item => item.userId === tenant.id);
+        assert.ok(review);
+        assert.equal(review.boardingHouseId, branch.id);
+        assert.equal(review.preferredRoomLabel, 'Room B201 · 2nd Floor · Solo Room');
+        assert.equal(review.roomId, null);
+        assert.equal(tenant.selectedBoardingHouse, branch.name);
+      }
+      assert.equal((await preferred.reload()).availableSlots, 1);
+      const googleApplication = applications.find(item => item.userId === googleTenant.id);
+      await offerApplication(owner.id, googleTenant.id, { applicationId: googleApplication.id, roomId: alternative.id, monthlyRent: 1200 });
+      const offered = await TenantApplication.findByPk(googleApplication.id);
+      assert.equal(offered.roomId, alternative.id);
+      assert.equal(offered.preferredRoomLabel, 'Room B201 · 2nd Floor · Solo Room');
     });
 
     await t.test('named messaging, private notification reads and authenticated SSE updates', async () => {

@@ -1,0 +1,34 @@
+<script src="/js/tenant-registration.js?v=2" defer></script>
+<div class="registration-property" data-registration-property {{#if requireHouse}}data-house-required{{/if}}>
+  <label for="registrationHouseSearch">Search boarding house {{#unless requireHouse}}<small>(optional)</small>{{/unless}}</label>
+  <div class="registration-property-search">
+    <input type="search" id="registrationHouseSearch" data-house-search autocomplete="off"
+      placeholder="Search by name or barangay" aria-controls="registrationHouseResults">
+    <button type="button" data-search-houses class="registration-search-button">
+      <svg aria-hidden="true" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+      Search
+    </button>
+  </div>
+  <p class="registration-property-hint" data-house-status role="status" hidden></p>
+  <ul id="registrationHouseResults" class="registration-house-results" data-house-results aria-label="Boarding house search results" hidden></ul>
+  <button type="button" class="registration-text-button" data-retry-houses hidden>Retry loading boarding houses</button>
+
+  <p class="registration-property-hint">Tap a pin on the map or choose a search result.{{#unless requireHouse}} You can also choose a boarding house later.{{/unless}}</p>
+  <div class="registration-property-map" data-house-map aria-label="Map of boarding houses"></div>
+  <p class="registration-property-hint" data-map-unavailable hidden>The map could not load. You can still use search.</p>
+
+  <input type="hidden" name="selectedBoardingHouse" value="{{selection.selectedBoardingHouse}}">
+  <div class="registration-house-selection" data-house-selection hidden>
+    <div>
+      <span class="registration-property-hint">Selected boarding house</span>
+      <strong data-house-name aria-live="polite"></strong>
+    </div>
+    <button type="button" class="registration-text-button" data-clear-house>Clear</button>
+  </div>
+  <label data-room-preference hidden>Preferred room <small>(optional)</small>
+    <select name="requestedRoomId" data-selected="{{selection.requestedRoomId}}" aria-describedby="registrationRoomHint" disabled>
+      <option value="">No preference</option>
+    </select>
+    <small id="registrationRoomHint" class="registration-property-hint">The owner sees your preference and chooses which room to offer.</small>
+  </label>
+</div>

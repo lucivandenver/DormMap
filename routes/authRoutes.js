@@ -1,7 +1,7 @@
-import { createTenantApplication, findApplicationProperty } from '../services/tenantApplicationService.js';
+import { createRegistrationInquiry, isTenantGender, notifyRegistrationInquiry, registrationApplicationDetails } from '../services/tenantApplicationService.js';
 import { storeReviewFile } from '../services/reviewFileService.js';
 import { randomUUID } from 'node:crypto';
-import { OwnerRoom, OwnerInquiry, OwnerNotification, OwnerMessage } from '../models/ownerModels.js';
+import { OwnerRoom } from '../models/ownerModels.js';
 import { validateOwnerSetup, validateOwnerPaymentSetup, registerPropertyInventory } from '../services/ownerRegistrationService.js';
 import { hasApprovedBarangay, ownerBarangayError } from '../services/registrationPolicy.js';
 import { uploadDir } from '../config/storage.js';
@@ -380,11 +380,11 @@ router.post("/complete-tenant-profile", cleanRegistration, registerUpload, async
   if (!pendingId) return res.redirect(req.session.accountType === 'tenant' ? '/tenant-dashboard' : '/login');
   const wantsJson = req.accepts(['html', 'json']) === 'json';
   const reject = error => wantsJson ? res.status(422).json({ error }) : renderTenantProfile(res, error, req.body);
-  const { selectedBoardingHouse, gender, requestedRoomType, acceptTerms } = req.body;
+  const { selectedBoardingHouse, gender, acceptTerms } = req.body;
   const contactNumber = String(req.body.contactNumber || '').trim();
   if (!selectedBoardingHouse) return reject('Select a target boarding house.');
   if (!/^\+?[0-9 ()-]{7,24}$/.test(contactNumber) || contactNumber.replace(/\D/g, '').length < 7) return reject('Enter a valid contact number.');
-  if (!['male', 'female', 'prefer_not_to_say'].includes(gender)) return reject('Select your gender.');
+  if (!isTenantGender(gender)) return reject('Choose Male or Female.');
   if (acceptTerms !== 'on') return reject('Accept the Terms of Service and Privacy Policy to continue.');
   const idFile = req.files?.validIdPicture?.[0];
   const picture = req.files?.profilePicture?.[0];
@@ -395,39 +395,20 @@ router.post("/complete-tenant-profile", cleanRegistration, registerUpload, async
     const result = await sequelize.transaction(async transaction => {
       const user = await User.findByPk(pendingId, { transaction, lock: transaction.LOCK.UPDATE });
       if (!user || user.accountType !== 'tenant' || user.isArchived || user.isSuspended) return {};
-      const { house, owner } = await findApplicationProperty(selectedBoardingHouse, { transaction });
-      if (!owner) return { error: 'Select an approved boarding house from the current listings.' };
-      const name = house?.name || owner.boardingHouseName;
-      if (!name) return { error: 'Select an approved boarding house from the current listings.' };
-      const roomType = typeof requestedRoomType === 'string' ? requestedRoomType.trim().slice(0, 255) : '';
+      const details = await registrationApplicationDetails(req.body, transaction);
       const validIdPicture = await storeReviewFile(idFile, user.id, 'tenant-registration', transaction);
-      const { created } = await createTenantApplication({
-        tenantId: user.id, ownerId: owner.id, boardingHouseId: house?.id || null,
-        boardingHouseName: name, requestedRoomType: roomType || null, status: 'pending_owner',
-        message: `Initial application submitted upon registration. Contact: ${contactNumber}, Gender: ${gender}`
-      }, { transaction });
+      const inquiry = await createRegistrationInquiry(user, details, transaction);
       await user.update({
-        selectedBoardingHouse: name, contactNumber, gender, preferredLocation: roomType || null,
-        validIdPicture, applicationStatus: 'pending_owner',
+        selectedBoardingHouse: details.boardingHouseName, contactNumber, gender,
+        preferredLocation: details.requestedRoomType, validIdPicture, applicationStatus: 'pending_owner',
         ...(picture ? { profilePicture: `/uploads/${picture.filename}` } : {})
       }, { transaction });
-      return { user, owner, name, roomType, created };
+      return { user, inquiry };
     });
 
-    if (result.error) return reject(result.error);
-    const { user, owner, name, roomType, created } = result;
+    const { user, inquiry } = result;
     if (!user) return res.status(403).send('Tenant account required.');
-    if (created) {
-      const roomTypeInfo = roomType ? ` (Requested room: ${roomType})` : '';
-      await Promise.allSettled([
-        OwnerInquiry.create({ ownerId: owner.id, clientName: user.fullName, clientEmail: user.email,
-          clientPhone: contactNumber, status: 'new', message: `Tenant application submitted for ${name}${roomTypeInfo}.` }),
-        OwnerNotification.create({ ownerId: owner.id, title: 'New tenant application',
-          body: `${user.fullName} applied for a room at ${name}${roomTypeInfo}.`, type: 'tenant_application', link: '#tenants' }),
-        OwnerMessage.create({ ownerId: owner.id, senderId: user.id, recipientId: owner.id,
-          subject: `Application inquiry for ${name}`, message: `Hello! I submitted a rental application for ${name}${roomTypeInfo}.`, isRead: false })
-      ]);
-    }
+    if (inquiry.created) void notifyRegistrationInquiry(user, inquiry.application);
 
     req.session.userId = user.id;
     req.session.accountType = 'tenant';
