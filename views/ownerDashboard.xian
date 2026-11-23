@@ -1,4 +1,6 @@
 {{> head}}
+<link rel="stylesheet" href="/css/report-print.css">
+<script src="/js/report-print.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -640,26 +642,43 @@
         </label>
 
         <!-- Pending Applications Banner -->
-        <div id="pendingAppsCard" class="hidden bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-5 space-y-3">
+        <div id="pendingAppsCard" data-owner-batch class="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-5 space-y-3">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <svg class="w-5 h-5 text-amber-700 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
               <div>
-                <h3 class="text-sm font-bold text-amber-900">Pending Rental Applications</h3>
+                <h3 class="text-sm font-bold text-amber-900">Rental Applications</h3>
                 <p class="text-xs text-amber-700">These tenants registered and selected your boarding house. Review and accept or decline.</p>
               </div>
             </div>
             <span id="pendingAppsCount" class="bg-amber-500 text-white text-xs font-black px-3 py-1 rounded-full">0</span>
           </div>
+          <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="showArchivedApplications"> View archived applications</label>
+          <div data-batch-toolbar class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs" hidden>
+            <label class="flex items-center gap-2"><input type="checkbox" data-batch-all> Select up to 25</label>
+            <span data-batch-count aria-live="polite"></span>
+            <button type="button" id="prepareBulkOffers" data-batch-action class="rounded-lg bg-emerald-800 px-3 py-2 font-semibold text-white disabled:opacity-50">Prepare room offers</button>
+            <button type="button" id="archiveSelectedApplications" data-batch-action class="rounded-lg border border-amber-200 bg-white px-3 py-2 font-semibold disabled:opacity-50">Archive selected</button>
+          </div>
+          <p data-batch-note class="text-xs text-amber-900" hidden>Select pending applications to prepare offers. Sent offers can be archived or updated individually.</p>
+          <p data-batch-feedback class="whitespace-pre-line text-sm" role="status"></p>
           <div id="pendingAppsList" class="space-y-2"></div>
         </div>
 
+        <div id="ownerTenantBatch" data-owner-batch class="space-y-3">
         <div class="flex justify-between items-center">
-          <h2 class="text-lg font-bold text-slate-800">Current Tenants</h2>
-          <button onclick="openTenantModal()" class="bg-emerald-700 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-emerald-800 transition flex items-center gap-2 shadow-sm active:scale-95">
+          <h2 id="ownerTenantHeading" class="text-lg font-bold text-slate-800">Current Tenants</h2>
+          <button type="button" id="registerOwnerTenant" onclick="openTenantModal()" class="bg-emerald-700 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-emerald-800 transition flex items-center gap-2 shadow-sm active:scale-95">
             <span class="text-base leading-none">＋</span> Register Tenant
           </button>
         </div>
+        <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="showArchivedTenants"> View archived tenant records</label>
+        <div data-batch-toolbar class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs" hidden>
+          <label class="flex items-center gap-2"><input type="checkbox" data-batch-all> Select up to 25 former tenants</label>
+          <span data-batch-count aria-live="polite"></span>
+          <button type="button" id="archiveSelectedTenants" data-batch-action class="rounded-lg border border-slate-200 bg-white px-3 py-2 font-semibold disabled:opacity-50">Archive selected</button>
+        </div>
+        <p data-batch-feedback class="whitespace-pre-line text-sm" role="status"></p>
         <div class="overflow-x-auto bg-white rounded-2xl border border-slate-100 shadow-sm">
           <table class="w-full text-left border-collapse text-sm">
             <thead>
@@ -675,6 +694,7 @@
             <tbody id="tenantsTable"><tr><td colspan="6" class="p-8 text-center text-slate-400 text-xs">Loading tenants...</td></tr></tbody>
             <tbody id="formerTenantsTable"></tbody>
           </table>
+        </div>
         </div>
       </section>
 
@@ -756,8 +776,15 @@
       </section>
 
       <!-- PANEL 7: INQUIRIES -->
-      <section data-panel="inquiries" class="hidden space-y-4">
+      <section data-panel="inquiries" id="ownerInquiryBatch" data-owner-batch class="hidden space-y-4">
         <h2 class="text-lg font-bold text-slate-800">Clients & Inquiries</h2>
+        <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="showArchivedInquiries"> View archived inquiries</label>
+        <div data-batch-toolbar class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs" hidden>
+          <label class="flex items-center gap-2"><input type="checkbox" data-batch-all> Select up to 25</label>
+          <span data-batch-count aria-live="polite"></span>
+          <button type="button" id="archiveSelectedInquiries" data-batch-action class="rounded-lg border border-slate-200 bg-white px-3 py-2 font-semibold disabled:opacity-50">Archive selected</button>
+        </div>
+        <p data-batch-feedback class="whitespace-pre-line text-sm" role="status"></p>
         <div class="grid gap-4" id="inquiriesList"></div>
       </section>
 
@@ -807,10 +834,10 @@
             <h3 class="font-bold text-sm text-slate-900">Income Summary</h3>
           </button>
         </div>
-        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm mt-6 hidden" id="reportPreviewArea">
-          <div class="flex justify-between items-center mb-4">
+        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm mt-6 hidden" id="reportPreviewArea" data-owner-name="{{userName}}">
+          <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
             <h3 class="font-bold text-slate-800" id="reportTitle">Report</h3>
-            <button onclick="window.print()" class="text-xs bg-emerald-700 text-white px-3 py-1.5 rounded-lg">Print Report</button>
+            <button type="button" id="printOwnerReport" class="text-xs bg-emerald-700 text-white px-3 py-1.5 rounded-lg">Print Report</button>
           </div>
           <div class="overflow-x-auto" id="reportOutput"></div>
         </div>
@@ -1202,6 +1229,19 @@
     <div class="flex justify-end gap-2">
       <button type="button" onclick="document.getElementById('endTenantDialog').close()" class="rounded-lg border px-3 py-2 text-sm">Cancel</button>
       <button class="rounded-lg bg-emerald-800 px-3 py-2 text-sm text-white">End tenancy</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="bulkOfferDialog" aria-labelledby="bulkOfferTitle" class="m-auto max-h-[90dvh] w-[calc(100%_-_2rem)] max-w-2xl overflow-y-auto rounded-2xl p-5 text-slate-900 shadow-xl backdrop:bg-slate-900/60">
+  <form id="bulkOfferForm" class="space-y-4">
+    <h3 id="bulkOfferTitle" class="text-lg font-bold">Prepare room offers</h3>
+    <p class="text-sm text-slate-600">Choose the room and terms for each tenant. A slot is assigned when the tenant confirms.</p>
+    <div id="bulkOfferRows" class="space-y-3"></div>
+    <p id="bulkOfferFeedback" class="whitespace-pre-line text-sm" role="status"></p>
+    <div class="flex flex-wrap justify-end gap-2">
+      <button type="button" id="closeBulkOffer" class="rounded-lg border px-4 py-2 text-sm font-semibold">Close</button>
+      <button type="submit" id="sendBulkOffers" class="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Send room offers</button>
     </div>
   </form>
 </dialog>
@@ -1908,6 +1948,10 @@
 
   document.querySelectorAll('[data-owner-branch]').forEach(select => {
     select.addEventListener('change', () => {
+      if (select.dataset.ownerBranch === 'tenants') {
+        clearOwnerBatch(applicationBatch);
+        clearOwnerBatch(tenantBatch);
+      }
       if (select.value !== 'all') _selectedBhId = Number(select.value);
       populateBhDropdowns();
       renderBoardingHouseCards();
@@ -2297,17 +2341,133 @@
   }
 
 
+  const applicationBatch = document.getElementById('pendingAppsCard');
+  const tenantBatch = document.getElementById('ownerTenantBatch');
+  const inquiryBatch = document.getElementById('ownerInquiryBatch');
+  const ownerBatches = new Map([applicationBatch, tenantBatch, inquiryBatch].map(group => [group, new Set()]));
+  const withArchived = (query, archived) => archived ? query + (query ? '&' : '?') + 'archived=true' : query;
+
+  function batchCheckbox(id, name, canOffer = false) {
+    return `<label class="inline-flex items-center gap-2 whitespace-nowrap text-xs font-medium">
+      <input type="checkbox" data-batch-record data-record-name="${esc(name)}" ${canOffer ? 'data-can-offer' : ''} value="${Number(id)}" aria-label="Select ${esc(name)}"> Select
+    </label>`;
+  }
+
+  function syncOwnerBatch(group) {
+    const inputs = [...group.querySelectorAll('[data-batch-record]')];
+    const selected = ownerBatches.get(group);
+    const present = new Set(inputs.map(input => input.value));
+    for (const id of selected) if (!present.has(id)) selected.delete(id);
+    const limit = Math.min(25, inputs.length);
+    const busy = group.hasAttribute('aria-busy');
+    const all = group.querySelector('[data-batch-all]');
+    all.checked = limit > 0 && selected.size === limit;
+    all.indeterminate = selected.size > 0 && !all.checked;
+    all.disabled = busy || !limit;
+    inputs.forEach(input => {
+      input.checked = selected.has(input.value);
+      input.disabled = busy || (selected.size >= limit && !input.checked);
+    });
+    const toolbar = group.querySelector('[data-batch-toolbar]');
+    toolbar.hidden = !limit;
+    toolbar.classList.toggle('flex', Boolean(limit));
+    group.querySelector('[data-batch-count]').textContent = `${selected.size} selected`;
+    group.querySelectorAll('[data-batch-action]').forEach(button => { button.disabled = busy || !selected.size; });
+    if (group === applicationBatch) {
+      const includesOffer = inputs.some(input => input.checked && !input.hasAttribute('data-can-offer'));
+      document.getElementById('prepareBulkOffers').disabled ||= includesOffer;
+      group.querySelector('[data-batch-note]').hidden = !includesOffer;
+    }
+  }
+
+  function clearOwnerBatch(group) {
+    ownerBatches.get(group).clear();
+    syncOwnerBatch(group);
+  }
+
+  for (const [group, selected] of ownerBatches) {
+    group.addEventListener('change', event => {
+      const input = event.target;
+      if (input.hasAttribute('data-batch-record')) {
+        if (input.checked) selected.add(input.value);
+        else selected.delete(input.value);
+      } else if (input.hasAttribute('data-batch-all')) {
+        selected.clear();
+        if (input.checked) [...group.querySelectorAll('[data-batch-record]')].slice(0, 25).forEach(row => selected.add(row.value));
+      } else return;
+      syncOwnerBatch(group);
+    });
+  }
+
+  function selectedOwnerRecords(group) {
+    return new Map([...group.querySelectorAll('[data-batch-record]:checked')].map(input => [Number(input.value), input.dataset.recordName]));
+  }
+
+  function ownerBatchFeedback(group, message) {
+    const feedback = group.querySelector('[data-batch-feedback]');
+    feedback.textContent = message;
+    feedback.hidden = !message;
+  }
+
+  function summarizeBatch(group, results, names, action) {
+    const succeeded = results.filter(result => result.success);
+    const failed = results.filter(result => !result.success);
+    succeeded.forEach(result => ownerBatches.get(group).delete(String(result.id)));
+    const messages = failed.map(result => `${names.get(result.id)}: ${result.error}`);
+    return [`${succeeded.length} ${action}${failed.length ? ` · ${failed.length} need attention` : ''}.`, ...messages].join('\n');
+  }
+
+  async function archiveOwnerSelection(group, endpoint, description, refresh) {
+    const records = selectedOwnerRecords(group);
+    if (!records.size || group.hasAttribute('aria-busy')) return;
+    if (!await DormMapFeedback.confirm(`Archive ${records.size} ${description}?`)) return;
+    if (group.hasAttribute('aria-busy') || [...records.keys()].some(id => !ownerBatches.get(group).has(String(id)))) return;
+    group.setAttribute('aria-busy', 'true');
+    syncOwnerBatch(group);
+    try {
+      const { results } = await ownerRequest(`/owner-dashboard/api/${endpoint}/bulk-archive`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [...records.keys()] })
+      });
+      ownerBatchFeedback(group, summarizeBatch(group, results, records, 'archived'));
+      await refresh();
+    } catch (error) {
+      ownerBatchFeedback(group, error.message);
+    } finally {
+      group.removeAttribute('aria-busy');
+      syncOwnerBatch(group);
+    }
+  }
+
+  document.getElementById('archiveSelectedApplications').onclick = () => archiveOwnerSelection(applicationBatch, 'pending-applications', 'applications and close their open offers', loadPendingApplications);
+  document.getElementById('archiveSelectedTenants').onclick = () => archiveOwnerSelection(tenantBatch, 'tenants', 'former tenant records', loadTenants);
+  document.getElementById('archiveSelectedInquiries').onclick = () => archiveOwnerSelection(inquiryBatch, 'inquiries', 'inquiries', loadInquiries);
+  for (const [id, group, refresh] of [
+    ['showArchivedApplications', applicationBatch, loadPendingApplications],
+    ['showArchivedTenants', tenantBatch, loadTenants],
+    ['showArchivedInquiries', inquiryBatch, loadInquiries]
+  ]) {
+    document.getElementById(id).addEventListener('change', () => {
+      clearOwnerBatch(group);
+      ownerBatchFeedback(group, '');
+      refresh();
+    });
+  }
+
   async function loadTenants() {
+    const archived = document.getElementById('showArchivedTenants').checked;
+    const batch = document.getElementById('ownerTenantBatch');
     try {
       if (!_allBoardingHouses.length) await loadBoardingHouses();
       const query = branchQuery('tenants');
-      const { data } = await ownerRequest(`/owner-dashboard/api/tenants${query}`);
-      if (query !== branchQuery('tenants')) return;
+      const { data } = await ownerRequest(`/owner-dashboard/api/tenants${withArchived(query, archived)}`);
+      if (query !== branchQuery('tenants') || archived !== document.getElementById('showArchivedTenants').checked) return;
       const tbody = document.getElementById('tenantsTable');
 
       const tenants = data || [];
       const current = tenants.filter(t => t.status === 'active');
       const former = tenants.filter(t => t.status !== 'active');
+      document.getElementById('ownerTenantHeading').textContent = archived ? 'Archived Tenant Records' : 'Current Tenants';
+      document.getElementById('registerOwnerTenant').classList.toggle('hidden', archived);
       const tenantRow = t => `
           <tr class="border-b border-slate-100 hover:bg-slate-50/50 transition">
             <td class="p-4 font-bold text-slate-800">${esc(t.fullName)}<p class="text-xs font-medium text-slate-500">${esc(t.status)} · ${t.occupantCount || 1} occupant(s)${t.bedNumber ? ' · Bed '+Number(t.bedNumber) : ''}</p>${t.moveOutRequestedDate ? `<p class="mt-1 text-xs text-amber-800">Move-out requested for ${esc(t.moveOutRequestedDate)}</p>` : ''}${t.moveOutDate ? `<p class="mt-1 text-xs text-slate-500">Moved out ${esc(t.moveOutDate)}</p>` : ''}</td>
@@ -2319,19 +2479,21 @@
             </td>
             <td class="p-4">
               <div class="flex gap-2">
-                ${t.status === 'active' ? `
+                ${archived ? '<span class="text-xs text-slate-600">Archived</span>' : t.status === 'active' ? `
                   <button type="button" onclick='editTenant(${esc(JSON.stringify(t))})' class="text-xs font-semibold text-emerald-800">Edit assignment</button>
                   <button type="button" onclick='openEndTenant(${esc(JSON.stringify(t))})' class="text-xs font-semibold text-rose-700">End tenancy</button>
-                ` : `<button type="button" onclick='openTenantModal(${esc(JSON.stringify(t))}, true)' class="text-xs font-semibold text-emerald-800">Start new stay</button>`}
-                ${t.tenantUserId ? '' : `<button type="button" onclick="deleteTenant(${t.id})" class="text-xs font-semibold text-slate-600">Remove</button>`}
+                ` : `<button type="button" onclick='openTenantModal(${esc(JSON.stringify(t))}, true)' class="text-xs font-semibold text-emerald-800">Start new stay</button>
+                ${batchCheckbox(t.id, t.fullName)}`}
+                ${archived || t.tenantUserId ? '' : `<button type="button" onclick="deleteTenant(${t.id})" class="text-xs font-semibold text-slate-600">Remove</button>`}
               </div>
             </td>
           </tr>
         `;
-      tbody.innerHTML = current.map(tenantRow).join('') || '<tr><td colspan="6" class="p-8 text-center text-sm text-slate-500">No current tenants.</td></tr>';
-      document.getElementById('formerTenantsTable').innerHTML = former.length
+      tbody.innerHTML = (archived ? tenants : current).map(tenantRow).join('') || `<tr><td colspan="6" class="p-8 text-center text-sm text-slate-500">${archived ? 'No archived tenant records.' : 'No current tenants.'}</td></tr>`;
+      document.getElementById('formerTenantsTable').innerHTML = !archived && former.length
         ? '<tr><th colspan="6" class="border-t bg-slate-50 p-4 text-left">Former Tenants</th></tr>' + former.map(tenantRow).join('')
         : '';
+      syncOwnerBatch(batch);
 
     } catch (err) {
       console.error('Error loading tenants:', err);
@@ -2344,19 +2506,13 @@
   async function loadPendingApplications() {
     try {
       const query = branchQuery('tenants');
-      const { data } = await ownerRequest(`/owner-dashboard/api/pending-applications${query}`);
-      if (query !== branchQuery('tenants')) return;
+      const archived = document.getElementById('showArchivedApplications').checked;
+      const { data } = await ownerRequest(`/owner-dashboard/api/pending-applications${withArchived(query, archived)}`);
+      if (query !== branchQuery('tenants') || archived !== document.getElementById('showArchivedApplications').checked) return;
       const card = document.getElementById('pendingAppsCard');
       const list = document.getElementById('pendingAppsList');
       const count = document.getElementById('pendingAppsCount');
 
-      if (!data || data.length === 0) {
-        card.classList.add('hidden');
-        applicationReviews.clear();
-        return;
-      }
-
-      card.classList.remove('hidden');
       count.textContent = data.length;
 
       applicationReviews = new Map(data.map(app => [Number(app.applicationId), app]));
@@ -2366,8 +2522,12 @@
             <p class="font-bold text-slate-900">${esc(app.fullName)}</p>
             <p class="text-xs text-slate-600">${esc(app.requestedRoomType || 'Any room')} · ${esc(applicationStatusText(app.status))}</p>
           </div>
-          <button type="button" onclick="openTenantReview(${Number(app.applicationId)})" class="rounded-lg border border-emerald-200 px-4 py-2 text-xs font-bold text-emerald-800">Review</button>
-        </article>`).join('');
+          ${archived ? '' : `<div class="flex flex-wrap items-center gap-3">
+            ${batchCheckbox(app.applicationId, app.fullName, app.status === 'pending_owner')}
+            <button type="button" onclick="openTenantReview(${Number(app.applicationId)})" class="rounded-lg border border-emerald-200 px-4 py-2 text-xs font-bold text-emerald-800">Review</button>
+          </div>`}
+        </article>`).join('') || `<p class="text-sm text-slate-600">${archived ? 'No archived applications.' : 'No open rental applications.'}</p>`;
+      syncOwnerBatch(card);
     } catch (err) {
       console.error('Error loading pending applications:', err);
     }
@@ -2378,10 +2538,108 @@
   let declineArmed = false;
   let tenantAssignmentRooms = [];
   const roomLabel = room => `Room ${room.roomNumber} · ${room.roomType} · ${room.availableSlots} free`;
+  const roomsForOffer = (rooms, app) => rooms.filter(room => room.branchApprovalStatus === 'approved' &&
+    (!app.boardingHouseId || room.boardingHouseId === app.boardingHouseId) &&
+    room.status === 'available' && Number(room.availableSlots) > 0);
+
+  const bulkOfferDialog = document.getElementById('bulkOfferDialog');
+  const bulkOfferRows = document.getElementById('bulkOfferRows');
+  const bulkOfferFeedback = document.getElementById('bulkOfferFeedback');
+  const sendBulkOffers = document.getElementById('sendBulkOffers');
+  const closeBulkOffer = document.getElementById('closeBulkOffer');
+  let bulkOfferRequest = 0;
+
+  closeBulkOffer.onclick = () => bulkOfferDialog.close();
+  bulkOfferDialog.addEventListener('cancel', event => { if (closeBulkOffer.disabled) event.preventDefault(); });
+
+  document.getElementById('prepareBulkOffers').onclick = async () => {
+    const applications = [...selectedOwnerRecords(applicationBatch).keys()].map(id => applicationReviews.get(id));
+    if (!applications.length || applications.some(app => app?.status !== 'pending_owner')) return;
+    const request = ++bulkOfferRequest;
+    bulkOfferRows.replaceChildren();
+    bulkOfferFeedback.textContent = 'Loading available rooms…';
+    sendBulkOffers.disabled = true;
+    bulkOfferDialog.showModal();
+    try {
+      const { data } = await ownerRequest('/owner-dashboard/api/rooms');
+      if (bulkOfferRequest !== request || !bulkOfferDialog.open) return;
+      const date = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Manila' }).format(new Date());
+      bulkOfferRows.innerHTML = applications.map(app => {
+        const roomOptions = roomsForOffer(data, app).map(room =>
+          `<option value="${Number(room.id)}" data-rate="${Number(room.rentalPrice)}" data-basis="${esc(room.rentalBasis)}">${esc(room.boardingHouseName)} · ${esc(roomLabel(room))}</option>`).join('');
+        return `<fieldset data-offer-app="${Number(app.applicationId)}" data-name="${esc(app.fullName)}" class="rounded-xl border border-slate-200 p-3">
+          <legend class="px-1 font-semibold">${esc(app.fullName)}</legend>
+          <div class="mb-2 flex flex-wrap justify-between gap-2 text-xs"><p>${esc(app.boardingHouseName)} · Preferred: ${esc(app.preferredRoomLabel || app.requestedRoomType || 'Any room')}</p>
+          <button type="button" data-remove-offer class="font-semibold text-rose-700">Remove from batch</button></div>
+          <div class="grid gap-3 text-sm sm:grid-cols-2">
+            <label class="min-w-0">Room<select name="roomId" required class="mt-1 block w-full min-w-0 rounded-lg border p-2"><option value="">${roomOptions ? 'Choose a room' : 'No rooms available'}</option>${roomOptions}</select></label>
+            <label>Monthly total (₱)<input name="monthlyRent" type="number" min="0.01" max="99999999.99" step="0.01" required class="mt-1 w-full rounded-lg border p-2"></label>
+            <label>Household size<input name="occupantCount" type="number" min="1" max="100" value="${Number(app.occupantCount || 1)}" required class="mt-1 w-full rounded-lg border p-2"></label>
+            <label>Move-in date<input name="moveInDate" type="date" value="${date}" required class="mt-1 w-full rounded-lg border p-2"></label>
+          </div>
+          <p data-offer-error class="mt-2 text-sm text-rose-700" role="status"></p>
+        </fieldset>`;
+      }).join('');
+      bulkOfferFeedback.textContent = '';
+      sendBulkOffers.disabled = false;
+    } catch (error) {
+      if (bulkOfferRequest === request) bulkOfferFeedback.textContent = error.message;
+    }
+  };
+
+  bulkOfferRows.addEventListener('change', event => {
+    if (!['roomId', 'occupantCount'].includes(event.target.name)) return;
+    const row = event.target.closest('fieldset');
+    const option = row.querySelector('[name="roomId"]').selectedOptions[0];
+    const occupants = row.querySelector('[name="occupantCount"]');
+    if (option.dataset.basis === 'bed') occupants.value = 1;
+    const rate = Number(option.dataset.rate || 0);
+    row.querySelector('[name="monthlyRent"]').value = rate > 0 ? (rate * (option.dataset.basis === 'person' ? Number(occupants.value || 1) : 1)).toFixed(2) : '';
+    row.querySelector('[data-offer-error]').textContent = '';
+  });
+
+  bulkOfferRows.addEventListener('click', event => {
+    const remove = event.target.closest('[data-remove-offer]');
+    if (!remove) return;
+    remove.closest('fieldset').remove();
+    sendBulkOffers.disabled = !bulkOfferRows.children.length;
+  });
+
+  document.getElementById('bulkOfferForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    if (sendBulkOffers.disabled) return;
+    const rows = new Map([...bulkOfferRows.children].map(row => [Number(row.dataset.offerApp), row]));
+    const offers = [...rows].map(([applicationId, row]) => ({ applicationId, ...Object.fromEntries([...row.querySelectorAll('[name]')].map(input => [input.name, input.value])) }));
+    const names = new Map([...rows].map(([id, row]) => [id, row.dataset.name]));
+    sendBulkOffers.disabled = closeBulkOffer.disabled = true;
+    rows.forEach(row => { row.disabled = true; });
+    bulkOfferFeedback.textContent = 'Sending room offers…';
+    try {
+      const { results } = await ownerRequest('/owner-dashboard/api/pending-applications/bulk-offer', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ offers })
+      });
+      ownerBatchFeedback(applicationBatch, summarizeBatch(applicationBatch, results, names, 'room offers sent'));
+      for (const result of results) {
+        const row = rows.get(result.id);
+        if (result.success) row.remove();
+        else row.querySelector('[data-offer-error]').textContent = result.error;
+      }
+      if (bulkOfferRows.children.length) bulkOfferFeedback.textContent = 'Review the remaining offers before trying again.';
+      else bulkOfferDialog.close();
+      await loadPendingApplications();
+    } catch (error) {
+      bulkOfferFeedback.textContent = error.message;
+    } finally {
+      rows.forEach(row => { row.disabled = false; });
+      closeBulkOffer.disabled = false;
+      sendBulkOffers.disabled = !bulkOfferRows.children.length;
+    }
+  });
 
   function applicationStatusText(status) {
     return {
       pending_owner: 'Pending review', accepted_by_owner: 'Offer sent · Awaiting tenant confirmation',
+      archived_by_owner: 'Archived',
       confirmed: 'Confirmed', declined_by_owner: 'Declined', cancelled_by_tenant: 'Cancelled by tenant',
       duplicate_closed: 'Duplicate closed'
     }[status] || status;
@@ -2444,9 +2702,7 @@
     try {
       const { data } = await ownerRequest('/owner-dashboard/api/rooms');
       if (reviewingApplication !== app) return;
-      const rooms = data.filter(room => room.branchApprovalStatus === 'approved' &&
-        (!app.boardingHouseId || room.boardingHouseId === app.boardingHouseId) &&
-        room.status === 'available' && Number(room.availableSlots) > 0);
+      const rooms = roomsForOffer(data, app);
       for (const room of rooms) {
         const option = new Option(`${room.boardingHouseName} · ${roomLabel(room)}`, room.id);
         option.dataset.roomNumber = room.roomNumber;
@@ -2892,43 +3148,58 @@
 
   // ─── Inquiries ───
   async function loadInquiries() {
-    const res = await fetch('/owner-dashboard/api/inquiries');
-    const { data } = await res.json();
-    const list = document.getElementById('inquiriesList');
-    list.innerHTML = data.map(i => `
-      <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
-        <div class="flex justify-between items-start">
-          <div>
-            <h3 class="font-bold text-slate-800">${i.clientName}</h3>
-            <p class="text-xs text-slate-500">${i.clientPhone || i.clientEmail || ''}</p>
+    const archivedFilter = document.getElementById('showArchivedInquiries');
+    const archived = archivedFilter.checked;
+    try {
+      const { data } = await ownerRequest('/owner-dashboard/api/inquiries' + withArchived('', archived));
+      if (archived !== archivedFilter.checked) return;
+      const list = document.getElementById('inquiriesList');
+      list.innerHTML = data.map(i => `
+        <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+          <div class="flex justify-between items-start">
+            <div>
+              <h3 class="font-bold text-slate-800">${esc(i.clientName)}</h3>
+              <p class="text-xs text-slate-500">${esc(i.clientPhone || i.clientEmail || '')}</p>
+            </div>
+            <span class="px-2 py-1 rounded-full text-xs font-bold ${i.status === 'replied' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}">${esc(i.status)}</span>
           </div>
-          <span class="px-2 py-1 rounded-full text-xs font-bold ${i.status === 'replied' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}">${i.status}</span>
+          <p class="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg">${esc(i.message)}</p>
+          ${i.reply ? `<p class="text-sm text-slate-700 border-l-2 border-emerald-700 pl-3"><strong>Reply:</strong> ${esc(i.reply)}</p>` : ''}
+          ${archived ? '' : `<div class="flex flex-wrap gap-2 justify-end">
+            ${batchCheckbox(i.id, i.clientName)}
+            <button type="button" onclick="replyInquiryModal(${Number(i.id)})" class="bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs">Reply / Set Visit</button>
+            <button type="button" onclick="archiveInquiry(${Number(i.id)})" class="border border-slate-200 px-3 py-1.5 rounded-lg text-xs">Archive</button>
+          </div>`}
         </div>
-        <p class="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg">${i.message}</p>
-        ${i.reply ? `<p class="text-sm text-slate-700 border-l-2 border-emerald-700 pl-3"><strong>Reply:</strong> ${i.reply}</p>` : ''}
-        <div class="flex gap-2 justify-end">
-          <button onclick="replyInquiryModal(${i.id})" class="bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs">Reply / Set Visit</button>
-          <button onclick="archiveInquiry(${i.id})" class="border border-slate-200 px-3 py-1.5 rounded-lg text-xs">Archive</button>
-        </div>
-      </div>
-    `).join('');
+      `).join('') || `<p class="text-sm text-slate-600">${archived ? 'No archived inquiries.' : 'No open inquiries.'}</p>`;
+      syncOwnerBatch(inquiryBatch);
+    } catch (error) {
+      ownerBatchFeedback(inquiryBatch, error.message);
+    }
   }
 
   async function replyInquiryModal(id) {
     const reply = prompt('Enter your reply message:');
-    if (reply) {
-      await fetch(`/owner-dashboard/api/inquiries/${id}/reply`, {
+    if (!reply) return;
+    try {
+      await ownerRequest(`/owner-dashboard/api/inquiries/${id}/reply`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reply })
       });
       loadInquiries();
+    } catch (error) {
+      ownerToast(error.message, true);
     }
   }
 
   async function archiveInquiry(id) {
-    await fetch(`/owner-dashboard/api/inquiries/${id}/archive`, { method: 'PATCH' });
-    loadInquiries();
+    try {
+      await ownerRequest(`/owner-dashboard/api/inquiries/${id}/archive`, { method: 'PATCH' });
+      loadInquiries();
+    } catch (error) {
+      ownerToast(error.message, true);
+    }
   }
 
   // ─── Messaging ───
@@ -3386,70 +3657,39 @@ async function loadLegacyNotifications() {
   }
 
   // ─── Reports ───
-  async function loadReport(type) {
-    const res = await fetch(`/owner-dashboard/api/reports?type=${type}`);
-    const { data } = await res.json();
-    
-    document.getElementById('reportPreviewArea').classList.remove('hidden');
-    const title = document.getElementById('reportTitle');
-    const output = document.getElementById('reportOutput');
+  const ownerReportPreview = document.getElementById('reportPreviewArea');
+  const ownerReportTitle = document.getElementById('reportTitle');
+  const ownerReportOutput = document.getElementById('reportOutput');
+  const reportPeso = value => '₱' + Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-    if (type === 'payments') {
-      title.innerText = 'Rental Collections Report';
-      output.innerHTML = `
-        <table class="w-full text-left text-xs border-collapse">
-          <thead>
-            <tr class="bg-slate-50 border-b border-slate-200">
-              <th class="p-3">Tenant ID</th><th class="p-3">Amount</th><th class="p-3">Due Date</th><th class="p-3">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${data.map(d => `<tr class="border-b border-slate-100"><td class="p-3">${d.tenantId}</td><td class="p-3">₱${d.amount}</td><td class="p-3">${d.dueDate}</td><td class="p-3">${d.status}</td></tr>`).join('')}
-          </tbody>
-        </table>
-      `;
-    } else if (type === 'tenants') {
-      title.innerText = 'Tenant Roster';
-      output.innerHTML = `
-        <table class="w-full text-left text-xs border-collapse">
-          <thead>
-            <tr class="bg-slate-50 border-b border-slate-200">
-              <th class="p-3">Tenant Name</th><th class="p-3">Contact</th><th class="p-3">Monthly Rent</th><th class="p-3">Balance</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${data.map(d => `<tr class="border-b border-slate-100"><td class="p-3 font-bold">${d.fullName}</td><td class="p-3">${d.contactNumber || '-'}</td><td class="p-3">₱${d.monthlyRent}</td><td class="p-3">₱${d.balance}</td></tr>`).join('')}
-          </tbody>
-        </table>
-      `;
-    } else if (type === 'rooms') {
-      title.innerText = 'Room Occupancy Status';
-      output.innerHTML = `
-        <table class="w-full text-left text-xs border-collapse">
-          <thead>
-            <tr class="bg-slate-50 border-b border-slate-200">
-              <th class="p-3">Room No.</th><th class="p-3">Type</th><th class="p-3">Price</th><th class="p-3">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${data.map(d => `<tr class="border-b border-slate-100"><td class="p-3 font-bold">${d.roomNumber}</td><td class="p-3">${d.roomType}</td><td class="p-3">₱${d.rentalPrice}</td><td class="p-3">${d.status}</td></tr>`).join('')}
-          </tbody>
-        </table>
-      `;
-    } else if (type === 'income') {
-      title.innerText = 'Monthly Collections Summary';
-      output.innerHTML = `
-        <table class="w-full text-left text-xs border-collapse">
-          <thead>
-            <tr class="bg-slate-50 border-b border-slate-200">
-              <th class="p-3">Month Period</th><th class="p-3">Total Collections</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${data.map(d => `<tr class="border-b border-slate-100"><td class="p-3 font-bold">${d.month}</td><td class="p-3">₱${d.total.toLocaleString()}</td></tr>`).join('')}
-          </tbody>
-        </table>
-      `;
+  document.getElementById('printOwnerReport').addEventListener('click', () => {
+    DormMapReports.print(ownerReportTitle, ownerReportPreview.dataset.ownerName, ownerReportOutput);
+  });
+
+  let ownerReportRequest = 0;
+  async function loadReport(type) {
+    const request = ++ownerReportRequest;
+    ownerReportPreview.classList.add('hidden');
+    try {
+      const { data } = await ownerRequest(`/owner-dashboard/api/reports?type=${type}`);
+      if (request !== ownerReportRequest) return;
+
+      const reports = {
+        payments: ['Rental Collections Report', ['Tenant ID', 'Amount', 'Due date', 'Status'],
+          row => [row.tenantId, reportPeso(row.amount), row.dueDate, row.status]],
+        tenants: ['Tenant Roster', ['Tenant name', 'Contact', 'Monthly rent', 'Balance'],
+          row => [row.fullName, row.contactNumber || null, reportPeso(row.monthlyRent), reportPeso(row.balance)]],
+        rooms: ['Room Occupancy Status', ['Room number', 'Room type', 'Capacity', 'Available slots', 'Status'],
+          row => [row.roomNumber, row.roomType, row.capacity, row.availableSlots, row.status]],
+        income: ['Monthly Collections Summary', ['Billing month', 'Total collections'],
+          row => [row.month, reportPeso(row.total)]]
+      };
+      const [title, headers, rowValues] = reports[type];
+      ownerReportTitle.textContent = title;
+      DormMapReports.render(ownerReportOutput, headers, data.map(rowValues));
+      ownerReportPreview.classList.remove('hidden');
+    } catch (error) {
+      if (request === ownerReportRequest) ownerToast(error.message, true);
     }
   }
 

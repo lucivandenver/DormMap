@@ -1745,6 +1745,7 @@
     const statusLabels = {
       pending_owner: { label: '⏳ Waiting for Owner Acceptance', cls: 'bg-amber-100 text-amber-800 border border-amber-200' },
       accepted_by_owner: { label: 'Room offer received', cls: 'bg-emerald-100 text-emerald-800 border border-emerald-200' },
+      archived_by_owner: { label: 'Application closed by owner', cls: 'bg-slate-100 text-slate-600 border border-slate-200' },
       confirmed: { label: '✅ Confirmed Active Tenant', cls: 'bg-emerald-200 text-emerald-900 border border-emerald-300' },
       declined_by_owner: { label: '❌ Declined by Owner', cls: 'bg-rose-100 text-rose-800 border border-rose-200' },
       cancelled_by_tenant: { label: 'Cancelled by You', cls: 'bg-slate-100 text-slate-600 border border-slate-200' },

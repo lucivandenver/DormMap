@@ -19,7 +19,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
   const { sequelize } = await import('../../models/db.js');
   const { migrateSchema, closeDatabase } = await import('../../services/schemaService.js');
   const { User } = await import('../../models/userModel.js');
-  const { BoardingHouse, OwnerRoom, OwnerTenant, OwnerGallery } = await import('../../models/ownerModels.js');
+  const { BoardingHouse, OwnerRoom, OwnerTenant, OwnerGallery, OwnerInquiry } = await import('../../models/ownerModels.js');
   const { Barangay, EducationalInstitution, BarangayNotification } = await import('../../models/adminModels.js');
   const { TenantApplication } = await import('../../models/tenantModels.js');
   const { OwnerPayment } = await import('../../models/ownerModels.js');
@@ -1004,6 +1004,73 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const pendingList = await pendingResponse.json();
       assert.ok(!pendingList.data.some(application => application.id === other.id));
     });
+    await t.test('owner batches enforce availability and ownership and preserve archived records', async () => {
+      const ownerCookie = await login(owner.email);
+      const api = '/owner-dashboard/api';
+      const batch = (path, data, auth = ownerCookie) => request(api + path, auth, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+      });
+      await owner.update({ paymentMethods: '["Cash"]' });
+      const applicants = await User.bulkCreate(['A', 'B', 'C'].map(letter => ({
+        fullName: `Bulk applicant ${letter}`, email: `bulk-${letter.toLowerCase()}-${suffix}@example.test`,
+        accountType: 'tenant', password, emailVerified: true
+      })));
+      ids.push(...applicants.map(user => user.id));
+      const [first, secondApp, third] = await TenantApplication.bulkCreate(applicants.map(user => ({
+        tenantId: user.id, ownerId: owner.id, boardingHouseId: house.id, boardingHouseName: house.name
+      })));
+      const foreign = await TenantApplication.create({ tenantId: applicants[0].id, ownerId: pending.id, boardingHouseName: 'Other property' });
+      const singleRoom = await saveRoom(owner.id, null, { boardingHouseId: house.id, roomNumber: 'Bulk A', rentalPrice: 1000 });
+      const otherRoom = await saveRoom(owner.id, null, { boardingHouseId: house.id, roomNumber: 'Bulk B', rentalPrice: 1200 });
+      const offers = [first, secondApp, third, foreign].map((app, index) => ({
+        applicationId: app.id, roomId: index === 2 ? otherRoom.id : singleRoom.id
+      }));
+      assert.equal((await batch('/pending-applications/bulk-offer', { offers: [offers[0], offers[0]] })).status, 422);
+      assert.equal((await batch('/pending-applications/bulk-offer', { offers }, cookie)).status, 403);
+      const offered = await batch('/pending-applications/bulk-offer', { offers });
+      assert.equal(offered.status, 200, await offered.clone().text());
+      const { results: offerResults } = await offered.json();
+      assert.deepEqual(offerResults.map(result => result.success), [true, false, true, false]);
+      assert.match(offerResults[1].error, /outstanding offers/);
+      assert.equal((await singleRoom.reload()).availableSlots, 1);
+      const retry = await (await batch('/pending-applications/bulk-offer', { offers: offers.slice(0, 2) })).json();
+      assert.deepEqual(retry.results.map(result => result.success), [false, false]);
+      assert.equal(await BarangayNotification.count({ where: { userId: applicants[0].id, type: 'application_offered' } }), 1);
+
+      const stayCookie = await login(applicants[0].email);
+      const archivedAppCookie = await login(applicants[2].email);
+      assert.equal((await request(`/tenant-dashboard/api/applications/${first.id}/confirm`, stayCookie, { method: 'POST' })).status, 200);
+      assert.equal((await singleRoom.reload()).availableSlots, 0);
+      const applicationArchive = await (await batch('/pending-applications/bulk-archive', { ids: [secondApp.id, third.id, first.id, foreign.id] })).json();
+      assert.deepEqual(applicationArchive.results.map(result => result.success), [true, true, false, false]);
+      assert.equal((await request(`/tenant-dashboard/api/applications/${third.id}/confirm`, archivedAppCookie, { method: 'POST' })).status, 409);
+      const archivedApps = await (await request(`${api}/pending-applications?archived=true&boardingHouseId=${house.id}`, ownerCookie)).json();
+      assert.deepEqual(new Set(archivedApps.data.map(app => app.id)), new Set([secondApp.id, third.id]));
+
+      const stay = await OwnerTenant.findOne({ where: { tenantUserId: applicants[0].id } });
+      const activeArchive = await (await batch('/tenants/bulk-archive', { ids: [stay.id] })).json();
+      assert.match(activeArchive.results[0].error, /record move-out/i);
+      await saveTenant(owner.id, stay.id, { status: 'moved_out' });
+      const oldPayment = await OwnerPayment.create({ ownerId: owner.id, tenantId: stay.id, roomId: singleRoom.id, amount: 1000, dueDate: '2026-01-15', status: 'paid' });
+      const anotherFormer = await OwnerTenant.create({ ownerId: owner.id, roomId: singleRoom.id, fullName: 'Another former tenant', status: 'moved_out' });
+      const foreignFormer = await OwnerTenant.create({ ownerId: pending.id, fullName: 'Other owner’s former tenant', status: 'moved_out' });
+      const tenantArchive = await (await batch('/tenants/bulk-archive', { ids: [stay.id, anotherFormer.id, foreignFormer.id] })).json();
+      assert.deepEqual(tenantArchive.results.map(result => result.success), [true, true, false]);
+      const ownerArchived = await (await request(`${api}/tenants?archived=true&boardingHouseId=${house.id}`, ownerCookie)).json();
+      assert.deepEqual(new Set(ownerArchived.data.map(item => item.id)), new Set([stay.id, anotherFormer.id]));
+      const ownerCurrent = await (await request(`${api}/tenants`, ownerCookie)).json();
+      assert.ok(!ownerCurrent.data.some(item => item.id === stay.id));
+      const history = await (await request('/tenant-dashboard/api/stays', stayCookie)).json();
+      assert.ok(history.stays.some(item => item.id === stay.id && item.status === 'moved_out'));
+      assert.equal((await oldPayment.reload()).status, 'paid');
+
+      const inquiries = await OwnerInquiry.bulkCreate([owner.id, owner.id, pending.id].map(ownerId => ({ ownerId, clientName: 'Inquiry fixture', message: 'Question about rent' })));
+      const inquiryArchive = await (await batch('/inquiries/bulk-archive', { ids: inquiries.map(item => item.id) })).json();
+      assert.deepEqual(inquiryArchive.results.map(result => result.success), [true, true, false]);
+      const archivedInquiries = await (await request(`${api}/inquiries?archived=true`, ownerCookie)).json();
+      assert.ok(inquiries.slice(0, 2).every(inquiry => archivedInquiries.data.some(item => item.id === inquiry.id)));
+      assert.equal((await inquiries[2].reload()).isArchived, false);
+    });
     await request(`/tenant-dashboard/api/saved-dorms/${key}`, cookie, { method: 'DELETE' });
     assert.equal(await SavedDorm.count({ where: { tenantId: tenant.id } }), 0);
     assert.ok(room.id);
@@ -1019,6 +1086,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       await PaymentAuditLog.destroy({ where: { paymentId: { [Op.in]: paymentIds } } });
       await Payment.destroy({ where: { id: { [Op.in]: paymentIds } } });
       await OwnerPayment.destroy({ where: { ownerId: { [Op.in]: ids } } });
+      await OwnerInquiry.destroy({ where: { ownerId: { [Op.in]: ids } } });
       await TenantApplication.destroy({ where: { ownerId: { [Op.in]: ids } } });
       await OwnerTenant.destroy({ where: { ownerId: { [Op.in]: ids } } });
       await Barangay.destroy({ where: { name: { [Op.like]: 'Review Barangay %' } } });

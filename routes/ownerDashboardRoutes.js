@@ -58,11 +58,14 @@ router.delete('/api/rooms/:id', controller.deleteRoom);
 // Tenant Management
 router.get('/api/tenants', controller.getTenants);
 router.post('/api/tenants', controller.createTenant);
+router.post('/api/tenants/bulk-archive', controller.archiveTenants);
 router.patch('/api/tenants/:id', controller.updateTenant);
 router.delete('/api/tenants/:id', controller.deleteTenant);
 
 // Pending Tenant Applications (tenants who registered with this BH)
 router.get('/api/pending-applications', controller.getPendingApplications);
+router.post('/api/pending-applications/bulk-offer', controller.bulkOfferApplications);
+router.post('/api/pending-applications/bulk-archive', controller.archiveApplications);
 router.post('/api/pending-applications/:userId/accept', controller.acceptTenantApplication);
 router.delete('/api/pending-applications/:userId/decline', controller.declineTenantApplication);
 
@@ -76,6 +79,7 @@ router.delete('/api/payments/:id', controller.deletePayment);
 // Inquiry Module
 router.get('/api/inquiries', controller.getInquiries);
 router.post('/api/inquiries', controller.createInquiry);
+router.post('/api/inquiries/bulk-archive', controller.archiveInquiries);
 router.patch('/api/inquiries/:id/reply', controller.replyInquiry);
 router.patch('/api/inquiries/:id/archive', controller.archiveInquiry);
 

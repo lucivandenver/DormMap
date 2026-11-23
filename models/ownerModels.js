@@ -67,6 +67,7 @@ export const OwnerTenant = sequelize.define('OwnerTenant', {
   contractStart:    { type: DataTypes.DATEONLY, allowNull: true },
   contractEnd:      { type: DataTypes.DATEONLY, allowNull: true },
   status:           { type: DataTypes.STRING,  allowNull: false, defaultValue: 'active' },
+  archivedAt:       { type: DataTypes.DATE,    allowNull: true },
   notes:            { type: DataTypes.TEXT,    allowNull: true },
 }, { tableName: 'OwnerTenants' });
 

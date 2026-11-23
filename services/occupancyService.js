@@ -108,6 +108,7 @@ export async function saveTenant(ownerId, id, body, { transaction: suppliedTrans
     await ownerLock(ownerId, transaction);
     const tenant = id ? await OwnerTenant.findOne({ where: { id, ownerId }, transaction, lock: transaction.LOCK.UPDATE }) : null;
     if (id && !tenant) fail('Tenant not found.', 404);
+    if (tenant?.archivedAt) fail('This tenant record has been archived.', 409);
     if (tenant?.tenantUserId && tenant.tenantUserId !== account?.id) fail('Tenant assignment changed. Refresh and try again.', 409);
     const oldRoomId = tenant?.roomId;
     const values = pick(body, ['fullName','email','contactNumber','emergencyContact','emergencyPhone','moveInDate','moveOutDate','contractStart','contractEnd','notes']);
@@ -226,7 +227,7 @@ export function offerMoveInDate(value) {
   return value;
 }
 
-export async function offerApplication(ownerId, tenantUserId, body) {
+export async function offerApplication(ownerId, tenantUserId, body, { bulk = false } = {}) {
   const moveInDate = offerMoveInDate(body.moveInDate);
   return sequelize.transaction(async transaction => {
     const user = await User.findOne({ where: { id: tenantUserId, accountType: 'tenant' }, transaction, lock: transaction.LOCK.UPDATE });
@@ -235,6 +236,7 @@ export async function offerApplication(ownerId, tenantUserId, body) {
     requireOwnerPaymentMethod(owner);
     const app = await TenantApplication.findOne({ where: { ownerId, tenantId: tenantUserId, ...(body.applicationId ? { id: body.applicationId } : {}), status: { [Op.in]: ['pending_owner','accepted_by_owner'] } }, order: [['createdAt','DESC']], transaction, lock: transaction.LOCK.UPDATE });
     if (!app) fail('This inquiry is no longer pending or offered.', 409);
+    if (bulk && app.status === 'accepted_by_owner') fail('An offer has already been sent. Open Review to change it.', 409);
     if (await activeStay(user, transaction)) {
       throw Object.assign(new Error('This tenant already has an active tenancy. Their current owner must record move-out before you can send an offer.'), { status: 409, code: 'ACTIVE_TENANCY' });
     }
@@ -248,6 +250,14 @@ export async function offerApplication(ownerId, tenantUserId, body) {
     if (house?.approvalStatus !== 'approved') fail('This branch must be approved before offering rooms.');
     const occupantCount = integer(body.occupantCount || 1, 1, 'Household occupants');
     if (occupantCount > room.availableSlots || (room.rentalBasis === 'bed' && occupantCount !== 1)) fail('The offered household size does not match this room.');
+    if (bulk) {
+      const outstanding = await TenantApplication.sum('occupantCount', {
+        where: { ownerId, roomId: room.id, status: 'accepted_by_owner' }, transaction
+      });
+      if (outstanding && (room.rentalBasis === 'room' || Number(outstanding) + occupantCount > room.availableSlots)) {
+        fail('This room has outstanding offers for its remaining space. Choose another room.', 409);
+      }
+    }
     const rate = Number(room.rentalPrice) * (room.rentalBasis === 'person' ? occupantCount : 1);
     const monthlyRent = money(body.monthlyRent ?? rate);
     if (monthlyRent <= 0) fail('Enter a monthly total greater than zero in the Review form.');
@@ -299,6 +309,7 @@ export async function removeTenant(ownerId, id) {
     await ownerLock(ownerId, transaction);
     const tenant = await OwnerTenant.findOne({ where: { id, ownerId }, transaction, lock: transaction.LOCK.UPDATE });
     if (!tenant) fail('Tenant not found.', 404);
+    if (tenant.archivedAt) fail('This tenant record has been archived.', 409);
     const { Payment } = await import('../models/paymentModels.js');
     if (await OwnerPayment.count({ where: { ownerId, tenantId: id }, transaction }) || await Payment.count({ where: { ownerId, ownerTenantId: id }, transaction }) || tenant.tenantUserId) fail('This tenant has linked history. Change status to moved_out instead of deleting.', 409);
     const roomId = tenant.roomId;

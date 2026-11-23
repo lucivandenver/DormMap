@@ -1,4 +1,6 @@
 {{> head}}
+<link rel="stylesheet" href="/css/report-print.css">
+<script src="/js/report-print.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 <body class="bg-slate-100 text-slate-800 font-sans transition-colors duration-200">
 <div class="min-h-screen flex flex-col" id="barangayApp">
@@ -558,9 +560,9 @@
         </div>
 
         <div id="reportPreviewContainer" class="hidden rounded-2xl bg-white p-6 shadow-xs border border-slate-100">
-          <div class="flex items-center justify-between border-b pb-3 mb-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b pb-3 mb-4">
             <h3 id="reportPreviewTitle" class="font-bold text-slate-900 text-base">Report Preview</h3>
-            <button onclick="window.print()" class="button font-bold flex items-center gap-2">Print Report</button>
+            <button type="button" id="printBarangayReport" class="button font-bold flex items-center gap-2">Print Report</button>
           </div>
           <div id="reportPreviewContent" class="overflow-x-auto"></div>
         </div>
@@ -1762,54 +1764,41 @@ document.getElementById('profileForm').onsubmit = async e => {
 };
 
 // 16. REPORTS
+const barangayReportPreview = document.getElementById('reportPreviewContainer');
+const barangayReportTitle = document.getElementById('reportPreviewTitle');
+const barangayReportContent = document.getElementById('reportPreviewContent');
+document.getElementById('printBarangayReport').addEventListener('click', () => {
+  DormMapReports.print(barangayReportTitle, barangayReportPreview.dataset.scope, barangayReportContent);
+});
+
+let barangayReportRequest = 0;
 async function generateReport(type) {
+  const request = ++barangayReportRequest;
+  barangayReportPreview.classList.add('hidden');
   try {
-    let res = await req(`${api}/reports?type=${type}`);
-    const data = res.data || [];
-    const container = document.getElementById('reportPreviewContainer');
-    const title = document.getElementById('reportPreviewTitle');
-    const content = document.getElementById('reportPreviewContent');
-    container.classList.remove('hidden');
+    const { data, barangay } = await req(`${api}/reports?type=${type}`);
+    if (request !== barangayReportRequest) return;
 
-    const titles = {
-      houses: 'Boarding Houses Master List Report',
-      permits: 'Business Permit Monitoring Report',
-      tenants: 'Tenant Registration & Directory Report'
+    const reports = {
+      houses: ['Boarding Houses Master List Report',
+        ['Establishment', 'Owner name', 'Address', 'Vacant rooms', 'Occupied rooms', 'Status'],
+        row => [row.boardingHouseName, row.fullName, row.boardingHouseAddress || barangay,
+          row.roomsAvailable ?? 0, row.occupiedRooms ?? 0, row.applicationStatus]],
+      permits: ['Business Permit Monitoring Report',
+        ['Permit number', 'Establishment', 'Issue date', 'Expiration date', 'Status'],
+        row => [row.permitNumber, row.boardingHouseName, row.issueDate, row.expirationDate, row.status]],
+      tenants: ['Tenant Registration & Directory Report',
+        ['Tenant name', 'Boarding house', 'Branch', 'Room', 'Move-in date', 'Status'],
+        row => [row.fullName, row.selectedBoardingHouse, row.branchNumber, row.roomNumber, row.moveInDate, row.status]]
     };
-    title.textContent = `${titles[type] || 'Official Barangay Report'} - Brgy. ${res.barangay || ''}`;
-
-    if (!data.length) {
-      content.innerHTML = '<p class="py-4 text-center text-xs text-slate-400">No records available for this report filter.</p>';
-      return;
-    }
-
-    content.innerHTML = `
-      <table class="w-full">
-        <thead>
-          <tr>
-            <th>Establishment</th>
-            <th>Owner Name</th>
-            <th>Address</th>
-            <th>Vacant Rooms</th>
-            <th>Occupied Rooms</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${data.map(x => `
-            <tr>
-              <td><b>${esc(x.boardingHouseName || x.fullName)}</b></td>
-              <td>${esc(x.fullName || '—')}</td>
-              <td>${esc(x.boardingHouseAddress || res.barangay)}</td>
-              <td>${x.roomsAvailable ?? 0}</td>
-              <td>${x.occupiedRooms ?? 0}</td>
-              <td>${esc(x.applicationStatus || 'Active')}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    `;
-  } catch (e) { toast(e.message, true); }
+    const [title, headers, rowValues] = reports[type];
+    barangayReportTitle.textContent = title;
+    barangayReportPreview.dataset.scope = barangay ? 'Barangay ' + barangay : '';
+    DormMapReports.render(barangayReportContent, headers, data.map(rowValues));
+    barangayReportPreview.classList.remove('hidden');
+  } catch (error) {
+    if (request === barangayReportRequest) toast(error.message, true);
+  }
 }
 
 // Initial Load

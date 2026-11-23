@@ -1,0 +1,25 @@
+.dormmap-report-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.875rem; }
+.dormmap-report-table th, .dormmap-report-table td { padding: 0.65rem; border-bottom: 1px solid #e2e8f0; overflow-wrap: anywhere; }
+.dormmap-report-table th { color: #334155; background: #f8fafc; }
+.dormmap-report-empty { padding: 1rem 0; color: #475569; }
+.dormmap-print-sheet { display: none; }
+
+@media print {
+  @page { size: A4 portrait; margin: 15mm; }
+
+  body.dormmap-printing-report { display: block !important; height: auto !important; margin: 0; color: #111; background: white !important; }
+  body.dormmap-printing-report > :not(.dormmap-print-sheet) { display: none !important; }
+  body.dormmap-printing-report > .dormmap-print-sheet { display: block !important; font: 10pt/1.4 Arial, sans-serif; }
+  .dormmap-print-sheet header { break-after: avoid; margin-bottom: 6mm; border-bottom: 1pt solid #333; padding-bottom: 3mm; }
+  .dormmap-print-sheet .dormmap-print-brand { font-size: 11pt; font-weight: bold; letter-spacing: 0.06em; }
+  .dormmap-print-sheet h1 { margin: 2mm 0; font-size: 17pt; line-height: 1.2; }
+  .dormmap-print-sheet .dormmap-report-table { font-size: 9pt; }
+  .dormmap-print-sheet .dormmap-report-table thead { display: table-header-group; }
+  .dormmap-print-sheet .dormmap-report-table tr { break-inside: avoid; }
+  .dormmap-print-sheet .dormmap-report-table th, .dormmap-print-sheet .dormmap-report-table td {
+    border: 0.5pt solid #777;
+    padding: 2mm;
+    vertical-align: top;
+    color: #111;
+  }
+}
