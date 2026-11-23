@@ -906,11 +906,14 @@ export const getReportsData = async (req, res, next) => {
     }
 
     if (type === 'permits') {
-      const ownerIds = (await User.findAll({ where: ownerFilter, attributes: ['id'], raw: true })).map(x => x.id);
+      const owners = await User.findAll({ where: ownerFilter, attributes: ['id', 'boardingHouseName'], raw: true });
+      const ownerNames = new Map(owners.map(owner => [owner.id, owner.boardingHouseName]));
+      const ownerIds = [...ownerNames.keys()];
       const permitsData = await BusinessPermit.findAll({
-        where: { ownerId: { [Op.in]: ownerIds.length ? ownerIds : [0] } }
+        where: { ownerId: { [Op.in]: ownerIds.length ? ownerIds : [0] } },
+        order: [['expirationDate', 'ASC']]
       });
-      return res.json({ barangay, type, data: permitsData });
+      return res.json({ barangay, type, data: permitsData.map(permit => ({ ...permit.toJSON(), boardingHouseName: ownerNames.get(permit.ownerId) })) });
     }
 
     if (type === 'tenants') {

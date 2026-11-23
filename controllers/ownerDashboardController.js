@@ -31,6 +31,29 @@ const propertyForRoom = (room, houses) => room?.boardingHouseId || houses.find(h
 const audit = (req, action, entityType, entityId, details = {}) =>
   OwnerActivityLog.create({ ownerId: oid(req), action, entityType, entityId, details, ipAddress: req.ip }).catch(() => {});
 
+const batchId = value => (typeof value === 'string' || typeof value === 'number') && /^[1-9]\d*$/.test(String(value)) && Number.isSafeInteger(Number(value)) ? Number(value) : null;
+
+async function runOwnerBatch(items, getId, apply) {
+  if (!Array.isArray(items) || !items.length || items.length > 25) fail('Select between 1 and 25 records.');
+  const ids = items.map(item => batchId(getId(item)));
+  if (ids.includes(null) || new Set(ids).size !== ids.length) fail('Choose valid, distinct records.');
+
+  const results = [];
+  for (const [index, id] of ids.entries()) {
+    try {
+      await apply(id, items[index]);
+      results.push({ id, success: true });
+    } catch (error) {
+      if (error.status >= 400 && error.status < 500) results.push({ id, success: false, error: error.message });
+      else {
+        console.error('Owner batch action failed for record', id, error);
+        results.push({ id, success: false, error: 'Could not update this record. Refresh and try again.' });
+      }
+    }
+  }
+  return { results };
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export const ownerDashboardPage = async (req, res, next) => {
@@ -335,7 +358,7 @@ export const deleteRoom = async (req, res, next) => {
 
 export const getTenants = async (req, res, next) => {
   try {
-    const where = { ownerId: oid(req) };
+    const where = { ownerId: oid(req), archivedAt: req.query.archived === 'true' ? { [Op.ne]: null } : null };
     if (req.query.status) where.status = req.query.status;
     if (req.query.search) {
       where[Op.or] = ['fullName', 'email', 'contactNumber'].map(f => ({ [f]: { [Op.like]: `%${req.query.search}%` } }));
@@ -370,6 +393,24 @@ export const updateTenant = async (req, res, next) => {
 
 export const deleteTenant = async (req, res, next) => {
   try { const data = await removeTenant(oid(req), req.params.id); await audit(req, 'deleteTenant', 'Inventory', data?.id || req.params.id, {}); res.status(200).json({ data, message: 'Tenant removed.' }); } catch (error) { next(error); }
+};
+
+export const archiveTenants = async (req, res, next) => {
+  try {
+    const ownerId = oid(req);
+    res.json(await runOwnerBatch(req.body?.ids, id => id, async id => {
+      const changed = await sequelize.transaction(async transaction => {
+        await ownerLock(ownerId, transaction);
+        const tenant = await OwnerTenant.findOne({ where: { id, ownerId }, transaction, lock: transaction.LOCK.UPDATE });
+        if (!tenant) fail('Tenant record not found.', 404);
+        if (tenant.status === 'active') fail('Record move-out before archiving an active tenant.', 409);
+        if (tenant.archivedAt) return false;
+        await tenant.update({ archivedAt: new Date() }, { transaction });
+        return true;
+      });
+      if (changed) await audit(req, 'archive_tenant', 'OwnerTenant', id);
+    }));
+  } catch (error) { next(error); }
 };
 
 export const getPayments = async (req, res, next) => {
@@ -523,7 +564,7 @@ export const deletePayment = async (req, res, next) => {
 
 export const getInquiries = async (req, res, next) => {
   try {
-    const where = { ownerId: oid(req), isArchived: false };
+    const where = { ownerId: oid(req), isArchived: req.query.archived === 'true' };
     if (req.query.status) where.status = req.query.status;
     const data = await OwnerInquiry.findAll({ where, order: [['createdAt', 'DESC']] });
     res.json({ data });
@@ -532,9 +573,11 @@ export const getInquiries = async (req, res, next) => {
 
 export const replyInquiry = async (req, res, next) => {
   try {
-    const inq = await OwnerInquiry.findOne({ where: { id: req.params.id, ownerId: oid(req) } });
-    if (!inq) return res.status(404).json({ error: 'Inquiry not found.' });
-    await inq.update({ reply: req.body.reply, status: 'replied', visitDate: req.body.visitDate || null });
+    const inq = await sequelize.transaction(async transaction => {
+      const inquiry = await OwnerInquiry.findOne({ where: { id: req.params.id, ownerId: oid(req), isArchived: false }, transaction, lock: transaction.LOCK.UPDATE });
+      if (!inquiry) fail('Open inquiry not found.', 404);
+      return inquiry.update({ reply: req.body.reply, status: 'replied', visitDate: req.body.visitDate || null }, { transaction });
+    });
     await audit(req, 'reply_inquiry', 'OwnerInquiry', inq.id, {});
     res.json({ data: inq, message: 'Reply sent.' });
   } catch (err) { next(err); }
@@ -542,11 +585,22 @@ export const replyInquiry = async (req, res, next) => {
 
 export const archiveInquiry = async (req, res, next) => {
   try {
-    const inq = await OwnerInquiry.findOne({ where: { id: req.params.id, ownerId: oid(req) } });
-    if (!inq) return res.status(404).json({ error: 'Inquiry not found.' });
-    await inq.update({ isArchived: true, status: 'completed' });
+    await archiveOwnerInquiry(req, req.params.id);
     res.json({ message: 'Inquiry archived.' });
   } catch (err) { next(err); }
+};
+
+async function archiveOwnerInquiry(req, id) {
+  const ownerId = oid(req);
+  const [changed] = await OwnerInquiry.update({ isArchived: true, status: 'completed' }, { where: { id, ownerId, isArchived: false } });
+  if (changed) await audit(req, 'archive_inquiry', 'OwnerInquiry', id);
+  else if (!await OwnerInquiry.count({ where: { id, ownerId } })) fail('Inquiry not found.', 404);
+}
+
+export const archiveInquiries = async (req, res, next) => {
+  try {
+    res.json(await runOwnerBatch(req.body?.ids, id => id, id => archiveOwnerInquiry(req, id)));
+  } catch (error) { next(error); }
 };
 
 export const createInquiry = async (req, res, next) => {
@@ -1182,18 +1236,19 @@ export const updateMyDocuments = async (req, res, next) => {
 export const getPendingApplications = async (req, res, next) => {
   try {
     const ownerId = oid(req);
+    const archived = req.query.archived === 'true';
     const owner = await User.findByPk(ownerId, { attributes: ['boardingHouseName'] });
     const branchId = selectedBranch(req.query.boardingHouseId);
     const branch = branchId && await BoardingHouse.findOne({ where: { id: branchId, ownerId }, attributes: ['id', 'isPrimary'] });
     if (branchId && !branch) return res.json({ data: [] });
 
     let applications = await TenantApplication.findAll({
-      where: { ownerId },
+      where: { ownerId, ...(archived ? { status: 'archived_by_owner' } : {}) },
       order: [['createdAt', 'DESC']]
     });
 
     // Legacy registrations saved a house name without an application ID.
-    const legacyHouseIsUnique = (!branch || branch.isPrimary) && owner?.boardingHouseName && await User.count({
+    const legacyHouseIsUnique = !archived && (!branch || branch.isPrimary) && owner?.boardingHouseName && await User.count({
       where: { accountType: 'boarding_house_owner', isArchived: false, boardingHouseName: owner.boardingHouseName }
     }) === 1;
     if (legacyHouseIsUnique) {
@@ -1224,7 +1279,7 @@ export const getPendingApplications = async (req, res, next) => {
       }
     }
 
-    applications = (await closeDuplicatePendingApplications(applications)).filter(app => ['pending_owner', 'accepted_by_owner'].includes(app.status));
+    if (!archived) applications = (await closeDuplicatePendingApplications(applications)).filter(app => ['pending_owner', 'accepted_by_owner'].includes(app.status));
 
     if (branch) applications = applications.filter(app =>
       app.boardingHouseId === branch.id || (!app.boardingHouseId && branch.isPrimary)
@@ -1250,7 +1305,7 @@ export const getPendingApplications = async (req, res, next) => {
         contactNumber: tenantUser ? tenantUser.contactNumber : '',
         gender: tenantUser ? tenantUser.gender : '',
         profilePicture: tenantUser ? tenantUser.profilePicture : '',
-        validIdPicture: tenantUser ? tenantUser.validIdPicture : '',
+        validIdPicture: !archived ? tenantUser?.validIdPicture || '' : '',
         boardingHouseId: app.boardingHouseId,
         boardingHouseName: app.boardingHouseName,
         occupantCount: app.occupantCount,
@@ -1271,6 +1326,42 @@ export const getPendingApplications = async (req, res, next) => {
 
     res.json({ data: enriched });
   } catch (err) { next(err); }
+};
+
+export const bulkOfferApplications = async (req, res, next) => {
+  try {
+    const ownerId = oid(req);
+    res.json(await runOwnerBatch(req.body?.offers, offer => offer?.applicationId, async (id, offer) => {
+      const app = await TenantApplication.findOne({ where: { id, ownerId }, attributes: ['tenantId'] });
+      if (!app) fail('Application not found.', 404);
+      const saved = await offerApplication(ownerId, app.tenantId, { ...offer, applicationId: id }, { bulk: true });
+      await audit(req, 'offer_application', 'TenantApplication', id, { roomId: saved.roomId });
+    }));
+  } catch (error) { next(error); }
+};
+
+export const archiveApplications = async (req, res, next) => {
+  try {
+    const ownerId = oid(req);
+    res.json(await runOwnerBatch(req.body?.ids, id => id, async id => {
+      const initial = await TenantApplication.findOne({ where: { id, ownerId }, attributes: ['tenantId'] });
+      if (!initial) fail('Application not found.', 404);
+      const changed = await sequelize.transaction(async transaction => {
+        await User.findByPk(initial.tenantId, { transaction, lock: transaction.LOCK.UPDATE });
+        await ownerLock(ownerId, transaction);
+        const app = await TenantApplication.findOne({ where: { id, ownerId }, transaction, lock: transaction.LOCK.UPDATE });
+        if (!app) fail('Application not found.', 404);
+        if (app.status === 'archived_by_owner') return false;
+        if (!['pending_owner', 'accepted_by_owner'].includes(app.status)) fail('Only open applications and offers can be archived here.', 409);
+        await app.update({ status: 'archived_by_owner' }, { transaction });
+        await BarangayNotification.create({ userId: app.tenantId, title: 'Rental application closed',
+          body: `The owner closed your application for ${app.boardingHouseName}. You can still browse and apply for another boarding house.`,
+          type: 'application_archived' }, { transaction });
+        return true;
+      });
+      if (changed) await audit(req, 'archive_application', 'TenantApplication', id);
+    }));
+  } catch (error) { next(error); }
 };
 
 export const acceptTenantApplication = async (req, res, next) => {
