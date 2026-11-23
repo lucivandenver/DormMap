@@ -41,3 +41,17 @@ test('Google owner signup creates a draft until the property application is subm
   assert.equal(result.user.applicationStatus, 'draft');
   assert.equal(result.isNew, true);
 });
+
+test('Google sign-in uses the Google avatar until an owner uploads a profile photo', async t => {
+  const user = { accountType: 'boarding_house_owner', update: async function(values) { Object.assign(this, values); } };
+  const googlePhoto = 'https://lh3.googleusercontent.com/owner-avatar';
+  const ownerProfile = { ...profile, photos: [{ value: googlePhoto }] };
+  t.mock.method(User, 'findOne', async () => user);
+
+  await resolveGoogleAccount(ownerProfile);
+  assert.equal(user.profilePicture, googlePhoto);
+
+  user.profilePicture = '/uploads/owner-avatar.webp';
+  await resolveGoogleAccount(ownerProfile);
+  assert.equal(user.profilePicture, '/uploads/owner-avatar.webp');
+});

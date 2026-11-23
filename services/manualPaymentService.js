@@ -65,6 +65,9 @@ export async function submitRentPayment(user, id, fields, proof) {
     if (!ownerPaymentConfig(owner).methods.includes(method)) fail('Select a payment method accepted by your owner.');
     const date = validatePaidDate(fields.paidDate);
     const qrPayment = usesPaymentQr(method);
+    if (method === 'GCash' && (typeof fields.reference !== 'string' || !/^[0-9]{13}$/.test(fields.reference.trim()))) {
+      fail('Enter the 13-digit GCash reference number.');
+    }
     const reference = qrPayment ? paymentReference(fields.reference, method) : null;
     if (qrPayment && !proof) fail(`Upload your ${method} proof of payment.`);
     if (qrPayment) await assertReferenceAvailable(bill, method, reference, transaction);

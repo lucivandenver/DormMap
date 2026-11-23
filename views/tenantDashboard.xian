@@ -531,7 +531,8 @@
               <p class="text-sm text-slate-600">Use your owner's QR code for the selected method, then upload proof and enter the transaction reference.</p>
               <img id="rentPaymentQr" class="mx-auto max-h-52 w-full max-w-52 rounded-xl border border-slate-200 object-contain" alt="Owner’s payment QR code">
               <label class="block text-sm font-semibold">Transaction reference number
-                <input name="reference" maxlength="100" class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
+                <input name="reference" maxlength="100" autocomplete="off" aria-describedby="rentReferenceHint" class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
+                <span id="rentReferenceHint" class="mt-1 block text-xs font-normal text-slate-600"></span>
               </label>
               <label class="block text-sm font-semibold">Proof of payment
                 <input type="file" name="proof" accept="image/jpeg,image/png,image/webp" class="mt-1 block w-full text-xs">
@@ -1195,7 +1196,7 @@
       Swal.fire({
         icon: 'info',
         title: '🔒 Feature Locked',
-        html: 'This module is locked until your boarding house owner accepts your tenant registration.<br><br>You can communicate directly with the landlord under <strong>Messages</strong>!',
+        html: 'This module is available once you accept a room offer from your boarding house owner.<br><br>You can reach the owner under <strong>Messages</strong>.',
         confirmButtonColor: '#023020',
         confirmButtonText: '💬 Open Messages',
         showCancelButton: true,
@@ -1552,7 +1553,35 @@
       rentPaymentForm.elements[name].required = qrPayment;
       rentPaymentForm.elements[name].disabled = !qrPayment;
     }
+
+    const reference = rentPaymentForm.elements.reference;
+    const gcash = method === 'GCash';
+    reference.inputMode = gcash ? 'numeric' : 'text';
+    reference.maxLength = gcash ? 13 : 100;
+    if (gcash) reference.pattern = '[0-9]{13}';
+    else reference.removeAttribute('pattern');
+    document.getElementById('rentReferenceHint').textContent = gcash
+      ? 'Enter exactly 13 digits from your GCash receipt.'
+      : 'Enter the letters and numbers shown on your QR Ph receipt.';
+    cleanGcashReference();
   }
+
+  function cleanGcashReference() {
+    if (rentPaymentForm.elements.method.value !== 'GCash') return;
+    const reference = rentPaymentForm.elements.reference;
+    const digits = reference.value.replace(/[^0-9]/g, '').slice(0, 13);
+    if (reference.value !== digits) reference.value = digits;
+  }
+
+  rentPaymentForm.elements.reference.addEventListener('input', cleanGcashReference);
+  rentPaymentForm.elements.reference.addEventListener('paste', event => {
+    if (rentPaymentForm.elements.method.value !== 'GCash' || !event.clipboardData) return;
+    const field = event.currentTarget;
+    const digits = event.clipboardData.getData('text').replace(/[^0-9]/g, '');
+    event.preventDefault();
+    field.setRangeText(digits, field.selectionStart, field.selectionEnd, 'end');
+    cleanGcashReference();
+  });
   rentPaymentForm.elements.method.addEventListener('change', updateRentPaymentMethod);
 
   function openRentPayment(id) {
@@ -1715,7 +1744,7 @@
 
     const statusLabels = {
       pending_owner: { label: '⏳ Waiting for Owner Acceptance', cls: 'bg-amber-100 text-amber-800 border border-amber-200' },
-      accepted_by_owner: { label: '🎉 Offer Received — Accept Back to Confirm!', cls: 'bg-emerald-100 text-emerald-800 border border-emerald-200 animate-pulse' },
+      accepted_by_owner: { label: 'Room offer received', cls: 'bg-emerald-100 text-emerald-800 border border-emerald-200' },
       confirmed: { label: '✅ Confirmed Active Tenant', cls: 'bg-emerald-200 text-emerald-900 border border-emerald-300' },
       declined_by_owner: { label: '❌ Declined by Owner', cls: 'bg-rose-100 text-rose-800 border border-rose-200' },
       cancelled_by_tenant: { label: 'Cancelled by You', cls: 'bg-slate-100 text-slate-600 border border-slate-200' },
@@ -1734,8 +1763,8 @@
       if (app.status === 'accepted_by_owner') {
         actionBtns = `
           <div class="flex items-center gap-2 mt-2">
-            <button onclick="confirmApplication(${Number(app.id)}, ${actionHouseName})" class="flex-1 px-3 py-2 bg-emerald-800 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm active:scale-95 flex items-center justify-center gap-1">
-              ✅ Accept Back & Confirm Room
+            <button type="button" onclick="confirmApplication(${Number(app.id)}, this)" class="flex-1 px-3 py-2 bg-emerald-800 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm active:scale-95 flex items-center justify-center gap-1 disabled:opacity-60">
+              Accept room offer
             </button>
             <button onclick="cancelApplication(${Number(app.id)}, ${actionHouseName})" class="px-3 py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-xl text-xs font-bold transition active:scale-95">
               ✕ Decline
@@ -1764,28 +1793,34 @@
             </div>
             <span class="px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ${sl.cls}">${sl.label}</span>
           </div>
-          ${app.status === 'accepted_by_owner' ? `<p class="text-emerald-800 font-semibold text-[11px] p-2 bg-emerald-50 rounded-xl">💡 The owner has accepted your application! Click "Accept Back" to lock in this boarding house and unlock all features.</p>` : ''}
+          ${app.status === 'accepted_by_owner' ? `<div class="space-y-1 rounded-xl bg-emerald-50 p-2 text-emerald-950">
+            ${app.room?.roomNumber ? `<p class="font-semibold">Room ${escapeMessage(app.room.roomNumber)}${app.room.roomType ? ' · ' + escapeMessage(app.room.roomType) : ''}</p>` : ''}
+            ${app.monthlyRent ? `<p>₱${Number(app.monthlyRent).toLocaleString('en-PH', {minimumFractionDigits: 2})} per month${app.moveInDate ? ' · Move-in ' + escapeMessage(app.moveInDate) : ''}</p>` : ''}
+            <p>Accepting this offer confirms your tenancy and closes your other open applications.</p>
+          </div>` : ''}
           ${actionBtns}
         </div>
       `;
     }).join('');
   }
 
-  async function confirmApplication(appId, bhName) {
-    if (!await DormMapFeedback.confirm( `Confirm your tenancy at ${bhName}? Your other pending applications will be cancelled.`)) return;
-
+  async function confirmApplication(appId, button) {
+    if (button.disabled) return;
+    button.disabled = true;
     DormMapFeedback.show('Confirming…', 'pending');
     try {
       const res = await fetch(`/tenant-dashboard/api/applications/${appId}/confirm`, { method: 'POST' });
       const data = await res.json();
       if (res.ok) {
         DormMapFeedback.show('Tenancy confirmed.');
-        loadOverview();
+        await loadOverview();
       } else {
         DormMapFeedback.show(data.error || 'Failed to confirm application.', 'error');
       }
     } catch (err) {
       DormMapFeedback.show('Please try again.', 'error');
+    } finally {
+      button.disabled = false;
     }
   }
 
