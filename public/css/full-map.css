@@ -134,7 +134,7 @@ html:has(.dormmap-full-map[open], .dormmap-property-dialog[open]) { overflow: hi
   overflow: hidden;
   border-radius: 50%;
   background: #ecfdf5;
-  color: #047857;
+  color: #fff;
   font: 800 19px/1 system-ui, sans-serif;
 }
 .dormmap-listing-avatar { height: 40px; width: 40px; border: 1px solid #d1fae5; }

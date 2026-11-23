@@ -54,16 +54,16 @@ async function request(controller, body) {
 test('tenant saves proof and notes for QR Ph while a previous checkout is pending', async t => {
   const { user, today, bill, rental, ownerNotifications } = setup(t, { onlineCheckout: true });
   await assert.rejects(submitRentPayment(user, bill.id, {
-    method: 'QR Ph', reference: '123456789', paidDate: today
+    method: 'QR Ph', reference: 'QR9AB3', paidDate: today
   }), /Upload your QR Ph proof/);
   const result = await submitRentPayment(user, bill.id, {
-    method: 'QR Ph', reference: '123456789', paidDate: today, notes: 'Advance rent'
+    method: 'QR Ph', reference: 'QR9AB3', paidDate: today, notes: 'Advance rent'
   }, { originalname: 'proof.jpg', mimetype: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff]) });
   assert.equal(result.submittedMethod, 'QR Ph');
   assert.equal(result.status, 'pending');
   assert.equal(result.reviewStatus, 'submitted');
   assert.equal(result.submissionNotes, 'Advance rent');
-  assert.equal(result.submittedReference, '123456789');
+  assert.equal(result.submittedReference, 'QR9AB3');
   assert.match(result.paymentProofUrl, /^\/documents\//);
   assert.equal(rental.balance, 1100);
   assert.equal(ownerNotifications.length, 1);

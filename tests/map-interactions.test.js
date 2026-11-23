@@ -229,12 +229,24 @@ test('configured Voyager preserves pins, switches layers and falls back to Stree
 test('listing pins use owner photos and popups show branch, barangay, town and current distance', async () => {
   const { context, leaflet } = fixture();
   const house = {
-    propertyName: 'Sample House', branchNumber: 2, fullName: 'Sample Owner',
+    ownerId: 15, propertyName: 'Sample House', branchNumber: 2, fullName: 'Sample Owner',
     ownerProfilePicture: 'https://lh3.googleusercontent.com/owner',
     barangay: 'Labasan', town: 'Bongabong', latitude: 12.774, longitude: 121.47
   };
   const pin = context.window.dormMapPropertyPin(leaflet, false, house);
-  assert.equal(pin.html.children[0].children[0].src, house.ownerProfilePicture);
+  const avatar = pin.html.children[0];
+  const image = avatar.children[0];
+  assert.equal(image.src, house.ownerProfilePicture);
+  assert.equal(image.hidden, true);
+  assert.equal(avatar.textContent, 'S');
+  image.events.load();
+  assert.equal(image.hidden, false);
+  image.events.error();
+  assert.equal(avatar.children.length, 0);
+  const sameOwner = context.window.dormMapPropertyPin(leaflet, false, { ...house, branchNumber: 3 });
+  const otherOwner = context.window.dormMapPropertyPin(leaflet, false, { ...house, ownerId: 16 });
+  assert.equal(sameOwner.html.children[0].style.backgroundColor, avatar.style.backgroundColor);
+  assert.notEqual(otherOwner.html.children[0].style.backgroundColor, avatar.style.backgroundColor);
   assert.equal(context.window.dormMapListingTitle(house), 'Sample House · Branch 2');
   assert.equal(context.window.dormMapListingLocation(house), 'Labasan, Bongabong');
   assert.equal(context.window.dormMapListingLocation({ ...house, address: 'Purok 2, Main Street' }), 'Purok 2, Main Street, Labasan, Bongabong');

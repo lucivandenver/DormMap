@@ -1,4 +1,6 @@
 (() => {
+  const avatarColors = ['#1d4ed8', '#6d28d9', '#be185d', '#92400e', '#0f766e', '#9f1239', '#334155', '#0369a1', '#713f12', '#166534'];
+
   function profileImage(house) {
     const value = house?.ownerProfilePicture || house?.profilePicture;
     if (typeof value !== 'string' || !value.trim()) return null;
@@ -11,15 +13,23 @@
   function avatar(house, className) {
     const circle = document.createElement('span');
     circle.className = className;
-    circle.textContent = String(house.fullName || house.ownerName || house.propertyName || house.name || 'D').trim().charAt(0).toUpperCase();
+    const name = [house.fullName, house.ownerName, house.propertyName, house.name]
+      .map(value => String(value || '').trim()).find(Boolean) || 'DormMap';
+    const identity = String(house.ownerId ?? name.toLowerCase());
+    let hue = 0;
+    for (const char of identity) hue = (hue * 31 + char.codePointAt(0)) >>> 0;
+    circle.textContent = Array.from(name)[0].toUpperCase();
+    circle.style.backgroundColor = avatarColors[hue % avatarColors.length];
     const source = profileImage(house);
     if (source) {
       const image = document.createElement('img');
-      image.src = source;
       image.alt = '';
+      image.hidden = true;
       image.referrerPolicy = 'no-referrer';
+      image.addEventListener('load', () => { image.hidden = false; }, { once: true });
       image.addEventListener('error', () => image.remove(), { once: true });
       circle.append(image);
+      image.src = source;
     }
     return circle;
   }

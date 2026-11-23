@@ -206,19 +206,10 @@ export const overview = async (req, res, next) => {
       };
     }));
 
-    const hasConfirmedApp = enrichedApplications.some(a => a.status === 'confirmed');
-    const hasAcceptedApp = enrichedApplications.some(a => a.status === 'accepted_by_owner');
-
-    // Tenant is accepted/unlocked if:
-    // 1. A confirmed application exists, OR
-    // 2. An owner has accepted an application (offer received/accepted), OR
-    // 3. Active OwnerTenant record exists, OR
-    // 4. user.applicationStatus is 'approved'
-    const isAcceptedOrConfirmed = hasConfirmedApp || hasAcceptedApp || (tenantRec && tenantRec.status === 'active') || user.applicationStatus === 'approved';
-    const isPending = !isAcceptedOrConfirmed;
-
-    // Self-heal: ensure user.applicationStatus is approved in DB if already accepted/confirmed
-    if (isAcceptedOrConfirmed && user.applicationStatus !== 'approved') {
+    const hasTenancy = tenantRec?.status === 'active' || enrichedApplications.some(app => app.status === 'confirmed');
+    const hasOpenApplication = enrichedApplications.some(app => ['pending_owner', 'accepted_by_owner'].includes(app.status));
+    const isPending = !hasTenancy && (hasOpenApplication || user.applicationStatus !== 'approved');
+    if (hasTenancy && user.applicationStatus !== 'approved') {
       user.applicationStatus = 'approved';
       if (!user.selectedBoardingHouse && enrichedApplications[0]?.boardingHouseName) {
         user.selectedBoardingHouse = enrichedApplications[0].boardingHouseName;

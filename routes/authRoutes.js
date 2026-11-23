@@ -224,7 +224,7 @@ router.get("/auth/google/callback", (req, res, next) => {
           return res.redirect("/complete-owner-profile");
         }
       } else if (accountType === 'tenant') {
-        if (isNew || !user.selectedBoardingHouse || !user.contactNumber) {
+        if (isNew || !user.contactNumber) {
           req.session.pendingTenantUserId = user.id;
           delete req.session.oauthNewUser;
           return res.redirect("/complete-tenant-profile");
@@ -380,9 +380,8 @@ router.post("/complete-tenant-profile", cleanRegistration, registerUpload, async
   if (!pendingId) return res.redirect(req.session.accountType === 'tenant' ? '/tenant-dashboard' : '/login');
   const wantsJson = req.accepts(['html', 'json']) === 'json';
   const reject = error => wantsJson ? res.status(422).json({ error }) : renderTenantProfile(res, error, req.body);
-  const { selectedBoardingHouse, gender, acceptTerms } = req.body;
+  const { gender, acceptTerms } = req.body;
   const contactNumber = String(req.body.contactNumber || '').trim();
-  if (!selectedBoardingHouse) return reject('Select a target boarding house.');
   if (!/^\+?[0-9 ()-]{7,24}$/.test(contactNumber) || contactNumber.replace(/\D/g, '').length < 7) return reject('Enter a valid contact number.');
   if (!isTenantGender(gender)) return reject('Choose Male or Female.');
   if (acceptTerms !== 'on') return reject('Accept the Terms of Service and Privacy Policy to continue.');
@@ -397,10 +396,11 @@ router.post("/complete-tenant-profile", cleanRegistration, registerUpload, async
       if (!user || user.accountType !== 'tenant' || user.isArchived || user.isSuspended) return {};
       const details = await registrationApplicationDetails(req.body, transaction);
       const validIdPicture = await storeReviewFile(idFile, user.id, 'tenant-registration', transaction);
-      const inquiry = await createRegistrationInquiry(user, details, transaction);
+      const inquiry = details && await createRegistrationInquiry(user, details, transaction);
       await user.update({
-        selectedBoardingHouse: details.boardingHouseName, contactNumber, gender,
-        preferredLocation: details.requestedRoomType, validIdPicture, applicationStatus: 'pending_owner',
+        selectedBoardingHouse: details?.boardingHouseName || null, contactNumber, gender,
+        preferredLocation: details?.requestedRoomType || null, validIdPicture,
+        applicationStatus: details ? 'pending_owner' : 'approved',
         ...(picture ? { profilePicture: `/uploads/${picture.filename}` } : {})
       }, { transaction });
       return { user, inquiry };
@@ -408,7 +408,7 @@ router.post("/complete-tenant-profile", cleanRegistration, registerUpload, async
 
     const { user, inquiry } = result;
     if (!user) return res.status(403).send('Tenant account required.');
-    if (inquiry.created) void notifyRegistrationInquiry(user, inquiry.application);
+    if (inquiry?.created) void notifyRegistrationInquiry(user, inquiry.application);
 
     req.session.userId = user.id;
     req.session.accountType = 'tenant';

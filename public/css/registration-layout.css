@@ -120,23 +120,52 @@
   border-radius: .85rem;
   background: white;
 }
-.registration-house-choice {
-  display: block;
-  width: 100%;
-  min-height: 2.75rem;
-  padding: .5rem .7rem;
-  border-radius: .55rem;
-  color: #0f172a;
-  text-align: left;
-  font-size: .875rem;
-  font-weight: 650;
+.registration-house-preview {
+  min-width: 0;
+  padding: .45rem;
   overflow-wrap: anywhere;
+  color: #0f172a;
 }
-.registration-house-choice:hover, .registration-house-choice[aria-pressed="true"] {
-  background: #ecfdf5;
-  color: #065f46;
+.registration-house-preview + .registration-house-preview,
+.registration-house-results li + li { border-top: 1px solid #e2e8f0; }
+.registration-house-preview strong { display: block; margin-bottom: .35rem; font-size: .85rem; }
+.registration-house-actions { display: flex; flex-wrap: wrap; gap: .35rem; }
+.registration-house-actions button, .registration-select-house {
+  min-height: 2.5rem;
+  padding: .35rem .62rem;
+  border: 1px solid #cbd5e1;
+  border-radius: .6rem;
+  background: white;
+  color: #064e3b;
+  font-size: .75rem;
+  font-weight: 700;
+  text-align: center;
 }
-.registration-map-choices { max-height: 10rem; overflow-y: auto; }
+.registration-select-house, .registration-house-actions .registration-select-house {
+  border-color: #065f46;
+  background: #065f46;
+  color: white;
+}
+.registration-house-actions button:hover, .registration-select-house:hover { filter: brightness(.9); }
+.registration-map-choices { max-height: 10.25rem; overflow-y: auto; }
+.registration-property-details {
+  color: #0f172a;
+  font: 400 .875rem/1.5 Inter, system-ui, sans-serif;
+}
+.registration-details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .85rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+.registration-details-header h2 { overflow-wrap: anywhere; font-weight: 800; }
+.registration-details-header .registration-search-button { flex: 0 0 auto; }
+.registration-details-content { display: grid; gap: .75rem; padding: 1rem; }
+.registration-details-content img { width: 100%; max-height: 12rem; border-radius: .8rem; object-fit: cover; }
+.registration-details-content > p { white-space: pre-line; overflow-wrap: anywhere; }
+.registration-details-content .registration-select-house { justify-self: start; }
 .registration-house-selection {
   display: flex;
   align-items: center;

@@ -208,6 +208,7 @@ export const getBoardingHouses = async (req, res, next) => {
       return {
         houses: [primary, ...records.filter(house => house.id !== primary.id)],
         mapOwner: {
+          ownerId: user.id,
           fullName: user.fullName,
           profilePicture: user.profilePicture,
           publicMapUnregistered: user.publicMapUnregistered

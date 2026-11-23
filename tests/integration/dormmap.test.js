@@ -387,11 +387,18 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const pay = `/tenant-dashboard/api/payments/${bill.id}/submit`;
       const fields = new FormData();
       fields.set('method', 'GCash');
-      fields.set('reference', '1234567890');
+      fields.set('reference', '0123456789012');
       fields.set('paidDate', history.today);
       fields.set('notes', 'Rent paid in advance.');
       fields.set('proof', new Blob([png], { type: 'image/png' }), 'proof.png');
       assert.equal((await request(pay, unrelatedCookie, { method: 'POST', body: fields })).status, 404);
+      for (const invalid of ['123456789012', '12345678901234', 'A123456789012']) {
+        fields.set('reference', invalid);
+        const rejected = await request(pay, tenantCookie, { method: 'POST', body: fields });
+        assert.equal(rejected.status, 422);
+        assert.match((await rejected.json()).error, /13-digit GCash/);
+      }
+      fields.set('reference', '0123456789012');
       const payment = await request(pay, tenantCookie, { method: 'POST', body: fields });
       assert.equal(payment.status, 200, await payment.clone().text());
       const submitted = await payment.json();
@@ -401,6 +408,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.equal(submission.reviewStatus, 'submitted');
       assert.equal(submission.submissionNotes, 'Rent paid in advance.');
       assert.equal(submission.submittedPaidDate, history.today);
+      assert.equal(submission.submittedReference, '0123456789012');
       assert.equal((await request(submission.paymentProofUrl, ownerCookie)).status, 200);
       assert.equal((await request(submission.paymentProofUrl, unrelatedCookie)).status, 404);
       assert.equal((await request(pay, tenantCookie, { method: 'POST', body: fields })).status, 409);
@@ -860,6 +868,53 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const offered = await TenantApplication.findByPk(googleApplication.id);
       assert.equal(offered.roomId, alternative.id);
       assert.equal(offered.preferredRoomLabel, 'Room B201 · 2nd Floor · Solo Room');
+      const tenantCookie = await login(googleTenant.email);
+      const overview = await request('/tenant-dashboard/api/overview', tenantCookie);
+      assert.equal((await overview.json()).isPending, true);
+      assert.equal((await googleTenant.reload()).applicationStatus, 'pending_owner');
+      const result = await request(`/tenant-dashboard/api/applications/${offered.id}/confirm`, tenantCookie, { method: 'POST' });
+      assert.equal(result.status, 200, await result.clone().text());
+      assert.equal((await offered.reload()).status, 'confirmed');
+      assert.equal(Number((await alternative.reload()).availableSlots), 0);
+    });
+
+    await t.test('tenants can complete email and Google registration without choosing a property', async () => {
+      const googleTenant = await User.create({
+        fullName: 'Undecided Google tenant', email: `google-undecided-${suffix}@example.test`,
+        password, accountType: 'tenant', emailVerified: true, oauthProvider: 'google'
+      });
+      ids.push(googleTenant.id);
+      const { sessionStore } = await import('../../config/session.js');
+      const sid = crypto.randomUUID();
+      await sessionStore.set(sid, { cookie: { maxAge: 60_000 }, pendingTenantUserId: googleTenant.id });
+      const googleCookie = 'dormmap.sid=' + encodeURIComponent('s:' + signature.sign(sid, sessionSecret));
+      const body = new FormData();
+      body.set('contactNumber', '09171234567');
+      body.set('gender', 'female');
+      body.set('acceptTerms', 'on');
+      body.set('validIdPicture', new Blob(['%PDF-1.7'], { type: 'application/pdf' }), 'id.pdf');
+      const completed = await request('/complete-tenant-profile', googleCookie, {
+        method: 'POST', headers: { Accept: 'application/json' }, body
+      });
+      assert.equal(completed.status, 200, await completed.clone().text());
+      assert.equal((await completed.json()).redirect, '/tenant-dashboard');
+
+      const email = `email-undecided-${suffix}@example.test`;
+      const signup = new FormData();
+      for (const [field, value] of Object.entries({
+        fullName: 'Undecided email tenant', email, accountType: 'tenant',
+        password: fixturePassword, confirmPassword: fixturePassword, gender: 'male', acceptTerms: 'on'
+      })) signup.set(field, value);
+      const signedUp = await request('/register', null, { method: 'POST', body: signup });
+      assert.equal(signedUp.status, 302, await signedUp.clone().text());
+      assert.equal(signedUp.headers.get('location'), '/login?registered=1');
+      const emailTenant = await User.findOne({ where: { email } });
+      ids.push(emailTenant.id);
+      for (const tenant of [await googleTenant.reload(), emailTenant]) {
+        assert.equal(tenant.selectedBoardingHouse, null);
+        assert.equal(tenant.applicationStatus, 'approved');
+        assert.equal(await TenantApplication.count({ where: { tenantId: tenant.id } }), 0);
+      }
     });
 
     await t.test('named messaging, private notification reads and authenticated SSE updates', async () => {

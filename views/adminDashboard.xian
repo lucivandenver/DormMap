@@ -377,8 +377,20 @@
             <div><h2 class="text-lg font-bold text-slate-900">Landing page featured listings</h2><p class="mt-1 max-w-2xl text-sm text-slate-500">Choose the three verified boarding houses displayed under “Top verified listings.” The View all page will continue to show every verified listing.</p></div>
             <button id="saveFeaturedListings" type="button" class="button !bg-emerald-700 !text-white" disabled>Save selection</button>
           </div>
+          <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <label class="block min-w-0 text-sm font-semibold text-slate-700">Name
+              <input id="featuredListingSearch" type="search" placeholder="Search boarding house name" class="field mt-1" autocomplete="off">
+            </label>
+            <label class="block min-w-0 text-sm font-semibold text-slate-700">Barangay
+              <select id="featuredListingBarangay" class="field mt-1"><option value="">All barangays</option></select>
+            </label>
+            <label class="block min-w-0 text-sm font-semibold text-slate-700">Boarding type
+              <select id="featuredListingType" class="field mt-1"><option value="">All types</option></select>
+            </label>
+          </div>
           <p id="featuredListingsStatus" role="status" class="mt-4 text-sm text-slate-600">Loading verified listings…</p>
           <div id="featuredListingsOptions" class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3"></div>
+          <p id="featuredListingsNoMatches" class="mt-3 text-sm text-slate-500" role="status" hidden>No boarding houses match your filters.</p>
         </div>
       </section>
 
@@ -764,6 +776,7 @@
     cursor: pointer; transition: transform 150ms ease;
   }
   .gis-pin-wrapper:hover { transform: scale(1.2) translateY(-2px); z-index: 9999 !important; }
+  [data-featured-listing-row][hidden] { display: none; }
   .field { width: 100%; border: 1px solid #e2e8f0; border-radius: 0.65rem; padding: 0.65rem 0.85rem; font-size: 0.875rem; outline: none; background: white; }
   .field:focus { border-color: #94a3b8; box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.08); }
   .toolbar { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.25rem; }
@@ -814,12 +827,41 @@ async function request(url, opts = {}) {
 }
 
 let featuredListings = [];
+const featuredSearch = document.getElementById('featuredListingSearch');
+const featuredBarangay = document.getElementById('featuredListingBarangay');
+const featuredType = document.getElementById('featuredListingType');
+
+function filterFeaturedListings() {
+  const query = featuredSearch.value.toLowerCase().trim();
+  let matches = 0;
+  for (const row of document.querySelectorAll('[data-featured-listing-row]')) {
+    const listing = featuredListings[Number(row.dataset.featuredListingRow)];
+    const name = [listing.boardingHouseName, listing.propertyName, listing.name,
+      listing.branchNumber && `Branch ${listing.branchNumber}`].filter(Boolean).join(' ').toLowerCase();
+    row.hidden = !name.includes(query) || Boolean(featuredBarangay.value && listing.barangay !== featuredBarangay.value) ||
+      Boolean(featuredType.value && (listing.propertyType || 'Boarding House') !== featuredType.value);
+    if (!row.hidden) matches++;
+  }
+  document.getElementById('featuredListingsNoMatches').hidden = !featuredListings.length || matches > 0;
+}
+
+function setFeaturedFilterOptions(select, allLabel, values) {
+  const selected = select.value;
+  const options = [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  select.replaceChildren(new Option(allLabel, ''), ...options.map(value => new Option(value, value)));
+  select.value = options.includes(selected) ? selected : '';
+}
+
+featuredSearch.addEventListener('input', filterFeaturedListings);
+featuredBarangay.addEventListener('change', filterFeaturedListings);
+featuredType.addEventListener('change', filterFeaturedListings);
+
 function updateFeaturedSelectionState(message = '') {
   const checks = [...document.querySelectorAll('[data-featured-listing]')];
   const selected = checks.filter(input => input.checked);
   const limit = Math.min(3, checks.length);
   checks.forEach(input => { input.disabled = selected.length >= limit && !input.checked; });
-  document.getElementById('saveFeaturedListings').disabled = selected.length !== limit;
+  document.getElementById('saveFeaturedListings').disabled = !limit || selected.length !== limit;
   document.getElementById('featuredListingsStatus').textContent = message || `${selected.length} of ${limit} listings selected.`;
 }
 async function loadFeaturedListings() {
@@ -829,14 +871,19 @@ async function loadFeaturedListings() {
     featuredListings = data.listings || [];
     const selected = new Set(data.listingIds || []);
     container.innerHTML = featuredListings.map((listing, index) => `
-      <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 transition hover:border-emerald-300 has-[:checked]:border-emerald-600 has-[:checked]:bg-emerald-50/60">
+      <label data-featured-listing-row="${index}" class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 transition hover:border-emerald-300 has-[:checked]:border-emerald-600 has-[:checked]:bg-emerald-50/60">
         <input type="checkbox" data-featured-listing value="${esc(listing.id)}" ${selected.has(String(listing.id)) ? 'checked' : ''} class="mt-1 h-4 w-4 accent-emerald-700">
         <span class="min-w-0"><span class="block truncate font-bold text-slate-900">${esc(listing.propertyName || listing.name || 'Boarding House')}${listing.branchNumber ? ` · Branch ${esc(listing.branchNumber)}` : ''}</span><span class="mt-1 block text-xs text-slate-600">${esc(listing.barangay || 'Barangay not listed')} · ${esc(listing.propertyType || 'Boarding House')}</span><span class="mt-1 block text-xs text-slate-500">${Number(listing.roomsAvailable || 0)} available rooms</span></span>
       </label>`).join('') || '<p class="text-sm text-slate-500">No verified public listings are available yet.</p>';
+    setFeaturedFilterOptions(featuredBarangay, 'All barangays', featuredListings.map(listing => listing.barangay));
+    setFeaturedFilterOptions(featuredType, 'All types', featuredListings.map(listing => listing.propertyType || 'Boarding House'));
     container.querySelectorAll('[data-featured-listing]').forEach(input => input.addEventListener('change', () => updateFeaturedSelectionState()));
+    filterFeaturedListings();
     updateFeaturedSelectionState(featuredListings.length ? '' : 'Verified listings will appear here after approval.');
   } catch (error) {
+    featuredListings = [];
     container.innerHTML = '';
+    filterFeaturedListings();
     updateFeaturedSelectionState(error.message);
   }
 }
