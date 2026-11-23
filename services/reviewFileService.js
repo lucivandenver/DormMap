@@ -22,6 +22,11 @@ export async function storeReviewFile(file, userId, scope = 'registration', tran
   const id = randomUUID();
   let filename = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, '_').slice(-200);
   const bytes = file.buffer || await readFile(file.path);
+  if (scope === 'barangay-registration' &&
+      photoType(bytes) !== file.mimetype &&
+      !(file.mimetype === 'application/pdf' && bytes.subarray(0, 5).toString('ascii') === '%PDF-')) {
+    throw Object.assign(new Error('Upload a valid JPG, PNG, WebP, or PDF government ID.'), { status: 422 });
+  }
   if (scope === 'payment-qr' || scope === 'payment-proof') {
     const type = photoType(bytes);
     if (!type || type !== file.mimetype || bytes.length > 5 * 1024 * 1024) {

@@ -2,7 +2,7 @@ import { initiateRentPayment, getLandlordGcashDetails, handlePaymongoWebhookPayl
 import { expireUnpaidPaymongoCheckout, getPaymongoCheckoutStatus } from '../services/paymongoService.js';
 import { Payment, PaymentReceipt } from '../models/paymentModels.js';
 import { User } from '../models/userModel.js';
-import { OwnerRoom } from '../models/ownerModels.js';
+import { BoardingHouse, OwnerPayment, OwnerRoom } from '../models/ownerModels.js';
 import { generateReceiptHtml } from '../services/receiptService.js';
 import { PAYMENT_STATUS } from '../utils/paymentStatus.js';
 
@@ -127,16 +127,26 @@ export const getTenantPayments = async (req, res, next) => {
 export const getOwnerPayments = async (req, res, next) => {
   try {
     const user = req.currentUser;
-    const payments = await Payment.findAll({
+    const branchId = req.query.boardingHouseId === undefined ? null : Number(req.query.boardingHouseId);
+    if (branchId !== null && (!Number.isSafeInteger(branchId) || branchId < 1)) {
+      return res.status(422).json({ error: 'Select a valid boarding house branch.' });
+    }
+    const branch = branchId && await BoardingHouse.findOne({ where: { id: branchId, ownerId: user.id } });
+    const allPayments = branchId && !branch ? [] : await Payment.findAll({
       where: { ownerId: user.id },
       include: [
         { model: User, as: 'tenant', attributes: ['id', 'fullName', 'email', 'contactNumber'] },
-        { model: OwnerRoom, as: 'room', attributes: ['id', 'roomNumber', 'roomType'] },
+        { model: OwnerRoom, as: 'room', attributes: ['id', 'roomNumber', 'roomType', 'boardingHouseId'] },
+        { model: OwnerPayment, as: 'tenantPayment', attributes: ['boardingHouseId'] },
         { model: PaymentReceipt }
       ],
       order: [['createdAt', 'DESC']]
     });
 
+    const payments = branch ? allPayments.filter(payment => {
+      const id = payment.tenantPayment?.boardingHouseId || payment.boardingHouseId || payment.room?.boardingHouseId;
+      return id === branchId || (!id && branch.isPrimary);
+    }) : allPayments;
     const totalCollected = payments.filter(p => p.status === PAYMENT_STATUS.SUCCEEDED).reduce((s, p) => s + Number(p.amount), 0);
     const totalPending = payments.filter(p => p.status === PAYMENT_STATUS.PENDING || p.status === PAYMENT_STATUS.PROCESSING).reduce((s, p) => s + Number(p.amount), 0);
 

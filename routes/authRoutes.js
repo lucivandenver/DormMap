@@ -1,7 +1,7 @@
 import { createTenantApplication, findApplicationProperty } from '../services/tenantApplicationService.js';
 import { storeReviewFile } from '../services/reviewFileService.js';
 import { randomUUID } from 'node:crypto';
-import { BoardingHouse, OwnerRoom } from '../models/ownerModels.js';
+import { OwnerRoom, OwnerInquiry, OwnerNotification, OwnerMessage } from '../models/ownerModels.js';
 import { validateOwnerSetup, validateOwnerPaymentSetup, registerPropertyInventory } from '../services/ownerRegistrationService.js';
 import { hasApprovedBarangay, ownerBarangayError } from '../services/registrationPolicy.js';
 import { uploadDir } from '../config/storage.js';
@@ -9,6 +9,8 @@ import express from "express";
 import passport from "passport";
 import { User, sequelize } from "../models/userModel.js";
 import { GALLERY_CATEGORIES, storeRegistrationPhotos } from '../services/propertyPhotoService.js';
+import { registrationTemp, startRegistrationDraft, registrationDraftDirectory,
+  saveRegistrationDraftFile, useRegistrationDraft } from '../services/registrationUploads.js';
 
 import {
   loginPage, registerPage, forgotPasswordPage, sendPasswordResetLink,
@@ -17,7 +19,6 @@ import {
   completeBarangayProfilePage, completeBarangayProfile,
 } from "../controllers/authController.js";
 import fs from "fs";
-import { tmpdir } from "node:os";
 import path from "path";
 import multer from "multer";
 
@@ -25,7 +26,7 @@ const router = express.Router();
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const dir = file.fieldname === "profilePicture" ? uploadDir : path.join(tmpdir(), "dormmap-registration");
+    const dir = file.fieldname === "profilePicture" ? uploadDir : registrationTemp;
     fs.mkdir(dir, { recursive: true, mode: 0o700 }, error => cb(error, dir));
   },
   filename: (req, file, cb) => {
@@ -39,12 +40,12 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024, files: 1013, fields: 750, parts: 1763 },
   fileFilter: (req, file, cb) => {
     if (!allowedMimeTypes.has(file.mimetype) || !['.jpg','.jpeg','.png','.webp','.pdf'].includes(path.extname(file.originalname).toLowerCase())) {
-      return cb(new Error('Only JPG, PNG, WEBP, and PDF files are allowed.'));
+      return cb(Object.assign(new Error('Only JPG, PNG, WebP, and PDF files are allowed.'), { status: 422 }));
     }
     cb(null, true);
   },
 });
-const registerUpload = upload.fields([
+const registrationFields = [
   { name: "profilePicture", maxCount: 1 },
   { name: "gcashQrCode", maxCount: 1 },
   { name: "qrPhCode", maxCount: 1 },
@@ -61,20 +62,75 @@ const registerUpload = upload.fields([
   ...Array.from({ length: 100 }, (_, index) => GALLERY_CATEGORIES.map(({ field }) => ({
     name: index ? `branch${index + 1}_${field}` : field, maxCount: 1
   }))).flat(),
-]);
+];
 
 router.get("/login", loginPage);
 router.post("/login", loginUser);
 router.get("/register", registerPage);
-const cleanFailedRegistration = (req, res, next) => {
+const stagedFields = new Set(registrationFields
+  .map(({ name }) => name)
+  .filter(name => !['profilePicture', 'governmentId', 'barangayCertificate'].includes(name)));
+const registrationError = (req, res, error) => {
+  const multerError = error instanceof multer.MulterError;
+  const status = error.status || (multerError ? 422 : 500);
+  const message = status >= 500 ? 'The server could not accept your attachments. Please try again.'
+    : multerError && error.code === 'LIMIT_FILE_SIZE' ? 'Each attachment must be 5 MB or smaller.' : error.message;
+  if (status >= 500) console.error('Registration upload failed:', error);
+  if (req.accepts(['html', 'json']) === 'json') return res.status(status).json({ error: message });
+  res.status(status).send(message);
+};
+const parseRegistration = upload.fields(registrationFields);
+const parseStagedFile = upload.single('file');
+const registerUpload = (req, res, next) => {
+  parseRegistration(req, res, error => {
+    if (error) return registrationError(req, res, error);
+    next();
+  });
+};
+const loadStagedRegistration = async (req, res, next) => {
+  try {
+    const finished = req.session.completedRegistrationDraft;
+    if (finished && req.body?.registrationDraft === finished.id && req.path === finished.path) {
+      return res.status(finished.status).json(finished.result);
+    }
+    await useRegistrationDraft(req, stagedFields);
+    next();
+  } catch (error) { return registrationError(req, res, error); }
+};
+const cleanRegistration = (req, res, next) => {
   res.on('finish', () => {
     for (const file of Object.values(req.files || {}).flat()) {
-      if (file.path && (!req.registrationSaved || file.fieldname !== "profilePicture")) fs.rm(file.path, { force: true }, () => {});
+      if (!file.staged && file.path && (!req.registrationSaved || file.fieldname !== 'profilePicture')) fs.rm(file.path, { force: true }, () => {});
+    }
+    if (req.registrationSaved && req.registrationDraftDirectory) {
+      fs.rm(req.registrationDraftDirectory, { recursive: true, force: true }, () => {});
     }
   });
   next();
 };
-router.post("/register", cleanFailedRegistration, registerUpload, registerUser);
+
+router.post('/owner-registration/uploads', async (req, res, next) => {
+  try { res.status(201).json({ id: await startRegistrationDraft(req) }); } catch (error) { next(error); }
+});
+router.post('/owner-registration/uploads/:draft/:field', async (req, res, next) => {
+  try {
+    if (!stagedFields.has(req.params.field)) return res.status(422).json({ error: 'Unknown registration attachment.' });
+    req.registrationDraftDirectory = await registrationDraftDirectory(req, req.params.draft);
+    next();
+  } catch (error) { return registrationError(req, res, error); }
+}, (req, res) => {
+  parseStagedFile(req, res, async error => {
+    try {
+      if (error) throw error;
+      const extension = await saveRegistrationDraftFile(req.registrationDraftDirectory, req.params.field, req.file);
+      res.json({ extension });
+    } catch (error) {
+      if (req.file?.path) fs.rm(req.file.path, { force: true }, () => {});
+      registrationError(req, res, error);
+    }
+  });
+});
+router.post("/register", cleanRegistration, registerUpload, loadStagedRegistration, registerUser);
 router.get("/forgot-password", forgotPasswordPage);
 router.post("/forgot-password", sendPasswordResetLink);
 router.get("/reset-password", resetPasswordPage);
@@ -149,10 +205,10 @@ router.get("/auth/google/callback", (req, res, next) => {
       return res.redirect("/login?error=google_auth_failed");
     }
 
+    const isNew = req.session.oauthNewUser === true;
     req.logIn(user, (loginErr) => {
       if (loginErr) return res.redirect("/login?error=google_auth_failed");
 
-      const isNew = req.session.oauthNewUser === true;
       const accountType = normalizeAccountType(user.accountType);
 
       if (accountType === 'barangay') {
@@ -185,7 +241,7 @@ router.get("/auth/google/callback", (req, res, next) => {
 });
 
 router.get("/complete-barangay-profile", completeBarangayProfilePage);
-router.post("/complete-barangay-profile", completeBarangayProfile);
+router.post("/complete-barangay-profile", cleanRegistration, registerUpload, completeBarangayProfile);
 
 router.get("/complete-owner-profile", async (req, res, next) => {
   const pendingId = req.session.pendingOwnerUserId || req.session.userId;
@@ -202,7 +258,7 @@ router.get("/complete-owner-profile", async (req, res, next) => {
   });
 });
 
-router.post("/complete-owner-profile", cleanFailedRegistration, registerUpload, async (req, res) => {
+router.post("/complete-owner-profile", cleanRegistration, registerUpload, loadStagedRegistration, async (req, res) => {
   const pendingId = req.session.pendingOwnerUserId || req.session.userId;
   if (!pendingId) return res.redirect("/login");
 
@@ -216,7 +272,8 @@ router.post("/complete-owner-profile", cleanFailedRegistration, registerUpload, 
     acceptTerms
   } = req.body;
 
-  const renderError = (error) => res.render("completeOwnerProfile", {
+  const wantsJson = req.accepts(['html', 'json']) === 'json';
+  const renderError = (error) => wantsJson ? res.status(422).json({ error }) : res.render("completeOwnerProfile", {
     title: "Complete Property Details | DormMap",
     authValues: req.body,
     error
@@ -248,7 +305,8 @@ router.post("/complete-owner-profile", cleanFailedRegistration, registerUpload, 
       if (user.boardingHouseName && user.barangay && user.mapPin) {
         throw new Error('This account already has a property registration. Manage its information from the owner dashboard.');
       }
-      const galleryImagesArr = await storeRegistrationPhotos(req.files, user.id, transaction);
+      const galleries = await storeRegistrationPhotos(req.files, user.id, transaction, setup.branches.length);
+      const [galleryImagesArr] = galleries;
       const [boardingHousePicture] = galleryImagesArr;
       const validIdPicture = await getUploadUrl('validIdPicture');
       const businessPermit = await getUploadUrl('businessPermit');
@@ -279,7 +337,7 @@ router.post("/complete-owner-profile", cleanFailedRegistration, registerUpload, 
       }
 
       await user.save({ transaction });
-      await registerPropertyInventory(user, setup, req.files, transaction);
+      await registerPropertyInventory(user, setup, galleries, transaction);
     });
 
     req.registrationSaved = true;
@@ -289,6 +347,11 @@ router.post("/complete-owner-profile", cleanFailedRegistration, registerUpload, 
     req.session.userName = user.fullName;
     delete req.session.pendingOwnerUserId;
 
+    if (wantsJson) {
+      const result = { success: true, redirect: '/owner-dashboard' };
+      if (req.registrationDraftDirectory) req.session.completedRegistrationDraft = { id: req.body.registrationDraft, path: req.path, status: 200, result };
+      return res.json(result);
+    }
     return res.redirect("/owner-dashboard");
   } catch (err) {
     console.error("Owner profile completion error:", err);
@@ -296,117 +359,87 @@ router.post("/complete-owner-profile", cleanFailedRegistration, registerUpload, 
   }
 });
 
-router.get("/complete-tenant-profile", (req, res) => {
-  const pendingId = req.session.pendingTenantUserId || req.session.userId;
-  if (!pendingId) return res.redirect("/login");
-
-  res.render("completeTenantProfile", {
-    title: "Complete Tenant Profile | DormMap",
-    error: ""
+function renderTenantProfile(res, error = '', values = {}) {
+  res.status(error ? 422 : 200).render("completeTenantProfile", {
+    title: "Complete Tenant Profile | DormMap", error, values
   });
-});
+}
 
-router.post("/complete-tenant-profile", cleanFailedRegistration, registerUpload, async (req, res) => {
-  const pendingId = req.session.pendingTenantUserId || req.session.userId;
-  if (!pendingId) return res.redirect("/login");
-
-  const { selectedBoardingHouse, contactNumber, gender, requestedRoomType, acceptTerms } = req.body;
-
-  const renderError = (error) => res.render("completeTenantProfile", {
-    title: "Complete Tenant Profile | DormMap",
-    error
-  });
-
-  if (!selectedBoardingHouse || !contactNumber) {
-    return renderError("Please select a target boarding house and enter your contact number.");
-  }
-  if (!gender) {
-    return renderError("Please select your gender.");
-  }
-  if (acceptTerms !== "on") {
-    return renderError("You must agree to the Terms of Service and Privacy Policy.");
-  }
-
+router.get("/complete-tenant-profile", async (req, res, next) => {
+  const pendingId = req.session.pendingTenantUserId;
+  if (!pendingId) return res.redirect(req.session.accountType === 'tenant' ? '/tenant-dashboard' : '/login');
   try {
     const user = await User.findByPk(pendingId);
-    if (!user) {
-      delete req.session.pendingTenantUserId;
-      return res.redirect("/login");
-    }
+    if (user?.accountType !== 'tenant') return res.redirect('/login');
+    renderTenantProfile(res, '', { contactNumber: user.contactNumber, gender: user.gender });
+  } catch (error) { next(error); }
+});
 
-    const getUploadUrl = (field) => req.files?.[field]?.[0] ? `/uploads/${req.files[field][0].filename}` : null;
-    if (user.accountType !== 'tenant') return res.status(403).send('Tenant account required.');
-    const validIdPicture = await storeReviewFile(req.files?.validIdPicture?.[0], user.id, 'tenant-registration');
-    const profilePicture = getUploadUrl('profilePicture');
+router.post("/complete-tenant-profile", cleanRegistration, registerUpload, async (req, res) => {
+  const pendingId = req.session.pendingTenantUserId;
+  if (!pendingId) return res.redirect(req.session.accountType === 'tenant' ? '/tenant-dashboard' : '/login');
+  const wantsJson = req.accepts(['html', 'json']) === 'json';
+  const reject = error => wantsJson ? res.status(422).json({ error }) : renderTenantProfile(res, error, req.body);
+  const { selectedBoardingHouse, gender, requestedRoomType, acceptTerms } = req.body;
+  const contactNumber = String(req.body.contactNumber || '').trim();
+  if (!selectedBoardingHouse) return reject('Select a target boarding house.');
+  if (!/^\+?[0-9 ()-]{7,24}$/.test(contactNumber) || contactNumber.replace(/\D/g, '').length < 7) return reject('Enter a valid contact number.');
+  if (!['male', 'female', 'prefer_not_to_say'].includes(gender)) return reject('Select your gender.');
+  if (acceptTerms !== 'on') return reject('Accept the Terms of Service and Privacy Policy to continue.');
+  const idFile = req.files?.validIdPicture?.[0];
+  const picture = req.files?.profilePicture?.[0];
+  if (!idFile) return reject('Upload your student or government-issued ID.');
+  if (picture && !picture.mimetype.startsWith('image/')) return reject('Upload a JPG, PNG, or WebP profile picture.');
 
-    user.selectedBoardingHouse = selectedBoardingHouse;
-    user.contactNumber = contactNumber;
-    user.gender = gender;
-    if (requestedRoomType) user.preferredLocation = requestedRoomType; // Store room type choice
-    if (validIdPicture) user.validIdPicture = validIdPicture;
-    if (profilePicture) user.profilePicture = profilePicture;
-    user.applicationStatus = 'pending_owner';
-
-    const { house, owner } = await findApplicationProperty(selectedBoardingHouse);
-    if (!owner) return renderError('Select an approved boarding house from the current listings.');
-
-    const { OwnerInquiry, OwnerNotification, OwnerMessage } = await import('../models/ownerModels.js');
-
-    // Create TenantApplication record
-    const { created } = await createTenantApplication({
-      tenantId: user.id,
-      ownerId: owner.id,
-      boardingHouseId: house?.id || null,
-      boardingHouseName: selectedBoardingHouse,
-      requestedRoomType: requestedRoomType || null,
-      message: `Initial application submitted upon registration. Contact: ${contactNumber}, Gender: ${gender}`,
-      status: 'pending_owner'
+  try {
+    const result = await sequelize.transaction(async transaction => {
+      const user = await User.findByPk(pendingId, { transaction, lock: transaction.LOCK.UPDATE });
+      if (!user || user.accountType !== 'tenant' || user.isArchived || user.isSuspended) return {};
+      const { house, owner } = await findApplicationProperty(selectedBoardingHouse, { transaction });
+      if (!owner) return { error: 'Select an approved boarding house from the current listings.' };
+      const name = house?.name || owner.boardingHouseName;
+      if (!name) return { error: 'Select an approved boarding house from the current listings.' };
+      const roomType = typeof requestedRoomType === 'string' ? requestedRoomType.trim().slice(0, 255) : '';
+      const validIdPicture = await storeReviewFile(idFile, user.id, 'tenant-registration', transaction);
+      const { created } = await createTenantApplication({
+        tenantId: user.id, ownerId: owner.id, boardingHouseId: house?.id || null,
+        boardingHouseName: name, requestedRoomType: roomType || null, status: 'pending_owner',
+        message: `Initial application submitted upon registration. Contact: ${contactNumber}, Gender: ${gender}`
+      }, { transaction });
+      await user.update({
+        selectedBoardingHouse: name, contactNumber, gender, preferredLocation: roomType || null,
+        validIdPicture, applicationStatus: 'pending_owner',
+        ...(picture ? { profilePicture: `/uploads/${picture.filename}` } : {})
+      }, { transaction });
+      return { user, owner, name, roomType, created };
     });
 
-    await user.save();
-
+    if (result.error) return reject(result.error);
+    const { user, owner, name, roomType, created } = result;
+    if (!user) return res.status(403).send('Tenant account required.');
     if (created) {
-      const roomTypeInfo = requestedRoomType ? ` (Requested Room: ${requestedRoomType})` : '';
-      await OwnerInquiry.create({
-        ownerId: owner.id,
-        clientName: user.fullName,
-        clientEmail: user.email,
-        clientPhone: user.contactNumber,
-        message: `Tenant application submitted for ${selectedBoardingHouse}${roomTypeInfo}. Contact: ${contactNumber}, Gender: ${gender}`,
-        status: 'new'
-      }).catch(() => {});
-
-      await OwnerNotification.create({
-        ownerId: owner.id,
-        title: '🏠 New Tenant Application Pending',
-        body: `${user.fullName} applied for a room at ${selectedBoardingHouse}${roomTypeInfo}. Review & accept tenant in your portal.`,
-        type: 'tenant_application',
-        link: '#tenants'
-      }).catch(() => {});
-
-      // Create initial conversation message so it appears immediately in Messenger
-      await OwnerMessage.create({
-        ownerId: owner.id,
-        senderId: user.id,
-        recipientId: owner.id,
-        subject: `Application Inquiry - ${selectedBoardingHouse}`,
-        message: `Hello! I submitted a rental application for ${selectedBoardingHouse}${roomTypeInfo}. Looking forward to your response!`,
-        isRead: false
-      }).catch(() => {});
+      const roomTypeInfo = roomType ? ` (Requested room: ${roomType})` : '';
+      await Promise.allSettled([
+        OwnerInquiry.create({ ownerId: owner.id, clientName: user.fullName, clientEmail: user.email,
+          clientPhone: contactNumber, status: 'new', message: `Tenant application submitted for ${name}${roomTypeInfo}.` }),
+        OwnerNotification.create({ ownerId: owner.id, title: 'New tenant application',
+          body: `${user.fullName} applied for a room at ${name}${roomTypeInfo}.`, type: 'tenant_application', link: '#tenants' }),
+        OwnerMessage.create({ ownerId: owner.id, senderId: user.id, recipientId: owner.id,
+          subject: `Application inquiry for ${name}`, message: `Hello! I submitted a rental application for ${name}${roomTypeInfo}.`, isRead: false })
+      ]);
     }
 
     req.session.userId = user.id;
     req.session.accountType = 'tenant';
-    req.registrationSaved = true;
     req.session.userName = user.fullName;
     delete req.session.pendingTenantUserId;
-
-    return res.redirect("/tenant-dashboard");
-  } catch (err) {
-    console.error("Tenant profile completion error:", err);
-    return renderError("Failed to save tenant profile. Please try again.");
+    req.registrationSaved = true;
+    if (wantsJson) return res.json({ success: true, redirect: '/tenant-dashboard' });
+    res.redirect('/tenant-dashboard');
+  } catch (error) {
+    console.error("Tenant profile completion error:", error);
+    return reject(error.status === 422 ? error.message : 'Failed to save your tenant profile. Please try again.');
   }
 });
-
 
 export default router;

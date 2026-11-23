@@ -1,4 +1,5 @@
-<script src="/js/owner-registration-locations.js?v=2"></script>
+<script src="/js/owner-registration-submit.js"></script>
+<script src="/js/owner-registration-locations.js?v=3"></script>
 <style>
   .dormmap-auth-shell {
     font-family: 'Inter', sans-serif;
@@ -22,6 +23,11 @@
     outline: none;
   }
 
+  #registerForm { scroll-margin-block: 4rem 1rem; }
+  #registerForm input, #registerForm select { scroll-margin-block: 4rem 1rem; }
+  #registerForm input[type="file"] { max-width: 100%; min-width: 0; }
+  #registerForm button[type="submit"], #registerForm .registration-step { min-height: 2.75rem; }
+  #registerForm :focus-visible { outline: 2px solid #047857; outline-offset: 2px; }
   .dormmap-auth-heading { position: sticky; top: 0; z-index: 20; background: #fff; padding-bottom: .4rem; }
 
   .dormmap-auth-panel {
@@ -252,9 +258,8 @@
         <p class="auth-legal">By logging in, you agree to DormMap's <a href="https://bstm-9m6x.onrender.com/terms" target="_blank" rel="noopener">Terms</a> &amp; <a href="https://bstm-9m6x.onrender.com/privacy" target="_blank" rel="noopener">Data use</a>.</p>
         <form id="registerForm" class="mt-3 hidden space-y-3.5" method="POST" action="/register" enctype="multipart/form-data">
           <input type="hidden" name="accountType" id="registerAccountType" value="{{authAccountType}}">
-          <div id="ownerRegistrationStatus" class="hidden rounded-2xl border px-4 py-3 text-sm leading-relaxed" role="status" aria-live="polite"></div>
 
-          <div class="rounded-[20px] border border-slate-200 bg-white p-3 shadow-sm">
+          <div data-register-basics class="rounded-[20px] border border-slate-200 bg-white p-3 shadow-sm">
             <div class="flex items-center justify-between gap-3">
               <div>
                 <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">Basic Details</p>
@@ -339,6 +344,17 @@
                 <input type="text" name="contactNumber" placeholder="09xxxxxxxxx" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
               </label>
             </div>
+            <label class="mt-3 block rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <span class="block text-sm font-semibold text-slate-800">Government-issued ID <span class="text-rose-700">*</span></span>
+              <span class="my-1 block text-xs text-slate-600">JPG, PNG, WebP, or PDF up to 5 MB.</span>
+              <input type="file" name="validIdPicture" required accept="image/jpeg,image/png,image/webp,application/pdf" class="block w-full min-w-0 text-sm">
+            </label>
+            <div class="mt-3 rounded-2xl border border-slate-200/80 bg-slate-50 px-3 py-2.5 text-xs text-slate-700">
+              <label class="flex items-start gap-2 cursor-pointer">
+                <input type="checkbox" name="acceptTerms" value="on" required class="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600">
+                <span>I understand and agree with the <a class="font-bold underline text-emerald-800" href="https://bstm-9m6x.onrender.com/terms" target="_blank" rel="noopener">Terms &amp; Conditions</a> and <a class="font-bold underline text-emerald-800" href="https://bstm-9m6x.onrender.com/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
+              </label>
+            </div>
             <div class="mt-3 flex justify-center">
               <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-full px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-950/20 hover:scale-[1.02] active:scale-[0.98] transition" style="background: var(--dormmap-primary);">
                 <i data-lucide="landmark" class="h-4 w-4"></i>
@@ -346,12 +362,6 @@
               </button>
             </div>
             <p class="my-3 text-center text-sm">Already have an account? <button type="button" class="font-bold text-emerald-800 underline" onclick="window._setDormmapAuthMode('login')">Log in</button></p>
-            <div class="mt-3 rounded-2xl border border-slate-200/80 bg-slate-50 px-3 py-2.5 text-xs text-slate-700">
-              <label class="flex items-start gap-2 cursor-pointer">
-                <input type="checkbox" name="acceptTerms" value="on" required class="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600">
-                <span>I understand and agree with the <a class="font-bold underline text-emerald-800" href="https://bstm-9m6x.onrender.com/terms" target="_blank" rel="noopener">Terms &amp; Conditions</a> and <a class="font-bold underline text-emerald-800" href="https://bstm-9m6x.onrender.com/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
-              </label>
-            </div>
           </div>
 
           <div data-register-section="boarding_house_owner" class="hidden rounded-[20px] border border-slate-200 bg-white p-3 shadow-sm">
@@ -517,19 +527,19 @@
 
               </div>
               <div class="grid gap-3 sm:grid-cols-2"><label class="text-xs font-semibold">Government-issued ID<input type="file" name="validIdPicture" required accept="image/jpeg,image/png,image/webp,application/pdf" class="mt-2 block w-full text-xs"></label><label class="text-xs font-semibold">Barangay clearance<input type="file" name="barangayClearance" required accept="image/jpeg,image/png,image/webp,application/pdf" class="mt-2 block w-full text-xs"></label></div>
+              <div class="rounded-2xl border border-slate-200/80 bg-slate-50 px-3 py-2.5 text-xs text-slate-700">
+                <label class="flex items-start gap-2 cursor-pointer">
+                  <input type="checkbox" name="acceptTerms" value="on" required class="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600">
+                  <span>I understand and agree with the <a class="font-bold underline text-emerald-800" href="https://bstm-9m6x.onrender.com/terms" target="_blank" rel="noopener">Terms &amp; Conditions</a> and <a class="font-bold underline text-emerald-800" href="https://bstm-9m6x.onrender.com/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
+                </label>
+              </div>
+              <p id="ownerRegistrationStatus" class="registration-submit-status" role="status" aria-live="polite" hidden></p>
               <button type="button" class="registration-step" data-owner-back="2">← Previous Step</button>
               <div class="mt-3 flex justify-center">
                 <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-full px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-950/20 hover:scale-[1.02] active:scale-[0.98] transition" style="background: var(--dormmap-primary);">
                   <i data-lucide="check-circle-2" class="h-4 w-4"></i>
                   <span>Create account</span>
                 </button>
-              </div>
-              <p class="my-3 text-center text-sm">Already have an account? <button type="button" class="font-bold text-emerald-800 underline" onclick="window._setDormmapAuthMode('login')">Log in</button></p>
-              <div class="rounded-2xl border border-slate-200/80 bg-slate-50 px-3 py-2.5 text-xs text-slate-700">
-                <label class="flex items-start gap-2 cursor-pointer">
-                  <input type="checkbox" name="acceptTerms" value="on" required class="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600">
-                  <span>I understand and agree with the <a class="font-bold underline text-emerald-800" href="https://bstm-9m6x.onrender.com/terms" target="_blank" rel="noopener">Terms &amp; Conditions</a> and <a class="font-bold underline text-emerald-800" href="https://bstm-9m6x.onrender.com/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
-                </label>
               </div>
             </div>
           </div>
@@ -622,6 +632,7 @@
     const registerAccountType = document.getElementById('registerAccountType');
     const authRoleLabel = document.getElementById('authRoleLabel');
     const registerStepLabel = document.getElementById('registerStepLabel');
+    const basicDetails = registerForm.querySelector('[data-register-basics]');
     const roleCards = Array.from(document.querySelectorAll('[data-auth-role]'));
     const tabs = Array.from(document.querySelectorAll('[data-auth-tab]'));
     const swapButtons = Array.from(document.querySelectorAll('[data-swap-auth]'));
@@ -666,17 +677,6 @@
       });
     };
 
-    const removeLegacyAuthFooter = () => {
-      const legacyNodes = Array.from(authRoot.querySelectorAll('button, a, div'));
-      legacyNodes.forEach((node) => {
-        const text = node.textContent?.trim();
-        if (!text) return;
-        if (text.includes('Need a new account?') || text === 'Close' || text.includes('Create an account')) {
-          node.remove();
-        }
-      });
-    };
-
     const setMode = (mode, updateUrl = true) => {
       state.mode = mode;
       authRoot.dataset.mode = mode;
@@ -709,13 +709,14 @@
         history.pushState({}, '', mode === 'login' ? '/login' : '/register');
       }
       setRole(state.role);
-      lucide.createIcons();
+      window.lucide?.createIcons();
     };
 
     const setRole = (role) => {
       state.role = role;
       loginAccountType.value = role;
       registerAccountType.value = role;
+      registerForm.noValidate = role === 'boarding_house_owner';
       authRoleLabel.textContent = roleLabels[role] || 'BLPO/Admin';
 
       roleCards.forEach((card) => {
@@ -724,6 +725,7 @@
         card.classList.toggle('bg-emerald-50', active);
         card.classList.toggle('shadow-md', active);
         card.classList.toggle('bg-slate-50', !active);
+        card.setAttribute('aria-pressed', String(active));
       });
 
       // Only pass accountType to Google in REGISTER mode; login should auto-detect from DB
@@ -758,6 +760,7 @@
     };
 
     const updateOwnerWizard = () => {
+      basicDetails.classList.toggle('hidden', state.role === 'boarding_house_owner' && state.ownerStep > 1);
       ownerSteps.forEach((step) => {
         const visible = state.role === 'boarding_house_owner' && Number(step.dataset.ownerStep) === state.ownerStep;
         step.classList.toggle('hidden', !visible);
@@ -780,9 +783,7 @@
 
     const openModal = (mode = state.mode, updateUrl = true) => {
       authRoot.dataset.open = 'true';
-      removeLegacyAuthFooter();
       setMode(mode, updateUrl);
-      setRole(state.role);
       document.body.classList.add('overflow-hidden');
     };
 
@@ -808,43 +809,33 @@
       return true;
     };
 
-    registerForm.addEventListener('submit', event => {
-      if (state.role !== 'boarding_house_owner') return;
-      for (let step = 1; step <= 3; step++) {
-        state.ownerStep = step; updateOwnerWizard();
-        if (!(step === 2 ? branchLocations.validateAll() : validateOwnerStep())) { event.preventDefault(); return; }
-        if (step === 1 && !branchLocations.prepare()) { event.preventDefault(); return; }
-      }
-      const owner = registerSections.find(section => section.dataset.registerSection === 'boarding_house_owner');
-      syncInputs(owner, true);
-      owner.querySelector('[data-owner-payment-setup]')?.dispatchEvent(new Event('change'));
-    }, true);
-
+    let submittingOwner = false;
     registerForm.addEventListener('submit', async event => {
       if (state.role !== 'boarding_house_owner') return;
       event.preventDefault();
+      if (state.ownerStep !== 3 || submittingOwner || !validateOwnerStep()) return;
+      const owner = registerSections.find(section => section.dataset.registerSection === 'boarding_house_owner');
+      syncInputs(owner, true);
+      if (!branchLocations.validateAll(() => {
+        state.ownerStep = 2;
+        updateOwnerWizard();
+      })) return;
+      owner.querySelector('[data-owner-payment-setup]')?.dispatchEvent(new Event('change'));
       const status = document.getElementById('ownerRegistrationStatus');
-      const submitButton = registerForm.querySelector('button[type="submit"]');
-      status.hidden = false;
-      status.className = 'rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-relaxed text-emerald-800';
-      status.textContent = 'Submitting your application…';
-      if (submitButton) { submitButton.disabled = true; submitButton.querySelector('span').textContent = 'Submitting…'; }
-      try {
-        const response = await fetch('/register', {
-          method: 'POST',
-          headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-          body: new FormData(registerForm),
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || !data.success) throw new Error(data.error || 'Registration failed. Please check the required fields and try again.');
-        status.textContent = data.message || 'Application submitted. Please wait for the responsible office to approve your account.';
-        Array.from(registerForm.children).forEach(child => { if (child !== status) child.hidden = true; });
-        registerForm.reset();
-      } catch (error) {
-        status.className = 'rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-relaxed text-rose-800';
-        status.textContent = error.message;
-        if (submitButton) { submitButton.disabled = false; submitButton.querySelector('span').textContent = 'Create account'; }
+      submittingOwner = true;
+      const actions = [...owner.querySelectorAll('button[type="submit"], [data-owner-back]')];
+      const pending = submitOwnerRegistration(registerForm, status);
+      updateOwnerWizard();
+      actions.forEach(button => { button.disabled = true; });
+      const data = await pending;
+      if (data?.success) {
+        status.dataset.state = 'success';
+        status.textContent = data.message;
+        for (const child of ownerSteps[2].children) if (child !== status) child.hidden = true;
+        return;
       }
+      submittingOwner = false;
+      actions.forEach(button => { button.disabled = false; });
     });
 
     const resetTenantSelection = () => {
@@ -1117,8 +1108,12 @@
 
     ownerNextButtons.forEach((button) => {
       button.addEventListener('click', () => {
+        if (state.ownerStep === 1) {
+          const field = basicDetails.querySelector(':invalid');
+          if (field) { field.reportValidity(); return; }
+        }
         if (!validateOwnerStep()) return;
-        if (state.ownerStep === 1 && (!branchLocations.prepare())) return;
+        if (state.ownerStep === 1 && !branchLocations.prepare()) return;
         if (state.ownerStep === 2 && branchLocations.next()) return;
         state.ownerStep = Math.min(3, Number(button.dataset.ownerNext));
         if (state.ownerStep === 2) branchLocations.select(0);
@@ -1166,7 +1161,7 @@
         if (forgotInput) forgotInput.value = loginEmail;
       }
       backToForgotStep1();
-      lucide.createIcons();
+      window.lucide?.createIcons();
     };
 
     window.hideForgotPasswordModal = () => {
@@ -1209,7 +1204,7 @@
           if (sentDisplay) sentDisplay.textContent = email;
           document.getElementById('forgotStep1Form')?.classList.add('hidden');
           document.getElementById('forgotSuccessState')?.classList.remove('hidden');
-          lucide.createIcons();
+          window.lucide?.createIcons();
         } else {
           statusMsg.classList.remove('hidden', 'bg-emerald-50', 'text-emerald-700', 'border-emerald-200');
           statusMsg.classList.add('bg-rose-50', 'text-rose-700', 'border', 'border-rose-200');
@@ -1227,18 +1222,12 @@
       }
     };
 
-    setRole(state.role);
-    setMode(state.mode, false);
-    updateOwnerWizard();
-    lucide.createIcons();
+    if (authRoot.dataset.initialOpen === 'true') openModal(state.mode, false);
+    else setMode(state.mode, false);
 
-    // Expose global API so external scripts (e.g. handleInquireClick) can open the modal
     window.openDormmapAuth = (mode = 'register', role = 'tenant') => {
-      authRoot.dataset.open = 'true';
-      document.body.classList.add('overflow-hidden');
-      setMode(mode, true);
-      setRole(role);
-      lucide.createIcons();
+      state.role = role;
+      openModal(mode);
     };
     window._setDormmapAuthRole = setRole;
     window._setDormmapAuthMode = setMode;

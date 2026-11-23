@@ -3,7 +3,7 @@ import { ownerPaymentConfig } from '../services/ownerPaymentConfig.js';
 import { manilaToday, submitRentPayment } from '../services/manualPaymentService.js';
 import { createTenantApplication, closeDuplicatePendingApplications, findApplicationProperty } from '../services/tenantApplicationService.js';
 import { storeReviewFile } from '../services/reviewFileService.js';
-import { orderBranches } from '../services/propertyBranchesService.js';
+import { branchNumbers, orderBranches } from '../services/propertyBranchesService.js';
 import { confirmOffer, requestMoveOut } from '../services/occupancyService.js';
 import { listTenantDorms } from '../services/dormListingService.js';
 import { Op, fn, col } from 'sequelize';
@@ -26,7 +26,7 @@ async function propertyOwnerView(owner, room) {
   const index = branches.findIndex(branch => room?.boardingHouseId ? branch.id === room.boardingHouseId : branch.isPrimary);
   const house = branches[index];
   result.propertyName = owner.boardingHouseName || house?.name;
-  result.branchNumber = index >= 0 ? index + 1 : room && !room.boardingHouseId ? 1 : null;
+  result.branchNumber = house ? branchNumbers(branches).get(house.id) : room && !room.boardingHouseId ? 1 : null;
   if (house) Object.assign(result, { boardingHouseName: house.name, boardingHouseAddress: house.address, barangay: house.barangay, boardingHousePicture: house.picture, boardingHouseLatitude: house.latitude, boardingHouseLongitude: house.longitude, amenities: house.amenities, houseRules: house.houseRules, description: house.description });
   if (house) result.establishmentId = house.id;
   return result;

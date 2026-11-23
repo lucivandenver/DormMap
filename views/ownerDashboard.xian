@@ -353,17 +353,20 @@
 
         <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
           <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-            <h2 class="text-base font-bold text-slate-800">Main Property Profile Settings</h2>
-            <span class="text-xs bg-emerald-50 text-emerald-700 font-bold px-3 py-1.5 rounded-full">Primary Property</span>
+            <h2 class="text-base font-bold text-slate-800">Boarding House Profile</h2>
           </div>
-          <p class="text-sm text-slate-600">Set up payment methods in My Profile &amp; Documents and add available rooms under Rooms. You can enter the agreed rent when sending a rental offer.</p>
+          <label class="block max-w-md text-sm font-semibold text-slate-700">Boarding house
+          <select data-owner-branch="profile" class="mt-1 block w-full min-w-0 rounded-lg border border-slate-200 bg-white p-2.5 text-sm" disabled>
+            <option value="">Loading boarding houses…</option>
+          </select>
+        </label>
           <form id="profileForm" class="space-y-4">
           <div class="grid gap-4 md:grid-cols-2">
             <div>
               <label class="block text-xs font-bold text-slate-500 mb-1">Boarding House Name *</label>
               <input type="text" name="boardingHouseName" maxlength="255" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/10 outline-none" required>
             </div>
-            <div>
+            <div data-primary-profile>
               <label for="ownerPropertyContact" class="block text-xs font-bold text-slate-500 mb-1">Contact Number</label>
               <input id="ownerPropertyContact" type="tel" name="contactNumber" autocomplete="tel" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/10 outline-none">
             </div>
@@ -377,11 +380,11 @@
               <label class="block text-xs font-bold text-slate-500 mb-1">Description / About</label>
               <textarea name="description" rows="3" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 outline-none" placeholder="Describe your boarding house, nearby landmarks, etc."></textarea>
             </div>
-            <div>
+            <div data-primary-profile>
               <label class="block text-xs font-bold text-slate-500 mb-1">Operating Hours</label>
               <input type="text" name="operatingHours" placeholder="e.g. 6:00 AM - 10:00 PM" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 outline-none">
             </div>
-            <div class="grid grid-cols-2 gap-2">
+            <div data-primary-profile class="grid grid-cols-2 gap-2">
               <div>
                 <label class="block text-xs font-bold text-slate-500 mb-1">Min Price (₱)</label>
                 <input type="number" step="0.01" min="0" name="rentalPriceMin" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 outline-none">
@@ -391,6 +394,12 @@
                 <input type="number" step="0.01" min="0" name="rentalPriceMax" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:border-emerald-700 outline-none">
               </div>
             </div>
+            <label class="block text-xs font-bold text-slate-500">Monthly rent per room (₱)
+              <input type="number" min="0" max="10000000" step="0.01" name="rentPerRoom" class="mt-1 w-full rounded-lg border border-slate-200 p-2.5 text-sm">
+            </label>
+            <label class="block text-xs font-bold text-slate-500">Monthly rent per person (₱)
+              <input type="number" min="0" max="10000000" step="0.01" name="rentPerHead" class="mt-1 w-full rounded-lg border border-slate-200 p-2.5 text-sm">
+            </label>
           </div>
           <button type="submit" disabled class="bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-800 transition disabled:opacity-50">
             💾 Save Property Changes
@@ -624,6 +633,11 @@
 
       <!-- PANEL 5: TENANTS -->
       <section data-panel="tenants" class="hidden space-y-4">
+        <label class="block max-w-md text-sm font-semibold text-slate-700">Boarding house
+          <select data-owner-branch="tenants" class="mt-1 block w-full min-w-0 rounded-lg border border-slate-200 bg-white p-2.5 text-sm" disabled>
+            <option value="">Loading boarding houses…</option>
+          </select>
+        </label>
 
         <!-- Pending Applications Banner -->
         <div id="pendingAppsCard" class="hidden bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-5 space-y-3">
@@ -708,6 +722,11 @@
         </form>
       </dialog>
       <section data-panel="payments" class="hidden space-y-4">
+        <label class="block max-w-md text-sm font-semibold text-slate-700">Boarding house
+          <select data-owner-branch="payments" class="mt-1 block w-full min-w-0 rounded-lg border border-slate-200 bg-white p-2.5 text-sm" disabled>
+            <option value="">Loading boarding houses…</option>
+          </select>
+        </label>
         <div class="flex justify-between items-center">
           <h2 class="text-lg font-bold text-slate-800">Monthly Payment Log</h2>
           <button onclick="openPaymentModal()" class="bg-emerald-700 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-emerald-800 transition">
@@ -926,6 +945,11 @@
       <!-- PANEL 13: AMENITIES -->
       <section data-panel="amenities" class="hidden bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
         <h2 class="text-lg font-bold text-slate-800">Boarding House Amenities</h2>
+        <label class="block max-w-md text-sm font-semibold text-slate-700">Boarding house
+          <select data-owner-branch="amenities" class="mt-1 block w-full min-w-0 rounded-lg border border-slate-200 bg-white p-2.5 text-sm" disabled>
+            <option value="">Loading boarding houses…</option>
+          </select>
+        </label>
         <form id="amenitiesForm">
           <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
             <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="amenities" value="Wi-Fi"> Wi-Fi</label>
@@ -941,7 +965,10 @@
             <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="amenities" value="Pets Allowed"> Pets Allowed</label>
           </div>
 
-          <button type="submit" class="bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-800 transition mt-6">
+          <label class="mt-4 block text-sm font-semibold text-slate-700">Other amenities
+            <textarea name="customAmenities" rows="2" class="mt-1 w-full rounded-lg border border-slate-200 p-2.5 text-sm" placeholder="Enter one amenity per line"></textarea>
+          </label>
+          <button type="submit" disabled class="bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-800 transition mt-4 disabled:opacity-50">
             Save Amenities
           </button>
         </form>
@@ -1272,23 +1299,24 @@
 <div id="paymentModal" class="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4 hidden">
   <div class="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-xl">
     <h3 class="text-lg font-bold text-slate-800">Generate Invoice</h3>
+    <p id="invoiceBranch" class="text-sm font-semibold text-emerald-800"></p>
     <form id="paymentForm" class="space-y-3">
       <div>
-        <label class="block text-xs font-bold text-slate-500 mb-1">Select tenant or room</label>
+        <label for="paymentTenantSelect" class="block text-xs font-bold text-slate-500 mb-1">Bill a person or room</label>
         <select name="tenantId" id="paymentTenantSelect" required class="w-full rounded-lg border border-slate-200 p-2.5 text-sm"></select>
       </div>
       <div>
-        <label class="block text-xs font-bold text-slate-500 mb-1">Total amount (₱)</label>
-        <p class="mb-1 text-xs text-slate-600">For a room, the total is split equally into separate tenant bills.</p>
-        <input type="number" step="0.01" min="0" name="amount" required class="w-full rounded-lg border border-slate-200 p-2.5 text-sm">
+        <label for="invoiceTotal" class="block text-xs font-bold text-slate-500 mb-1">Total amount (₱)</label>
+        <p id="invoiceAmountHint" class="mb-1 text-xs text-slate-600">A room total is divided equally among its active tenant accounts.</p>
+        <input type="number" step="0.01" min="0.01" id="invoiceTotal" name="amount" required class="w-full rounded-lg border border-slate-200 p-2.5 text-sm">
       </div>
       <div>
-        <label class="block text-xs font-bold text-slate-500 mb-1">Due Date</label>
-        <input type="date" name="dueDate" required class="w-full rounded-lg border border-slate-200 p-2.5 text-sm">
+        <label for="invoiceDueDate" class="block text-xs font-bold text-slate-500 mb-1">Due date</label>
+        <input type="date" id="invoiceDueDate" name="dueDate" required class="w-full rounded-lg border border-slate-200 p-2.5 text-sm">
       </div>
       <div>
-        <label class="block text-xs font-bold text-slate-500 mb-1">Month Period</label>
-        <input type="month" name="month" required class="w-full rounded-lg border border-slate-200 p-2.5 text-sm">
+        <label for="invoiceMonth" class="block text-xs font-bold text-slate-500 mb-1">Billing month</label>
+        <input type="month" id="invoiceMonth" name="month" required class="w-full rounded-lg border border-slate-200 p-2.5 text-sm">
       </div>
       <div class="flex justify-end gap-2 pt-2">
         <button type="button" onclick="closePaymentModal()" class="border border-slate-200 px-4 py-2 rounded-lg text-sm">Cancel</button>
@@ -1494,43 +1522,61 @@
   }
 
   // ─── Property Profile ───
+  let primaryProfile;
   async function loadProfile() {
-    loadBoardingHouses();
     const form = document.getElementById('profileForm');
     const button = form.querySelector('button[type=submit]');
     button.disabled = true;
     try {
-      const { data } = await ownerRequest('/owner-dashboard/api/profile');
-      for (const control of form.elements) {
-        if (control.name && Object.hasOwn(data, control.name)) control.value = data[control.name] ?? '';
-      }
-      document.getElementById('ownerPropertyBarangay').textContent =
-        [data.barangay, 'Bongabong, Oriental Mindoro'].filter(Boolean).join(', ');
-      button.disabled = false;
-    } catch (error) {
-      ownerToast(error.message, true);
-    }
+      const [, profile] = await Promise.all([loadBoardingHouses(), ownerRequest('/owner-dashboard/api/profile')]);
+      primaryProfile = profile.data;
+      displayPropertyProfile();
+    } catch (error) { ownerToast(error.message, true); }
   }
 
-  document.getElementById('profileForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const button = e.target.querySelector('button[type=submit]');
+  function displayPropertyProfile() {
+    const form = document.getElementById('profileForm');
+    const house = _allBoardingHouses.find(item => item.id === _selectedBhId);
+    if (!house || !primaryProfile) return;
+    form.dataset.branch = house.id;
+    const values = {
+      boardingHouseName: house.name, boardingHouseAddress: house.address, description: house.description,
+      rentPerRoom: house.rentPerRoom, rentPerHead: house.rentPerHead,
+      contactNumber: primaryProfile.contactNumber, operatingHours: primaryProfile.operatingHours,
+      rentalPriceMin: primaryProfile.rentalPriceMin, rentalPriceMax: primaryProfile.rentalPriceMax
+    };
+    for (const [key, value] of Object.entries(values)) form.elements[key].value = value ?? '';
+    for (const group of form.querySelectorAll('[data-primary-profile]')) {
+      group.classList.toggle('hidden', !house.isPrimary);
+      for (const field of group.querySelectorAll('input')) field.disabled = !house.isPrimary;
+    }
+    form.elements.boardingHouseName.readOnly = !house.isPrimary;
+    document.getElementById('ownerPropertyBarangay').textContent =
+      [house.barangay, 'Bongabong, Oriental Mindoro'].filter(Boolean).join(', ');
+    form.querySelector('button[type=submit]').disabled = false;
+  }
+
+  document.getElementById('profileForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const house = _allBoardingHouses.find(item => item.id === Number(form.dataset.branch));
+    if (!house) return;
+    const button = form.querySelector('button[type=submit]');
+    const values = Object.fromEntries(new FormData(form));
+    const path = house.isPrimary ? 'profile' : `boarding-houses/${house.id}`;
+    const body = house.isPrimary ? values : {
+      address: values.boardingHouseAddress, description: values.description,
+      rentPerRoom: values.rentPerRoom, rentPerHead: values.rentPerHead
+    };
     button.disabled = true;
     try {
-      const result = await ownerRequest('/owner-dashboard/api/profile', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(Object.fromEntries(new FormData(e.target)))
+      await ownerRequest(`/owner-dashboard/api/${path}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
       });
-      e.target.elements.boardingHouseName.value = result.data.boardingHouseName;
-      document.getElementById('ownerBhName').textContent = result.data.boardingHouseName;
-      await loadBoardingHouses();
-      ownerToast('Property profile saved successfully!');
-    } catch (error) {
-      ownerToast(error.message, true);
-    } finally {
-      button.disabled = false;
-    }
+      await loadProfile();
+      ownerToast('Boarding house profile saved.');
+    } catch (error) { ownerToast(error.message, true); }
+    finally { button.disabled = false; }
   });
 
   // ─── My Profile & Documents ───
@@ -1810,7 +1856,7 @@
       mapOwner = owner;
       _allBoardingHouses = data || [];
 
-      if (!_selectedBhId && _allBoardingHouses.length > 0) {
+      if (!_allBoardingHouses.some(house => house.id === _selectedBhId) && _allBoardingHouses.length > 0) {
         _selectedBhId = _allBoardingHouses[0].id;
       }
 
@@ -1837,6 +1883,15 @@
     if (roomBhSelect) roomBhSelect.innerHTML = options || '<option value="">No Boarding House</option>';
     if (roomModalBhSelect) roomModalBhSelect.innerHTML = options || '<option value="">No Boarding House</option>';
 
+    for (const select of document.querySelectorAll('[data-owner-branch]')) {
+      const includeAll = ['tenants', 'payments'].includes(select.dataset.ownerBranch);
+      const keepAll = includeAll && select.value === 'all';
+      select.replaceChildren(...(includeAll ? [new Option('All boarding houses', 'all')] : []),
+        ..._allBoardingHouses.map(house => new Option(house.name + (house.isPrimary ? ' (Main)' : ''), house.id)));
+      select.value = keepAll ? 'all' : String(_selectedBhId || '');
+      select.disabled = !_allBoardingHouses.length;
+    }
+
     const currentBh = _allBoardingHouses.find(b => Number(b.id) === Number(_selectedBhId)) || _allBoardingHouses[0];
     const sidebarBhName = document.getElementById('ownerBhName');
     if (sidebarBhName && currentBh) {
@@ -1844,9 +1899,27 @@
     }
   }
 
+  const branchSelector = panel => document.querySelector(`[data-owner-branch="${panel}"]`);
+  const panelBranch = panel => Number(branchSelector(panel).value) || null;
+  function branchQuery(panel) {
+    const id = panelBranch(panel);
+    return id ? `?boardingHouseId=${id}` : '';
+  }
+
+  document.querySelectorAll('[data-owner-branch]').forEach(select => {
+    select.addEventListener('change', () => {
+      if (select.value !== 'all') _selectedBhId = Number(select.value);
+      populateBhDropdowns();
+      renderBoardingHouseCards();
+      if (select.dataset.ownerBranch === 'profile') displayPropertyProfile();
+      else refreshCurrentView();
+    });
+  });
+
   function onRoomBhChange(bhId) {
     _selectedBhId = Number(bhId);
     populateBhDropdowns();
+    renderBoardingHouseCards();
     loadRooms();
   }
 
@@ -1884,7 +1957,7 @@
           ${bh.description ? `<p class="text-xs text-slate-600 mt-2 line-clamp-2">${esc(bh.description)}</p>` : ''}
         </div>
 
-        <div class="flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs">
           <button onclick="onRoomBhChange(${bh.id}); show('rooms');" class="text-emerald-700 font-bold hover:underline flex items-center gap-1">
             <span>Manage Rooms →</span>
           </button>
@@ -1901,6 +1974,7 @@
   }
 
   async function openBoardingHouseModal(bhId = null) {
+    if (!_allBoardingHouses.length) await loadBoardingHouses();
     const modal = document.getElementById('boardingHouseModal');
     const form = document.getElementById('boardingHouseForm');
     form.reset();
@@ -1911,6 +1985,8 @@
       targetBh = _allBoardingHouses.find(b => Number(b.id) === Number(bhId));
     }
 
+    const nameField = document.getElementById('bhModalName');
+    nameField.readOnly = !targetBh?.isPrimary;
     if (targetBh) {
       document.getElementById('bhModalTitle').textContent = 'Edit Boarding House & Pin Point';
       document.getElementById('bhModalId').value = targetBh.id;
@@ -1920,14 +1996,22 @@
       document.getElementById('bhModalType').value = targetBh.propertyType || 'Boarding House';
       document.getElementById('bhModalFloors').value = targetBh.floorCount || 3;
       document.getElementById('bhModalDescription').value = targetBh.description || '';
-      document.getElementById('bhModalAmenities').value = targetBh.amenities || '';
+      document.getElementById('bhModalAmenities').value = parseBranchAmenities(targetBh.amenities).join(', ');
       document.getElementById('bhModalRules').value = targetBh.houseRules || '';
       document.getElementById('bhModalRentPerRoom').value = targetBh.rentPerRoom ?? '';
       document.getElementById('bhModalRentPerHead').value = targetBh.rentPerHead ?? '';
       document.getElementById('bhModalLat').value = targetBh.latitude || '';
       document.getElementById('bhModalLng').value = targetBh.longitude || '';
     } else {
-      document.getElementById('bhModalTitle').textContent = 'Add Boarding House Establishment';
+      document.getElementById('bhModalTitle').textContent = 'Add Boarding House Branch';
+      const primary = _allBoardingHouses.find(house => house.isPrimary);
+      const number = Math.max(1, ..._allBoardingHouses.map(house => house.branchNumber)) + 1;
+      const suffix = ` Branch ${number}`;
+      nameField.value = primary ? primary.name.slice(0, 255 - suffix.length).trimEnd() + suffix : '';
+      if (primary) {
+        document.getElementById('bhModalType').value = primary.propertyType || 'Boarding House';
+        document.getElementById('bhModalFloors').value = primary.floorCount || 1;
+      }
       document.getElementById('bhModalLat').value = '';
       document.getElementById('bhModalLng').value = '';
       document.getElementById('bhModalRentPerRoom').value = '';
@@ -1935,12 +2019,11 @@
     }
 
     try {
-      const profile = await ownerRequest('/owner-dashboard/api/profile');
-      const assigned = profile.data.barangay;
+      const primary = _allBoardingHouses.find(house => house.isPrimary);
       const select = document.getElementById('bhModalBarangay');
-      const allowed = await ownerRequest('/api/eligible-barangays');
-      for (const option of select.options) option.disabled = Boolean(option.value && (targetBh ? option.value !== targetBh.barangay : !allowed.includes(option.value)));
-      if (!targetBh) select.value = assigned || '';
+      const allowed = targetBh ? [targetBh.barangay] : await ownerRequest('/api/eligible-barangays');
+      for (const option of select.options) option.disabled = Boolean(option.value && !allowed.includes(option.value));
+      if (!targetBh) select.value = allowed.includes(primary?.barangay) ? primary.barangay : '';
     } catch (error) { ownerToast(error.message, true); return; }
     modal.classList.remove('hidden');
 
@@ -2008,7 +2091,7 @@
     const payload = {
       name, barangay, address, description, latitude, longitude,
       propertyType: document.getElementById('bhModalType').value, floorCount: document.getElementById('bhModalFloors').value,
-      amenities: document.getElementById('bhModalAmenities').value, houseRules: document.getElementById('bhModalRules').value,
+      amenities: JSON.stringify(parseBranchAmenities(document.getElementById('bhModalAmenities').value)), houseRules: document.getElementById('bhModalRules').value,
       rentPerRoom: document.getElementById('bhModalRentPerRoom').value, rentPerHead: document.getElementById('bhModalRentPerHead').value,
       mapPin: `Coordinates: ${latitude}, ${longitude}`
     };
@@ -2027,8 +2110,8 @@
       closeBoardingHouseModal();
       ownerToast(data.message);
       if (data.data && data.data.id) _selectedBhId = data.data.id;
-      await loadBoardingHouses();
-      await loadRooms();
+      if (currentTab === 'profile') await loadProfile();
+      else await loadBoardingHouses();
     } catch (err) {
       ownerToast(err.message || 'Error saving boarding house.', true);
     }
@@ -2043,8 +2126,8 @@
       
       ownerToast('Boarding house deleted.');
       _selectedBhId = null;
-      await loadBoardingHouses();
-      await loadRooms();
+      if (currentTab === 'profile') await loadProfile();
+      else await loadBoardingHouses();
     } catch (err) {
       ownerToast(err.message || 'Error deleting boarding house.', true);
     }
@@ -2216,8 +2299,10 @@
 
   async function loadTenants() {
     try {
-      const res = await fetch('/owner-dashboard/api/tenants');
-      const { data } = await res.json();
+      if (!_allBoardingHouses.length) await loadBoardingHouses();
+      const query = branchQuery('tenants');
+      const { data } = await ownerRequest(`/owner-dashboard/api/tenants${query}`);
+      if (query !== branchQuery('tenants')) return;
       const tbody = document.getElementById('tenantsTable');
 
       const tenants = data || [];
@@ -2258,14 +2343,16 @@
 
   async function loadPendingApplications() {
     try {
-      const res = await fetch('/owner-dashboard/api/pending-applications');
-      const { data } = await res.json();
+      const query = branchQuery('tenants');
+      const { data } = await ownerRequest(`/owner-dashboard/api/pending-applications${query}`);
+      if (query !== branchQuery('tenants')) return;
       const card = document.getElementById('pendingAppsCard');
       const list = document.getElementById('pendingAppsList');
       const count = document.getElementById('pendingAppsCount');
 
       if (!data || data.length === 0) {
         card.classList.add('hidden');
+        applicationReviews.clear();
         return;
       }
 
@@ -2499,10 +2586,10 @@
     document.getElementById('tenantModalTitle').textContent = returning ? 'Start New Stay' : tenant ? 'Edit Tenant Assignment' : 'Register Tenant Manually';
     document.getElementById('tenantSaveButton').textContent = returning ? 'Start New Stay' : tenant ? 'Save Changes' : 'Register';
     const branchSelect = document.getElementById('tenantBranchSelect');
-    const branches = new Map(tenantAssignmentRooms.filter(room => room.boardingHouseId).map(room => [room.boardingHouseId, room.boardingHouseName]));
+    const branches = new Map(_allBoardingHouses.map(house => [house.id, house.name]));
     branchSelect.replaceChildren(new Option('Choose a branch', ''), ...Array.from(branches, ([id, name]) => new Option(name, id)));
     const assigned = tenantAssignmentRooms.find(room => room.id === tenant?.roomId);
-    branchSelect.value = String(assigned?.boardingHouseId || branches.keys().next().value || '');
+    branchSelect.value = String(assigned?.boardingHouseId || panelBranch('tenants') || branches.keys().next().value || '');
     setTenantFloorOptions(returning ? null : assigned);
     document.getElementById('tenantRoomSelect').required = Boolean(returning || assigned);
     if (tenant) {
@@ -2582,7 +2669,9 @@
   // ─── Payments ───
   async function loadOnlinePayments() {
     try {
-      const data = await ownerRequest('/api/payments/owner/list');
+      const query = branchQuery('payments');
+      const data = await ownerRequest(`/api/payments/owner/list${query}`);
+      if (query !== branchQuery('payments')) return;
       document.getElementById('onlinePaymentsList').innerHTML = data.payments.length ? data.payments.map(payment => `<div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 p-3"><div><b>${esc(payment.tenant?.fullName || 'Tenant')}</b><p class="text-xs">${esc(payment.internalReference)} · ${esc(payment.billingMonth)} · ₱${Number(payment.amount).toLocaleString()}</p><span class="font-semibold ${payment.status === 'SUCCEEDED' ? 'text-emerald-700' : 'text-amber-700'}">${esc(payment.status)}</span></div><div>${payment.status === 'SUCCEEDED' ? `<a class="text-emerald-700 underline" href="/api/payments/${payment.id}/receipt/download" target="_blank" rel="noopener">Receipt</a>` : `<button class="rounded-full border px-3 py-2" onclick="syncOnlinePayment(${payment.id})">Sync provider status</button>${['PENDING', 'PROCESSING'].includes(payment.status) && payment.paymongoCheckoutId ? `<button class="rounded-full border px-3 py-2" onclick="closeOnlineCheckout(${payment.id})">Close unpaid checkout</button>` : ''}`}</div></div>`).join('') : 'No online checkout records yet.';
     } catch (error) { document.getElementById('onlinePaymentsList').textContent = error.message; }
   }
@@ -2601,15 +2690,17 @@
   let ownerBills = [];
   let ownerPaymentToday;
   async function loadPayments() {
+    if (!_allBoardingHouses.length) await loadBoardingHouses();
+    const query = branchQuery('payments');
     loadOnlinePayments();
-    const res = await fetch('/owner-dashboard/api/payments');
-    const { data, today } = await res.json();
+    const { data, today } = await ownerRequest(`/owner-dashboard/api/payments${query}`);
+    if (query !== branchQuery('payments')) return;
     ownerBills = data;
     ownerPaymentToday = today;
     const tbody = document.getElementById('paymentsTable');
     tbody.innerHTML = data.map(p => `
       <tr class="border-b border-slate-100 hover:bg-slate-50/50">
-        <td class="p-4 font-bold text-slate-800">${esc(p.tenantName || 'Tenant #' + p.tenantId)}<p class="text-xs font-normal text-slate-500">${esc(p.method === 'Cash' ? 'Cash on Hand' : p.method || 'Unpaid')} ${esc(p.reference || '')}</p></td>
+        <td class="p-4 font-bold text-slate-800">${esc(p.tenantName || 'Tenant #' + p.tenantId)}<p class="text-xs font-normal text-slate-500">${esc(p.method === 'Cash' ? 'Cash on Hand' : p.method || 'Unpaid')} ${esc(p.reference || '')}</p><p class="text-xs font-normal text-slate-500">${[p.boardingHouseName, p.roomNumber && 'Room ' + p.roomNumber].filter(Boolean).map(esc).join(' · ')}</p></td>
         <td class="p-4">₱${Number(p.totalAmount ?? p.amount).toLocaleString()}</td>
         <td class="p-4 text-xs">${p.dueDate}</td>
         <td class="p-4"><span class="px-2 py-1 rounded-full text-xs font-semibold ${p.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}">${p.status === 'pending' && p.reviewStatus === 'declined' ? 'Declined' : p.status === 'pending' && p.submittedMethod ? 'Submitted · Awaiting review' : esc(p.status)}</span></td>
@@ -2620,23 +2711,56 @@
       </tr>
     `).join('');
 
-    // Prepopulate tenant select in invoice modal
-    const tenantRes = await fetch('/owner-dashboard/api/tenants?status=active');
-    const tenantData = await tenantRes.json();
-    const select = document.getElementById('paymentTenantSelect');
-    select.replaceChildren(new Option('Select a tenant or room', ''));
-    const rooms = new Map();
-    for (const tenant of tenantData.data || []) {
-      select.add(new Option(tenant.fullName, tenant.id));
-      if (tenant.roomId) rooms.set(tenant.roomId, [tenant.boardingHouseName, tenant.roomNumber].filter(Boolean).join(' · Room '));
-    }
-    for (const [roomId, name] of rooms) select.add(new Option(`${name || roomId} — split total across active tenants`, `room:${roomId}`));
+    if (!data.length) tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-sm text-slate-500">No monthly bills for this selection.</td></tr>';
   }
 
-  function openPaymentModal() {
-    document.getElementById('paymentForm').reset();
+  async function openPaymentModal() {
+    if (!_allBoardingHouses.length) await loadBoardingHouses();
+    const branch = _allBoardingHouses.find(house => house.id === panelBranch('payments'));
+    if (!branch) { ownerToast('Select a boarding house before generating an invoice.', true); return; }
+    const form = document.getElementById('paymentForm');
+    form.reset();
+    form.dataset.branch = branch.id;
+    document.getElementById('invoiceBranch').textContent = branch.name;
+    const select = document.getElementById('paymentTenantSelect');
+    select.replaceChildren(new Option('Loading tenants and rooms…', ''));
+    const button = form.querySelector('button[type=submit]');
+    button.disabled = true;
     document.getElementById('paymentModal').classList.remove('hidden');
+    try {
+      const { data } = await ownerRequest(`/owner-dashboard/api/tenants?status=active&boardingHouseId=${branch.id}`);
+      if (Number(form.dataset.branch) !== branch.id) return;
+      select.replaceChildren(new Option(data.length ? 'Select a person or room' : 'No active tenants in this boarding house', ''));
+      const people = document.createElement('optgroup');
+      people.label = 'Per person';
+      const rooms = document.createElement('optgroup');
+      rooms.label = 'Per room';
+      const roomIds = new Set();
+      for (const tenant of data) {
+        const person = new Option([tenant.fullName, tenant.roomNumber && 'Room ' + tenant.roomNumber].filter(Boolean).join(' · '), tenant.id);
+        person.dataset.amount = tenant.monthlyRent || (Number(branch.rentPerHead) > 0
+          ? (Number(branch.rentPerHead) * (tenant.occupantCount || 1)).toFixed(2) : '');
+        people.append(person);
+        if (!tenant.roomId || roomIds.has(tenant.roomId)) continue;
+        roomIds.add(tenant.roomId);
+        const room = new Option('Room ' + (tenant.roomNumber || tenant.roomId), `room:${tenant.roomId}`);
+        room.dataset.amount = branch.rentPerRoom || '';
+        rooms.append(room);
+      }
+      if (people.children.length) select.append(people);
+      if (rooms.children.length) select.append(rooms);
+      button.disabled = !data.length;
+    } catch (error) {
+      select.replaceChildren(new Option('Could not load tenants and rooms', ''));
+      ownerToast(error.message, true);
+    }
   }
+
+  document.getElementById('paymentTenantSelect').addEventListener('change', event => {
+    const select = event.currentTarget;
+    const amount = Number(select.selectedOptions[0]?.dataset.amount);
+    select.form.elements.amount.value = amount > 0 ? amount.toFixed(2) : '';
+  });
 
   function closePaymentModal() {
     document.getElementById('paymentModal').classList.add('hidden');
@@ -2645,7 +2769,7 @@
   document.getElementById('paymentForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    const body = Object.fromEntries(formData.entries());
+    const body = { ...Object.fromEntries(formData.entries()), boardingHouseId: e.currentTarget.dataset.branch };
     if (body.tenantId.startsWith('room:')) {
       body.roomId = body.tenantId.slice(5);
       delete body.tenantId;
@@ -3179,29 +3303,40 @@ async function loadLegacyNotifications() {
   }
 
   // ─── Amenities ───
-  async function loadAmenities() {
-    const res = await fetch('/owner-dashboard/api/profile');
-    const { data } = await res.json();
-    let currentAmenities = [];
+  function parseBranchAmenities(value) {
     try {
-      currentAmenities = JSON.parse(data.amenities || '[]');
-    } catch(e) {}
-    
-    document.querySelectorAll('#amenitiesForm input[type="checkbox"]').forEach(cb => {
-      cb.checked = currentAmenities.includes(cb.value);
-    });
+      const amenities = JSON.parse(value || '[]');
+      if (Array.isArray(amenities)) return amenities.filter(item => typeof item === 'string');
+    } catch { /* Older branch profiles stored a comma-separated list. */ }
+    return (value || '').split(/[,\n]/).map(item => item.trim()).filter(Boolean);
   }
 
-  document.getElementById('amenitiesForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const checked = Array.from(document.querySelectorAll('#amenitiesForm input[type="checkbox"]:checked')).map(cb => cb.value);
+  async function loadAmenities() {
+    if (!_allBoardingHouses.length) await loadBoardingHouses();
+    const house = _allBoardingHouses.find(item => item.id === panelBranch('amenities'));
+    const form = document.getElementById('amenitiesForm');
+    const amenities = parseBranchAmenities(house?.amenities);
+    const checkboxes = [...form.querySelectorAll('input[type="checkbox"]')];
+    for (const checkbox of checkboxes) checkbox.checked = amenities.includes(checkbox.value);
+    form.elements.customAmenities.value = amenities.filter(item => !checkboxes.some(checkbox => checkbox.value === item)).join('\n');
+    form.querySelector('button[type=submit]').disabled = !house;
+  }
+
+  document.getElementById('amenitiesForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const houseId = panelBranch('amenities');
+    if (!houseId) return;
+    const form = event.currentTarget;
+    const checked = [...form.querySelectorAll('input[type="checkbox"]:checked')].map(input => input.value);
+    const amenities = [...new Set([...checked, ...parseBranchAmenities(form.elements.customAmenities.value)])];
     try {
-      await ownerRequest('/owner-dashboard/api/amenities', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amenities: checked })
+      const { data } = await ownerRequest(`/owner-dashboard/api/boarding-houses/${houseId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amenities: JSON.stringify(amenities) })
       });
-      ownerToast('Amenities saved.');
+      const house = _allBoardingHouses.find(item => item.id === houseId);
+      if (house) house.amenities = data.amenities;
+      ownerToast('Branch amenities saved.');
     } catch (error) { ownerToast(error.message, true); }
   });
 

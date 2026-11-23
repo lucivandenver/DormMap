@@ -96,6 +96,7 @@ const manualPaymentColumns = {
 
 export const OwnerPayment = sequelize.define('OwnerPayment', {
   ...manualPaymentColumns,
+  boardingHouseId: { type: DataTypes.INTEGER, allowNull: true },
   ownerId:       { type: DataTypes.INTEGER, allowNull: false },
   tenantId:      { type: DataTypes.INTEGER, allowNull: false },
   roomId:        { type: DataTypes.INTEGER, allowNull: true },
@@ -174,7 +175,7 @@ export const ensureOwnerSchema = async () => {
   // Add extra columns to OwnerGallery if needed
   const queryInterface = sequelize.getQueryInterface();
   const paymentColumns = await queryInterface.describeTable('OwnerPayments');
-  for (const [name, definition] of Object.entries(manualPaymentColumns)) {
+  for (const [name, definition] of Object.entries({ ...manualPaymentColumns, boardingHouseId: { type: DataTypes.INTEGER, allowNull: true } })) {
     if (!paymentColumns[name]) await queryInterface.addColumn('OwnerPayments', name, definition);
   }
   const houseColumns = await queryInterface.describeTable('BoardingHouses');

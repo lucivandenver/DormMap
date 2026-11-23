@@ -609,7 +609,8 @@
             </label>
           </div>
 
-          <div style="display:flex;gap:0.75rem;margin-top:1.2rem;">
+          <p id="ownerWizardStatus" class="registration-submit-status" role="status" aria-live="polite" hidden></p>
+          <div class="flex flex-wrap gap-3 mt-5">
             <button type="button" class="registration-step" onclick="goToStep(2)">← Previous Step</button>
             <button type="submit" class="btn-primary flex items-center gap-1.5"><svg class="icon-bw-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> Submit Registration</button>
           </div>
@@ -620,7 +621,8 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="/js/owner-registration-locations.js?v=2"></script>
+  <script src="/js/owner-registration-locations.js?v=3"></script>
+  <script src="/js/owner-registration-submit.js"></script>
   <script>
     let mapInitialized = false;
     let map, marker;
@@ -641,7 +643,7 @@
       showStep(step);
     }
 
-    function showStep(step) {
+    function showStep(step, scroll = true) {
       wizardStep = step;
       ['step1','step2','step3'].forEach((id, i) => {
         document.getElementById(id).style.display = (i + 1 === step) ? 'block' : 'none';
@@ -662,7 +664,7 @@
       });
 
       if (step === 2) requestAnimationFrame(() => { initMap(); map.invalidateSize(); });
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (scroll) document.querySelector('.step-indicator').scrollIntoView({ block: 'nearest' });
     }
 
     function syncMapPin() {
@@ -700,21 +702,29 @@
       });
     }
 
-    wizard.addEventListener('submit', event => {
-      for (let step = 1; step <= 3; step++) {
-        if (step === 2) {
-          showStep(2);
-          if (!branches.validateAll()) { event.preventDefault(); return; }
-          showStep(3);
-          continue;
-        }
-        const panel = document.getElementById('step'+step);
-        for (const input of panel.querySelectorAll('input,select,textarea')) {
-          if (!input.checkValidity()) { event.preventDefault(); showStep(step); input.reportValidity(); return; }
-        }
+    let submitting = false;
+    wizard.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (wizardStep !== 3 || submitting) return;
+      for (const step of [3, 1]) {
+        const invalid = document.querySelector(`#step${step} :invalid`);
+        if (!invalid) continue;
+        if (step !== wizardStep) showStep(step, false);
+        invalid.reportValidity();
+        return;
       }
+      if (!branches.validateAll(() => showStep(2, false))) return;
+      submitting = true;
+      const buttons = [...document.querySelectorAll('#step3 button')];
+      buttons.forEach(button => { button.disabled = true; });
+      const data = await submitOwnerRegistration(wizard, document.getElementById('ownerWizardStatus'));
+      if (data?.success && data.redirect) {
+        window.location.assign(data.redirect);
+        return;
+      }
+      submitting = false;
+      buttons.forEach(button => { button.disabled = false; });
     });
-
 
     wizard.addEventListener('click', event => {
       const button = event.target.closest('[data-branch-full-map]');

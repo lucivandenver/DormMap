@@ -249,7 +249,7 @@
         </span>
       </div>
 
-      <form method="POST" action="/complete-barangay-profile" id="completionForm" novalidate>
+      <form method="POST" action="/complete-barangay-profile" id="completionForm" enctype="multipart/form-data">
 
         <div class="field-group">
 
@@ -303,6 +303,7 @@
             <input
               type="text"
               name="positionTitle"
+              value="{{values.positionTitle}}"
               id="positionTitle"
               placeholder="e.g. Barangay Captain, Secretary, Inspector"
               required
@@ -316,12 +317,19 @@
             <input
               type="tel"
               name="contactNumber"
+              value="{{values.contactNumber}}"
               id="contactNumber"
               placeholder="09XXXXXXXXX"
               required
               pattern="^(09|\+639)\d{9}$"
               autocomplete="tel"
             >
+          </label>
+
+          <label for="barangayValidId">
+            <span>Government-issued ID <b class="req">*</b></span>
+            <input type="file" name="validIdPicture" id="barangayValidId" required accept="image/jpeg,image/png,image/webp,application/pdf">
+            <small>JPG, PNG, WebP, or PDF up to 5 MB.</small>
           </label>
 
           <!-- Terms -->

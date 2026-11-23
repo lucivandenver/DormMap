@@ -40,15 +40,20 @@ export function photoType(bytes) {
   return null;
 }
 
-export async function storePropertyPhoto(file, ownerId, transaction) {
+async function preparePropertyPhoto(file, ownerId) {
   const bytes = file.buffer || (file.path ? await readFile(file.path) : null);
   const contentType = photoType(bytes);
   if (!contentType || contentType !== file.mimetype) {
     throw Object.assign(new Error('Upload a valid JPG, PNG, or WebP property photo.'), { status: 422 });
   }
   const id = randomUUID();
-  await PropertyPhoto.create({ id, ownerId, contentType, bytes }, { transaction });
-  return `/uploads/property-${id}.${extensions[contentType]}`;
+  return { values: { id, ownerId, contentType, bytes }, url: `/uploads/property-${id}.${extensions[contentType]}` };
+}
+
+export async function storePropertyPhoto(file, ownerId, transaction) {
+  const { values, url } = await preparePropertyPhoto(file, ownerId);
+  await PropertyPhoto.create(values, { transaction });
+  return url;
 }
 
 export async function saveGallerySlot(ownerId, boardingHouseId, category, imageUrl, transaction) {
@@ -59,13 +64,32 @@ export async function saveGallerySlot(ownerId, boardingHouseId, category, imageU
   else await OwnerGallery.create({ ...where, ...values }, { transaction });
 }
 
-export async function storeRegistrationPhotos(files, ownerId, transaction, prefix = '') {
-  const urls = [];
-  for (const category of GALLERY_CATEGORIES) {
-    const file = files?.[prefix + category.field]?.[0] || (!prefix && category.index === 1 ? files?.boardingHousePicture?.[0] : null);
-    urls.push(file ? await storePropertyPhoto(file, ownerId, transaction) : '');
+export async function storeRegistrationPhotos(files, ownerId, transaction, branchCount = 1) {
+  const galleries = [];
+  let batch = [];
+  let batchSize = 0;
+  const flush = async () => {
+    if (batch.length) await PropertyPhoto.bulkCreate(batch, { transaction });
+    batch = [];
+    batchSize = 0;
+  };
+  for (let branch = 0; branch < branchCount; branch++) {
+    const prefix = branch ? `branch${branch + 1}_` : '';
+    const gallery = [];
+    for (const category of GALLERY_CATEGORIES) {
+      const file = files?.[prefix + category.field]?.[0] || (!prefix && category.index === 1 ? files?.boardingHousePicture?.[0] : null);
+      if (!file) { gallery.push(''); continue; }
+      const { values, url } = await preparePropertyPhoto(file, ownerId);
+      // Bound each SQL statement by bytes as well as row count.
+      if (batchSize + values.bytes.length > 4 * 1024 * 1024 || batch.length >= 50) await flush();
+      batch.push(values);
+      batchSize += values.bytes.length;
+      gallery.push(url);
+    }
+    galleries.push(gallery);
   }
-  return urls;
+  await flush();
+  return galleries;
 }
 
 export async function servePropertyPhoto(req, res, next) {

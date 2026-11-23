@@ -74,9 +74,10 @@ function ownerRegistrationLocations(form, step, onChange) {
     next() { if (index + 1 >= panels.length) return false; select(index + 1); heading.scrollIntoView({ block: 'center' }); return true; },
     back() { if (!index) return false; select(index - 1); heading.scrollIntoView({ block: 'center' }); return true; },
     last() { select(panels.length - 1); },
-    validateAll() {
+    validateAll(reveal) {
       const invalid = panels.findIndex(panel => issue(panel));
       if (invalid === -1) return true;
+      reveal();
       select(invalid);
       return validate();
     }

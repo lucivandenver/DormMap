@@ -592,6 +592,10 @@ export const registerUser = async (req, res) => {
       return renderRegisterPage(res, { authAccountType: normalizedAccountType, authError: ownerBarangayError, authValues: req.body });
     }
 
+    if (normalizedAccountType === 'barangay' && !req.files?.validIdPicture?.[0]) {
+      return renderRegisterPage(res, { authAccountType: normalizedAccountType, authError: 'Upload a government-issued ID.', authValues: req.body });
+    }
+
     const profilePicture = getUploadedPath(req.files, "profilePicture");
     const businessPermit = getUploadedPath(req.files, "businessPermit");
 
@@ -650,7 +654,7 @@ export const registerUser = async (req, res) => {
         contactNumber: setup?.payment.contactNumber || contactNumber || null,
         notes: notes || null,
       }, { transaction });
-      const scope = { boarding_house_owner: 'owner-registration', tenant: 'tenant-registration' }[normalizedAccountType] || 'registration';
+      const scope = { boarding_house_owner: 'owner-registration', tenant: 'tenant-registration', barangay: 'barangay-registration' }[normalizedAccountType] || 'registration';
       const documentUpdates = {};
       const supportingDocuments = {};
       for (const field of ['validIdPicture', 'businessPermit', 'barangayClearance', 'rentalPermit',
@@ -663,14 +667,15 @@ export const registerUser = async (req, res) => {
       if (Object.keys(supportingDocuments).length) documentUpdates.supportingDocuments = JSON.stringify(supportingDocuments);
       if (Object.keys(documentUpdates).length) await created.update(documentUpdates, { transaction });
       if (setup) {
-        const galleryImages = await storeRegistrationPhotos(req.files, created.id, transaction);
+        const galleries = await storeRegistrationPhotos(req.files, created.id, transaction, setup.branches.length);
+        const [galleryImages] = galleries;
         await created.update({
           boardingHousePicture: galleryImages[0] || null,
           galleryImages: JSON.stringify(galleryImages),
           ...Object.fromEntries(await Promise.all(Object.entries(setup.payment.qrUploads).map(async ([field, file]) =>
             [field, await storeReviewFile(file, created.id, 'payment-qr', transaction)]))),
         }, { transaction });
-        await registerPropertyInventory(created, setup, req.files, transaction);
+        await registerPropertyInventory(created, setup, galleries, transaction);
       }
       return created;
     });
@@ -680,7 +685,11 @@ export const registerUser = async (req, res) => {
     if (normalizedAccountType !== "super_admin") {
       void sendVerificationEmail(email, verificationToken).catch(mailError => console.error("Verification email failed:", mailError));
       const approvalMessage = 'Application submitted. Please wait for the responsible office to approve your account.';
-      if (res.locals.registrationWantsJson) return res.status(201).json({ success: true, message: approvalMessage });
+      if (res.locals.registrationWantsJson) {
+        const result = { success: true, message: approvalMessage };
+        if (req.registrationDraftDirectory) req.session.completedRegistrationDraft = { id: req.body.registrationDraft, path: req.path, status: 201, result };
+        return res.status(201).json(result);
+      }
       if (normalizedAccountType === 'boarding_house_owner') return res.redirect('/register?accountType=boarding_house_owner&pendingApproval=1');
       return res.redirect(['barangay', 'boarding_house_owner'].includes(normalizedAccountType) ? "/login?pendingApproval=1" : "/login?registered=1");
     }
@@ -730,6 +739,7 @@ export const completeBarangayProfile = async (req, res) => {
     res.render("completeBarangayProfile", {
       title: "Complete Your Barangay Profile | DormMap",
       error: msg,
+      values: req.body,
     });
 
   if (!barangay) return renderError("Please select your assigned barangay.");
@@ -744,6 +754,10 @@ export const completeBarangayProfile = async (req, res) => {
       return res.redirect("/login");
     }
 
+    if (user.accountType !== 'barangay') return res.status(403).send('Barangay account required.');
+    const idFile = req.files?.validIdPicture?.[0];
+    if (!idFile && !user.validIdPicture) return renderError('Upload a government-issued ID.');
+
     // Check if this barangay is already taken by another account
     const existingBarangay = await User.findOne({
       where: {
@@ -757,12 +771,15 @@ export const completeBarangayProfile = async (req, res) => {
       return renderError(`A barangay official account for "${barangay}" already exists. Please contact the administrator.`);
     }
 
-    if (user.accountType !== "barangay") return res.status(403).send("Barangay account required.");
-    user.applicationStatus = 'pending';
-    user.barangay = barangay;
-    user.positionTitle = positionTitle.trim();
-    user.contactNumber = contactNumber.trim();
-    await user.save();
+    await sequelize.transaction(async transaction => {
+      const validIdPicture = idFile
+        ? await storeReviewFile(idFile, user.id, 'barangay-registration', transaction) : user.validIdPicture;
+      await user.update({
+        applicationStatus: 'pending', barangay, positionTitle: positionTitle.trim(),
+        contactNumber: contactNumber.trim(), validIdPicture
+      }, { transaction });
+    });
+    req.registrationSaved = true;
 
     // Promote / refresh session to full authenticated state
     req.session.userId = user.id;
@@ -773,7 +790,7 @@ export const completeBarangayProfile = async (req, res) => {
     return res.redirect("/barangay-dashboard");
   } catch (err) {
     console.error("Complete barangay profile error:", err);
-    return renderError("Something went wrong. Please try again.");
+    return renderError(err.status === 422 ? err.message : "Something went wrong. Please try again.");
   }
 };
 

@@ -48,3 +48,102 @@
 }
 
 [data-branch-location][hidden] { display: none !important; }
+
+.registration-submit-status {
+  padding: .75rem 1rem;
+  border: 1px solid #a7f3d0;
+  border-radius: .85rem;
+  background: #ecfdf5;
+  color: #065f46;
+  font-size: .875rem;
+}
+.registration-submit-status[data-state="error"] {
+  border-color: #fecdd3;
+  background: #fff1f2;
+  color: #9f1239;
+}
+
+.tenant-setup {
+  margin: 0;
+  min-height: 100vh;
+  background: #f4f7f6;
+  color: #172a25;
+  font-family: inherit;
+}
+.tenant-setup-header {
+  padding: .75rem clamp(1rem, 4vw, 2rem);
+  border-bottom: 1px solid #dce6e1;
+  background: white;
+}
+.tenant-setup-header > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem 1rem;
+  max-width: 64rem;
+  margin: auto;
+}
+.tenant-setup-brand, .tenant-setup-cancel {
+  display: inline-flex;
+  align-items: center;
+  gap: .65rem;
+  min-height: 2.75rem;
+  color: #065f46;
+  font-weight: 700;
+}
+.tenant-setup-brand span {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: .7rem;
+  background: #064e3b;
+  color: white;
+}
+.tenant-setup-cancel { font-size: .875rem; text-decoration: underline; text-underline-offset: .2em; }
+.tenant-setup-main { max-width: 45rem; margin: auto; padding: clamp(.75rem, 4vw, 2rem); }
+.tenant-setup-card {
+  overflow: hidden;
+  border: 1px solid #dce6e1;
+  border-radius: 1.25rem;
+  background: white;
+  box-shadow: 0 .4rem 1.6rem #16352b10;
+}
+.tenant-setup-intro { padding: clamp(1.1rem, 5vw, 2rem); background: #073e32; color: #e1f4ee; }
+.tenant-setup-intro h1 { margin: .25rem 0 .5rem; font-size: clamp(1.4rem, 5vw, 2rem); font-weight: 800; line-height: 1.2; color: white; }
+.tenant-setup-intro p { font-size: .9rem; line-height: 1.5; }
+#tenantSetupForm { display: grid; gap: 1rem; padding: clamp(.75rem, 4vw, 1.75rem); }
+.tenant-setup-section { display: grid; gap: .55rem; min-width: 0; padding: clamp(.65rem, 3vw, 1rem); border: 1px solid #dce6e1; border-radius: 1rem; }
+.tenant-setup-section h2 { display: flex; align-items: center; gap: .5rem; font-size: 1rem; font-weight: 800; }
+.tenant-setup-section h2 svg, .tenant-setup-submit svg { flex: 0 0 auto; }
+.tenant-setup-section label { display: block; min-width: 0; font-size: .875rem; font-weight: 650; }
+.tenant-setup-section label > span { color: #a21942; }
+.tenant-setup-section input, .tenant-setup-section select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  margin: 0;
+  padding: .55rem .7rem;
+  border: 1px solid #b9cbc3;
+  border-radius: .65rem;
+  background: white;
+  color: inherit;
+  font-size: 1rem;
+}
+.tenant-setup-section label > input, .tenant-setup-section label > select { margin-top: .3rem; }
+.tenant-setup-section input[type="file"] { font-size: .8rem; }
+.tenant-setup-section input::file-selector-button { margin-right: .5rem; border: 0; border-radius: .4rem; padding: .3rem .5rem; color: #065f46; background: #e7f5ed; font-weight: 700; }
+.tenant-setup-hint, .tenant-setup-section small { color: #435a51; font-size: .8rem; font-weight: 500; }
+.tenant-setup-hint:empty { display: none; }
+#tenantMiniMap { height: 13rem; margin-top: .3rem; z-index: 0; border-radius: .65rem; }
+.tenant-setup-grid { display: grid; gap: .85rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tenant-setup-terms { display: flex; gap: .6rem; align-items: flex-start; padding: .75rem; background: #f4f7f6; border-radius: .75rem; font-size: .875rem; }
+.tenant-setup-terms input { flex: 0 0 auto; width: 1rem; height: 1rem; margin-top: .2rem; accent-color: #047857; }
+.tenant-setup-terms a { color: #065f46; font-weight: 700; text-decoration: underline; }
+.tenant-setup-submit { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-height: 2.75rem; padding: .6rem 1rem; border-radius: .7rem; background: #065f46; color: white; font-weight: 750; }
+.tenant-setup-submit:disabled { opacity: .55; }
+.tenant-setup :focus-visible { outline: 2px solid #047857; outline-offset: 2px; }
+.tenant-setup [hidden] { display: none !important; }
+@media (max-width: 34rem) { .tenant-setup-grid { grid-template-columns: minmax(0, 1fr); } }
