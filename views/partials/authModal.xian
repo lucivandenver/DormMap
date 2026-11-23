@@ -557,41 +557,18 @@
                 <span>If you sign in with <strong>Google</strong>, you will be guided through the full profile setup on the next page.</span>
               </p>
             </div>
-            <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
-              <label class="flex-1">
-                <span class="mb-1 block text-[13px] font-semibold text-slate-700">Search boarding house <span class="text-slate-400 font-normal">(optional)</span></span>
-                <input type="text" name="boardingHouseSearch" placeholder="Type boarding house name" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
-              </label>
-              <button type="button" data-tenant-search class="inline-flex h-12 shrink-0 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-[var(--dormmap-primary)] hover:text-[var(--dormmap-primary)]">
-                <svg class="icon-bw-sm w-4 h-4 shrink-0" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Search
-              </button>
-            </div>
-            <p class="mt-1.5 text-xs text-slate-400" data-tenant-hint>Search by name, or skip and choose a boarding house from your dashboard later.</p>
-            <div id="tenantMapPanel" class="mt-3 hidden rounded-2xl border border-slate-200 overflow-hidden sm:col-span-2">
-              <div class="border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 flex items-center gap-1.5">
-                <svg class="icon-bw-sm w-4 h-4 shrink-0 text-emerald-700" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-                <span>Boarding house map results</span>
-              </div>
-              <div id="tenantMap" class="h-52 w-full"></div>
-            </div>
+            <div class="mt-3">{{> tenantRegistrationProperty selection=authValues}}</div>
             <div class="mt-3 grid gap-2.5 sm:grid-cols-2">
               <label>
                 <span class="mb-1 block text-[13px] font-semibold text-slate-700">Contact number</span>
-                <input type="text" name="contactNumber" placeholder="09XXXXXXXXX" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
+                <input type="tel" name="contactNumber" value="{{authValues.contactNumber}}" placeholder="09XXXXXXXXX" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
               </label>
               <label>
                 <span class="mb-1 block text-[13px] font-semibold text-slate-700">Gender</span>
-                <select name="gender" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
+                <select name="gender" data-selected="{{authValues.gender}}" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
                   <option value="">Select gender...</option>
                   <option value="male">Male</option>
                   <option value="female">Female</option>
-                  <option value="prefer_not_to_say">Prefer not to say</option>
-                </select>
-              </label>
-              <label>
-                <span class="mb-1 block text-[13px] font-semibold text-slate-700">Select boarding house <span class="text-slate-400 font-normal">(optional)</span></span>
-                <select name="selectedBoardingHouse" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-[var(--dormmap-primary)] focus:ring-4 focus:ring-emerald-950/10">
-                  <option value="">Choose from results or leave blank</option>
                 </select>
               </label>
               <label>
@@ -642,9 +619,8 @@
     const registerSections = Array.from(document.querySelectorAll('[data-register-section]'));
     const ownerNextButtons = Array.from(document.querySelectorAll('[data-owner-next]'));
     const ownerBackButtons = Array.from(document.querySelectorAll('[data-owner-back]'));
-    const tenantSearchButton = registerForm.querySelector('[data-tenant-search]');
-    const boardingHouseSearchInput = registerForm.querySelector('input[name="boardingHouseSearch"]');
-    const tenantHouseSelect = registerForm.querySelector('select[name="selectedBoardingHouse"]');
+    const tenantGender = registerForm.querySelector('[name="gender"]');
+    tenantGender.value = ['male', 'female'].includes(tenantGender.dataset.selected) ? tenantGender.dataset.selected : '';
     let syncOwnerPin = () => {};
     const branchLocations = ownerRegistrationLocations(registerForm, ownerSteps[1], () => syncOwnerPin());
 
@@ -743,6 +719,7 @@
         const visible = state.mode === 'register' && sectionRole === role;
         section.classList.toggle('hidden', !visible);
         syncInputs(section, visible);
+        if (visible && sectionRole === 'tenant') document.dispatchEvent(new Event('tenant-registration-shown'));
       });
 
       const tenantHide = document.querySelector('[data-tenant-hide]');
@@ -838,46 +815,6 @@
       actions.forEach(button => { button.disabled = false; });
     });
 
-    const resetTenantSelection = () => {
-      if (!tenantHouseSelect) return;
-      tenantHouseSelect.innerHTML = '<option value="">Choose from map results or search</option>';
-      tenantHouseSelect.disabled = false;
-    };
-
-    const updateTenantOptions = (houses = []) => {
-      if (!tenantHouseSelect) return;
-      const currentValue = tenantHouseSelect.value || '';
-      tenantHouseSelect.innerHTML = '<option value="">Choose from map results or search</option>';
-
-      if (houses.length === 0) {
-        const noResults = document.createElement('option');
-        noResults.value = '';
-        noResults.textContent = 'No boarding houses found. Use the map to select one.';
-        noResults.disabled = true;
-        noResults.selected = true;
-        tenantHouseSelect.appendChild(noResults);
-        tenantHouseSelect.disabled = true;
-        return;
-      }
-
-      houses.forEach((house) => {
-        const option = document.createElement('option');
-        option.value = house.name;
-        option.textContent = `${house.name} — ${house.type}`;
-        if (house.name === currentValue) {
-          option.selected = true;
-        }
-        tenantHouseSelect.appendChild(option);
-      });
-      tenantHouseSelect.disabled = false;
-    };
-
-    const searchTenantBoardingHouses = () => {
-      const query = boardingHouseSearchInput?.value.trim().toLowerCase() || '';
-      const houses = authMapHouseData.filter((house) => house.name.toLowerCase().includes(query));
-      updateTenantOptions(houses);
-    };
-
     const setOwnerLocationValue = (value, lat, lng) => {
       const ownerMapInput = branchLocations.field('mapPin');
       const latInput = branchLocations.field('boardingHouseLatitude');
@@ -892,79 +829,10 @@
       }
     };
 
-    const showAuthMap = (panelId) => {
-      const ownerPanel = document.getElementById('ownerMapPanel');
-      const tenantPanel = document.getElementById('tenantMapPanel');
-      if (ownerPanel) ownerPanel.classList.toggle('hidden', panelId !== 'owner');
-      if (tenantPanel) tenantPanel.classList.toggle('hidden', panelId !== 'tenant');
-    };
-
-    window.selectBoardingHouseFromMap = (house) => {
-      if (!house || !house.name) return;
-      if (boardingHouseSearchInput) {
-        boardingHouseSearchInput.value = house.name;
-      }
-      updateTenantOptions([house]);
-      if (tenantHouseSelect) {
-        tenantHouseSelect.value = house.name;
-      }
-      const tenantHint = document.querySelector('[data-tenant-hint]');
-      if (tenantHint) {
-        tenantHint.textContent = `Selected "${house.name}" from the map. Please continue your registration.`;
-      }
-    };
-
     window.setOwnerLocationPin = setOwnerLocationValue;
 
-    let authMapHouseData = [];
-
-    // Fetch real boarding houses from API
-    fetch('/api/boarding-houses')
-      .then(r => r.json())
-      .then(houses => {
-        if (!Array.isArray(houses)) return;
-        authMapHouseData = houses.filter(h => h.registrationStatus !== 'unregistered').map(h => ({
-          ...h,
-          name: h.boardingHouseName || h.fullName || 'Boarding House',
-          type: Array.isArray(h.roomTypes) ? h.roomTypes[0] : 'N/A',
-          lat: h.latitude === null ? null : Number(h.latitude),
-          lng: h.longitude === null ? null : Number(h.longitude),
-          address: h.boardingHouseAddress || h.barangay || '',
-          rooms: h.roomsAvailable ?? 0
-        })).filter(h => h.name);
-
-        // After data is loaded, if tenant map is initialized, add markers
-        if (window._tenantMapInitialized && window._tenantMarkersCallback) {
-          window._tenantMarkersCallback(authMapHouseData);
-        }
-        // Pre-populate select if already open
-        updateTenantOptions(authMapHouseData);
-      })
-      .catch(() => {});
-
-    const initAuthMaps = () => {
+    const initOwnerMap = () => {
       if (typeof L === 'undefined') return;
-
-      const createMarkerOnMap = (map, house) => {
-        if (house.lat === null || house.lng === null || !Number.isFinite(house.lat) || !Number.isFinite(house.lng)) return;
-        const lat = Number(house.lat) || 12.7192;
-        const lng = Number(house.lng) || 121.4719;
-        const popup = window.dormMapListingPopup(house, {
-          onDetails: () => {
-            window.dormMapCloseExpanded(map);
-            window.openPropertyDetailModal(house.id);
-          }
-        });
-        const marker = L.marker([lat, lng], {
-          icon: dormMapPropertyPin(L, false, house), title: house.name
-        }).addTo(map).bindPopup(popup);
-        marker.on('popupopen', () => window.dormMapRefreshListingDistance(L, popup, house));
-        marker.on('click', () => {
-          window.selectBoardingHouseFromMap(house);
-        });
-        return marker;
-      };
-
       const ownerMapElement = document.getElementById('ownerMap');
       if (ownerMapElement) {
         const ownerMap = L.map(ownerMapElement, { scrollWheelZoom: false }).setView([12.7192, 121.4719], 14);
@@ -993,92 +861,12 @@
         });
         dormMapReferencePins(L, ownerMap);
         window.startOwnerLocationPick = (trigger) => {
-          showAuthMap('owner');
+          branchLocations.active().querySelector('[data-shared-registration-map]')?.classList.remove('hidden');
           open(trigger);
         };
       }
 
-      const tenantMapElement = document.getElementById('tenantMap');
-      if (tenantMapElement) {
-        const tenantMap = L.map(tenantMapElement, { scrollWheelZoom: false }).setView([12.7192, 121.4719], 14);
-        dormMapFullMap(L, tenantMap, L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(tenantMap));
-
-        let tenantMarkers = [];
-
-        const rebuildTenantMarkers = (houses) => {
-          tenantMarkers.forEach(m => tenantMap.removeLayer(m));
-          tenantMarkers = [];
-          if (!houses || houses.length === 0) return;
-          houses.forEach(house => {
-            const marker = createMarkerOnMap(tenantMap, house);
-            if (marker) tenantMarkers.push(marker);
-          });
-          if (houses.length === 1 && houses[0].lat !== null && houses[0].lng !== null) {
-            const h = houses[0];
-            tenantMap.setView([h.lat || 12.7192, h.lng || 121.4719], 16);
-          }
-        };
-
-        window._tenantMapInitialized = true;
-        window._tenantMarkersCallback = rebuildTenantMarkers;
-
-        // If data already loaded before map init
-        if (authMapHouseData.length > 0) {
-          rebuildTenantMarkers(authMapHouseData);
-        }
-
-        window.filterTenantMap = (query) => {
-          const lowerQuery = (query || '').trim().toLowerCase();
-          const filtered = lowerQuery ? authMapHouseData.filter(h => h.name.toLowerCase().includes(lowerQuery)) : authMapHouseData;
-          rebuildTenantMarkers(filtered);
-        };
-
-        window.panTenantMapTo = (house) => {
-          if (!house) return;
-          const lat = Number(house.lat) || 12.7192;
-          const lng = Number(house.lng) || 121.4719;
-          tenantMap.setView([lat, lng], 17);
-          setTimeout(() => tenantMap.invalidateSize(), 100);
-        };
-      }
     };
-
-    if (tenantSearchButton) {
-      tenantSearchButton.addEventListener('click', () => {
-        const query = boardingHouseSearchInput?.value || '';
-        const filtered = authMapHouseData.filter(h => h.name.toLowerCase().includes(query.trim().toLowerCase()));
-        updateTenantOptions(filtered);
-        if (query) {
-          window.filterTenantMap?.(query);
-          showAuthMap('tenant');
-        }
-      });
-    }
-
-    // Live input search
-    if (boardingHouseSearchInput) {
-      boardingHouseSearchInput.addEventListener('input', () => {
-        const query = boardingHouseSearchInput.value;
-        const filtered = authMapHouseData.filter(h => h.name.toLowerCase().includes(query.trim().toLowerCase()));
-        updateTenantOptions(filtered);
-        window.filterTenantMap?.(query);
-        if (query.trim()) {
-          showAuthMap('tenant');
-        }
-      });
-    }
-
-    // When select changes, pan map to that house
-    if (tenantHouseSelect) {
-      tenantHouseSelect.addEventListener('change', () => {
-        const selectedName = tenantHouseSelect.value;
-        const house = authMapHouseData.find(h => h.name === selectedName);
-        if (house) {
-          window.panTenantMapTo?.(house);
-          showAuthMap('tenant');
-        }
-      });
-    }
 
     registerForm.addEventListener('click', event => {
       const button = event.target.closest('[data-owner-open-map]');
@@ -1090,7 +878,7 @@
       authOwnerFullMapBtn.addEventListener('click', () => window.startOwnerLocationPick?.(authOwnerFullMapBtn));
     }
 
-    initAuthMaps();
+    initOwnerMap();
 
     roleCards.forEach((card) => {
       card.addEventListener('click', () => setRole(card.dataset.authRole));

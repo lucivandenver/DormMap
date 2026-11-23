@@ -1,7 +1,7 @@
 import { Op } from 'sequelize';
 import { sequelize, User } from '../models/userModel.js';
 import { TenantApplication } from '../models/tenantModels.js';
-import { BoardingHouse } from '../models/ownerModels.js';
+import { BoardingHouse, OwnerRoom, OwnerInquiry, OwnerMessage, OwnerNotification } from '../models/ownerModels.js';
 
 const activeStatuses = ['confirmed', 'accepted_by_owner', 'pending_owner'];
 
@@ -28,6 +28,54 @@ export async function findApplicationProperty(selection, options = {}) {
   if (key) return {};
   const legacyOwners = await User.findAll({ where: { ...owners, boardingHouseName: selection }, limit: 2, ...options });
   return legacyOwners.length === 1 ? { owner: legacyOwners[0] } : {};
+}
+
+const registrationError = message => Object.assign(new Error(message), { status: 422 });
+
+export const isTenantGender = gender => gender === 'male' || gender === 'female';
+
+export async function registrationApplicationDetails({ selectedBoardingHouse, requestedRoomId, requestedRoomType }, transaction) {
+  if (!selectedBoardingHouse && !requestedRoomId) return null;
+  const { house, owner } = await findApplicationProperty(selectedBoardingHouse, { transaction });
+  const boardingHouseName = house?.name || owner?.boardingHouseName;
+  if (!boardingHouseName) throw registrationError('Select an approved boarding house from the current listings.');
+
+  let preferredRoomLabel = null;
+  let roomType = typeof requestedRoomType === 'string' ? requestedRoomType.trim().slice(0, 255) : '';
+  if (requestedRoomId !== undefined && requestedRoomId !== '') {
+    const id = Number(requestedRoomId);
+    if (typeof requestedRoomId !== 'string' || !/^\d+$/.test(requestedRoomId) || !Number.isSafeInteger(id) || id < 1) {
+      throw registrationError('Select an available room from this boarding house.');
+    }
+    const boardingHouseId = house?.isPrimary ? { [Op.or]: [house.id, null] } : house?.id ?? null;
+    const room = await OwnerRoom.findOne({
+      where: { id, ownerId: owner.id, boardingHouseId, status: 'available', availableSlots: { [Op.gt]: 0 } },
+      attributes: ['roomNumber', 'floor', 'roomType'], transaction
+    });
+    if (!room) throw registrationError('That room is no longer available at this boarding house. Choose another room or continue without a preference.');
+    roomType = room.roomType;
+    preferredRoomLabel = [`Room ${room.roomNumber}`, room.floor, room.roomType].filter(Boolean).join(' · ');
+  }
+  return { ownerId: owner.id, boardingHouseId: house?.id || null, boardingHouseName, requestedRoomType: roomType || null, preferredRoomLabel };
+}
+
+export function createRegistrationInquiry(user, details, transaction) {
+  return createTenantApplication({
+    ...details, tenantId: user.id, status: 'pending_owner',
+    message: 'Submitted during tenant registration.'
+  }, { transaction });
+}
+
+export function notifyRegistrationInquiry(user, { ownerId, boardingHouseName }) {
+  return Promise.allSettled([
+    OwnerInquiry.create({ ownerId, clientName: user.fullName, clientEmail: user.email, clientPhone: user.contactNumber,
+      status: 'new', message: `Tenant application submitted for ${boardingHouseName}.` }),
+    OwnerNotification.create({ ownerId, title: 'New tenant application',
+      body: `${user.fullName} applied for a room at ${boardingHouseName}.`, type: 'tenant_application', link: '#tenants' }),
+    OwnerMessage.create({ ownerId, senderId: user.id, recipientId: ownerId,
+      subject: `Application inquiry for ${boardingHouseName}`,
+      message: `Hello! I submitted a rental application for ${boardingHouseName}.`, isRead: false })
+  ]);
 }
 
 export async function createTenantApplication(values, { legacy = false, transaction } = {}) {

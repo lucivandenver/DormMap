@@ -1254,6 +1254,7 @@ export const getPendingApplications = async (req, res, next) => {
         boardingHouseName: app.boardingHouseName,
         occupantCount: app.occupantCount,
         requestedRoomType: app.requestedRoomType || 'Any',
+        preferredRoomLabel: app.preferredRoomLabel,
         message: app.message,
         status: app.status,
         roomId: app.roomId,
