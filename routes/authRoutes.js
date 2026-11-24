@@ -52,6 +52,7 @@ const registrationFields = [
   { name: "qrPhCode", maxCount: 1 },
   { name: "boardingHousePicture", maxCount: 1 },
   { name: "validIdPicture", maxCount: 1 },
+  { name: "reservationProof", maxCount: 1 },
   { name: "businessPermit", maxCount: 1 },
   { name: "barangayClearance", maxCount: 1 },
   { name: "proofOfOwnership", maxCount: 1 },
@@ -70,7 +71,7 @@ router.post("/login", loginUser);
 router.get("/register", registerPage);
 const stagedFields = new Set(registrationFields
   .map(({ name }) => name)
-  .filter(name => !['profilePicture', 'governmentId', 'barangayCertificate'].includes(name)));
+  .filter(name => !['profilePicture', 'governmentId', 'barangayCertificate', 'reservationProof'].includes(name)));
 const registrationError = (req, res, error) => {
   const multerError = error instanceof multer.MulterError;
   const status = error.status || (multerError ? 422 : 500);
@@ -400,7 +401,7 @@ router.post("/complete-tenant-profile", cleanRegistration, registerUpload, async
       if (!user || user.accountType !== 'tenant' || user.isArchived || user.isSuspended) return {};
       const details = await registrationApplicationDetails(req.body, transaction);
       const validIdPicture = await storeReviewFile(idFile, user.id, 'tenant-registration', transaction);
-      const inquiry = await createRegistrationInquiry(user, details, transaction, req.body);
+      const inquiry = await createRegistrationInquiry(user, details, transaction, req.body, req.files?.reservationProof?.[0]);
       await user.update({
         selectedBoardingHouse: details?.boardingHouseName || null, contactNumber, gender,
         preferredLocation: details?.requestedRoomType || null, validIdPicture,

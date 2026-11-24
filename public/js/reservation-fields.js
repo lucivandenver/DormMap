@@ -9,6 +9,8 @@
     const qr = get('qr');
     const status = get('status');
     const fee = get('amount');
+    const amountPaid = get('paid-amount');
+    const proof = get('proof');
     const forced = root.hasAttribute('data-reservation-forced');
     let listing;
     let room;
@@ -36,6 +38,10 @@
       get('cash').hidden = method.value !== 'Cash';
       reference.disabled = !url;
       reference.required = Boolean(url);
+      proof.disabled = !method.value;
+      proof.required = Boolean(url);
+      get('proof-label').hidden = proof.disabled;
+      get('proof-optional').hidden = proof.required;
       reference.inputMode = gcash ? 'numeric' : 'text';
       if (gcash) reference.removeAttribute('maxlength');
       else reference.maxLength = 100;
@@ -48,6 +54,8 @@
       const active = Boolean(listing && room && toggle.checked);
       get('details').hidden = !active;
       fee.disabled = !active;
+      amountPaid.disabled = !active;
+      amountPaid.required = active;
       method.required = active;
       method.disabled = !active;
       get('retry').hidden = true;
@@ -67,6 +75,7 @@
         if (!response.ok) throw new Error(data.error || 'Payment options could not be loaded.');
         quote = data;
         fee.value = data.fee;
+        if (!amountPaid.value) amountPaid.value = Number(data.fee).toFixed(2);
         const basis = { room: 'room', person: 'person', bed: 'bedspace' }[data.rentalBasis] || 'slot';
         get('fee').textContent = `10% reservation fee: ${price(data.fee)} · ${price(data.monthlyRent)} per ${basis} / month`;
         method.append(...data.methods.map(value => new Option(value === 'Cash' ? 'Cash on Hand' : value, value)));
@@ -81,7 +90,11 @@
     }
 
     toggle.addEventListener('change', load);
-    method.addEventListener('change', () => { reference.value = ''; updateMethod(); });
+    method.addEventListener('change', () => {
+      reference.value = '';
+      proof.value = '';
+      updateMethod();
+    });
     reference.addEventListener('input', cleanReference);
     reference.addEventListener('paste', event => {
       if (method.value !== 'GCash' || !event.clipboardData) return;
@@ -105,14 +118,20 @@
         if (!restore) {
           toggle.checked = (forced || activate) && !root.hidden;
           reference.value = '';
+          proof.value = '';
+          amountPaid.value = '';
           method.dataset.initialMethod = '';
           method.value = '';
         }
         load();
       },
       values() {
-        return toggle.checked && !toggle.disabled ? { reserveRoom: true, reservationFee: fee.value,
-          reservationMethod: method.value, reservationReference: reference.disabled ? '' : reference.value } : {};
+        if (!toggle.checked || toggle.disabled) return {};
+        return {
+          reserveRoom: 'on', reservationFee: fee.value, reservationPaidAmount: amountPaid.value,
+          reservationMethod: method.value, reservationReference: reference.disabled ? '' : reference.value,
+          ...(!proof.disabled && proof.files[0] ? { reservationProof: proof.files[0] } : {}),
+        };
       }
     };
   }

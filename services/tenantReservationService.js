@@ -1,4 +1,6 @@
 import { Op, Transaction } from 'sequelize';
+import { positivePaymentAmount } from './paymentAmounts.js';
+import { storeReviewFile } from './reviewFileService.js';
 import { User } from '../models/userModel.js';
 import { BoardingHouse, OwnerRoom, OwnerPayment, OwnerTenant } from '../models/ownerModels.js';
 import { TenantApplication } from '../models/tenantModels.js';
@@ -77,6 +79,15 @@ export async function reservationFields(user, details, body, transaction) {
     ] }, attributes: ['id'], transaction });
     if (bill) reject(`This ${method} reference is already attached to a rent payment.`, 409);
   }
+  const submittedAmount = body.reservationPaidAmount === undefined ? quote.fee : positivePaymentAmount(body.reservationPaidAmount);
   return { reservationRoomId: quote.room.id, reservationFee: quote.fee, reservationRent: quote.monthlyRent,
-    reservationMethod: method, reservationReference: reference };
+    reservationMethod: method, reservationReference: reference, reservationSubmittedAmount: submittedAmount };
+}
+
+export async function storeReservationProof(userId, reservation, body, proof, transaction) {
+  if (!reservation.reservationRoomId) return null;
+  if (usesPaymentQr(reservation.reservationMethod) && body.reservationPaidAmount !== undefined && !proof) {
+    reject('Upload your reservation proof of payment.');
+  }
+  return storeReviewFile(proof, userId, 'reservation-proof', transaction);
 }

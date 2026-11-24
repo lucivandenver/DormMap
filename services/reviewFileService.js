@@ -33,7 +33,7 @@ export async function storeReviewFile(file, userId, scope = 'registration', tran
       !(file.mimetype === 'application/pdf' && bytes.subarray(0, 5).toString('ascii') === '%PDF-')) {
     throw Object.assign(new Error('Upload a valid JPG, PNG, WebP, or PDF government ID.'), { status: 422 });
   }
-  if (scope === 'payment-qr' || scope === 'payment-proof') {
+  if (['payment-qr', 'payment-proof', 'reservation-proof'].includes(scope)) {
     const type = photoType(bytes);
     if (!type || type !== file.mimetype || bytes.length > 5 * 1024 * 1024) {
       throw Object.assign(new Error('Upload a valid JPG, PNG, or WebP image up to 5 MB.'), { status: 422 });
@@ -55,6 +55,12 @@ async function canReview(viewer, file) {
     return viewer.accountType === 'boarding_house_owner' && Boolean(await OwnerPayment.findOne({
       where: { ownerId: viewer.id, paymentProofUrl: `/documents/${file.id}/${file.filename}` },
       attributes: ['id']
+    }));
+  }
+  if (file.scope === 'reservation-proof') {
+    return viewer.accountType === 'boarding_house_owner' && Boolean(await TenantApplication.findOne({
+      where: { ownerId: viewer.id, tenantId: file.userId, reservationProofUrl: `/documents/${file.id}/${file.filename}` },
+      attributes: ['id'],
     }));
   }
   if (['super_admin', 'bplo_admin'].includes(viewer.accountType)) return true;

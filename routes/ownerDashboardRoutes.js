@@ -2,6 +2,7 @@ import { GALLERY_CATEGORIES } from '../services/propertyPhotoService.js';
 import { uploadDir } from '../config/storage.js';
 import express from 'express';
 import multer from 'multer';
+import { paymentProof } from '../middleware/paymentUploads.js';
 import path from 'path';
 import fs from 'fs';
 import { tmpdir } from 'node:os';
@@ -29,8 +30,20 @@ const upload = multer({
 
 const galleryUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024, files: 5 },
+  limits: { fileSize: 5 * 1024 * 1024, files: GALLERY_CATEGORIES.length },
 });
+const parseGalleryUpload = parser => (req, res, next) => {
+  parser(req, res, error => {
+    if (!error) return next();
+    const category = GALLERY_CATEGORIES.find(item => item.field === error.field);
+    const message = error.code === 'LIMIT_FILE_SIZE'
+      ? `${category?.label || 'Each photo'} must be 5 MB or smaller.`
+      : error.code === 'LIMIT_FILE_COUNT' || error.code === 'LIMIT_UNEXPECTED_FILE'
+        ? 'Choose one photo per gallery slot.'
+        : 'The photos could not be read. Choose the files again and retry.';
+    return res.status(422).json({ error: message });
+  });
+};
 
 // Protect all routes under /owner-dashboard
 router.use(requireApprovedOwner);
@@ -60,7 +73,7 @@ router.get('/api/tenants', controller.getTenants);
 router.post('/api/tenants', controller.createTenant);
 router.post('/api/tenants/bulk-archive', controller.archiveTenants);
 router.get('/api/walk-in-accounts', controller.listWalkInAccounts);
-router.post('/api/walk-in-accounts', controller.createWalkInAccount);
+router.post('/api/walk-in-accounts', paymentProof('reservationProof'), controller.createWalkInAccount);
 router.patch('/api/walk-in-accounts/:id/password', controller.updateWalkInPassword);
 router.patch('/api/tenants/:id', controller.updateTenant);
 router.delete('/api/tenants/:id', controller.deleteTenant);
@@ -100,11 +113,11 @@ router.patch('/api/notifications/read-all', controller.markAllNotificationsRead)
 
 // Gallery Management
 router.get('/api/gallery', controller.getGallery);
-router.post('/api/gallery', galleryUpload.single('galleryImage'), controller.addGalleryImage);
+router.post('/api/gallery', parseGalleryUpload(galleryUpload.single('galleryImage')), controller.addGalleryImage);
 router.delete('/api/gallery/:id', controller.deleteGalleryImage);
-router.post('/api/gallery/slot/:slotIndex', galleryUpload.single('slotImage'), controller.updateGallerySlot);
+router.post('/api/gallery/slot/:slotIndex', parseGalleryUpload(galleryUpload.single('slotImage')), controller.updateGallerySlot);
 router.delete('/api/gallery/slot/:slotIndex', controller.deleteGallerySlot);
-router.post('/api/gallery/five-slots', galleryUpload.fields(GALLERY_CATEGORIES.map(({ field }) => ({ name: field, maxCount: 1 }))), controller.updateFiveGallerySlots);
+router.post('/api/gallery/five-slots', parseGalleryUpload(galleryUpload.fields(GALLERY_CATEGORIES.map(({ field }) => ({ name: field, maxCount: 1 })))), controller.updateFiveGallerySlots);
 
 // Amenities & House Rules
 router.patch('/api/amenities', controller.updateAmenities);

@@ -3,7 +3,7 @@ import { User, sequelize } from '../models/userModel.js';
 import { BoardingHouse, OwnerRoom } from '../models/ownerModels.js';
 import { fail, offerMoveInDate, ownerLock, saveTenant } from './occupancyService.js';
 import { createTenantApplication, registrationApplicationDetails } from './tenantApplicationService.js';
-import { reservationFields, reservationTransaction } from './tenantReservationService.js';
+import { reservationFields, reservationTransaction, storeReservationProof } from './tenantReservationService.js';
 
 export const validWalkInPassword = value => typeof value === 'string' && value.length >= 8 && Buffer.byteLength(value, 'utf8') <= 72;
 
@@ -12,7 +12,7 @@ async function temporaryHash(password) {
   return bcrypt.hash(password, 12);
 }
 
-export async function createWalkInTenant(ownerId, body) {
+export async function createWalkInTenant(ownerId, body, proof) {
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
   const fullName = typeof body.fullName === 'string' ? body.fullName.trim() : '';
   const contact = typeof body.contactNumber === 'string' ? body.contactNumber.trim() : '';
@@ -39,7 +39,8 @@ export async function createWalkInTenant(ownerId, body) {
     if (body.mode === 'reserve') {
       const details = await registrationApplicationDetails({ selectedBoardingHouse: `bh-${house.id}`, requestedRoomId: room.id }, transaction);
       const fields = await reservationFields(user, details, { ...body, reserveRoom: true, requestedRoomId: room.id }, transaction);
-      const { application } = await createTenantApplication({ ...details, ...fields, tenantId: user.id, moveInDate,
+      const reservationProofUrl = await storeReservationProof(user.id, fields, body, proof, transaction);
+      const { application } = await createTenantApplication({ ...details, ...fields, reservationProofUrl, tenantId: user.id, moveInDate,
         message: 'Walk-in reservation recorded by the owner.' }, { transaction });
       return { userId: user.id, applicationId: application.id };
     }

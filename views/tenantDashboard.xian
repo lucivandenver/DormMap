@@ -538,6 +538,9 @@
                 <input type="file" name="proof" accept="image/jpeg,image/png,image/webp" class="mt-1 block w-full text-xs">
               </label>
             </div>
+            <label class="block text-sm font-semibold">Amount paid (₱)
+              <input type="number" name="amountPaid" inputmode="decimal" min="0.01" max="99999999.99" step="0.01" required class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
+            </label>
             <label class="block text-sm font-semibold">Date paid
               <input type="date" name="paidDate" required class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
             </label>
@@ -1522,7 +1525,8 @@
             <td class="p-3.5 text-rose-600">₱${Number(p.penalty || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
             <td class="p-3.5">
               <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${declined ? 'bg-rose-100 text-rose-800' : isPaid || submitted ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${isPaid ? 'CONFIRMED' : declined ? 'DECLINED' : submitted ? 'SUBMITTED SUCCESSFULLY' : 'PENDING'}</span>
-              ${submitted ? '<p class="mt-2 text-xs text-slate-500">Awaiting owner confirmation</p>' : ''}
+              ${p.submittedAmount != null ? `<p class="mt-1 text-xs text-slate-500">Reported paid · ₱${Number(p.submittedAmount).toFixed(2)}</p>` : ''}
+              ${isPaid ? `<p class="mt-1 text-xs font-semibold text-emerald-800">Confirmed paid · ₱${Number(p.amountPaid ?? (Number(p.amount) + Number(p.penalty || 0))).toFixed(2)}</p>` : ''}
               ${p.reviewNotes ? `<p class="mt-2 whitespace-pre-wrap text-xs text-slate-600">Owner notes · ${escapeMessage(p.reviewNotes)}</p>` : ''}
               ${p.reviewDate ? `<p class="mt-1 text-xs text-slate-500">${declined ? 'Declined' : 'Confirmed'} on ${escapeMessage(p.reviewDate)}</p>` : ''}
             </td>
@@ -1600,6 +1604,7 @@
     rentPaymentForm.elements.paidDate.value = rentPaymentToday;
     rentPaymentForm.elements.paidDate.max = rentPaymentToday;
     const amount = Number(bill.amount) + Number(bill.penalty || 0);
+    rentPaymentForm.elements.amountPaid.value = Number(bill.submittedAmount ?? amount).toFixed(2);
     document.getElementById('rentPaymentTotal').textContent = `₱${amount.toFixed(2)} total due · ${bill.month || bill.dueDate}`;
     updateRentPaymentMethod();
     document.getElementById('rentPaymentDialog').showModal();
@@ -1632,14 +1637,14 @@
     const bill = tenantBills.find(item => item.id === id);
     if (!bill) return;
     const { month, reference, status, paidDate, method } = bill;
-    const amount = Number(bill.amount) + Number(bill.penalty || 0);
+    const amount = Number(bill.amountPaid ?? (Number(bill.amount) + Number(bill.penalty || 0)));
     Swal.fire({
       title: '<strong>Official Receipt</strong>',
       icon: 'info',
       html: `
         <div class="text-left space-y-2 text-xs border-t border-slate-100 pt-3">
           <p><strong>Month/Period:</strong> ${escapeMessage(month || '—')}</p>
-          <p><strong>Amount:</strong> ₱${Number(amount).toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
+          <p><strong>Amount received:</strong> ₱${Number(amount).toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
           <p><strong>Method:</strong> ${escapeMessage(method === 'Cash' ? 'Cash on Hand' : method || '—')}</p>
           <p><strong>Date received:</strong> ${escapeMessage(paidDate || '—')}</p>
           <p><strong>Reference Number:</strong> ${escapeMessage(reference || '—')}</p>
@@ -1793,7 +1798,10 @@
             </div>
             <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${sl.cls}">${app.reservationRoomId && app.status === 'pending_owner' ? 'Reservation pending review' : app.reservationRoomId && app.status === 'accepted_by_owner' ? 'Reserved · Accept offer' : sl.label}</span>
           </div>
-          ${app.reservationFee && ['pending_owner', 'accepted_by_owner'].includes(app.status) ? `<p class="text-slate-700">Reservation fee (10%) · ₱${Number(app.reservationFee).toFixed(2)} · ${escapeMessage(app.reservationMethod === 'Cash' ? 'Cash on Hand' : app.reservationMethod)}${app.reservationReference ? ' · Reference ' + escapeMessage(app.reservationReference) : ''}</p>` : ''}
+          ${app.reservationFee && ['pending_owner', 'accepted_by_owner', 'confirmed'].includes(app.status) ? `
+            <p class="text-slate-700">Reservation fee (10%) · ₱${Number(app.reservationFee).toFixed(2)} · ${escapeMessage(app.reservationMethod === 'Cash' ? 'Cash on Hand' : app.reservationMethod)}${app.reservationReference ? ' · Reference ' + escapeMessage(app.reservationReference) : ''}</p>
+            ${app.reservationSubmittedAmount != null ? `<p class="text-slate-700">Reported paid · ₱${Number(app.reservationSubmittedAmount).toFixed(2)}</p>` : ''}
+            ${app.reservationApprovedAt ? `<p class="font-semibold text-emerald-800">Confirmed paid · ₱${Number(app.reservationAmountPaid ?? app.reservationFee).toFixed(2)}</p>` : ''}` : ''}
           ${app.status === 'accepted_by_owner' ? `<div class="space-y-1 rounded-xl bg-emerald-50 p-2 text-emerald-950">
             ${app.room?.roomNumber ? `<p class="font-semibold">Room ${escapeMessage(app.room.roomNumber)}${app.room.roomType ? ' · ' + escapeMessage(app.room.roomType) : ''}</p>` : ''}
             ${app.monthlyRent ? `<p>₱${Number(app.monthlyRent).toLocaleString('en-PH', {minimumFractionDigits: 2})} per month${app.moveInDate ? ' · Move-in ' + escapeMessage(app.moveInDate) : ''}</p>` : ''}
@@ -1892,18 +1900,16 @@
     if (btn) { btn.disabled = true; btn.innerText = 'Sending...'; }
 
     try {
-      const res = await fetch('/tenant-dashboard/api/applications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ownerId: document.getElementById('inquiryOwnerId').value,
-          boardingHouseName: document.getElementById('inquiryBHName').value,
-          requestedRoomId: inquiryRoom.value,
-          message: document.getElementById('inquiryMessage').value,
-          establishmentId: document.getElementById('inquiryEstablishmentId').value || null,
-          ...reservation
-        })
-      });
+      const body = new FormData();
+      for (const [name, value] of Object.entries({
+        ownerId: document.getElementById('inquiryOwnerId').value,
+        boardingHouseName: document.getElementById('inquiryBHName').value,
+        requestedRoomId: inquiryRoom.value,
+        message: document.getElementById('inquiryMessage').value,
+        establishmentId: document.getElementById('inquiryEstablishmentId').value,
+        ...reservation,
+      })) body.set(name, value);
+      const res = await fetch('/tenant-dashboard/api/applications', { method: 'POST', body });
       const data = await res.json();
       if (res.ok) {
         closeInquiryModal();

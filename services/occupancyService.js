@@ -1,4 +1,5 @@
 import { ownerPaymentConfig, usesPaymentQr } from './ownerPaymentConfig.js';
+import { positivePaymentAmount } from './paymentAmounts.js';
 import { floorNumber, floorLabel, ROOM_TYPES } from './roomPlanService.js';
 import { Op } from 'sequelize';
 import { sequelize } from '../models/db.js';
@@ -271,8 +272,13 @@ export async function offerApplication(ownerId, tenantUserId, body, { bulk = fal
     const rate = Number(room.rentalPrice) * (room.rentalBasis === 'person' ? occupantCount : 1);
     const monthlyRent = money(approveReservation ? app.reservationRent : body.monthlyRent ?? rate);
     if (monthlyRent <= 0) fail('Enter a monthly total greater than zero in the Review form.');
+    const reservationPayment = approveReservation ? {
+      reservationApprovedAt: new Date(),
+      reservationAmountPaid: positivePaymentAmount(body.amountPaid === undefined
+        ? app.reservationSubmittedAmount ?? app.reservationFee : body.amountPaid),
+    } : {};
     await app.update({ occupantCount, status: 'accepted_by_owner', roomId: room.id, boardingHouseId: house.id, boardingHouseName: house.name, monthlyRent, moveInDate, ownerNotes: String(body.notes || '').slice(0,2000), acceptedAt: new Date(),
-      ...(approveReservation ? { reservationApprovedAt: new Date() } : {}) }, { transaction });
+      ...reservationPayment }, { transaction });
     if (approveReservation) await syncOccupancy(ownerId, [room.id], transaction);
     await BarangayNotification.create({ userId: app.tenantId, title: approveReservation ? 'Reservation approved' : 'Room offer received', body: `Review and confirm the offer for ${app.boardingHouseName} on your tenant dashboard.`, type: 'application_offered' }, { transaction });
     return app;

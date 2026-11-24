@@ -38,6 +38,9 @@ export const TenantApplication = sequelize.define('TenantApplication', {
   reservationRent:   { type: DataTypes.DECIMAL(10,2), allowNull: true },
   reservationMethod: { type: DataTypes.STRING(16), allowNull: true },
   reservationReference: { type: DataTypes.STRING(100), allowNull: true },
+  reservationSubmittedAmount: { type: DataTypes.DECIMAL(10,2), allowNull: true },
+  reservationAmountPaid: { type: DataTypes.DECIMAL(10,2), allowNull: true },
+  reservationProofUrl: { type: DataTypes.STRING, allowNull: true },
   reservationApprovedAt: { type: DataTypes.DATE, allowNull: true },
   roomId:            { type: DataTypes.INTEGER, allowNull: true },  // Room offered by owner
   monthlyRent:       { type: DataTypes.DECIMAL(10,2), allowNull: true },

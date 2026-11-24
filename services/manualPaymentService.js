@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { positivePaymentAmount, rentBillTotal } from './paymentAmounts.js';
 import { User } from '../models/userModel.js';
 import { BarangayNotification } from '../models/adminModels.js';
 import { ownerPaymentConfig, usesPaymentQr } from './ownerPaymentConfig.js';
@@ -66,6 +67,7 @@ export async function submitRentPayment(user, id, fields, proof) {
     const method = fields.method;
     if (!ownerPaymentConfig(owner).methods.includes(method)) fail('Select a payment method accepted by your owner.');
     const date = validatePaidDate(fields.paidDate);
+    const submittedAmount = fields.amountPaid === undefined ? rentBillTotal(bill) : positivePaymentAmount(fields.amountPaid);
     const qrPayment = usesPaymentQr(method);
     if (method === 'GCash' && (typeof fields.reference !== 'string' || !/^[0-9]{13}$/.test(fields.reference.trim()))) {
       fail('Enter the 13-digit GCash reference number.');
@@ -77,7 +79,7 @@ export async function submitRentPayment(user, id, fields, proof) {
     const submissionNotes = paymentNotes(fields.notes);
     await bill.update({
       submissionId: randomUUID(), submissionNotes, reviewStatus: 'submitted', reviewDate: null, reviewNotes: null,
-      submittedMethod: method, submittedPaidDate: date, submittedReference: reference, paymentProofUrl
+      submittedMethod: method, submittedPaidDate: date, submittedReference: reference, submittedAmount, paymentProofUrl
     }, { transaction });
     await OwnerNotification.create({
       ownerId: owner.id, title: 'Rent payment submitted',
@@ -126,6 +128,7 @@ export async function prepareManualConfirmation(ownerId, id, fields) {
   if (!bill) fail('Bill not found.', 404);
   assertCurrentSubmission(bill, fields);
   if (bill.status === 'paid') return;
+  if (fields.amountPaid !== undefined) positivePaymentAmount(fields.amountPaid);
   if (bill.reviewStatus === 'declined') fail('Wait for the tenant to submit updated payment details.', 409);
   const checkouts = await Payment.findAll({
     where: { tenantPaymentId: bill.id, ownerId, status: { [Op.in]: ['PENDING', 'PROCESSING'] } }

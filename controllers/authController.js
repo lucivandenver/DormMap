@@ -725,7 +725,7 @@ export const registerUser = async (req, res) => {
         }, { transaction });
         await registerPropertyInventory(created, setup, galleries, transaction);
       }
-      const registered = isTenant && await createRegistrationInquiry(created, details, transaction, req.body);
+      const registered = isTenant && await createRegistrationInquiry(created, details, transaction, req.body, req.files?.reservationProof?.[0]);
       return { user: created, inquiry: registered?.created ? registered.application : null };
     });
 

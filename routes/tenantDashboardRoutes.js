@@ -1,6 +1,7 @@
 import { uploadDir } from '../config/storage.js';
 import express from 'express';
 import multer from 'multer';
+import { paymentProof } from '../middleware/paymentUploads.js';
 import path from 'path';
 import fs from 'fs';
 import { requireTenantUser } from '../middleware/tenantAuth.js';
@@ -67,13 +68,7 @@ router.post('/api/boarding-house-rating', submitBoardingHouseRating);
 router.get('/api/stays', getStayHistory);
 router.post('/api/stays/move-out', submitMoveOut);
 router.get('/api/payments', getPaymentHistory);
-const paymentProofUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, fields: 4 } });
-router.post('/api/payments/:id/submit', (req, res, next) => {
-  paymentProofUpload.single('proof')(req, res, error => {
-    if (error) return res.status(422).json({ error: 'Upload one proof image up to 5 MB.' });
-    next();
-  });
-}, submitPayment);
+router.post('/api/payments/:id/submit', paymentProof('proof'), submitPayment);
 router.get('/api/rental-info', getRentalInformation);
 
 // Browse Boarding Houses & Location Map
@@ -83,7 +78,7 @@ router.delete('/api/saved-dorms/:listingKey', removeSavedDorm);
 
 // Applications & Inquiries
 router.get('/api/applications', getApplications);
-router.post('/api/applications', applyBoardingHouse);
+router.post('/api/applications', paymentProof('reservationProof'), applyBoardingHouse);
 router.post('/api/applications/:id/confirm', confirmApplication);
 router.post('/api/applications/:id/cancel', cancelApplication);
 

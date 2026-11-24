@@ -1,8 +1,9 @@
 import { sequelize } from '../models/db.js';
 import { ownerPaymentConfig } from '../services/ownerPaymentConfig.js';
+import { confirmedRentAmount } from '../services/paymentAmounts.js';
 import { manilaToday, submitRentPayment } from '../services/manualPaymentService.js';
 import { createTenantApplication, closeDuplicatePendingApplications, findApplicationProperty, registrationApplicationDetails } from '../services/tenantApplicationService.js';
-import { reservationFields, reservationRequested, reservationTransaction } from '../services/tenantReservationService.js';
+import { reservationFields, reservationRequested, reservationTransaction, storeReservationProof } from '../services/tenantReservationService.js';
 import { storeReviewFile } from '../services/reviewFileService.js';
 import { branchNumbers, orderBranches } from '../services/propertyBranchesService.js';
 import { confirmOffer, requestMoveOut, ownerLock, syncOccupancy } from '../services/occupancyService.js';
@@ -148,7 +149,7 @@ export const overview = async (req, res, next) => {
       const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       const label = d.toLocaleString('default', { month: 'short' });
-      const paid = payments.filter(p => p.status === 'paid' && p.month === key).reduce((s, p) => s + Number(p.amount), 0);
+      const paid = payments.filter(p => p.status === 'paid' && p.month === key).reduce((s, p) => s + confirmedRentAmount(p), 0);
       const pending = payments.filter(p => p.status === 'pending' && p.month === key).reduce((s, p) => s + Number(p.amount), 0);
       months.push({ label, paid, pending, month: key });
     }
@@ -157,7 +158,7 @@ export const overview = async (req, res, next) => {
     const expenseBreakdown = [
       { category: 'Monthly Rent', amount: monthlyRentAmount },
       { category: 'Penalties & Fees', amount: payments.reduce((s, p) => s + Number(p.penalty || 0), 0) },
-      { category: 'Paid Total', amount: payments.filter(p => p.status === 'paid').reduce((s, p) => s + Number(p.amount) + Number(p.penalty || 0), 0) }
+      { category: 'Paid Total', amount: payments.filter(p => p.status === 'paid').reduce((s, p) => s + confirmedRentAmount(p), 0) }
     ];
 
     // Fetch tenant applications
@@ -369,7 +370,7 @@ export const getPaymentHistory = async (req, res, next) => {
       order: [['dueDate', 'DESC']]
     });
 
-    const totalPaid = payments.filter(p => p.status === 'paid').reduce((s, p) => s + Number(p.amount) + Number(p.penalty || 0), 0);
+    const totalPaid = payments.filter(p => p.status === 'paid').reduce((s, p) => s + confirmedRentAmount(p), 0);
     const totalBalance = payments.filter(p => p.status === 'pending').reduce((s, p) => s + Number(p.amount) + Number(p.penalty || 0), 0);
 
     const owners = await User.findAll({ where: { id: { [Op.in]: [...new Set(stays.map(stay => stay.ownerId))] } }, attributes: ['id', 'boardingHouseName'] });
@@ -815,12 +816,15 @@ export const applyBoardingHouse = async (req, res, next) => {
       const values = { ...details, ...reservation, tenantId: applicant.id, status: 'pending_owner',
         message: note || 'Inquired via DormMap Browse.' };
       const result = await createTenantApplication(values, { transaction });
-      if (!result.created && reservationRequested(req.body) && result.application.status === 'pending_owner' &&
-          result.application.boardingHouseId === details.boardingHouseId && !result.application.reservationRoomId) {
-        await result.application.update({ ...values, message: note || result.application.message }, { transaction });
-        return { ...result, upgraded: true };
+      const upgraded = !result.created && reservationRequested(req.body) && result.application.status === 'pending_owner' &&
+        result.application.boardingHouseId === details.boardingHouseId && !result.application.reservationRoomId;
+      if (reservation.reservationRoomId && (result.created || upgraded)) {
+        const reservationProofUrl = await storeReservationProof(applicant.id, reservation, req.body, req.file, transaction);
+        await result.application.update(upgraded
+          ? { ...values, reservationProofUrl, message: note || result.application.message }
+          : { reservationProofUrl }, { transaction });
       }
-      return result;
+      return { ...result, upgraded };
     });
 
     if (!created && !upgraded) return res.status(409).json({ error: 'You already have an active rental application with this owner.' });
