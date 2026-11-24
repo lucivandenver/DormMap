@@ -2,6 +2,7 @@ import { Op } from 'sequelize';
 import { sequelize, User } from '../models/userModel.js';
 import { TenantApplication } from '../models/tenantModels.js';
 import { BoardingHouse, OwnerRoom, OwnerInquiry, OwnerMessage, OwnerNotification } from '../models/ownerModels.js';
+import { reservationFields, reservationRequested } from './tenantReservationService.js';
 
 const activeStatuses = ['confirmed', 'accepted_by_owner', 'pending_owner'];
 
@@ -44,7 +45,7 @@ export async function registrationApplicationDetails({ selectedBoardingHouse, re
   let roomType = typeof requestedRoomType === 'string' ? requestedRoomType.trim().slice(0, 255) : '';
   if (requestedRoomId !== undefined && requestedRoomId !== '') {
     const id = Number(requestedRoomId);
-    if (typeof requestedRoomId !== 'string' || !/^\d+$/.test(requestedRoomId) || !Number.isSafeInteger(id) || id < 1) {
+    if (!['string', 'number'].includes(typeof requestedRoomId) || !/^\d+$/.test(String(requestedRoomId)) || !Number.isSafeInteger(id) || id < 1) {
       throw registrationError('Select an available room from this boarding house.');
     }
     const boardingHouseId = house?.isPrimary ? { [Op.or]: [house.id, null] } : house?.id ?? null;
@@ -59,19 +60,23 @@ export async function registrationApplicationDetails({ selectedBoardingHouse, re
   return { ownerId: owner.id, boardingHouseId: house?.id || null, boardingHouseName, requestedRoomType: roomType || null, preferredRoomLabel };
 }
 
-export function createRegistrationInquiry(user, details, transaction) {
+export async function createRegistrationInquiry(user, details, transaction, body = {}) {
+  if (!details && reservationRequested(body)) throw registrationError('Choose a boarding house and an available room before reserving.');
+  if (!details) return null;
+  const reservation = await reservationFields(user, details, body, transaction);
   return createTenantApplication({
-    ...details, tenantId: user.id, status: 'pending_owner',
+    ...details, ...reservation, tenantId: user.id, status: 'pending_owner',
     message: 'Submitted during tenant registration.'
   }, { transaction });
 }
 
-export function notifyRegistrationInquiry(user, { ownerId, boardingHouseName }) {
+export function notifyRegistrationInquiry(user, { ownerId, boardingHouseName, reservationRoomId }) {
+  const action = reservationRoomId ? 'requested a reservation for' : 'applied for a room at';
   return Promise.allSettled([
     OwnerInquiry.create({ ownerId, clientName: user.fullName, clientEmail: user.email, clientPhone: user.contactNumber,
       status: 'new', message: `Tenant application submitted for ${boardingHouseName}.` }),
-    OwnerNotification.create({ ownerId, title: 'New tenant application',
-      body: `${user.fullName} applied for a room at ${boardingHouseName}.`, type: 'tenant_application', link: '#tenants' }),
+    OwnerNotification.create({ ownerId, title: reservationRoomId ? 'Reservation awaiting payment review' : 'New tenant application',
+      body: `${user.fullName} ${action} ${boardingHouseName}.`, type: 'tenant_application', link: '#tenants' }),
     OwnerMessage.create({ ownerId, senderId: user.id, recipientId: ownerId,
       subject: `Application inquiry for ${boardingHouseName}`,
       message: `Hello! I submitted a rental application for ${boardingHouseName}.`, isRead: false })

@@ -1,4 +1,4 @@
-<script src="/js/tenant-registration.js?v=3" defer></script>
+<script src="/js/tenant-registration.js?v=4" defer></script>
 <div class="registration-property" data-registration-property>
   <label for="registrationHouseSearch">Search boarding house <small>(optional)</small></label>
   <div class="registration-property-search">
@@ -19,9 +19,11 @@
 
   <input type="hidden" name="selectedBoardingHouse" value="{{selection.selectedBoardingHouse}}">
   <div class="registration-house-selection" data-house-selection hidden>
-    <div>
+    <img data-selected-photo alt="" hidden>
+    <div class="registration-selected-copy">
       <span class="registration-property-hint">Selected boarding house</span>
       <strong data-house-name aria-live="polite"></strong>
+      <button type="button" class="registration-text-button" data-selected-details>View details</button>
     </div>
     <button type="button" class="registration-text-button" data-clear-house>Clear</button>
   </div>
@@ -29,18 +31,21 @@
     <select name="requestedRoomId" data-selected="{{selection.requestedRoomId}}" aria-describedby="registrationRoomHint" disabled>
       <option value="">No preference</option>
     </select>
-    <small id="registrationRoomHint" class="registration-property-hint">The owner sees your preference and chooses which room to offer.</small>
+    <small id="registrationRoomHint" class="registration-property-hint">Choose an available room to share a preference or request an optional reservation.</small>
   </label>
+  {{> reservationFields selection=selection}}
   <dialog class="dormmap-property-dialog registration-property-details" data-registration-details aria-labelledby="registrationListingName">
     <header class="registration-details-header">
       <h2 id="registrationListingName" data-details-name></h2>
       <button type="button" class="registration-search-button" data-close-details>Close</button>
     </header>
     <div class="registration-details-content">
-      <img data-details-photo hidden alt="">
+      <div data-details-photos class="registration-details-photos"></div>
       <p class="registration-property-hint" data-details-address></p>
       <p data-details-summary></p>
       <p data-details-description></p>
+      <dl data-details-prices class="registration-details-prices"></dl>
+      <div data-details-amenities hidden><h3>Amenities</h3><ul></ul></div>
       <div data-details-rooms></div>
       <button type="button" class="registration-select-house" data-select-details>Select boarding house</button>
     </div>

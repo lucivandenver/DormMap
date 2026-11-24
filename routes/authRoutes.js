@@ -1,4 +1,5 @@
 import { createRegistrationInquiry, isTenantGender, notifyRegistrationInquiry, registrationApplicationDetails } from '../services/tenantApplicationService.js';
+import { reservationRequested, reservationTransaction } from '../services/tenantReservationService.js';
 import { storeReviewFile } from '../services/reviewFileService.js';
 import { randomUUID } from 'node:crypto';
 import { OwnerRoom } from '../models/ownerModels.js';
@@ -14,7 +15,7 @@ import { registrationTemp, startRegistrationDraft, registrationDraftDirectory,
 
 import {
   loginPage, registerPage, forgotPasswordPage, sendPasswordResetLink,
-  resetPasswordPage, handleResetPassword, dashboardPage, loginUser,
+  resetPasswordPage, handleResetPassword, dashboardPage, loginUser, walkInClaimPage, claimWalkInAccount,
   registerUser, logoutUser, verifyEmail, normalizeAccountType,
   completeBarangayProfilePage, completeBarangayProfile,
 } from "../controllers/authController.js";
@@ -135,6 +136,8 @@ router.get("/forgot-password", forgotPasswordPage);
 router.post("/forgot-password", sendPasswordResetLink);
 router.get("/reset-password", resetPasswordPage);
 router.post("/reset-password", handleResetPassword);
+router.get('/claim-walk-in', walkInClaimPage);
+router.post('/claim-walk-in', claimWalkInAccount);
 router.get("/dashboard", dashboardPage);
 router.get("/logout", logoutUser);
 router.get("/verify-email", verifyEmail);
@@ -224,7 +227,7 @@ router.get("/auth/google/callback", (req, res, next) => {
           return res.redirect("/complete-owner-profile");
         }
       } else if (accountType === 'tenant') {
-        if (isNew || !user.contactNumber) {
+        if (isNew || (!user.contactNumber && !user.walkInOwnerId)) {
           req.session.pendingTenantUserId = user.id;
           delete req.session.oauthNewUser;
           return res.redirect("/complete-tenant-profile");
@@ -391,12 +394,13 @@ router.post("/complete-tenant-profile", cleanRegistration, registerUpload, async
   if (picture && !picture.mimetype.startsWith('image/')) return reject('Upload a JPG, PNG, or WebP profile picture.');
 
   try {
-    const result = await sequelize.transaction(async transaction => {
+    const options = reservationRequested(req.body) ? reservationTransaction : {};
+    const result = await sequelize.transaction(options, async transaction => {
       const user = await User.findByPk(pendingId, { transaction, lock: transaction.LOCK.UPDATE });
       if (!user || user.accountType !== 'tenant' || user.isArchived || user.isSuspended) return {};
       const details = await registrationApplicationDetails(req.body, transaction);
       const validIdPicture = await storeReviewFile(idFile, user.id, 'tenant-registration', transaction);
-      const inquiry = details && await createRegistrationInquiry(user, details, transaction);
+      const inquiry = await createRegistrationInquiry(user, details, transaction, req.body);
       await user.update({
         selectedBoardingHouse: details?.boardingHouseName || null, contactNumber, gender,
         preferredLocation: details?.requestedRoomType || null, validIdPicture,
@@ -419,7 +423,7 @@ router.post("/complete-tenant-profile", cleanRegistration, registerUpload, async
     res.redirect('/tenant-dashboard');
   } catch (error) {
     console.error("Tenant profile completion error:", error);
-    return reject(error.status === 422 ? error.message : 'Failed to save your tenant profile. Please try again.');
+    return reject([404, 409, 422].includes(error.status) ? error.message : 'Failed to save your tenant profile. Please try again.');
   }
 });
 

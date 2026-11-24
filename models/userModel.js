@@ -33,6 +33,8 @@ export const User = sequelize.define("User", {
   email: { type: DataTypes.STRING, allowNull: false, unique: true },
   password: { type: DataTypes.STRING, allowNull: false },
   accountType: { type: DataTypes.STRING, allowNull: false },
+  walkInOwnerId: { type: DataTypes.INTEGER, allowNull: true },
+  walkInPasswordPending: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   profilePicture: { type: DataTypes.TEXT, allowNull: true },
   barangay: { type: DataTypes.STRING, allowNull: true },
   positionTitle: { type: DataTypes.STRING, allowNull: true },

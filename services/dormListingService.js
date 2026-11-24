@@ -125,7 +125,7 @@ export async function listTenantDorms(tenantId, query = {}, { includeUnregistere
         (house ? item.boardingHouseId === house.id || (!item.boardingHouseId && item.boardingHouseName === name) : item.boardingHouseName === name));
       const roomInventory = houseRooms.map(room => {
         const active = occupants.filter(tenant => tenant.ownerId === owner.id && tenant.roomId === room.id);
-        return { id: room.id, roomNumber: room.roomNumber, floor: room.floor, roomType: room.roomType, rentalBasis: room.rentalBasis, rentalPrice: Number(room.rentalPrice), capacity: room.capacity, bedCount: room.bedCount, occupiedPeople: active.reduce((sum, tenant) => sum + Number(tenant.occupantCount || 1), 0), occupiedBeds: room.rentalBasis === 'bed' ? active.length : null, unavailableReported: room.reservedSlots, availableSlots: room.status === 'available' ? Number(room.availableSlots) : 0, status: room.status, genderPref: room.genderPref, furnished: room.furnished, aircon: room.aircon };
+        return { id: room.id, roomNumber: room.roomNumber, floor: room.floor, roomType: room.roomType, rentalBasis: room.rentalBasis, rentalPrice: Number(room.rentalPrice), capacity: room.capacity, bedCount: room.bedCount, occupiedPeople: active.reduce((sum, tenant) => sum + Number(tenant.occupantCount || 1), 0), occupiedBeds: room.rentalBasis === 'bed' ? active.length : null, unavailableReported: room.reservedSlots, reservedForTenants: room.reservationSlots, availableSlots: room.status === 'available' ? Number(room.availableSlots) : 0, status: room.status, genderPref: room.genderPref, furnished: room.furnished, aircon: room.aircon };
       });
       const bases = [...new Set(roomInventory.map(room => room.rentalBasis))];
       listings.push({
@@ -171,7 +171,7 @@ export async function listTenantDorms(tenantId, query = {}, { includeUnregistere
         rentalPriceMin: prices.length ? Math.min(...prices) : price(owner.rentalPriceMin),
         rentalPriceMax: prices.length ? Math.max(...prices) : price(owner.rentalPriceMax),
         availableRooms: roomInventory.filter(room => room.availableSlots > 0),
-        application: app ? { id: app.id, status: app.status, requestedRoomType: app.requestedRoomType } : null,
+        application: app ? { id: app.id, status: app.status, requestedRoomType: app.requestedRoomType, hasReservation: Boolean(app.reservationRoomId) } : null,
         isSaved: savedKeys.has(key),
       });
     }

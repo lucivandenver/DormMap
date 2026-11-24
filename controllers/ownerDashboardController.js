@@ -8,7 +8,9 @@ import { namedMessages } from '../services/messageIdentityService.js';
 import { propertyMetadata, floorNumber } from '../services/roomPlanService.js';
 import { branchName, branchNumbers } from '../services/propertyBranchesService.js';
 import { syncPrimaryHouse } from '../services/primaryHouseService.js';
-import { saveRoom, saveTenant, removeRoom, removeTenant, offerApplication, ownerLock, fail } from '../services/occupancyService.js';
+import { saveRoom, saveTenant, removeRoom, removeTenant, offerApplication, ownerLock, syncOccupancy, fail } from '../services/occupancyService.js';
+import { reservationStatus } from '../services/tenantReservationService.js';
+import { createWalkInTenant, editWalkInPassword } from '../services/walkInTenantService.js';
 import { hasApprovedBarangay } from '../services/registrationPolicy.js';
 import { Op, fn, col, literal } from 'sequelize';
 import { User } from '../models/userModel.js';
@@ -410,6 +412,33 @@ export const archiveTenants = async (req, res, next) => {
       });
       if (changed) await audit(req, 'archive_tenant', 'OwnerTenant', id);
     }));
+  } catch (error) { next(error); }
+};
+
+export const listWalkInAccounts = async (req, res, next) => {
+  try {
+    const data = await User.findAll({ where: { accountType: 'tenant', walkInOwnerId: oid(req), isArchived: false },
+      attributes: ['id', 'fullName', 'email', 'walkInPasswordPending'], order: [['createdAt', 'DESC']] });
+    res.json({ data });
+  } catch (error) { next(error); }
+};
+
+export const createWalkInAccount = async (req, res, next) => {
+  try {
+    const data = await createWalkInTenant(oid(req), req.body || {});
+    await audit(req, 'create_walk_in_account', 'User', data.userId, { mode: req.body.mode });
+    res.status(201).json({ data, message: data.applicationId ? 'Account ready. Review the reservation fee, then the tenant can accept the offer.' : 'Account ready. The tenant can sign in with the temporary password and set their own.' });
+  } catch (error) {
+    if (error.name === 'SequelizeUniqueConstraintError') return res.status(409).json({ error: 'That email already has an account.' });
+    next(error);
+  }
+};
+
+export const updateWalkInPassword = async (req, res, next) => {
+  try {
+    await editWalkInPassword(oid(req), req.params.id, req.body?.temporaryPassword);
+    await audit(req, 'edit_walk_in_password', 'User', req.params.id);
+    res.json({ message: 'Temporary password updated.' });
   } catch (error) { next(error); }
 };
 
@@ -1318,6 +1347,10 @@ export const getPendingApplications = async (req, res, next) => {
         moveInDate: app.moveInDate,
         ownerNotes: app.ownerNotes,
         acceptedAt: app.acceptedAt,
+        reservation: app.reservationRoomId ? {
+          status: reservationStatus(app), roomId: app.reservationRoomId, fee: app.reservationFee, monthlyRent: app.reservationRent,
+          method: app.reservationMethod, reference: app.reservationReference,
+        } : null,
         confirmedAt: app.confirmedAt,
         createdAt: app.createdAt,
         room
@@ -1340,6 +1373,18 @@ export const bulkOfferApplications = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+export const approveApplicationReservation = async (req, res, next) => {
+  try {
+    const ownerId = oid(req);
+    const app = await TenantApplication.findOne({ where: { id: req.params.id, ownerId } });
+    if (!app?.reservationRoomId) fail('Reservation request not found.', 404);
+    if (req.body?.paymentChecked !== true) fail('Confirm that you received the reservation fee.');
+    const data = await offerApplication(ownerId, app.tenantId, { applicationId: app.id, moveInDate: req.body.moveInDate }, { approveReservation: true });
+    await audit(req, 'approve_reservation', 'TenantApplication', app.id, { roomId: data.roomId });
+    res.json({ data, message: 'Reservation approved. The room or slot is held until the tenant accepts or the reservation is closed.' });
+  } catch (error) { next(error); }
+};
+
 export const archiveApplications = async (req, res, next) => {
   try {
     const ownerId = oid(req);
@@ -1353,7 +1398,9 @@ export const archiveApplications = async (req, res, next) => {
         if (!app) fail('Application not found.', 404);
         if (app.status === 'archived_by_owner') return false;
         if (!['pending_owner', 'accepted_by_owner'].includes(app.status)) fail('Only open applications and offers can be archived here.', 409);
+        const held = app.status === 'accepted_by_owner' && app.reservationRoomId;
         await app.update({ status: 'archived_by_owner' }, { transaction });
+        if (held) await syncOccupancy(ownerId, [held], transaction);
         await BarangayNotification.create({ userId: app.tenantId, title: 'Rental application closed',
           body: `The owner closed your application for ${app.boardingHouseName}. You can still browse and apply for another boarding house.`,
           type: 'application_archived' }, { transaction });
@@ -1401,7 +1448,9 @@ export const declineTenantApplication = async (req, res, next) => {
         transaction, lock: transaction.LOCK.UPDATE
       });
       if (!app) fail('This application is no longer pending or offered.', 409);
+      const held = app.status === 'accepted_by_owner' && app.reservationRoomId;
       await app.update({ status: 'declined_by_owner' }, { transaction });
+      if (held) await syncOccupancy(ownerId, [held], transaction);
       return { owner, houseName: app.boardingHouseName };
     });
 

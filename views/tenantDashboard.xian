@@ -1066,7 +1066,7 @@
 
   <!-- Inquiry & Multi-Application Modal -->
   <div id="inquiryModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-    <div class="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 border border-slate-100 shadow-2xl">
+    <div class="bg-white rounded-3xl max-w-lg w-full max-h-[92dvh] overflow-y-auto p-4 sm:p-6 space-y-4 border border-slate-100 shadow-2xl">
       <div class="flex items-center justify-between border-b border-slate-100 pb-3">
         <div class="flex items-center gap-2.5">
           <div class="w-9 h-9 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-base font-bold shadow-xs">🏡</div>
@@ -1090,14 +1090,13 @@
         </div>
 
         <div>
-          <label class="block font-bold text-slate-700 mb-1">Preferred Room Type / Unit</label>
+          <label for="inquiryRoomType" class="block font-bold text-slate-700 mb-1">Preferred room or bedspace</label>
           <select id="inquiryRoomType" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 text-xs font-semibold bg-white text-slate-800">
-            <option value="Single Room">Single Room</option>
-            <option value="Bedspacer">Bedspacer</option>
-            <option value="Double Sharing">Double Sharing</option>
-            <option value="Any Available">Any Available Room</option>
+            <option value="">No preference</option>
           </select>
         </div>
+        {{> reservationFields}}
+        <p id="inquiryFormError" class="text-sm text-rose-800" role="alert" hidden></p>
 
         <div>
           <label class="block font-bold text-slate-700 mb-1">Inquiry Message / Request to Landlord</label>
@@ -1143,7 +1142,7 @@
 </dialog>
 <style>#tenantBranchGallery::backdrop,#dormCompareDialog::backdrop{background:rgba(15,23,42,.55)}#dormCompareTable th,#dormCompareTable td{padding:12px;min-width:150px;border:1px solid #e2e8f0;vertical-align:top;overflow-wrap:anywhere}#dormCompareTable th{background:#ecfdf5;color:#023020}button:disabled{cursor:not-allowed}</style>
 <script src="/js/branch-gallery.js"></script>
-<script src="/js/tenant-dorm-browser.js?v=3"></script>
+<script src="/js/tenant-dorm-browser.js?v=4"></script>
 <script>
   window.currentUserId = Number("{{userId}}") || 0;
   let paymentHistoryChart = null;
@@ -1767,7 +1766,7 @@
             <button type="button" onclick="confirmApplication(${Number(app.id)}, this)" class="flex-1 px-3 py-2 bg-emerald-800 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm active:scale-95 flex items-center justify-center gap-1 disabled:opacity-60">
               Accept room offer
             </button>
-            <button onclick="cancelApplication(${Number(app.id)}, ${actionHouseName})" class="px-3 py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-xl text-xs font-bold transition active:scale-95">
+            <button onclick="cancelApplication(${Number(app.id)}, ${actionHouseName}, ${Boolean(app.reservationApprovedAt)})" class="px-3 py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-xl text-xs font-bold transition active:scale-95">
               ✕ Decline
             </button>
           </div>
@@ -1792,8 +1791,9 @@
               <p class="font-black text-slate-900 truncate">${escapeMessage(bhName)}</p>
               <p class="text-slate-500 text-[11px]">${escapeMessage(ownerName)}</p>
             </div>
-            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ${sl.cls}">${sl.label}</span>
+            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${sl.cls}">${app.reservationRoomId && app.status === 'pending_owner' ? 'Reservation pending review' : app.reservationRoomId && app.status === 'accepted_by_owner' ? 'Reserved · Accept offer' : sl.label}</span>
           </div>
+          ${app.reservationFee && ['pending_owner', 'accepted_by_owner'].includes(app.status) ? `<p class="text-slate-700">Reservation fee (10%) · ₱${Number(app.reservationFee).toFixed(2)} · ${escapeMessage(app.reservationMethod === 'Cash' ? 'Cash on Hand' : app.reservationMethod)}${app.reservationReference ? ' · Reference ' + escapeMessage(app.reservationReference) : ''}</p>` : ''}
           ${app.status === 'accepted_by_owner' ? `<div class="space-y-1 rounded-xl bg-emerald-50 p-2 text-emerald-950">
             ${app.room?.roomNumber ? `<p class="font-semibold">Room ${escapeMessage(app.room.roomNumber)}${app.room.roomType ? ' · ' + escapeMessage(app.room.roomType) : ''}</p>` : ''}
             ${app.monthlyRent ? `<p>₱${Number(app.monthlyRent).toLocaleString('en-PH', {minimumFractionDigits: 2})} per month${app.moveInDate ? ' · Move-in ' + escapeMessage(app.moveInDate) : ''}</p>` : ''}
@@ -1825,8 +1825,9 @@
     }
   }
 
-  async function cancelApplication(appId, bhName) {
-    if (!await DormMapFeedback.confirm( `Cancel your application at ${bhName}?`)) return;
+  async function cancelApplication(appId, bhName, paidReservation = false) {
+    const message = paidReservation ? `Cancel your reservation at ${bhName} and release the room or slot? Contact the owner about the fee you paid.` : `Cancel your application at ${bhName}?`;
+    if (!await DormMapFeedback.confirm(message)) return;
 
     DormMapFeedback.show('Cancelling…', 'pending');
     try {
@@ -1845,14 +1846,33 @@
 
   // ── Inquiry Modal ─────────────────────────────────────────────────────────
 
-  function openInquiryModal(ownerId, bhName, ownerName, address, priceMin, priceMax, estId) {
-    document.getElementById('inquiryOwnerId').value = ownerId || '';
-    document.getElementById('inquiryBHName').value = bhName || '';
-    document.getElementById('inquiryEstablishmentId').value = estId || '';
-    document.getElementById('inquiryModalBHName').innerText = bhName || 'Boarding House';
-    document.getElementById('inquiryOwnerName').innerText = ownerName || '—';
-    document.getElementById('inquiryLocation').innerText = address || '—';
-    document.getElementById('inquiryPriceRange').innerText = `₱${Number(priceMin||0).toLocaleString()} – ₱${Number(priceMax||0).toLocaleString()} / month`;
+  const inquiryRoom = document.getElementById('inquiryRoomType');
+  const inquiryError = document.getElementById('inquiryFormError');
+  const inquiryReservation = DormReservations.setup(document.querySelector('#inquiryForm [data-reservation]'));
+  let inquiryListing;
+  let inquiryReservationOnly;
+
+  inquiryRoom.addEventListener('change', () => {
+    inquiryReservation.select(inquiryListing.establishmentId ? inquiryListing.id : '', inquiryRoom.value, { activate: inquiryReservationOnly });
+  });
+
+  function openInquiryModal(item, reservationOnly = false) {
+    inquiryListing = item;
+    inquiryReservationOnly = reservationOnly;
+    inquiryError.hidden = true;
+    document.getElementById('inquiryOwnerId').value = item.ownerId || '';
+    document.getElementById('inquiryBHName').value = item.name || '';
+    document.getElementById('inquiryEstablishmentId').value = item.establishmentId || '';
+    document.getElementById('inquiryModalBHName').innerText = item.name || 'Boarding House';
+    document.getElementById('inquiryOwnerName').innerText = item.ownerName || '—';
+    document.getElementById('inquiryLocation').innerText = item.address || '—';
+    document.getElementById('inquiryPriceRange').innerText = item.rentalPriceMin == null ? 'Ask the owner'
+      : `₱${Number(item.rentalPriceMin).toLocaleString()} – ₱${Number(item.rentalPriceMax ?? item.rentalPriceMin).toLocaleString()} / month`;
+    const available = (item.roomInventory || []).filter(room => room.status === 'available' && Number(room.availableSlots) > 0);
+    inquiryRoom.replaceChildren(new Option(reservationOnly ? 'Choose a room' : 'No preference', ''), ...available.map(room =>
+      new Option([`Room ${room.roomNumber}`, room.floor, room.roomType].filter(Boolean).join(' · '), room.id)));
+    inquiryRoom.required = reservationOnly;
+    inquiryReservation.select('', '');
     document.getElementById('inquiryMessage').value = '';
     document.getElementById('inquiryModal').classList.remove('hidden');
   }
@@ -1864,6 +1884,11 @@
   async function handleInquirySubmit(e) {
     e.preventDefault();
     const btn = document.getElementById('btnSubmitInquiry');
+    if (btn.disabled) return;
+    const reservation = inquiryReservation.values();
+    const showError = message => { inquiryError.textContent = message; inquiryError.hidden = false; };
+    inquiryError.hidden = true;
+    if (inquiryReservationOnly && !reservation.reserveRoom) return showError('Select a room and request a reservation for this application.');
     if (btn) { btn.disabled = true; btn.innerText = 'Sending...'; }
 
     try {
@@ -1873,22 +1898,23 @@
         body: JSON.stringify({
           ownerId: document.getElementById('inquiryOwnerId').value,
           boardingHouseName: document.getElementById('inquiryBHName').value,
-          requestedRoomType: document.getElementById('inquiryRoomType').value,
+          requestedRoomId: inquiryRoom.value,
           message: document.getElementById('inquiryMessage').value,
-          establishmentId: document.getElementById('inquiryEstablishmentId').value || null
+          establishmentId: document.getElementById('inquiryEstablishmentId').value || null,
+          ...reservation
         })
       });
       const data = await res.json();
       if (res.ok) {
         closeInquiryModal();
-        DormMapFeedback.show('Inquiry sent. Check your applications for updates.');
+        DormMapFeedback.show(data.message || 'Inquiry sent. Check your applications for updates.');
         loadOverview();
         loadBrowseBoardingHouses();
       } else {
-        DormMapFeedback.show(data.error || 'Failed to submit inquiry.', 'error');
+        showError(data.error || 'Failed to submit inquiry.');
       }
     } catch (err) {
-      DormMapFeedback.show('Please try again.', 'error');
+      showError('Please try again.');
     } finally {
       if (btn) { btn.disabled = false; btn.innerHTML = 'Send Application & Inquiry ➔'; }
     }

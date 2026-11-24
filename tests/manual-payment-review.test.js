@@ -5,6 +5,7 @@ import { User } from '../models/userModel.js';
 import { OwnerPayment, OwnerTenant, OwnerNotification } from '../models/ownerModels.js';
 import { BarangayNotification } from '../models/adminModels.js';
 import { Payment } from '../models/paymentModels.js';
+import { TenantApplication } from '../models/tenantModels.js';
 import { submitRentPayment, manilaToday } from '../services/manualPaymentService.js';
 import { markPaid, returnPaymentSubmission } from '../controllers/ownerDashboardController.js';
 
@@ -35,6 +36,7 @@ function setup(t, { onlineCheckout = false, hasSubmission = false } = {}) {
   t.mock.method(OwnerTenant, 'findAll', async () => [rental]);
   t.mock.method(OwnerTenant, 'findOne', async () => rental);
   t.mock.method(OwnerPayment, 'findOne', async ({ where }) => Object.hasOwn(where, 'tenantId') || typeof where.id !== 'object' ? bill : null);
+  t.mock.method(TenantApplication, 'findOne', async () => null);
   t.mock.method(Payment, 'count', async () => Number(onlineCheckout));
   t.mock.method(Payment, 'findAll', async () => onlineCheckout ? [{ id: 10, paymongoCheckoutId: null }] : []);
   t.mock.method(sequelize.models.ReviewFile, 'create', async values => values);

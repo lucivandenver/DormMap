@@ -17,6 +17,12 @@ const ReviewFile = sequelize.define('ReviewFile', {
   bytes: { type: DataTypes.BLOB('long'), allowNull: false },
 });
 
+export async function readReservationQr(ownerId, url) {
+  const match = /^\/documents\/([a-f0-9-]{36})\/([\w.-]+)$/.exec(url);
+  if (!match) return null;
+  return ReviewFile.findOne({ where: { id: match[1], filename: match[2], userId: ownerId, scope: 'payment-qr' }, attributes: ['bytes'] });
+}
+
 export async function storeReviewFile(file, userId, scope = 'registration', transaction) {
   if (!file) return null;
   const id = randomUUID();

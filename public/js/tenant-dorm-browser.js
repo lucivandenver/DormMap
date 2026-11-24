@@ -98,6 +98,7 @@
             ${item.branchGalleries?.some(branch => branch.photos.length) ? '<button type="button" data-action="photos" class="px-3 py-2 bg-slate-100 rounded-xl text-xs font-bold">View photos</button>' : ''}
             <button type="button" data-action="map" ${hasLocation(item) && typeof window.L !== 'undefined' ? '' : 'disabled'} class="px-3 py-2 bg-slate-100 rounded-xl text-xs font-bold">${!hasLocation(item) ? 'No map pin' : typeof window.L === 'undefined' ? 'Map unavailable' : 'Map'}</button>
             <button type="button" data-action="${application ? 'message' : 'apply'}" class="flex-1 px-3 py-2 bg-emerald-950 text-white rounded-xl text-xs font-bold">${application ? 'Message owner' : 'Inquire & Apply'}</button>
+            ${application && item.application.status === 'pending_owner' && !item.application.hasReservation && item.establishmentId && item.availableRooms?.length ? '<button type="button" data-action="reserve" class="px-3 py-2 rounded-xl border border-emerald-700 text-xs font-bold text-emerald-800">Request reservation</button>' : ''}
           </div>
         </div>
       </article>`;
@@ -140,9 +141,7 @@
     dialog.showModal();
   }
 
-  function inquire(item) {
-    window.openInquiryModal(item.ownerId, item.name, item.ownerName, item.address, item.rentalPriceMin, item.rentalPriceMax, item.establishmentId);
-  }
+  function inquire(item, reservationOnly = false) { window.openInquiryModal(item, reservationOnly); }
 
   function renderMap(items) {
     const located = items.filter(hasLocation);
@@ -258,6 +257,7 @@
     if (control.dataset.action === 'photos') showBranchGallery(item);
     if (control.dataset.action === 'save') toggleSave(item);
     if (control.dataset.action === 'apply') inquire(item);
+    if (control.dataset.action === 'reserve') inquire(item, true);
     if (control.dataset.action === 'message') window.openConversationWith(item.ownerId);
     if (control.dataset.action === 'map') {
       const marker = markers.get(item.id);

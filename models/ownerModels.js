@@ -36,6 +36,7 @@ export const OwnerRoom = sequelize.define('OwnerRoom', {
   rentalBasis: { type: DataTypes.STRING, allowNull: false, defaultValue: 'person' },
   bedCount: { type: DataTypes.INTEGER, allowNull: true },
   reservedSlots:   { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  reservationSlots: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   rentalPrice:     { type: DataTypes.DECIMAL(10,2), allowNull: false, defaultValue: 0 },
   dimensions:      { type: DataTypes.STRING,  allowNull: true },
   genderPref:      { type: DataTypes.STRING,  allowNull: true, defaultValue: 'Any' },

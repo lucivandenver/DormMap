@@ -4,6 +4,16 @@
   const listingLabel = house => [listingTitle(house), house.barangay].filter(Boolean).join(' · ');
   const roomLabel = room => [`Room ${room.roomNumber}`, room.floor, room.roomType].filter(Boolean).join(' · ');
 
+  function photoUrls(house) {
+    return [...new Set([house?.boardingHousePicture, ...(house?.galleryImages || [])])].flatMap(source => {
+      if (!source) return [];
+      try {
+        const url = new URL(source, window.location.href);
+        return ['https:', 'http:'].includes(url.protocol) ? [url.href] : [];
+      } catch { return []; }
+    });
+  }
+
   function coordinates(house) {
     const values = [house.latitude, house.longitude];
     if (values.some(value => value == null || value === '')) return null;
@@ -24,7 +34,8 @@
     const selection = picker.querySelector('[data-house-selection]');
     const selectedName = picker.querySelector('[data-house-name]');
     const details = picker.querySelector('[data-registration-details]');
-    const detailsPhoto = details.querySelector('[data-details-photo]');
+    const selectedPhoto = picker.querySelector('[data-selected-photo]');
+    const reservation = window.DormReservations.setup(picker.querySelector('[data-reservation]'));
     let detailsHouse;
     let detailsFromMap;
 
@@ -34,6 +45,7 @@
     let markerLayer;
     let visiblePoints = [];
     let map;
+    let coLocated = [];
     let isVisible = false;
     let started = false;
     let loaded = false;
@@ -43,21 +55,26 @@
       status.hidden = !message;
     }
 
-    function updatePreference(value = room.value) {
+    function updatePreference(value = room.value, restore = false) {
       const available = (selected?.roomInventory || []).filter(item => item.status === 'available' && Number(item.availableSlots) > 0);
       room.replaceChildren(new Option('No preference', ''), ...available.map(item => new Option(roomLabel(item), item.id)));
       room.value = [...room.options].some(option => option.value === value) ? value : '';
       room.closest('[data-room-preference]').hidden = !available.length;
       room.disabled = !available.length;
+      if (loaded) reservation.select(selected?.id, room.value, { restore });
     }
 
-    function selectHouse(house, { focusMap = false, fromMap = false, preference = '' } = {}) {
+    function selectHouse(house, { focusMap = false, fromMap = false, preference = '', restore = false } = {}) {
       const changed = selected?.id !== house?.id;
       selected = house;
       field.value = house?.id || '';
       selection.hidden = !house;
       selectedName.textContent = house ? listingLabel(house) : '';
-      updatePreference(changed ? preference : room.value);
+      selectedPhoto.hidden = true;
+      selectedPhoto.removeAttribute('src');
+      const photo = photoUrls(house)[0];
+      if (photo) selectedPhoto.src = photo;
+      updatePreference(changed ? preference : room.value, restore);
       for (const button of results.querySelectorAll('[data-house-id]')) {
         button.setAttribute('aria-pressed', String(house?.id === button.dataset.houseId));
       }
@@ -78,23 +95,43 @@
       details.querySelector('[data-details-name]').textContent = listingTitle(house);
       details.querySelector('[data-details-address]').textContent = window.dormMapListingLocation(house);
 
-      const photo = house.boardingHousePicture || house.galleryImages?.find(Boolean);
-      detailsPhoto.hidden = true;
-      detailsPhoto.removeAttribute('src');
-      if (photo) {
-        try {
-          const url = new URL(photo, window.location.href);
-          if (['https:', 'http:'].includes(url.protocol)) detailsPhoto.src = url.href;
-        } catch { /* The listing can still be viewed without a photo. */ }
-      }
-      const rate = Number(house.rentalPriceMin || house.rentPerHead || house.rentPerRoom || 0);
+      const gallery = details.querySelector('[data-details-photos]');
+      gallery.replaceChildren(...photoUrls(house).map((url, index) => {
+        const photo = document.createElement('img');
+        photo.alt = `${listingTitle(house)} · Photo ${index + 1}`;
+        photo.loading = index ? 'lazy' : 'eager';
+        photo.addEventListener('error', () => photo.remove(), { once: true });
+        photo.src = url;
+        return photo;
+      }));
       details.querySelector('[data-details-summary]').textContent = [
-        house.propertyType, `${house.roomsAvailable ?? 0} available rooms`,
-        rate > 0 ? `From ₱${rate.toLocaleString('en-PH')} / month` : ''
+        house.propertyType, `${house.roomsAvailable ?? 0} available rooms`
       ].filter(Boolean).join(' · ');
       const description = details.querySelector('[data-details-description]');
       description.textContent = house.description || '';
       description.hidden = !house.description;
+      const prices = details.querySelector('[data-details-prices]');
+      prices.replaceChildren(...[['Per room', house.rentPerRoom], ['Per head', house.rentPerHead]].map(([label, amount]) => {
+        const block = document.createElement('div');
+        const term = document.createElement('dt');
+        const value = document.createElement('dd');
+        term.textContent = label;
+        value.textContent = Number(amount) > 0 ? `₱${Number(amount).toLocaleString('en-PH')} / month` : 'Ask the owner';
+        block.append(term, value);
+        return block;
+      }));
+      const amenities = details.querySelector('[data-details-amenities]');
+      let list = house.amenities || '';
+      if (typeof list === 'string') {
+        try { const parsed = JSON.parse(list); if (Array.isArray(parsed)) list = parsed; } catch { /* The owner entered plain text. */ }
+      }
+      const items = (Array.isArray(list) ? list : list.split(/[,;\n]+/)).map(value => String(value).trim()).filter(Boolean);
+      amenities.hidden = !items.length;
+      amenities.querySelector('ul').replaceChildren(...items.map(item => {
+        const entry = document.createElement('li');
+        entry.textContent = item;
+        return entry;
+      }));
       details.querySelector('[data-details-rooms]').innerHTML = window.DormRoomDetails.render(house.roomInventory || []);
       if (!details.open) details.showModal();
     }
@@ -102,8 +139,19 @@
     function housePreview(house, fromMap) {
       const preview = document.createElement('div');
       preview.className = 'registration-house-preview';
+      const heading = document.createElement('div');
+      heading.className = 'registration-house-heading';
+      const cover = photoUrls(house)[0];
+      if (fromMap && cover) {
+        const image = document.createElement('img');
+        image.alt = '';
+        image.addEventListener('error', () => image.remove(), { once: true });
+        image.src = cover;
+        heading.append(image);
+      }
       const name = document.createElement('strong');
       name.textContent = listingLabel(house);
+      heading.append(name);
       const actions = document.createElement('div');
       actions.className = 'registration-house-actions';
       const view = document.createElement('button');
@@ -120,7 +168,7 @@
       choose.setAttribute('aria-pressed', String(house.id === selected?.id));
       choose.addEventListener('click', () => selectHouse(house, { focusMap: !fromMap, fromMap }));
       actions.append(view, choose);
-      preview.append(name, actions);
+      preview.append(heading, actions);
       return preview;
     }
 
@@ -142,32 +190,33 @@
         if (groups.has(key)) groups.get(key).houses.push(house);
         else groups.set(key, { point, houses: [house] });
       }
+      coLocated = [];
       for (const { point, houses: listings } of groups.values()) {
-        const [first] = listings;
-        const title = listings.length === 1 ? listingLabel(first) : `${listings.length} boarding houses at this location`;
-        const icon = window.dormMapPropertyPin?.(L, false, first);
-        const pin = L.marker(point, { title, ...(icon ? { icon } : {}) }).addTo(markerLayer);
-        pin.getElement()?.setAttribute('aria-label', title);
-        const maxWidth = Math.min(250, Math.max(140, map.getSize().x - 58));
-        pin.bindPopup(() => {
-          const choices = document.createElement('div');
-          choices.className = 'registration-map-choices';
-          const nearby = [...listings];
-          const position = map.latLngToContainerPoint(point);
-          // Pins whose icons overlap should all be reachable from the visible pin.
-          for (const group of groups.values()) {
-            if (group.point === point) continue;
-            const other = map.latLngToContainerPoint(group.point);
-            if (Math.abs(position.x - other.x) < 48 && Math.abs(position.y - other.y) < 55) {
-              nearby.push(...group.houses);
-            }
-          }
-          choices.append(...nearby.map(house => housePreview(house, true)));
-          return choices;
-        }, { maxWidth, autoPanPadding: L.point(18, 24), keepInView: true });
+        const pins = listings.map(house => {
+          const title = listingLabel(house);
+          const icon = window.dormMapPropertyPin?.(L, false, house);
+          const pin = L.marker(point, { title, ...(icon ? { icon } : {}) }).addTo(markerLayer);
+          pin.getElement()?.setAttribute('aria-label', title);
+          const maxWidth = Math.min(240, Math.max(135, map.getSize().x - 52));
+          pin.bindPopup(() => housePreview(house, true), { maxWidth, autoPanPadding: L.point(14, 12), keepInView: true });
+          return pin;
+        });
+        if (pins.length > 1) coLocated.push({ point, pins });
       }
       visiblePoints = [...groups.values()].map(group => group.point);
       frameMarkers();
+      spreadCoLocated();
+    }
+
+    function spreadCoLocated() {
+      for (const { point, pins } of coLocated) {
+        const center = map.project(point);
+        const radius = Math.max(27, 12 * pins.length);
+        for (const [index, pin] of pins.entries()) {
+          const angle = (2 * Math.PI * index) / pins.length;
+          pin.setLatLng(map.unproject(center.add(L.point(radius * Math.cos(angle), radius * Math.sin(angle)))));
+        }
+      }
     }
 
     function showResults() {
@@ -197,6 +246,9 @@
         maxZoom: 19, attribution: '© OpenStreetMap contributors'
       }).addTo(map);
       window.dormMapFullMap?.(L, map, street);
+      map.on('zoomend', spreadCoLocated);
+      map.on('popupopen', () => mapElement.classList.add('registration-pin-open'));
+      map.on('popupclose', () => mapElement.classList.remove('registration-pin-open'));
       map.on('dormmap:expanded', frameMarkers);
       map.on('dormmap:collapsed', () => {
         const point = selected && coordinates(selected);
@@ -224,7 +276,7 @@
       if (!selected && initialHouse && field.value === initialHouse) {
         const restored = houses.find(house => house.id === initialHouse) ||
           houses.find(house => house.boardingHouseName === initialHouse);
-        selectHouse(restored, { focusMap: true, preference: room.dataset.selected });
+        selectHouse(restored, { focusMap: true, preference: room.dataset.selected, restore: true });
       }
     }
 
@@ -258,8 +310,10 @@
       selectHouse();
       search.focus();
     });
-    detailsPhoto.addEventListener('load', () => { detailsPhoto.hidden = false; });
-    detailsPhoto.addEventListener('error', () => { detailsPhoto.hidden = true; });
+    room.addEventListener('change', () => reservation.select(selected?.id, room.value));
+    selectedPhoto.addEventListener('load', () => { selectedPhoto.hidden = false; });
+    selectedPhoto.addEventListener('error', () => { selectedPhoto.hidden = true; });
+    picker.querySelector('[data-selected-details]').addEventListener('click', () => { if (selected) viewDetails(selected, false); });
     details.querySelector('[data-close-details]').addEventListener('click', () => details.close());
     details.querySelector('[data-select-details]').addEventListener('click', () => {
       details.close();

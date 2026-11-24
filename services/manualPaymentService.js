@@ -9,6 +9,7 @@ import { Payment } from '../models/paymentModels.js';
 import { fail, ownerLock } from './occupancyService.js';
 import { findActiveRental } from './rentalIdentityService.js';
 import { storeReviewFile } from './reviewFileService.js';
+import { assertReservationReferenceAvailable } from './tenantReservationService.js';
 
 export function manilaToday() {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Manila' }).format(new Date());
@@ -28,6 +29,7 @@ export function paymentReference(value, method = 'GCash') {
 }
 
 export async function assertReferenceAvailable(bill, method, reference, transaction) {
+  await assertReservationReferenceAvailable(bill.ownerId, method, reference, transaction);
   const conflict = await OwnerPayment.findOne({
     where: { ownerId: bill.ownerId, id: { [Op.ne]: bill.id }, [Op.or]: [
       { method, reference },

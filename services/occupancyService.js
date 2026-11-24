@@ -26,9 +26,11 @@ export async function syncOccupancy(ownerId, roomIds, transaction) {
     const room = await ownedRoom(ownerId, id, transaction);
     const occupants = await OwnerTenant.findAll({ where: { ownerId, roomId: id, status: 'active' }, transaction });
     const occupied = occupants.reduce((sum, tenant) => sum + Number(tenant.occupantCount || 1), 0);
-    if (occupied + room.reservedSlots > room.capacity) fail('Room capacity cannot be lower than its active tenants and reserved slots.');
-    const availableSlots = room.status === 'maintenance' ? 0 : room.rentalBasis === 'room' && (occupants.length || room.reservedSlots > 0) ? 0 : room.capacity - occupied - room.reservedSlots;
-    await room.update({ availableSlots, status: room.status === 'maintenance' ? 'maintenance' : availableSlots ? 'available' : 'occupied' }, { transaction });
+    const reservationSlots = await TenantApplication.count({ where: { ownerId, reservationRoomId: id, status: 'accepted_by_owner' }, transaction });
+    const unavailable = occupied + room.reservedSlots + reservationSlots;
+    if (unavailable > room.capacity) fail('Room capacity cannot be lower than its occupants and reserved slots.');
+    const availableSlots = room.status === 'maintenance' || (room.rentalBasis === 'room' && unavailable > 0) ? 0 : room.capacity - unavailable;
+    await room.update({ reservationSlots, availableSlots, status: room.status === 'maintenance' ? 'maintenance' : availableSlots ? 'available' : 'occupied' }, { transaction });
   }
   const roomsAvailable = await OwnerRoom.count({ where: { ownerId, status: 'available', availableSlots: { [Op.gt]: 0 } }, transaction });
   await User.update({ roomsAvailable }, { where: { id: ownerId }, transaction });
@@ -41,6 +43,7 @@ export async function saveRoom(ownerId, id, body) {
     const capacity = integer(body.capacity ?? room?.capacity ?? 1, 1, 'Capacity');
     const occupants = room ? await OwnerTenant.findAll({ where: { ownerId, roomId: room.id, status: 'active' }, transaction }) : [];
     const active = occupants.reduce((sum, tenant) => sum + Number(tenant.occupantCount || 1), 0);
+    const held = room?.reservationSlots || 0;
     if (capacity > 100) fail('Room capacity cannot exceed 100 occupants.');
     if (capacity < active) fail('Move tenants before reducing room capacity.');
     values.capacity = capacity;
@@ -69,9 +72,12 @@ export async function saveRoom(ownerId, id, body) {
     if (duplicate) fail('This room number already exists in the selected boarding house.', 409);
     if (values.rentalBasis === 'room' && occupants.length && Number(body.availableSlots) > 0) fail('Move the active household out before making this whole room available.');
     const desired = body.availableSlots === undefined || body.availableSlots === '' ? null : integer(body.availableSlots, 0, 'Available slots');
-    if (desired !== null && desired > capacity - active) fail('Available slots exceed the unoccupied capacity.');
-    values.reservedSlots = desired === null || (values.rentalBasis === 'room' && room && (occupants.length || room.reservedSlots > 0) && desired === 0) ? room?.reservedSlots || 0 : capacity - active - desired;
+    if (desired !== null && desired > capacity - active - held) fail('Available slots exceed the unoccupied, unreserved capacity.');
+    values.reservedSlots = desired === null || (values.rentalBasis === 'room' && room && (occupants.length || room.reservedSlots > 0 || held) && desired === 0) ? room?.reservedSlots || 0 : capacity - active - held - desired;
     const status = body.status ?? room?.status ?? 'available';
+    if (held && (status === 'maintenance' || values.boardingHouseId !== room.boardingHouseId || values.rentalBasis !== room.rentalBasis)) {
+      fail('Close this room’s confirmed reservations before moving it, changing its rent basis, or marking it for maintenance.', 409);
+    }
     if (!['available','occupied','maintenance'].includes(status)) fail('Invalid room status.');
     values.status = status === 'maintenance' ? status : 'available';
     for (const key of ['furnished','aircon']) if (body[key] !== undefined) values[key] = body[key] === true || body[key] === 'true';
@@ -158,7 +164,7 @@ export async function saveTenant(ownerId, id, body, { transaction: suppliedTrans
           if (room.reservedSlots < newlyLinked) fail('There are not enough owner-reported unavailable slots to link.');
           await room.update({ reservedSlots: room.reservedSlots-newlyLinked }, { transaction });
         }
-        if (room.status === 'maintenance' || (room.rentalBasis === 'room' && others.length) || count + values.occupantCount + room.reservedSlots > room.capacity) fail('This room has no available capacity for these occupants.', 409);
+        if (room.status === 'maintenance' || (room.rentalBasis === 'room' && (others.length || room.reservationSlots)) || count + values.occupantCount + room.reservedSlots + room.reservationSlots > room.capacity) fail('This room has no available capacity for these occupants.', 409);
         if (room.rentalBasis === 'bed') {
           const taken = new Set(others.map(tenant => tenant.bedNumber).filter(Boolean));
           values.bedNumber = body.bedNumber ? integer(body.bedNumber, 1, 'Bed number') : tenant?.roomId === room.id && tenant?.bedNumber || Array.from({ length: room.capacity }, (_,i) => i+1).find(n => !taken.has(n));
@@ -204,7 +210,7 @@ export async function saveTenant(ownerId, id, body, { transaction: suppliedTrans
 export async function removeRoom(ownerId, id) {
   return sequelize.transaction(async transaction => {
     await ownerLock(ownerId, transaction); const room = await ownedRoom(ownerId, id, transaction);
-    if (await OwnerTenant.count({ where: { ownerId, roomId: id }, transaction }) || await TenantApplication.count({ where: { ownerId, roomId: id }, transaction }) || await OwnerPayment.count({ where: { ownerId, roomId: id }, transaction })) fail('This room has tenant, application, or billing history. Use maintenance status instead.', 409);
+    if (await OwnerTenant.count({ where: { ownerId, roomId: id }, transaction }) || await TenantApplication.count({ where: { ownerId, [Op.or]: [{ roomId: id }, { reservationRoomId: id }] }, transaction }) || await OwnerPayment.count({ where: { ownerId, roomId: id }, transaction })) fail('This room has tenant, application, or billing history. Use maintenance status instead.', 409);
     const { Payment } = await import('../models/paymentModels.js');
     if (await Payment.count({ where: { ownerId, roomId: id }, transaction })) fail('This room has online payment history. Use maintenance status instead.', 409);
     await room.destroy({ transaction }); await syncOccupancy(ownerId, [], transaction);
@@ -227,7 +233,7 @@ export function offerMoveInDate(value) {
   return value;
 }
 
-export async function offerApplication(ownerId, tenantUserId, body, { bulk = false } = {}) {
+export async function offerApplication(ownerId, tenantUserId, body, { bulk = false, approveReservation = false } = {}) {
   const moveInDate = offerMoveInDate(body.moveInDate);
   return sequelize.transaction(async transaction => {
     const user = await User.findOne({ where: { id: tenantUserId, accountType: 'tenant' }, transaction, lock: transaction.LOCK.UPDATE });
@@ -236,19 +242,23 @@ export async function offerApplication(ownerId, tenantUserId, body, { bulk = fal
     requireOwnerPaymentMethod(owner);
     const app = await TenantApplication.findOne({ where: { ownerId, tenantId: tenantUserId, ...(body.applicationId ? { id: body.applicationId } : {}), status: { [Op.in]: ['pending_owner','accepted_by_owner'] } }, order: [['createdAt','DESC']], transaction, lock: transaction.LOCK.UPDATE });
     if (!app) fail('This inquiry is no longer pending or offered.', 409);
+    if (app.reservationRoomId && !approveReservation) fail('Review the reservation payment before approving this request.', 409);
+    if (approveReservation && !app.reservationRoomId) fail('Reservation request not found.', 404);
+    if (approveReservation && app.reservationApprovedAt) return app;
     if (bulk && app.status === 'accepted_by_owner') fail('An offer has already been sent. Open Review to change it.', 409);
     if (await activeStay(user, transaction)) {
       throw Object.assign(new Error('This tenant already has an active tenancy. Their current owner must record move-out before you can send an offer.'), { status: 409, code: 'ACTIVE_TENANCY' });
     }
-    if (!body.roomId) fail('Choose a room to offer.');
-    const room = await ownedRoom(ownerId, body.roomId, transaction);
+    const roomId = approveReservation ? app.reservationRoomId : body.roomId;
+    if (!roomId) fail('Choose a room to offer.');
+    const room = await ownedRoom(ownerId, roomId, transaction);
     if (app.boardingHouseId && app.boardingHouseId !== room.boardingHouseId) fail('Offer a room in the boarding house the tenant applied to.');
     await syncOccupancy(ownerId, [room.id], transaction);
     await room.reload({ transaction });
     if (!room.availableSlots || room.status === 'maintenance') fail('This room is full or unavailable.', 409);
     const house = await BoardingHouse.findByPk(room.boardingHouseId, { transaction });
     if (house?.approvalStatus !== 'approved') fail('This branch must be approved before offering rooms.');
-    const occupantCount = integer(body.occupantCount || 1, 1, 'Household occupants');
+    const occupantCount = approveReservation ? 1 : integer(body.occupantCount || 1, 1, 'Household occupants');
     if (occupantCount > room.availableSlots || (room.rentalBasis === 'bed' && occupantCount !== 1)) fail('The offered household size does not match this room.');
     if (bulk) {
       const outstanding = await TenantApplication.sum('occupantCount', {
@@ -259,10 +269,12 @@ export async function offerApplication(ownerId, tenantUserId, body, { bulk = fal
       }
     }
     const rate = Number(room.rentalPrice) * (room.rentalBasis === 'person' ? occupantCount : 1);
-    const monthlyRent = money(body.monthlyRent ?? rate);
+    const monthlyRent = money(approveReservation ? app.reservationRent : body.monthlyRent ?? rate);
     if (monthlyRent <= 0) fail('Enter a monthly total greater than zero in the Review form.');
-    await app.update({ occupantCount, status: 'accepted_by_owner', roomId: room.id, boardingHouseId: house.id, boardingHouseName: house.name, monthlyRent, moveInDate, ownerNotes: String(body.notes || '').slice(0,2000), acceptedAt: new Date() }, { transaction });
-    await BarangayNotification.create({ userId: app.tenantId, title: 'Room offer received', body: `Review and confirm the offer for ${app.boardingHouseName} on your tenant dashboard.`, type: 'application_offered' }, { transaction });
+    await app.update({ occupantCount, status: 'accepted_by_owner', roomId: room.id, boardingHouseId: house.id, boardingHouseName: house.name, monthlyRent, moveInDate, ownerNotes: String(body.notes || '').slice(0,2000), acceptedAt: new Date(),
+      ...(approveReservation ? { reservationApprovedAt: new Date() } : {}) }, { transaction });
+    if (approveReservation) await syncOccupancy(ownerId, [room.id], transaction);
+    await BarangayNotification.create({ userId: app.tenantId, title: approveReservation ? 'Reservation approved' : 'Room offer received', body: `Review and confirm the offer for ${app.boardingHouseName} on your tenant dashboard.`, type: 'application_offered' }, { transaction });
     return app;
   });
 }
@@ -280,6 +292,13 @@ export async function confirmOffer(userId, applicationId) {
     const branch = app.boardingHouseId ? await BoardingHouse.findByPk(app.boardingHouseId, { transaction }) : null;
     if (branch?.approvalStatus !== 'approved') fail('This branch is not currently approved.');
     if (await activeStay(user, transaction)) fail('You already have an active tenancy. Arrange move-out before confirming another.', 409);
+    if (await TenantApplication.count({ where: { tenantId: userId, id: { [Op.ne]: app.id }, status: 'accepted_by_owner', reservationRoomId: { [Op.ne]: null } }, transaction })) {
+      fail('Close your other approved reservation before confirming this offer.', 409);
+    }
+    if (app.reservationRoomId) {
+      await app.update({ status: 'confirmed' }, { transaction });
+      await syncOccupancy(app.ownerId, [app.reservationRoomId], transaction);
+    }
     await saveTenant(app.ownerId, null, { occupantCount: app.occupantCount || 1, fullName: user.fullName, email: user.email, contactNumber: user.contactNumber, roomId: app.roomId, monthlyRent: app.monthlyRent, moveInDate: app.moveInDate || today(), status: 'active' }, { transaction, trustedUserId: userId });
     await app.update({ status: 'confirmed', confirmedAt: new Date() }, { transaction });
     await user.update({ selectedBoardingHouse: app.boardingHouseName, applicationStatus: 'approved' }, { transaction });
