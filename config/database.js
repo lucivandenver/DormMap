@@ -11,8 +11,10 @@ export function databaseConfig(env = process.env) {
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error('DB_PORT must be a valid TCP port.');
   }
-  const sslEnabled = env.DB_SSL === 'true';
-  if (production && !sslEnabled) throw new Error('Set DB_SSL=true for the production database.');
+  const host = env.DB_HOST || 'localhost';
+  const local = ['localhost', '127.0.0.1'].includes(host.toLowerCase());
+  const sslEnabled = !local && env.DB_SSL === 'true';
+  if (production && !local && !sslEnabled) throw new Error('Set DB_SSL=true for the production database.');
   let ssl;
   if (sslEnabled) {
     const ca = env.DB_SSL_CA?.replace(/\\n/g, '\n') ||
@@ -24,7 +26,7 @@ export function databaseConfig(env = process.env) {
     database: env.DB_NAME || 'DorMap',
     username: env.DB_USER || 'root',
     password: env.DB_PASSWORD || '',
-    host: env.DB_HOST || 'localhost',
+    host,
     port,
     ssl,
   };

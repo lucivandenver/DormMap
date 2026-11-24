@@ -17,14 +17,22 @@ test('local MySQL defaults and custom Aiven port', () => {
 });
 
 test('Aiven SSL requires a CA and verifies the server certificate', () => {
-  assert.throws(() => databaseConfig({ DB_SSL: 'true' }), /CA certificate/);
-  const config = databaseConfig({ DB_SSL: 'true', DB_SSL_CA: 'line1\\nline2' });
+  const env = { DB_HOST: 'example.aivencloud.com', DB_SSL: 'true' };
+  assert.throws(() => databaseConfig(env), /CA certificate/);
+  const config = databaseConfig({ ...env, DB_SSL_CA: 'line1\\nline2' });
   assert.equal(config.ssl.ca, 'line1\nline2');
   assert.equal(config.ssl.rejectUnauthorized, true);
   assert.equal(config.ssl.verifyIdentity, true);
   assert.equal(config.ssl.minVersion, 'TLSv1.2');
   assert.throws(() => databaseConfig({ NODE_ENV: 'production' }), /DB_NAME/);
   assert.throws(() => databaseConfig({ NODE_ENV: 'production', DB_NAME: 'defaultdb', DB_USER: 'avnadmin', DB_PASSWORD: 'example', DB_HOST: 'example.invalid' }), /DB_SSL/);
+});
+
+test('loopback MySQL disables SSL even with inherited cloud settings', () => {
+  const env = { NODE_ENV: 'production', DB_NAME: 'DormMap', DB_USER: 'root', DB_PASSWORD: 'example',
+    DB_SSL: 'true', DB_SSL_CA_PATH: '/unused-aiven-ca.pem' };
+  assert.equal(databaseConfig({ ...env, DB_HOST: 'localhost' }).ssl, undefined);
+  assert.equal(databaseConfig({ ...env, DB_HOST: '127.0.0.1' }).ssl, undefined);
 });
 
 test('production cookies require a durable secret and HTTPS', () => {
