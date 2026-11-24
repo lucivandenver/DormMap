@@ -312,7 +312,7 @@
         <!-- Charts Section -->
         <div class="grid gap-4 md:grid-cols-2">
           <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-            <h3 class="font-bold text-sm text-slate-800 mb-3">Monthly Rental Collections</h3>
+            <h3 class="font-bold text-sm text-slate-800 mb-3">Monthly Rent and Reservation Collections</h3>
             <canvas id="rentalChart" class="max-h-64"></canvas>
           </div>
           <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
@@ -738,6 +738,10 @@
             <label class="block text-sm font-semibold" data-review-reference hidden>Transaction reference number
               <input name="reference" maxlength="100" class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
             </label>
+            <label class="block text-sm font-semibold" data-review-amount>Actual amount received (₱)
+              <input type="number" name="amountPaid" inputmode="decimal" min="0.01" max="99999999.99" step="0.01" required class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
+              <span class="mt-1 block text-xs font-normal text-slate-600">Confirming closes the invoice and records this amount as income.</span>
+            </label>
             <label class="block text-sm font-semibold"><span data-review-notes-label>Notes (optional)</span>
               <textarea name="notes" rows="3" maxlength="2000" class="mt-1 block w-full rounded-xl border border-slate-200 p-2" placeholder="Add a message for the tenant"></textarea>
             </label>
@@ -921,35 +925,35 @@
                   <svg class="w-4 h-4 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.08-3.08a2 2 0 0 0-2.83 0L6 21"/></svg>
                   1. Outdoor Spaces (Cover Photo)
                 </label>
-                <input type="file" name="galleryOutdoor" accept="image/*" class="w-full text-xs text-slate-600 border border-dashed border-slate-300 rounded-lg p-2.5 bg-slate-50/70 file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border file:border-slate-200 file:text-xs file:font-semibold file:bg-white file:text-slate-700 hover:file:bg-slate-50 cursor-pointer">
+                <input type="file" name="galleryOutdoor" accept="image/jpeg,image/png,image/webp" class="w-full text-xs text-slate-600 border border-dashed border-slate-300 rounded-lg p-2.5 bg-slate-50/70 file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border file:border-slate-200 file:text-xs file:font-semibold file:bg-white file:text-slate-700 hover:file:bg-slate-50 cursor-pointer">
               </div>
               <div class="space-y-1">
                 <label class="text-xs font-bold text-slate-600 flex items-center gap-1.5">
                   <svg class="w-4 h-4 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20 9v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9"/><path d="M9 22V12h6v10"/><path d="M2 10.6L12 2l10 8.6"/></svg>
                   2. Living Area
                 </label>
-                <input type="file" name="galleryLivingArea" accept="image/*" class="w-full text-xs text-slate-600 border border-dashed border-slate-300 rounded-lg p-2.5 bg-slate-50/70 file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border file:border-slate-200 file:text-xs file:font-semibold file:bg-white file:text-slate-700 hover:file:bg-slate-50 cursor-pointer">
+                <input type="file" name="galleryLivingArea" accept="image/jpeg,image/png,image/webp" class="w-full text-xs text-slate-600 border border-dashed border-slate-300 rounded-lg p-2.5 bg-slate-50/70 file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border file:border-slate-200 file:text-xs file:font-semibold file:bg-white file:text-slate-700 hover:file:bg-slate-50 cursor-pointer">
               </div>
               <div class="space-y-1">
                 <label class="text-xs font-bold text-slate-600 flex items-center gap-1.5">
                   <svg class="w-4 h-4 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/></svg>
                   3. Bedroom
                 </label>
-                <input type="file" name="galleryBedroom" accept="image/*" class="w-full text-xs text-slate-600 border border-dashed border-slate-300 rounded-lg p-2.5 bg-slate-50/70 file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border file:border-slate-200 file:text-xs file:font-semibold file:bg-white file:text-slate-700 hover:file:bg-slate-50 cursor-pointer">
+                <input type="file" name="galleryBedroom" accept="image/jpeg,image/png,image/webp" class="w-full text-xs text-slate-600 border border-dashed border-slate-300 rounded-lg p-2.5 bg-slate-50/70 file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border file:border-slate-200 file:text-xs file:font-semibold file:bg-white file:text-slate-700 hover:file:bg-slate-50 cursor-pointer">
               </div>
               <div class="space-y-1">
                 <label class="text-xs font-bold text-slate-600 flex items-center gap-1.5">
                   <svg class="w-4 h-4 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M18 2v20"/><path d="M18 8a3 3 0 0 0 0-6"/><path d="M6 2v20"/><path d="M4 2v6a2 2 0 0 0 4 0V2"/></svg>
                   4. Dining or kitchenette
                 </label>
-                <input type="file" name="galleryDining" accept="image/*" class="w-full text-xs text-slate-600 border border-dashed border-slate-300 rounded-lg p-2.5 bg-slate-50/70 file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border file:border-slate-200 file:text-xs file:font-semibold file:bg-white file:text-slate-700 hover:file:bg-slate-50 cursor-pointer">
+                <input type="file" name="galleryDining" accept="image/jpeg,image/png,image/webp" class="w-full text-xs text-slate-600 border border-dashed border-slate-300 rounded-lg p-2.5 bg-slate-50/70 file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border file:border-slate-200 file:text-xs file:font-semibold file:bg-white file:text-slate-700 hover:file:bg-slate-50 cursor-pointer">
               </div>
               <div class="space-y-1 md:col-span-2">
                 <label class="text-xs font-bold text-slate-600 flex items-center gap-1.5">
                   <svg class="w-4 h-4 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 6 6.5 3.5a1.5 1.5 0 0 0-2 0l-1 1a1.5 1.5 0 0 0 0 2L6 9"/><path d="M7 15h14"/><path d="M12 11v8"/></svg>
                   5. Bathroom
                 </label>
-                <input type="file" name="galleryBathroom" accept="image/*" class="w-full text-xs text-slate-600 border border-dashed border-slate-300 rounded-lg p-2.5 bg-slate-50/70 file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border file:border-slate-200 file:text-xs file:font-semibold file:bg-white file:text-slate-700 hover:file:bg-slate-50 cursor-pointer">
+                <input type="file" name="galleryBathroom" accept="image/jpeg,image/png,image/webp" class="w-full text-xs text-slate-600 border border-dashed border-slate-300 rounded-lg p-2.5 bg-slate-50/70 file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border file:border-slate-200 file:text-xs file:font-semibold file:bg-white file:text-slate-700 hover:file:bg-slate-50 cursor-pointer">
               </div>
             </div>
 
@@ -966,7 +970,7 @@
                 </details>
             <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 flex items-center gap-2">
               <svg class="w-4 h-4 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-              Only upload files you want to replace. Existing photos will be kept if no new file is selected.
+              Choose JPG, PNG, or WebP photos up to 5 MB each. Photos in slots you leave empty stay as they are.
             </div>
 
             <button type="submit" class="bg-slate-900 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-slate-800 transition flex items-center gap-2 cursor-pointer shadow-sm active:scale-95">
@@ -1380,7 +1384,10 @@
         <fieldset id="tenantReservationReview" class="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3" hidden disabled>
           <legend class="px-1 text-sm font-bold text-emerald-900">Reservation payment review</legend>
           <label class="block text-sm font-semibold">Move-in date <input id="acceptReservationDate" type="date" class="mt-1 block w-full rounded-lg border p-2" required></label>
-          <label class="flex items-start gap-2 text-sm"><input id="reservationPaymentChecked" type="checkbox" required> I verified receipt of the 10% reservation fee.</label>
+          <label class="block text-sm font-semibold">Actual reservation payment received (₱)
+            <input id="reservationAmountPaid" type="number" inputmode="decimal" min="0.01" max="99999999.99" step="0.01" required class="mt-1 block w-full rounded-lg border p-2">
+          </label>
+          <label class="flex items-start gap-2 text-sm"><input id="reservationPaymentChecked" type="checkbox" required> I verified the amount received for this reservation.</label>
         </fieldset>
         <div class="flex flex-wrap justify-end gap-2">
           <button type="button" id="declineTenantReview" class="rounded-lg border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700">Decline</button>
@@ -1396,6 +1403,10 @@
     <h3 class="text-lg font-bold text-slate-800">Generate Invoice</h3>
     <p id="invoiceBranch" class="text-sm font-semibold text-emerald-800"></p>
     <form id="paymentForm" class="space-y-3">
+      <div>
+        <label for="invoiceRecipientSearch" class="mb-1 block text-xs font-bold text-slate-600">Search by tenant name or room number</label>
+        <input type="search" id="invoiceRecipientSearch" autocomplete="off" aria-controls="paymentTenantSelect" placeholder="e.g. Room 001" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm">
+      </div>
       <div>
         <label for="paymentTenantSelect" class="block text-xs font-bold text-slate-500 mb-1">Bill a person or room</label>
         <select name="tenantId" id="paymentTenantSelect" required class="w-full rounded-lg border border-slate-200 p-2.5 text-sm"></select>
@@ -2725,9 +2736,13 @@
           ['Reservation status', app.reservation.status === 'pending' ? 'Awaiting payment review' : app.reservation.status === 'reserved' ? 'Reserved' : app.reservation.status],
           ['Fee due (10%)', `₱${Number(app.reservation.fee).toFixed(2)}`],
           ['Monthly rent', `₱${Number(app.reservation.monthlyRent).toFixed(2)}`],
-          ['Payment method', app.reservation.method === 'Cash' ? 'Cash on Hand' : app.reservation.method], ['Transaction reference', app.reservation.reference]
+          ['Payment method', app.reservation.method === 'Cash' ? 'Cash on Hand' : app.reservation.method],
+          ['Transaction reference', app.reservation.reference],
+          ['Reported amount paid', paymentAmountText(app.reservation.submittedAmount)],
+          ['Confirmed amount received', paymentAmountText(app.reservation.amountPaid)],
         ] : [])
       ].map(([label, value]) => `<div><dt class="font-semibold">${label}</dt><dd>${esc(value || '—')}</dd></div>`).join('')}</dl>
+      ${app.reservation ? `<div><h4 class="font-semibold">Reservation proof of payment</h4>${DormMapPreview.render(app.reservation.proofUrl, 'Reservation proof of payment')}</div>` : ''}
       <p class="whitespace-pre-wrap">${esc(app.message || 'No inquiry message submitted.')}</p>
       <div><h4 class="font-semibold">Government ID</h4>${DormMapPreview.render(app.validIdPicture, 'Government ID')}</div>`;
   }
@@ -2762,6 +2777,7 @@
     date.value = app.moveInDate || new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Manila' }).format(new Date());
     document.getElementById('acceptReservationDate').value = date.value;
     document.getElementById('reservationPaymentChecked').checked = false;
+    document.getElementById('reservationAmountPaid').value = app.reservation?.submittedAmount ?? app.reservation?.fee ?? '';
     roomSelect.replaceChildren(new Option('Choose a room', ''));
     showTenantReviewMessage(ordinaryOffer ? 'Loading available rooms…' : '');
     document.getElementById('acceptAppModal').classList.remove('hidden');
@@ -2813,7 +2829,8 @@
         ? await ownerRequest(`/owner-dashboard/api/pending-applications/${app.applicationId}/approve-reservation`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ paymentChecked: document.getElementById('reservationPaymentChecked').checked,
-              moveInDate: document.getElementById('acceptReservationDate').value })
+              moveInDate: document.getElementById('acceptReservationDate').value,
+              amountPaid: document.getElementById('reservationAmountPaid').value })
           })
         : accept ? await ownerRequest(url + '/accept', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -2828,7 +2845,7 @@
       if (reviewingApplication === app) {
         const savedApp = accept ? {
           ...app, ...response.data,
-          reservation: app.reservation ? { ...app.reservation, status: 'reserved' } : null,
+          reservation: app.reservation ? { ...app.reservation, status: 'reserved', amountPaid: response.data.reservationAmountPaid } : null,
           room: { roomNumber: document.getElementById('acceptAppRoomSelect').selectedOptions[0]?.dataset.roomNumber }
         } : { ...app, status: 'declined_by_owner', reservation: app.reservation ? { ...app.reservation, status: 'closed' } : null };
         renderTenantReviewDetails(savedApp);
@@ -2948,12 +2965,12 @@
     button.disabled = true;
     walkInError.textContent = '';
     const editId = walkInEditId;
-    const values = Object.fromEntries(new FormData(walkInForm));
+    const fields = new FormData(walkInForm);
     try {
-      const { message } = await ownerRequest('/owner-dashboard/api/walk-in-accounts' + (editId ? `/${editId}/password` : ''), {
-        method: editId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...values, ...walkInReservation.values() })
-      });
+      const { message } = await ownerRequest('/owner-dashboard/api/walk-in-accounts' + (editId ? `/${editId}/password` : ''), editId ? {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ temporaryPassword: fields.get('temporaryPassword') }),
+      } : { method: 'POST', body: fields });
       walkInForm.elements.temporaryPassword.value = '';
       walkInDialog.close();
       ownerToast(message);
@@ -3118,6 +3135,7 @@
       await loadPayments();
     } catch (error) { ownerToast(error.message, true); }
   }
+  const paymentAmountText = amount => amount == null ? '' : `₱${Number(amount).toFixed(2)}`;
   let ownerBills = [];
   let ownerPaymentToday;
   async function loadPayments() {
@@ -3132,7 +3150,9 @@
     tbody.innerHTML = data.map(p => `
       <tr class="border-b border-slate-100 hover:bg-slate-50/50">
         <td class="p-4 font-bold text-slate-800">${esc(p.tenantName || 'Tenant #' + p.tenantId)}<p class="text-xs font-normal text-slate-500">${esc(p.method === 'Cash' ? 'Cash on Hand' : p.method || 'Unpaid')} ${esc(p.reference || '')}</p><p class="text-xs font-normal text-slate-500">${[p.boardingHouseName, p.roomNumber && 'Room ' + p.roomNumber].filter(Boolean).map(esc).join(' · ')}</p></td>
-        <td class="p-4">₱${Number(p.totalAmount ?? p.amount).toLocaleString()}</td>
+        <td class="p-4">${paymentAmountText(p.totalAmount ?? p.amount)}
+          ${p.status === 'paid' ? `<p class="text-xs font-semibold text-emerald-800">Received ${paymentAmountText(p.amountPaid ?? p.totalAmount ?? p.amount)}</p>` : ''}
+        </td>
         <td class="p-4 text-xs">${p.dueDate}</td>
         <td class="p-4"><span class="px-2 py-1 rounded-full text-xs font-semibold ${p.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}">${p.status === 'pending' && p.reviewStatus === 'declined' ? 'Declined' : p.status === 'pending' && p.submittedMethod ? 'Submitted · Awaiting review' : esc(p.status)}</span></td>
         <td class="p-4 text-xs">${p.paidDate || '-'}</td>
@@ -3154,6 +3174,8 @@
     form.dataset.branch = branch.id;
     document.getElementById('invoiceBranch').textContent = branch.name;
     const select = document.getElementById('paymentTenantSelect');
+    const search = document.getElementById('invoiceRecipientSearch');
+    search.disabled = true;
     select.replaceChildren(new Option('Loading tenants and rooms…', ''));
     const button = form.querySelector('button[type=submit]');
     button.disabled = true;
@@ -3161,7 +3183,7 @@
     try {
       const { data } = await ownerRequest(`/owner-dashboard/api/tenants?status=active&boardingHouseId=${branch.id}`);
       if (Number(form.dataset.branch) !== branch.id) return;
-      select.replaceChildren(new Option(data.length ? 'Select a person or room' : 'No active tenants in this boarding house', ''));
+
       const people = document.createElement('optgroup');
       people.label = 'Per person';
       const rooms = document.createElement('optgroup');
@@ -3178,9 +3200,27 @@
         room.dataset.amount = branch.rentPerRoom || '';
         rooms.append(room);
       }
-      if (people.children.length) select.append(people);
-      if (rooms.children.length) select.append(rooms);
-      button.disabled = !data.length;
+      function filterRecipients() {
+        const words = search.value.toLowerCase().trim().split(/\s+/).filter(Boolean);
+        const selected = select.value;
+        const groups = [people, rooms].map(group => {
+          const matches = group.cloneNode(false);
+          for (const option of group.children) {
+            const label = option.text.toLowerCase();
+            if (words.every(word => label.includes(word))) matches.append(option.cloneNode(true));
+          }
+          return matches;
+        }).filter(group => group.children.length);
+        const placeholder = !data.length ? 'No active tenants in this boarding house'
+          : groups.length ? 'Select a person or room' : 'No matching tenants or rooms';
+        select.replaceChildren(new Option(placeholder, ''), ...groups);
+        select.value = Array.from(select.options).some(option => option.value === selected) ? selected : '';
+        if (selected && !select.value) form.elements.amount.value = '';
+        button.disabled = !groups.length;
+      }
+      search.oninput = filterRecipients;
+      search.disabled = !data.length;
+      filterRecipients();
     } catch (error) {
       select.replaceChildren(new Option('Could not load tenants and rooms', ''));
       ownerToast(error.message, true);
@@ -3222,6 +3262,8 @@
     reference.disabled = !reference.required;
     paymentReview.querySelector('[data-review-reference]').hidden = !reference.required;
     paymentReview.elements.method.disabled = decline;
+    paymentReview.elements.amountPaid.disabled = decline;
+    paymentReview.querySelector('[data-review-amount]').hidden = decline;
     paymentReview.elements.notes.required = decline;
     paymentReview.querySelector('[data-review-date-label]').textContent = decline ? 'Review date' : 'Confirmation date';
     paymentReview.querySelector('[data-review-notes-label]').textContent = decline ? 'Reason for declining (required)' : 'Notes (optional)';
@@ -3243,6 +3285,7 @@
     paymentReview.elements.confirmedDate.value = ownerPaymentToday;
     paymentReview.elements.confirmedDate.max = ownerPaymentToday;
     paymentReview.elements.reference.value = bill.submittedReference || bill.reference || '';
+    paymentReview.elements.amountPaid.value = bill.submittedAmount ?? bill.totalAmount;
     updatePaymentReviewDecision();
 
     const awaitingReview = bill.status === 'pending' && bill.submittedMethod && bill.reviewStatus !== 'declined';
@@ -3255,10 +3298,12 @@
       : bill.reviewStatus === 'declined' ? 'Declined · Awaiting a new submission'
       : bill.submittedMethod ? 'Submitted · Awaiting review' : 'Awaiting tenant submission';
     document.getElementById('paymentReviewSummary').textContent =
-      [bill.tenantName, bill.month, `₱${Number(bill.totalAmount).toFixed(2)}`, state].filter(Boolean).join(' · ');
+      [bill.tenantName, bill.month, `Invoice due ${paymentAmountText(bill.totalAmount)}`, state].filter(Boolean).join(' · ');
     const details = [
       ['Payment method', bill.submittedMethod || bill.method],
       ['Tenant date paid', bill.submittedPaidDate],
+      ['Reported amount paid', paymentAmountText(bill.submittedAmount)],
+      ['Confirmed amount received', bill.status === 'paid' ? paymentAmountText(bill.amountPaid ?? bill.totalAmount) : ''],
       ['Reference number', bill.submittedReference || bill.reference],
       ['Tenant notes', bill.submissionNotes],
       [bill.reviewStatus === 'declined' ? 'Declined on' : 'Confirmed on', bill.reviewDate || bill.paidDate],
@@ -3577,9 +3622,11 @@ async function loadLegacyNotifications() {
     }))
   ];
 
+  let galleryLoadRequest = 0;
   async function loadGallery(boardingHouseId) {
     const grid = document.getElementById('ownerGalleryGrid');
     if (!grid) return;
+    const request = ++galleryLoadRequest;
 
     try {
       const selector = document.getElementById('galleryBoardingHouseSelector');
@@ -3588,8 +3635,8 @@ async function loadLegacyNotifications() {
         : (selector?.value || '');
       const url = bhId ? `/owner-dashboard/api/gallery?boardingHouseId=${bhId}` : '/owner-dashboard/api/gallery';
 
-      const res = await fetch(url);
-      const json = await res.json();
+      const json = await ownerRequest(url);
+      if (request !== galleryLoadRequest) return;
       const slots = json.slots || [];
       const boardingHouses = json.boardingHouses || [];
       const activeId = json.selectedBoardingHouseId || bhId || (boardingHouses[0]?.id || '');
@@ -3600,7 +3647,7 @@ async function loadLegacyNotifications() {
           selector.innerHTML = `<option value="">— No property found. Add one in Boarding House Profile first. —</option>`;
         } else {
           selector.innerHTML = boardingHouses.map(bh =>
-            `<option value="${bh.id}" ${String(bh.id) === String(activeId) ? 'selected' : ''}>🏠 ${bh.name}${bh.isPrimary ? ' ⭐ (Primary)' : ''} — ${bh.address || ''}</option>`
+            `<option value="${bh.id}" ${String(bh.id) === String(activeId) ? 'selected' : ''}>🏠 ${esc(bh.name)}${bh.isPrimary ? ' ⭐ (Primary)' : ''} — ${esc(bh.address || '')}</option>`
           ).join('');
         }
         // Sync hidden input
@@ -3673,7 +3720,7 @@ async function loadLegacyNotifications() {
         image.src = photoUrl;
       }
     } catch (err) {
-      console.error('Error loading gallery:', err);
+      if (request === galleryLoadRequest) ownerToast(err.message || 'Could not load branch photos.', true);
     }
   }
 
@@ -3691,6 +3738,7 @@ async function loadLegacyNotifications() {
     const selector = document.getElementById('galleryBoardingHouseSelector');
     const hiddenInput = document.getElementById('galleryBoardingHouseIdInput');
     const selectedId = selector?.value || '';
+    document.getElementById('galleryUploadForm').reset();
     if (hiddenInput) hiddenInput.value = selectedId;
 
     const badgeText = document.getElementById('galleryActiveBhBadgeText');
@@ -3703,48 +3751,37 @@ async function loadLegacyNotifications() {
 
   async function submitGalleryForm(e) {
     e.preventDefault();
-    const formData = new FormData(e.target);
-
-    // Ensure selected boardingHouseId is attached
+    const form = e.currentTarget;
+    const submit = form.querySelector('[type="submit"]');
+    if (submit.disabled) return;
     const selector = document.getElementById('galleryBoardingHouseSelector');
-    const currentBhId = selector?.value || document.getElementById('galleryBoardingHouseIdInput')?.value || '';
-    if (currentBhId) {
-      formData.set('boardingHouseId', currentBhId);
-    } else {
-      formData.delete('boardingHouseId');
+    const hiddenInput = document.getElementById('galleryBoardingHouseIdInput');
+    const branchId = selector.value || hiddenInput.value;
+    const photos = new FormData();
+    for (const input of form.querySelectorAll('input[type=file]')) {
+      const photo = input.files[0];
+      if (!photo) continue;
+      if (photo.size > 5 * 1024 * 1024) return ownerToast(`${photo.name} must be 5 MB or smaller.`, true);
+      photos.set(input.name, photo);
     }
+    if (photos.keys().next().done) return ownerToast('Select at least one photo to upload or replace.', true);
+    if (branchId) photos.set('boardingHouseId', branchId);
 
-    let hasFile = false;
-    for (const [key, val] of formData.entries()) {
-      if (key !== 'boardingHouseId' && val && val.size > 0) hasFile = true;
-    }
-    if (!hasFile) {
-      return ownerToast('Select at least one photo to upload or replace.', true);
-    }
-
-    const submit = e.target.querySelector('[type="submit"]');
-    if (submit) submit.disabled = true;
+    submit.disabled = selector.disabled = true;
     DormMapFeedback.show('Uploading property photos…', 'pending');
-
     try {
-      const res = await fetch('/owner-dashboard/api/gallery/five-slots', {
-        method: 'POST',
-        body: formData
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to update photos.');
-
-      ownerToast(data.message || 'Property photos updated.');
-      e.target.reset();
-      if (currentBhId) {
-        const hiddenInput = document.getElementById('galleryBoardingHouseIdInput');
-        if (hiddenInput) hiddenInput.value = currentBhId;
-      }
-      loadGallery(currentBhId);
-    } catch (err) {
-      ownerToast(err.message || 'Failed to update photos.', true);
+      const response = await fetch('/owner-dashboard/api/gallery/five-slots', { method: 'POST', body: photos });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || (response.status === 413
+        ? 'This upload is too large. Select fewer photos and try again.' : 'Could not save the branch photos. Please try again.'));
+      form.reset();
+      hiddenInput.value = branchId;
+      ownerToast(result.message || 'Property photos updated.');
+      await loadGallery(branchId);
+    } catch (error) {
+      ownerToast(error instanceof TypeError ? 'The upload connection was interrupted. Try again.' : error.message, true);
     } finally {
-      if (submit) submit.disabled = false;
+      submit.disabled = selector.disabled = false;
     }
   }
 
@@ -3850,13 +3887,16 @@ async function loadLegacyNotifications() {
       if (request !== ownerReportRequest) return;
 
       const reports = {
-        payments: ['Rental Collections Report', ['Tenant ID', 'Amount', 'Due date', 'Status'],
-          row => [row.tenantId, reportPeso(row.amount), row.dueDate, row.status]],
+        payments: ['Rental Collections Report', ['Tenant ID', 'Invoice total', 'Amount received', 'Due date', 'Status'],
+          row => {
+            const total = Number(row.amount) + Number(row.penalty || 0);
+            return [row.tenantId, reportPeso(total), row.status === 'paid' ? reportPeso(row.amountPaid ?? total) : null, row.dueDate, row.status];
+          }],
         tenants: ['Tenant Roster', ['Tenant name', 'Contact', 'Monthly rent', 'Balance'],
           row => [row.fullName, row.contactNumber || null, reportPeso(row.monthlyRent), reportPeso(row.balance)]],
         rooms: ['Room Occupancy Status', ['Room number', 'Room type', 'Capacity', 'Available slots', 'Status'],
           row => [row.roomNumber, row.roomType, row.capacity, row.availableSlots, row.status]],
-        income: ['Monthly Collections Summary', ['Billing month', 'Total collections'],
+        income: ['Monthly Rent and Reservation Collections', ['Month received', 'Total collections'],
           row => [row.month, reportPeso(row.total)]]
       };
       const [title, headers, rowValues] = reports[type];

@@ -1,3 +1,4 @@
+import { confirmedRentAmount, positivePaymentAmount, rentBillTotal } from '../services/paymentAmounts.js';
 import { PAYMENT_QR_FIELDS, ownerPaymentConfig, ownerPaymentQr, usesPaymentQr, validatePaymentMethods } from '../services/ownerPaymentConfig.js';
 import { assertCurrentSubmission, assertNoOnlineCheckout, assertReferenceAvailable, manilaToday, notifyPaymentReview, paymentNotes, paymentReference, prepareManualConfirmation, validatePaidDate } from '../services/manualPaymentService.js';
 import { createTenantApplication, closeDuplicatePendingApplications } from '../services/tenantApplicationService.js';
@@ -23,6 +24,26 @@ import { TenantApplication, MaintenanceRequest } from '../models/tenantModels.js
 import { sequelize } from '../models/db.js';
 
 const oid = (req) => req.session.userId;
+const manilaDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Manila' });
+
+function approvedReservations(ownerId) {
+  return TenantApplication.findAll({
+    where: { ownerId, reservationApprovedAt: { [Op.ne]: null } },
+    attributes: ['reservationApprovedAt', 'reservationFee', 'reservationAmountPaid'],
+  });
+}
+
+function incomeByMonth(payments, reservations) {
+  const totals = new Map();
+  const add = (month, amount) => totals.set(month, (totals.get(month) || 0) + Math.round(amount * 100));
+  for (const payment of payments) {
+    if (payment.status === 'paid') add(payment.paidDate?.slice(0, 7) || payment.month || 'Unknown', confirmedRentAmount(payment));
+  }
+  for (const reservation of reservations) {
+    add(manilaDate.format(reservation.reservationApprovedAt).slice(0, 7), Number(reservation.reservationAmountPaid ?? reservation.reservationFee));
+  }
+  return new Map([...totals].map(([month, cents]) => [month, cents / 100]));
+}
 const selectedBranch = value => {
   if (value === undefined || value === '') return null;
   const id = Number(value);
@@ -79,7 +100,7 @@ export const overview = async (req, res, next) => {
     const today = new Date();
     const next30 = new Date(); next30.setDate(today.getDate() + 30);
 
-    const [owner, rooms, tenants, payments, permit, notifications, inquiries, messages] = await Promise.all([
+    const [owner, rooms, tenants, payments, permit, notifications, inquiries, messages, reservations] = await Promise.all([
       User.findByPk(id, { attributes: ['boardingHouseName', 'barangay', 'applicationStatus', 'roomsAvailable', 'occupiedRooms'] }),
       OwnerRoom.findAll({ where: { ownerId: id } }),
       OwnerTenant.findAll({ where: { ownerId: id, status: 'active' } }),
@@ -88,12 +109,15 @@ export const overview = async (req, res, next) => {
       OwnerNotification.count({ where: { ownerId: id, isRead: false } }),
       OwnerInquiry.count({ where: { ownerId: id, status: 'new', isArchived: false } }),
       OwnerMessage.count({ where: { recipientId: id, isRead: false } }),
+      approvedReservations(id),
     ]);
 
     const totalRooms    = rooms.length;
     const availableRooms = rooms.filter(r => r.status === 'available' && r.availableSlots > 0).length;
     const occupiedRooms  = rooms.filter(r => r.status === 'occupied').length;
-    const monthlyIncome  = payments.filter(p => p.status === 'paid' && p.month === `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`).reduce((s, p) => s + Number(p.amount) + Number(p.penalty || 0), 0);
+    const income = incomeByMonth(payments, reservations);
+    const currentMonth = manilaToday().slice(0, 7);
+    const monthlyIncome = income.get(currentMonth) || 0;
     const pendingPayments = payments.filter(p => p.status === 'pending').length;
     const overduePayments = payments.filter(p => p.status === 'pending' && new Date(p.dueDate) < today).length;
     const permitDaysLeft = permit?.expirationDate ? Math.ceil((new Date(permit.expirationDate) - today) / 86400000) : null;
@@ -103,12 +127,12 @@ export const overview = async (req, res, next) => {
 
     // 6-month payment trend
     const months = [];
+    const [year, month] = currentMonth.split('-').map(Number);
     for (let i = 5; i >= 0; i--) {
-      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-      const label = d.toLocaleString('default', { month: 'short' });
-      const income = payments.filter(p => p.month === key && p.status === 'paid').reduce((s,p) => s + Number(p.amount) + Number(p.penalty || 0), 0);
-      months.push({ label, income, month: key });
+      const date = new Date(Date.UTC(year, month - 1 - i, 1));
+      const key = date.toISOString().slice(0, 7);
+      const label = date.toLocaleString('default', { month: 'short', timeZone: 'UTC' });
+      months.push({ label, income: income.get(key) || 0, month: key });
     }
 
     // Room type breakdown
@@ -425,7 +449,7 @@ export const listWalkInAccounts = async (req, res, next) => {
 
 export const createWalkInAccount = async (req, res, next) => {
   try {
-    const data = await createWalkInTenant(oid(req), req.body || {});
+    const data = await createWalkInTenant(oid(req), req.body || {}, req.file);
     await audit(req, 'create_walk_in_account', 'User', data.userId, { mode: req.body.mode });
     res.status(201).json({ data, message: data.applicationId ? 'Account ready. Review the reservation fee, then the tenant can accept the offer.' : 'Account ready. The tenant can sign in with the temporary password and set their own.' });
   } catch (error) {
@@ -465,7 +489,7 @@ export const getPayments = async (req, res, next) => {
       return [{
         ...payment.toJSON(), boardingHouseId, roomNumber: room?.roomNumber || null,
         boardingHouseName: housesById.get(boardingHouseId)?.name || null,
-        totalAmount: Number(payment.amount) + Number(payment.penalty || 0),
+        totalAmount: rentBillTotal(payment),
         tenantName: tenant?.fullName || `Tenant #${payment.tenantId}`
       }];
     });
@@ -539,11 +563,13 @@ export const markPaid = async (req, res, next) => {
       if (!['Cash','GCash','QR Ph','Bank Transfer','Other'].includes(method)) fail('Invalid payment method.');
       const reference = usesPaymentQr(method) ? paymentReference(req.body.reference ?? bill.submittedReference, method) : null;
       if (reference) await assertReferenceAvailable(bill, method, reference, transaction);
+      const amountPaid = req.body.amountPaid === undefined
+        ? Number(bill.submittedAmount ?? rentBillTotal(bill)) : positivePaymentAmount(req.body.amountPaid);
       await bill.update({
-        status: 'paid', paidDate: reviewDate, method, reference,
+        status: 'paid', paidDate: reviewDate, method, reference, amountPaid,
         reviewStatus: 'confirmed', reviewDate, reviewNotes
       }, { transaction });
-      await tenant.update({ balance: Math.max(0, Number(tenant.balance)-Number(bill.amount)-Number(bill.penalty)) }, { transaction });
+      await tenant.update({ balance: Math.max(0, Math.round((Number(tenant.balance) - rentBillTotal(bill)) * 100) / 100) }, { transaction });
       await notifyPaymentReview(bill, tenant, 'confirmed', transaction);
       return bill;
     });
@@ -1006,14 +1032,12 @@ export const getReports = async (req, res, next) => {
       return res.json({ type, data });
     }
     if (type === 'income') {
-      const today = new Date();
-      const payments = await OwnerPayment.findAll({ where: { ownerId: id, status: 'paid' } });
-      const byMonth = {};
-      payments.forEach(p => {
-        const key = p.month || 'Unknown';
-        byMonth[key] = (byMonth[key] || 0) + Number(p.amount);
-      });
-      return res.json({ type, data: Object.entries(byMonth).map(([month, total]) => ({ month, total })) });
+      const [payments, reservations] = await Promise.all([
+        OwnerPayment.findAll({ where: { ownerId: id, status: 'paid' } }), approvedReservations(id),
+      ]);
+      const data = [...incomeByMonth(payments, reservations)].sort(([a], [b]) => b.localeCompare(a))
+        .map(([month, total]) => ({ month, total }));
+      return res.json({ type, data });
     }
 
     res.status(400).json({ error: 'Invalid report type.' });
@@ -1350,6 +1374,9 @@ export const getPendingApplications = async (req, res, next) => {
         reservation: app.reservationRoomId ? {
           status: reservationStatus(app), roomId: app.reservationRoomId, fee: app.reservationFee, monthlyRent: app.reservationRent,
           method: app.reservationMethod, reference: app.reservationReference,
+          submittedAmount: app.reservationSubmittedAmount,
+          amountPaid: app.reservationAmountPaid ?? (app.reservationApprovedAt ? app.reservationFee : null),
+          proofUrl: app.reservationProofUrl,
         } : null,
         confirmedAt: app.confirmedAt,
         createdAt: app.createdAt,
@@ -1379,7 +1406,7 @@ export const approveApplicationReservation = async (req, res, next) => {
     const app = await TenantApplication.findOne({ where: { id: req.params.id, ownerId } });
     if (!app?.reservationRoomId) fail('Reservation request not found.', 404);
     if (req.body?.paymentChecked !== true) fail('Confirm that you received the reservation fee.');
-    const data = await offerApplication(ownerId, app.tenantId, { applicationId: app.id, moveInDate: req.body.moveInDate }, { approveReservation: true });
+    const data = await offerApplication(ownerId, app.tenantId, { applicationId: app.id, moveInDate: req.body.moveInDate, amountPaid: req.body.amountPaid }, { approveReservation: true });
     await audit(req, 'approve_reservation', 'TenantApplication', app.id, { roomId: data.roomId });
     res.json({ data, message: 'Reservation approved. The room or slot is held until the tenant accepts or the reservation is closed.' });
   } catch (error) { next(error); }

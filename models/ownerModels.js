@@ -93,6 +93,8 @@ const manualPaymentColumns = {
   submittedMethod: { type: DataTypes.STRING, allowNull: true },
   submittedPaidDate: { type: DataTypes.DATEONLY, allowNull: true },
   submittedReference: { type: DataTypes.STRING, allowNull: true },
+  submittedAmount: { type: DataTypes.DECIMAL(10,2), allowNull: true },
+  amountPaid: { type: DataTypes.DECIMAL(10,2), allowNull: true },
   paymentProofUrl: { type: DataTypes.STRING, allowNull: true },
 };
 

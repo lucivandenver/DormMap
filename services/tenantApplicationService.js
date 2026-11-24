@@ -2,7 +2,7 @@ import { Op } from 'sequelize';
 import { sequelize, User } from '../models/userModel.js';
 import { TenantApplication } from '../models/tenantModels.js';
 import { BoardingHouse, OwnerRoom, OwnerInquiry, OwnerMessage, OwnerNotification } from '../models/ownerModels.js';
-import { reservationFields, reservationRequested } from './tenantReservationService.js';
+import { reservationFields, reservationRequested, storeReservationProof } from './tenantReservationService.js';
 
 const activeStatuses = ['confirmed', 'accepted_by_owner', 'pending_owner'];
 
@@ -60,12 +60,13 @@ export async function registrationApplicationDetails({ selectedBoardingHouse, re
   return { ownerId: owner.id, boardingHouseId: house?.id || null, boardingHouseName, requestedRoomType: roomType || null, preferredRoomLabel };
 }
 
-export async function createRegistrationInquiry(user, details, transaction, body = {}) {
+export async function createRegistrationInquiry(user, details, transaction, body = {}, proof) {
   if (!details && reservationRequested(body)) throw registrationError('Choose a boarding house and an available room before reserving.');
   if (!details) return null;
   const reservation = await reservationFields(user, details, body, transaction);
+  const reservationProofUrl = await storeReservationProof(user.id, reservation, body, proof, transaction);
   return createTenantApplication({
-    ...details, ...reservation, tenantId: user.id, status: 'pending_owner',
+    ...details, ...reservation, reservationProofUrl, tenantId: user.id, status: 'pending_owner',
     message: 'Submitted during tenant registration.'
   }, { transaction });
 }
