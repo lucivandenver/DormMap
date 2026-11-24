@@ -510,14 +510,14 @@
           <div class="rounded-2xl bg-white p-6 shadow-xs border border-slate-100 space-y-4">
             <h3 class="font-bold text-slate-900">Maintenance Mode & Operations</h3>
             <p class="text-xs text-slate-500">Put the portal in maintenance mode to prevent non-admin users from accessing or modifying records.</p>
-            <div class="flex items-center gap-4 pt-2">
+            <div class="flex flex-wrap items-center gap-4 pt-2">
               <button id="toggleMaintBtn" class="button flex items-center gap-2" onclick="toggleMaintenance()">
                 Toggle Maintenance Mode
               </button>
-              <button class="button secondary flex items-center gap-2" onclick="downloadDatabaseBackup()">
+              <a class="button secondary flex items-center gap-2" href="/admin/api/maintenance/backup" download>
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Generate Database Backup
-              </button>
+                Export Database (.sql)
+              </a>
             </div>
           </div>
           <div class="rounded-2xl bg-white p-6 shadow-xs border border-slate-100 space-y-4">
@@ -1929,11 +1929,6 @@ async function toggleMaintenance() {
     toast(res.message);
     loadMaintenance();
   } catch (e) { toast(e.message, true); }
-}
-
-function downloadDatabaseBackup() {
-  window.open(api + '/maintenance/backup', '_blank');
-  toast('Downloading database snapshot backup...');
 }
 
 // 8. CRUD COLLECTIONS & ANNOUNCEMENTS

@@ -60,7 +60,7 @@ router.post('/api/settings', controller.updateSystemSettings);
 router.get('/api/maintenance/status', controller.getMaintenanceStatus);
 router.post('/api/maintenance/toggle-mode', controller.toggleMaintenanceMode);
 router.get('/api/maintenance/error-logs', controller.getSystemErrorLogs);
-router.get('/api/maintenance/backup', controller.triggerDatabaseBackup);
+router.get('/api/maintenance/backup', controller.exportDatabase);
 
 // Audit Logs & Announcements
 router.get('/api/audit-logs', controller.listAudit);

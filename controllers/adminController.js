@@ -1,3 +1,4 @@
+import { streamDatabaseBackup } from '../services/databaseBackupService.js';
 import { getQrPhConfiguration } from '../services/paymongoService.js';
 import { branchNumbers, orderBranches, tenantBranchAssignments } from '../services/propertyBranchesService.js';
 import { dormigoQuestionsKey, getDormigoQuestions, validateDormigoQuestions } from '../services/dormigoQuestionsService.js';
@@ -867,40 +868,50 @@ export const getSystemErrorLogs = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-export const triggerDatabaseBackup = async (req, res, next) => {
+export const exportDatabase = async (req, res, next) => {
+  const abort = new AbortController();
+  const onClose = () => {
+    if (!res.writableFinished) abort.abort();
+  };
+  res.once('close', onClose);
+
   try {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `dormap_backup_${timestamp}.json`;
+    // A session's role may outlive a demotion, suspension, or account deletion.
+    const user = await User.findByPk(req.session.userId, {
+      attributes: ['accountType', 'isArchived', 'isSuspended'],
+    });
+    if (!user || !['super_admin', 'bplo_admin'].includes(user.accountType) || user.isArchived || user.isSuspended) {
+      return res.status(403).json({ error: 'BPLO Super Admin access is required.' });
+    }
 
-    const [users, barangays, institutions, permits, dataRequests, dataSubmissions] = await Promise.all([
-      User.findAll({ attributes: { exclude: ['password'] } }),
-      Barangay.findAll(),
-      EducationalInstitution.findAll(),
-      BusinessPermit.findAll(),
-      BploDataRequest.findAll(),
-      BploDataSubmission.findAll(),
-    ]);
+    // Browsers send this header for cross-site link clicks as well as embedded requests.
+    if (req.get('Sec-Fetch-Site') === 'cross-site') {
+      return res.status(403).json({ error: 'Open the admin dashboard to export the database.' });
+    }
 
-    const backupPayload = {
-      backupDate: new Date().toISOString(),
-      version: '1.0.0',
-      database: 'DorMap_Bongabong',
-      tables: {
-        usersCount: users.length,
-        barangaysCount: barangays.length,
-        institutionsCount: institutions.length,
-        permitsCount: permits.length,
-        dataRequestsCount: dataRequests.length,
-        dataSubmissionsCount: dataSubmissions.length,
-      },
-      data: { users, barangays, institutions, permits, dataRequests, dataSubmissions }
-    };
-
-    await audit(req, 'database_backup_generated', 'SystemBackup', null, { filename });
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    return res.json(backupPayload);
-  } catch (error) { next(error); }
+    const date = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Manila' }).format(new Date());
+    const filename = `database_backup_${date}.sql`;
+    res.set({
+      'Cache-Control': 'private, no-store',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    res.attachment(filename).type('application/sql; charset=utf-8');
+    if (req.method === 'HEAD') return res.end();
+    abort.signal.throwIfAborted();
+    await audit(req, 'database_backup_requested', 'SystemBackup', null, { filename });
+    await streamDatabaseBackup(res, abort.signal);
+  } catch (error) {
+    if (abort.signal.aborted && (error.name === 'AbortError' || error.code === 'ERR_STREAM_PREMATURE_CLOSE')) return;
+    if (res.headersSent || res.destroyed) {
+      console.error('Database backup download failed:', error);
+      return;
+    }
+    res.removeHeader('Content-Disposition');
+    res.removeHeader('Content-Type');
+    next(error);
+  } finally {
+    res.off('close', onClose);
+  }
 };
 
 // ==========================================

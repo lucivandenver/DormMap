@@ -139,6 +139,98 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.equal(response.status, 200);
       assert.match(await response.text(), /browseCompareButton/);
     });
+    await t.test('admin SQL backup restores the tables and data into an empty MySQL database', async () => {
+      const { createConnection, escapeId } = await import('mysql2/promise');
+      const { databaseConfig } = await import('../../config/database.js');
+      const { database, username, ...config } = databaseConfig();
+      const connection = await createConnection({
+        ...config, database, user: username, multipleStatements: true, dateStrings: true, jsonStrings: true,
+        supportBigNumbers: true, bigNumberStrings: true,
+      });
+      const restoreName = escapeId(`dormmap_restore_${suffix}_test`);
+      const endpoint = '/admin/api/maintenance/backup';
+      const adminCookie = await login(admin.email);
+      const readFixture = `SELECT id, parentId, note, createdDate, modifiedAt, lastSeen, metadata, bytes, flags,
+        preciseDecimal, noteLength, hiddenNote FROM BackupFixture ORDER BY id`;
+      try {
+        assert.equal((await request(endpoint)).status, 403);
+        assert.equal((await request(endpoint, cookie)).status, 403);
+        assert.equal((await request(endpoint, await login(owner.email))).status, 403);
+        assert.equal((await request(endpoint, adminCookie, { headers: { 'Sec-Fetch-Site': 'cross-site' } })).status, 403);
+        await admin.update({ isSuspended: true });
+        try { assert.equal((await request(endpoint, adminCookie)).status, 403); }
+        finally { await admin.update({ isSuspended: false }); }
+        const dashboard = await request('/admin', adminCookie);
+        assert.match(await dashboard.text(), /href="\/admin\/api\/maintenance\/backup" download>[\s\S]*?Export Database \(\.sql\)/);
+
+        await connection.query(`
+          SET SESSION time_zone = '+00:00';
+          SET SESSION sql_mode = 'NO_AUTO_VALUE_ON_ZERO';
+          CREATE TABLE BackupParent (id INT PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
+          CREATE TABLE BackupFixture (
+            id BIGINT UNSIGNED PRIMARY KEY,
+            parentId INT NULL,
+            note TEXT COLLATE utf8mb4_0900_ai_ci COMMENT 'Preserve text COLLATE utf8mb4_0900_ai_ci',
+            createdDate DATE,
+            modifiedAt DATETIME(6),
+            lastSeen TIMESTAMP(6) NULL,
+            metadata JSON,
+            bytes BLOB,
+            flags BIT(8),
+            preciseDecimal DECIMAL(30, 12),
+            noteLength INT GENERATED ALWAYS AS (CHAR_LENGTH(note)) STORED,
+            hiddenNote VARCHAR(100) INVISIBLE,
+            FOREIGN KEY (parentId) REFERENCES BackupParent(id)
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+          INSERT INTO BackupParent (id) VALUES (0);
+        `);
+        const note = "O'Brien's \"room\" 🏠\\window\n\0\x1a'); DROP TABLE Users; -- ";
+        await connection.execute(
+          `INSERT INTO BackupFixture
+            (id, parentId, note, createdDate, modifiedAt, lastSeen, metadata, bytes, flags, preciseDecimal, hiddenNote)
+             VALUES (?, 0, ?, '2024-02-29', '2024-02-29 23:08:19.123456', '2024-02-29 04:03:02.654321',
+              ?, ?, b'10100101', ?, 'invisible'), (1, NULL, NULL, NULL, NULL, NULL, 'null', NULL, NULL, NULL, NULL)`,
+          ['18446744073709551615', note, '{"precise":9007199254740993, "nested":["a",null]}',
+            Buffer.from([0x00, 0xff, 0x27, 0x5c]), '123456789012345678.876543219876'],
+        );
+        const [sourceRows] = await connection.query(readFixture);
+        const [sourceTables] = await connection.query("SHOW FULL TABLES WHERE Table_type = 'BASE TABLE'");
+        const response = await request(endpoint, adminCookie);
+        assert.equal(response.status, 200);
+        assert.match(response.headers.get('content-type'), /^application\/sql/);
+        assert.match(response.headers.get('content-disposition'), /^attachment; filename="database_backup_\d{4}-\d{2}-\d{2}\.sql"$/);
+        assert.match(response.headers.get('cache-control'), /no-store/);
+        const sql = await response.text();
+        assert.ok(sql.startsWith('SET FOREIGN_KEY_CHECKS=0;\n'));
+        assert.ok(sql.trimEnd().endsWith('SET FOREIGN_KEY_CHECKS=1;'));
+        const noteSchema = sql.split('\n').find(line => line.startsWith('  `note` text'));
+        assert.match(noteSchema, /COLLATE utf8mb4_general_ci/);
+        assert.match(noteSchema, /COMMENT 'Preserve text COLLATE utf8mb4_0900_ai_ci'/);
+        assert.ok(sql.includes('DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci'));
+
+        await connection.query(`CREATE DATABASE ${restoreName} CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci`);
+        await connection.query(`USE ${restoreName}`);
+        await connection.query("SET SESSION sql_mode = 'NO_BACKSLASH_ESCAPES'; SET SESSION time_zone = '+08:00'");
+        await connection.query(sql);
+        const [[session]] = await connection.query('SELECT @@SESSION.foreign_key_checks AS checks, @@SESSION.sql_mode AS mode, @@SESSION.time_zone AS zone');
+        assert.deepEqual(session, { checks: '1', mode: 'NO_BACKSLASH_ESCAPES', zone: '+08:00' });
+        await connection.query("SET SESSION time_zone = '+00:00'");
+        const [restoredRows] = await connection.query(readFixture);
+        assert.deepEqual(restoredRows, sourceRows);
+        const [restoredTables] = await connection.query("SHOW FULL TABLES WHERE Table_type = 'BASE TABLE'");
+        const names = tables => tables.map(table => Object.values(table)[0]).sort();
+        assert.deepEqual(names(restoredTables), names(sourceTables));
+        const [[restoredAdmin]] = await connection.execute('SELECT password FROM Users WHERE id = ?', [admin.id]);
+        assert.equal(restoredAdmin.password, password);
+        const [[restoredParent]] = await connection.query('SELECT id FROM BackupParent');
+        assert.equal(restoredParent.id, 0);
+      } finally {
+        await connection.query(`DROP DATABASE IF EXISTS ${restoreName}`);
+        await connection.query(`USE ${escapeId(database, true)}`);
+        await connection.query('DROP TABLE IF EXISTS BackupFixture, BackupParent');
+        await connection.end();
+      }
+    });
     await t.test('landing data uses real public inventory, resident records and valid map coordinates', async () => {
       const before = await (await request('/api/landing-data')).json();
       const item = before.listings.find(item => item.ownerId === owner.id);
