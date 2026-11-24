@@ -1,10 +1,11 @@
 import { sequelize } from '../models/db.js';
 import { ownerPaymentConfig } from '../services/ownerPaymentConfig.js';
 import { manilaToday, submitRentPayment } from '../services/manualPaymentService.js';
-import { createTenantApplication, closeDuplicatePendingApplications, findApplicationProperty } from '../services/tenantApplicationService.js';
+import { createTenantApplication, closeDuplicatePendingApplications, findApplicationProperty, registrationApplicationDetails } from '../services/tenantApplicationService.js';
+import { reservationFields, reservationRequested, reservationTransaction } from '../services/tenantReservationService.js';
 import { storeReviewFile } from '../services/reviewFileService.js';
 import { branchNumbers, orderBranches } from '../services/propertyBranchesService.js';
-import { confirmOffer, requestMoveOut } from '../services/occupancyService.js';
+import { confirmOffer, requestMoveOut, ownerLock, syncOccupancy } from '../services/occupancyService.js';
 import { listTenantDorms } from '../services/dormListingService.js';
 import { Op, fn, col } from 'sequelize';
 import bcrypt from 'bcrypt';
@@ -776,7 +777,8 @@ export const browseBoardingHouses = async (req, res, next) => {
 export const applyBoardingHouse = async (req, res, next) => {
   try {
     const user = req.currentUser;
-    const { ownerId, boardingHouseName, requestedRoomType, message, establishmentId } = req.body;
+    const { ownerId, boardingHouseName, requestedRoomType, requestedRoomId, message, establishmentId } = req.body;
+    const note = typeof message === 'string' ? message.trim().slice(0, 3000) : '';
 
     if (!ownerId || !boardingHouseName) {
       return res.status(400).json({ error: 'Owner ID and Boarding House Name are required.' });
@@ -798,51 +800,65 @@ export const applyBoardingHouse = async (req, res, next) => {
 
     const selectedHouse = establishmentId ? await BoardingHouse.findOne({ where: { id: establishmentId, ownerId: owner.id, approvalStatus: 'approved' } }) : await BoardingHouse.findOne({ where: { ownerId: owner.id, name: boardingHouseName, approvalStatus: 'approved' } });
 
-    const roomTypeInfo = requestedRoomType ? ` (Requested Room: ${requestedRoomType})` : '';
-    const { application, created } = await createTenantApplication({
-      tenantId: user.id,
-      ownerId: owner.id,
-      boardingHouseId: selectedHouse?.id || null,
-      boardingHouseName: selectedHouse?.name || owner.boardingHouseName,
-      requestedRoomType: requestedRoomType || null,
-      message: message || `Inquired/Applied via DormMap Browse. Contact: ${user.contactNumber || 'N/A'}, Gender: ${user.gender || 'N/A'}${roomTypeInfo}`,
-      status: 'pending_owner'
+    const options = reservationRequested(req.body) ? reservationTransaction : {};
+    const { application, created, upgraded } = await sequelize.transaction(options, async transaction => {
+      const applicant = await User.findByPk(user.id, { transaction, lock: transaction.LOCK.UPDATE });
+      const details = {
+        ownerId: owner.id, boardingHouseId: selectedHouse?.id || null, boardingHouseName: selectedHouse?.name || owner.boardingHouseName,
+        requestedRoomType: typeof requestedRoomType === 'string' ? requestedRoomType.trim().slice(0, 255) || null : null
+      };
+      if (requestedRoomId) {
+        const preferred = await registrationApplicationDetails({ selectedBoardingHouse: selectedHouse ? `bh-${selectedHouse.id}` : `owner-${owner.id}`, requestedRoomId }, transaction);
+        Object.assign(details, preferred);
+      }
+      const reservation = await reservationFields(applicant, details, req.body, transaction);
+      const values = { ...details, ...reservation, tenantId: applicant.id, status: 'pending_owner',
+        message: note || 'Inquired via DormMap Browse.' };
+      const result = await createTenantApplication(values, { transaction });
+      if (!result.created && reservationRequested(req.body) && result.application.status === 'pending_owner' &&
+          result.application.boardingHouseId === details.boardingHouseId && !result.application.reservationRoomId) {
+        await result.application.update({ ...values, message: note || result.application.message }, { transaction });
+        return { ...result, upgraded: true };
+      }
+      return result;
     });
 
-    if (!created) return res.status(409).json({ error: 'You already have an active rental application with this owner.' });
+    if (!created && !upgraded) return res.status(409).json({ error: 'You already have an active rental application with this owner.' });
+    const preferredRoom = application.preferredRoomLabel || application.requestedRoomType;
+    const roomTypeInfo = preferredRoom ? ` (Requested Room: ${preferredRoom})` : '';
 
     // Create OwnerInquiry
-    await OwnerInquiry.create({
+    if (!upgraded) await OwnerInquiry.create({
       ownerId: owner.id,
       clientName: user.fullName,
       clientEmail: user.email,
       clientPhone: user.contactNumber,
-      message: `Tenant inquiry/application for ${boardingHouseName}${roomTypeInfo}. Note: ${message || 'None'}. Contact: ${user.contactNumber || 'N/A'}, Gender: ${user.gender || 'N/A'}`,
+      message: `Tenant inquiry/application for ${boardingHouseName}${roomTypeInfo}. Note: ${note || 'None'}. Contact: ${user.contactNumber || 'N/A'}, Gender: ${user.gender || 'N/A'}`,
       status: 'new'
     }).catch(() => {});
 
     // Create OwnerNotification
     await OwnerNotification.create({
       ownerId: owner.id,
-      title: 'New Tenant Application Pending',
-      body: `${user.fullName} inquired/applied for ${boardingHouseName}${roomTypeInfo}. Review & accept tenant in your portal.`,
+      title: application.reservationRoomId ? 'New reservation awaiting payment review' : 'New Tenant Application Pending',
+      body: `${user.fullName} ${application.reservationRoomId ? 'requested a reservation' : 'applied'} for ${boardingHouseName}${roomTypeInfo}. Open the Tenants section to review.`,
       type: 'tenant_application',
       link: '#tenants'
     }).catch(() => {});
 
     // Create conversation message
-    await OwnerMessage.create({
+    if (!upgraded || note) await OwnerMessage.create({
       ownerId: owner.id,
       senderId: user.id,
       recipientId: owner.id,
       subject: `Inquiry - ${boardingHouseName}`,
-      message: message ? `Hello! ${message}` : `Hello! I submitted an inquiry/application for ${boardingHouseName}${roomTypeInfo}. Looking forward to your response!`,
+      message: note ? `Hello! ${note}` : `Hello! I submitted an inquiry/application for ${boardingHouseName}${roomTypeInfo}. Looking forward to your response!`,
       isRead: false
     }).catch(() => {});
 
     res.status(201).json({
       success: true,
-      message: `Application submitted successfully for ${boardingHouseName}! It is now awaiting owner approval.`,
+      message: application.reservationRoomId ? 'Reservation request sent. The owner will review the fee before holding your room or slot.' : `Application submitted successfully for ${boardingHouseName}! It is now awaiting owner approval.`,
       application
     });
   } catch (err) { next(err); }
@@ -860,14 +876,20 @@ export const cancelApplication = async (req, res, next) => {
     const user = req.currentUser;
     const { id } = req.params;
 
+    const initial = await TenantApplication.findOne({ where: { id, tenantId: user.id }, attributes: ['ownerId'] });
+    if (!initial) return res.status(404).json({ error: 'Application not found.' });
     const app = await sequelize.transaction(async transaction => {
       await User.findByPk(user.id, { transaction, lock: transaction.LOCK.UPDATE });
+      await ownerLock(initial.ownerId, transaction);
       const application = await TenantApplication.findOne({ where: { id, tenantId: user.id }, transaction, lock: transaction.LOCK.UPDATE });
       if (!application) throw Object.assign(new Error('Application not found.'), { status: 404 });
       if (!['pending_owner', 'accepted_by_owner'].includes(application.status)) {
         throw Object.assign(new Error('This application is no longer open.'), { status: 409 });
       }
-      return application.update({ status: 'cancelled_by_tenant' }, { transaction });
+      const held = application.status === 'accepted_by_owner' && application.reservationRoomId;
+      await application.update({ status: 'cancelled_by_tenant' }, { transaction });
+      if (held) await syncOccupancy(application.ownerId, [held], transaction);
+      return application;
     });
 
     // Notify owner

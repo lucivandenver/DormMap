@@ -126,9 +126,10 @@
   overflow-wrap: anywhere;
   color: #0f172a;
 }
-.registration-house-preview + .registration-house-preview,
 .registration-house-results li + li { border-top: 1px solid #e2e8f0; }
 .registration-house-preview strong { display: block; margin-bottom: .35rem; font-size: .85rem; }
+.registration-house-heading { display: flex; align-items: center; gap: .5rem; margin-bottom: .25rem; }
+.registration-house-heading img { flex: 0 0 auto; width: 2.75rem; height: 2.5rem; margin: 0; border-radius: .35rem; object-fit: cover; }
 .registration-house-actions { display: flex; flex-wrap: wrap; gap: .35rem; }
 .registration-house-actions button, .registration-select-house {
   min-height: 2.5rem;
@@ -147,7 +148,9 @@
   color: white;
 }
 .registration-house-actions button:hover, .registration-select-house:hover { filter: brightness(.9); }
-.registration-map-choices { max-height: 10.25rem; overflow-y: auto; }
+.registration-pin-open .dormmap-expand-map { visibility: hidden; }
+.registration-property-map .leaflet-popup-content { margin: .55rem .75rem; }
+.registration-property-map .leaflet-popup-content .registration-house-preview { padding: .25rem; }
 .registration-property-details {
   color: #0f172a;
   font: 400 .875rem/1.5 Inter, system-ui, sans-serif;
@@ -164,6 +167,14 @@
 .registration-details-header .registration-search-button { flex: 0 0 auto; }
 .registration-details-content { display: grid; gap: .75rem; padding: 1rem; }
 .registration-details-content img { width: 100%; max-height: 12rem; border-radius: .8rem; object-fit: cover; }
+.registration-details-photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; }
+.registration-details-photos:empty { display: none; }
+.registration-details-photos img:first-child { grid-column: 1 / -1; }
+.registration-details-photos img:not(:first-child) { aspect-ratio: 4 / 3; }
+.registration-details-prices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+.registration-details-prices div { padding: .55rem .7rem; background: #ecfdf5; border-radius: .6rem; }
+.registration-details-prices dt, [data-details-amenities] h3 { font-weight: 700; }
+[data-details-amenities] ul { padding-left: 1.25rem; list-style: disc; }
 .registration-details-content > p { white-space: pre-line; overflow-wrap: anywhere; }
 .registration-details-content .registration-select-house { justify-self: start; }
 .registration-house-selection {
@@ -178,6 +189,9 @@
   background: #ecfdf5;
 }
 .registration-house-selection strong { display: block; color: #064e3b; font-size: .875rem; overflow-wrap: anywhere; }
+.registration-house-selection img { width: 3.5rem; height: 3.5rem; border-radius: .55rem; object-fit: cover; }
+.registration-selected-copy { flex: 1; min-width: 8rem; }
+[data-reservation] [hidden], [data-reservation][hidden] { display: none !important; }
 .registration-text-button { justify-self: start; color: #065f46; font-size: .8rem; font-weight: 700; text-decoration: underline; text-underline-offset: .2em; }
 .registration-property [hidden] { display: none !important; }
 

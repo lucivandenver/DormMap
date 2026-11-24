@@ -1071,6 +1071,122 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.ok(inquiries.slice(0, 2).every(inquiry => archivedInquiries.data.some(item => item.id === inquiry.id)));
       assert.equal((await inquiries[2].reload()).isArchived, false);
     });
+    await t.test('reservations quote real rates, hold a slot only after payment review, and turn holds into stays', async () => {
+      const { storeReviewFile } = await import('../../services/reviewFileService.js');
+      const propertyOwner = await User.create({ fullName: 'Reservation Owner', email: `reservation-owner-${suffix}@example.test`, password,
+        accountType: 'boarding_house_owner', applicationStatus: 'approved', barangay: 'Orconuma', boardingHouseName: 'Reservation House', mapPin: 'Lat 12.77, Lon 121.47',
+        paymentMethods: '["Cash","GCash","QR Ph"]' });
+      ids.push(propertyOwner.id);
+      const qr = { originalname: 'qr.jpg', buffer: Buffer.from([0xff, 0xd8, 0xff]), mimetype: 'image/jpeg' };
+      const qrUrl = await storeReviewFile(qr, propertyOwner.id, 'payment-qr');
+      await propertyOwner.update({ gcashQrCode: qrUrl, qrPhCode: qrUrl });
+      const property = await BoardingHouse.create({ ownerId: propertyOwner.id, name: 'Reservation House', barangay: 'Orconuma', isPrimary: true });
+      const bedspace = await saveRoom(propertyOwner.id, null, { boardingHouseId: property.id, roomNumber: 'B-14', roomType: 'Bedspace', capacity: 2, rentalPrice: 4000 });
+      const otherRoom = await saveRoom(propertyOwner.id, null, { boardingHouseId: property.id, roomNumber: 'Whole 4', rentalBasis: 'room', capacity: 1, rentalPrice: 6000 });
+      const ownerCookie = await login(propertyOwner.email);
+      const quoteUrl = `/api/boarding-houses/bh-${property.id}/reservation?roomId=${bedspace.id}`;
+      const quote = await (await request(quoteUrl)).json();
+      assert.deepEqual([quote.fee, quote.monthlyRent, quote.rentalBasis], [400, 4000, 'bed']);
+      assert.deepEqual(quote.methods, ['Cash', 'GCash', 'QR Ph']);
+      assert.equal((await request(quote.qrCodes.GCash)).headers.get('content-type'), 'image/jpeg');
+      assert.equal((await request(qrUrl)).status, 404);
+
+      const signup = new FormData();
+      const email = `reservation-signup-${suffix}@example.test`;
+      for (const [field, value] of Object.entries({ accountType: 'tenant', fullName: 'Reservation Applicant', email, password: fixturePassword,
+        confirmPassword: fixturePassword, acceptTerms: 'on', selectedBoardingHouse: `bh-${property.id}`, requestedRoomId: String(bedspace.id),
+        reserveRoom: 'on', reservationFee: '400', reservationMethod: 'GCash', reservationReference: '0123456789012' })) signup.set(field, value);
+      const signupResult = await request('/register', null, { method: 'POST', body: signup });
+      assert.equal(signupResult.status, 302, await signupResult.clone().text());
+      const applicant = await User.findOne({ where: { email } });
+      ids.push(applicant.id);
+      const app = await TenantApplication.findOne({ where: { tenantId: applicant.id, ownerId: propertyOwner.id } });
+      assert.equal(app.reservationReference, '0123456789012');
+      assert.equal(app.status, 'pending_owner');
+      assert.equal((await bedspace.reload()).availableSlots, 2);
+      const post = body => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const reviewUrl = `/owner-dashboard/api/pending-applications/${app.id}/approve-reservation`;
+      assert.equal((await request(reviewUrl, ownerCookie, post({ paymentChecked: false }))).status, 422);
+      assert.equal((await request(`/owner-dashboard/api/pending-applications/${app.tenantId}/accept`, ownerCookie, post({ applicationId: app.id, roomId: bedspace.id }))).status, 409);
+      const approved = await request(reviewUrl, ownerCookie, post({ paymentChecked: true }));
+      assert.equal(approved.status, 200, await approved.clone().text());
+      assert.equal((await request(reviewUrl, ownerCookie, post({ paymentChecked: true }))).status, 200);
+      assert.equal((await bedspace.reload()).reservationSlots, 1);
+      assert.equal(bedspace.availableSlots, 1);
+      const listing = (await (await request('/api/boarding-houses')).json()).find(item => item.id === `bh-${property.id}`);
+      assert.equal(listing.roomInventory.find(item => item.id === bedspace.id).reservedForTenants, 1);
+      assert.ok(!JSON.stringify(listing).includes('0123456789012'));
+      const applicantCookie = await login(applicant.email);
+      assert.equal((await request(`/tenant-dashboard/api/applications/${app.id}/confirm`, applicantCookie, { method: 'POST' })).status, 200);
+      assert.equal((await bedspace.reload()).reservationSlots, 0);
+      assert.equal(bedspace.availableSlots, 1);
+
+      const inquiryUser = await User.create({ fullName: 'Inquiry Reservation', email: `inq-reservation-${suffix}@example.test`, password, accountType: 'tenant' });
+      ids.push(inquiryUser.id);
+      const inquirer = await login(inquiryUser.email);
+      const baseInquiry = { ownerId: propertyOwner.id, boardingHouseName: property.name, establishmentId: property.id,
+        requestedRoomId: otherRoom.id, reserveRoom: true, reservationFee: '600', reservationMethod: 'QR Ph', reservationReference: 'QR35A' };
+      assert.equal((await request('/tenant-dashboard/api/applications', inquirer, post({ ...baseInquiry, requestedRoomId: bedspace.id, reservationFee: '999' }))).status, 409);
+      const inquiryResponse = await request('/tenant-dashboard/api/applications', inquirer, post(baseInquiry));
+      assert.equal(inquiryResponse.status, 201, await inquiryResponse.clone().text());
+      const { application: inquiry } = await inquiryResponse.json();
+      assert.match(inquiry.preferredRoomLabel, /Whole 4/);
+      assert.equal((await request(`/owner-dashboard/api/pending-applications/${inquiry.id}/approve-reservation`, ownerCookie, post({ paymentChecked: true }))).status, 200);
+      assert.equal((await otherRoom.reload()).availableSlots, 0);
+      assert.equal((await request(`/tenant-dashboard/api/applications/${inquiry.id}/cancel`, inquirer, { method: 'POST' })).status, 200);
+      assert.equal((await otherRoom.reload()).availableSlots, 1);
+
+      const walkInEmail = `walk-in-${suffix}@example.test`;
+      const walkIn = await request('/owner-dashboard/api/walk-in-accounts', ownerCookie, post({ fullName: 'Walk-in Tenant', email: walkInEmail,
+        roomId: otherRoom.id, mode: 'assign', temporaryPassword: 'Temporary-pass-1' }));
+      assert.equal(walkIn.status, 201, await walkIn.clone().text());
+      const { data: walkInAccount } = await walkIn.json();
+      ids.push(walkInAccount.userId);
+      const temporaryPasswordUrl = `/owner-dashboard/api/walk-in-accounts/${walkInAccount.userId}/password`;
+      const edit = (auth, temporaryPassword) => request(temporaryPasswordUrl, auth, { ...post({ temporaryPassword }), method: 'PATCH' });
+      assert.equal((await edit(await login(owner.email), 'Unauthorized-pass')).status, 409);
+      assert.equal((await edit(ownerCookie, 'Temporary-pass-2')).status, 200);
+      const credentials = (email, password) => ({ method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ email, password }) });
+      const temporaryLogin = await request('/login', null, credentials(walkInEmail, 'Temporary-pass-2'));
+      assert.equal(temporaryLogin.headers.get('location'), '/claim-walk-in');
+      const claimSession = temporaryLogin.headers.get('set-cookie').split(';')[0];
+      assert.equal((await request('/claim-walk-in', claimSession)).status, 200);
+      const claimed = await request('/claim-walk-in', claimSession, { ...credentials('', 'Private-tenant-pass'), body: new URLSearchParams({ password: 'Private-tenant-pass', confirmPassword: 'Private-tenant-pass' }) });
+      assert.equal(claimed.headers.get('location'), '/tenant-dashboard');
+      assert.equal((await edit(ownerCookie, 'Unauthorized-after-claim')).status, 409);
+      assert.equal((await request('/login', null, credentials(walkInEmail, 'Private-tenant-pass'))).headers.get('location'), '/tenant-dashboard');
+      assert.equal((await OwnerTenant.findByPk(walkInAccount.stayId)).tenantUserId, walkInAccount.userId);
+
+      const walkInReserve = await request('/owner-dashboard/api/walk-in-accounts', ownerCookie, post({ fullName: 'Walk-in Reservation', email: `walk-reserve-${suffix}@example.test`,
+        roomId: bedspace.id, mode: 'reserve', temporaryPassword: 'Temporary-pass-3', reservationFee: '400', reservationMethod: 'Cash' }));
+      assert.equal(walkInReserve.status, 201, await walkInReserve.clone().text());
+      const { data: walkReservation } = await walkInReserve.json();
+      ids.push(walkReservation.userId);
+      assert.equal((await TenantApplication.findByPk(walkReservation.applicationId)).status, 'pending_owner');
+      assert.equal(await OwnerTenant.count({ where: { tenantUserId: walkReservation.userId } }), 0);
+      assert.equal((await bedspace.reload()).availableSlots, 1);
+
+      const googleTenant = await User.create({ fullName: 'Google Reservation Tenant', email: `google-reservation-${suffix}@example.test`,
+        password, accountType: 'tenant', emailVerified: true, oauthProvider: 'google' });
+      ids.push(googleTenant.id);
+      const { sessionStore } = await import('../../config/session.js');
+      const sid = crypto.randomUUID();
+      await sessionStore.set(sid, { cookie: { maxAge: 60_000 }, pendingTenantUserId: googleTenant.id });
+      const googleCookie = 'dormmap.sid=' + encodeURIComponent('s:' + signature.sign(sid, sessionSecret));
+      const googleBody = new FormData();
+      for (const [field, value] of Object.entries({ contactNumber: '09171234567', gender: 'female', acceptTerms: 'on',
+        selectedBoardingHouse: `bh-${property.id}`, requestedRoomId: String(bedspace.id), reserveRoom: 'on', reservationFee: '400',
+        reservationMethod: 'Cash' })) googleBody.set(field, value);
+      googleBody.set('validIdPicture', new Blob(['%PDF-1.7'], { type: 'application/pdf' }), 'id.pdf');
+      const googleSignup = await request('/complete-tenant-profile', googleCookie, { method: 'POST', headers: { Accept: 'application/json' }, body: googleBody });
+      assert.equal(googleSignup.status, 200, await googleSignup.clone().text());
+      const googleApp = await TenantApplication.findOne({ where: { tenantId: googleTenant.id, ownerId: propertyOwner.id } });
+      const competingApprovals = await Promise.all([googleApp.id, walkReservation.applicationId].map(id =>
+        request(`/owner-dashboard/api/pending-applications/${id}/approve-reservation`, ownerCookie, post({ paymentChecked: true }))));
+      assert.deepEqual(competingApprovals.map(response => response.status).sort(), [200, 409]);
+      assert.equal((await bedspace.reload()).availableSlots, 0);
+      assert.equal(bedspace.reservationSlots, 1);
+    });
     await request(`/tenant-dashboard/api/saved-dorms/${key}`, cookie, { method: 'DELETE' });
     assert.equal(await SavedDorm.count({ where: { tenantId: tenant.id } }), 0);
     assert.ok(room.id);

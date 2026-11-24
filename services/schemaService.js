@@ -39,6 +39,15 @@ export async function migrateSchema({ createDatabase = false } = {}) {
         }
       }
     }
+    const applicationIndexes = await queryInterface.showIndex('TenantApplications');
+    for (const [name, fields] of [
+      ['tenant_application_room_reservations', ['ownerId', 'reservationRoomId', 'status']],
+      ['tenant_application_reservation_references', ['ownerId', 'reservationMethod', 'reservationReference']]
+    ]) {
+      if (!applicationIndexes.some(index => index.name === name)) {
+        await queryInterface.addIndex('TenantApplications', fields, { name });
+      }
+    }
   } finally {
     await lock.query('SELECT RELEASE_LOCK(?)', [lockName]).catch(() => {});
     await lock.end();

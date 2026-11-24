@@ -20,6 +20,7 @@ export async function resolveGoogleAccount(profile, requestedRole = 'login_only'
     const googlePhoto = profile.photos?.[0]?.value;
     const hasUploadedPhoto = role === 'boarding_house_owner' && /^\/uploads\//.test(user.profilePicture || '');
     await user.update({ ...(googlePhoto && !hasUploadedPhoto ? { profilePicture: googlePhoto } : {}),
+      ...(user.walkInPasswordPending ? { walkInPasswordPending: false, password: await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12) } : {}),
       googleId: profile.id, oauthProvider: 'google', emailVerified: true });
     return { user, isNew: false };
   }

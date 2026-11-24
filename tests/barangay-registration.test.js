@@ -7,7 +7,7 @@ import { requireBarangayOfficial } from '../middleware/barangayAuth.js';
 
 test('password barangay registration creates a pending account and explains approval', async t => {
   let created;
-  t.mock.method(sequelize, 'transaction', async callback => callback({}));
+  t.mock.method(sequelize, 'transaction', async (options, callback) => (callback || options)({}));
   t.mock.method(User, 'findOne', async () => null);
   t.mock.method(User, 'create', async values => {
     created = { id: 7, ...values };

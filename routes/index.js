@@ -33,6 +33,7 @@ import ownerDashboardRoutes from './ownerDashboardRoutes.js';
 import tenantDashboardRoutes from './tenantDashboardRoutes.js';
 import paymentRoutes from './paymentRoutes.js';
 import dormigoRoutes from './dormigoRoutes.js';
+import { reservationQuote, reservationQr } from '../controllers/tenantReservationController.js';
 import { renderProcessingPage, renderSuccessPage, renderFailurePage, renderGcashPortal } from '../controllers/paymentController.js';
 
 const router = express.Router();
@@ -40,6 +41,8 @@ router.get("/", homePage);
 router.get("/about", aboutPage);
 router.get('/boarding-houses', boardingHousesPage);
 router.get("/api/boarding-houses", boardingHousesApi);
+router.get('/api/boarding-houses/:listing/reservation', reservationQuote);
+router.get('/api/boarding-houses/:listing/reservation/qr/:method', reservationQr);
 router.get("/api/institutions", institutionsApi);
 router.get('/api/landing-data', landingDataApi);
 router.get('/api/landing/events', landingEvents);

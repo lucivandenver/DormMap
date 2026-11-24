@@ -59,6 +59,9 @@ router.delete('/api/rooms/:id', controller.deleteRoom);
 router.get('/api/tenants', controller.getTenants);
 router.post('/api/tenants', controller.createTenant);
 router.post('/api/tenants/bulk-archive', controller.archiveTenants);
+router.get('/api/walk-in-accounts', controller.listWalkInAccounts);
+router.post('/api/walk-in-accounts', controller.createWalkInAccount);
+router.patch('/api/walk-in-accounts/:id/password', controller.updateWalkInPassword);
 router.patch('/api/tenants/:id', controller.updateTenant);
 router.delete('/api/tenants/:id', controller.deleteTenant);
 
@@ -66,6 +69,7 @@ router.delete('/api/tenants/:id', controller.deleteTenant);
 router.get('/api/pending-applications', controller.getPendingApplications);
 router.post('/api/pending-applications/bulk-offer', controller.bulkOfferApplications);
 router.post('/api/pending-applications/bulk-archive', controller.archiveApplications);
+router.post('/api/pending-applications/:id/approve-reservation', controller.approveApplicationReservation);
 router.post('/api/pending-applications/:userId/accept', controller.acceptTenantApplication);
 router.delete('/api/pending-applications/:userId/decline', controller.declineTenantApplication);
 

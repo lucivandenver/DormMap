@@ -5,7 +5,7 @@
   <link rel="stylesheet" href="/css/full-map.css?v=6">
   {{#if cartoBasemapKey}}<meta name="dormmap-carto-basemap-key" content="{{cartoBasemapKey}}">{{/if}}
   <script src="/js/full-map.js?v=7"></script>
-  <link rel="stylesheet" href="/css/registration-layout.css?v=3">
+  <link rel="stylesheet" href="/css/registration-layout.css?v=4">
   <script src="/js/property-pin.js?v=4"></script>
   <script src="/js/owner-registration-counts.js" defer></script>
   <meta charset="UTF-8">
@@ -20,7 +20,8 @@
   <script src="/js/owner-room-plan.js" defer></script>
   <script src="/js/registration-files.js" defer></script>
   <script src="/js/password-visibility.js" defer></script>
-  <script src="/js/room-details.js"></script>
+  <script src="/js/room-details.js?v=2"></script>
+  <script src="/js/reservation-fields.js"></script>
   <!-- PWA Manifest & App Icons -->
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#007a64">

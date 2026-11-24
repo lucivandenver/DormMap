@@ -641,6 +641,14 @@
           </select>
         </label>
 
+        <section class="rounded-2xl border border-emerald-100 bg-white p-4" aria-labelledby="walkInHeading">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 id="walkInHeading" class="font-bold text-slate-900">Walk-in tenant accounts</h2>
+            <button type="button" id="newWalkIn" class="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white">Create walk-in account</button>
+          </div>
+          <div id="walkInAccounts" class="mt-2 divide-y divide-slate-100 text-sm"></div>
+        </section>
+
         <!-- Pending Applications Banner -->
         <div id="pendingAppsCard" data-owner-batch class="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-5 space-y-3">
           <div class="flex items-center justify-between">
@@ -660,7 +668,7 @@
             <button type="button" id="prepareBulkOffers" data-batch-action class="rounded-lg bg-emerald-800 px-3 py-2 font-semibold text-white disabled:opacity-50">Prepare room offers</button>
             <button type="button" id="archiveSelectedApplications" data-batch-action class="rounded-lg border border-amber-200 bg-white px-3 py-2 font-semibold disabled:opacity-50">Archive selected</button>
           </div>
-          <p data-batch-note class="text-xs text-amber-900" hidden>Select pending applications to prepare offers. Sent offers can be archived or updated individually.</p>
+          <p data-batch-note class="text-xs text-amber-900" hidden>Use Review to verify reservation fees or update a sent offer.</p>
           <p data-batch-feedback class="whitespace-pre-line text-sm" role="status"></p>
           <div id="pendingAppsList" class="space-y-2"></div>
         </div>
@@ -1246,6 +1254,48 @@
   </form>
 </dialog>
 
+<dialog id="walkInDialog" aria-labelledby="walkInDialogTitle" class="m-auto max-h-[92dvh] w-[calc(100%_-_2rem)] max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-xl backdrop:bg-slate-900/60">
+  <form id="walkInForm" class="space-y-4">
+    <h3 id="walkInDialogTitle" class="text-lg font-bold">Create walk-in tenant account</h3>
+    <fieldset id="walkInAccountDetails" class="grid gap-3 sm:grid-cols-2">
+      <label class="block text-sm font-semibold">Full name
+        <input name="fullName" class="mt-1 block w-full rounded-lg border p-2" maxlength="255" required>
+      </label>
+      <label class="block text-sm font-semibold">Email
+        <input name="email" type="email" placeholder="name@gmail.com" class="mt-1 block w-full rounded-lg border p-2" maxlength="255" required>
+      </label>
+      <label class="block text-sm font-semibold">Contact number (optional)
+        <input name="contactNumber" type="tel" class="mt-1 block w-full rounded-lg border p-2" maxlength="24">
+      </label>
+      <label class="block text-sm font-semibold">Move-in date (optional)
+        <input name="moveInDate" type="date" class="mt-1 block w-full rounded-lg border p-2">
+      </label>
+      <label class="block text-sm font-semibold">Boarding house / branch
+        <select id="walkInBranch" class="mt-1 block w-full min-w-0 rounded-lg border p-2" required></select>
+      </label>
+      <label class="block text-sm font-semibold">Room or bedspace
+        <select name="roomId" id="walkInRoom" class="mt-1 block w-full min-w-0 rounded-lg border p-2" required></select>
+      </label>
+      <label class="block text-sm font-semibold">Action
+        <select name="mode" class="mt-1 block w-full rounded-lg border p-2"><option value="assign">Assign now</option><option value="reserve">Request reservation</option></select>
+      </label>
+      <label id="walkInRentLabel" class="block text-sm font-semibold">Agreed monthly rent (₱)
+        <input name="monthlyRent" type="number" min="0" step="0.01" class="mt-1 block w-full rounded-lg border p-2">
+      </label>
+      <div class="sm:col-span-2">{{> reservationFields forced=true}}</div>
+    </fieldset>
+    <label class="block text-sm font-semibold">Temporary password
+      <input name="temporaryPassword" type="password" autocomplete="new-password" minlength="8" class="mt-1 block w-full rounded-lg border p-2" required>
+    </label>
+    <p class="text-sm text-slate-600">Share it directly with the tenant. On first sign-in, they choose their own password.</p>
+    <p id="walkInError" class="text-sm text-rose-800" role="alert"></p>
+    <div class="flex justify-end gap-2">
+      <button type="button" id="closeWalkIn" class="rounded-lg border px-4 py-2 text-sm">Close</button>
+      <button id="saveWalkIn" class="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white" type="submit">Create account</button>
+    </div>
+  </form>
+</dialog>
+
 <div id="tenantModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
   <div class="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-2xl">
     <div class="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -1310,7 +1360,7 @@
     <div id="tenantReviewScroll" class="min-h-0 overflow-y-auto px-4 py-4 sm:px-6 space-y-4">
       <section id="reviewApplicantDetails" class="space-y-2 text-sm"></section>
       <form id="tenantOfferForm" class="space-y-3">
-        <div id="tenantOfferFields" class="space-y-3 border-t border-slate-100 pt-3">
+        <fieldset id="tenantOfferFields" class="space-y-3 border-t border-slate-100 pt-3">
           <p class="text-xs text-slate-600">The tenant must confirm the offer before the room is assigned.</p>
           <label class="block text-xs font-bold text-slate-600">Room to offer
             <select id="acceptAppRoomSelect" required class="mt-1 w-full rounded-lg border border-slate-200 p-2.5 text-sm"></select>
@@ -1326,7 +1376,12 @@
           <label class="block text-xs font-bold text-slate-600">Move-in date
             <input type="date" id="acceptAppMoveIn" required class="mt-1 w-full rounded-lg border p-2.5">
           </label>
-        </div>
+        </fieldset>
+        <fieldset id="tenantReservationReview" class="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3" hidden disabled>
+          <legend class="px-1 text-sm font-bold text-emerald-900">Reservation payment review</legend>
+          <label class="block text-sm font-semibold">Move-in date <input id="acceptReservationDate" type="date" class="mt-1 block w-full rounded-lg border p-2" required></label>
+          <label class="flex items-start gap-2 text-sm"><input id="reservationPaymentChecked" type="checkbox" required> I verified receipt of the 10% reservation fee.</label>
+        </fieldset>
         <div class="flex flex-wrap justify-end gap-2">
           <button type="button" id="declineTenantReview" class="rounded-lg border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700">Decline</button>
           <button type="submit" id="sendTenantOffer" class="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Accept &amp; Send Offer</button>
@@ -2258,7 +2313,7 @@
         <td class="p-4"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${floorBadge[r.floor] || 'bg-slate-100 text-slate-600'}">${r.floor || '1st Floor'}</span></td>
         <td class="p-4 text-xs">${esc(r.roomType)}<p class="text-xs text-slate-500">${r.bedCount || 'Unspecified'} beds · ${r.rentalBasis === 'room' ? 'Whole room' : 'Per '+esc(r.rentalBasis)}</p></td>
         <td class="p-4 font-semibold text-emerald-700">₱${Number(r.rentalPrice).toLocaleString()}</td>
-        <td class="p-4">${r.rentalBasis === 'room' ? r.availableSlots > 0 ? 'Whole room available' : 'Whole room unavailable' : r.availableSlots + (r.rentalBasis === 'bed' ? ' beds available' : ' slots available')} · ${r.occupiedPeople || 0} occupied / ${r.capacity} capacity · ${r.reservedSlots || 0} reported unavailable<p class="mt-1 text-xs text-slate-500">${(r.occupants || []).map(t => esc(t.fullName)).join(", ") || "No active occupants"}</p></td>
+        <td class="p-4">${r.rentalBasis === 'room' ? r.reservationSlots > 0 ? 'Whole room reserved' : r.availableSlots > 0 ? 'Whole room available' : 'Whole room unavailable' : r.availableSlots + (r.rentalBasis === 'bed' ? ' beds available' : ' slots available')} · ${r.occupiedPeople || 0} occupied / ${r.capacity} capacity${r.rentalBasis !== 'room' && r.reservationSlots ? ` · ${r.reservationSlots} reserved` : ''} · ${r.reservedSlots || 0} reported unavailable<p class="mt-1 text-xs text-slate-500">${(r.occupants || []).map(t => esc(t.fullName)).join(", ") || "No active occupants"}</p></td>
         <td class="p-4"><span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${
           r.status === 'available' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
         }">${r.status}</span></td>
@@ -2501,6 +2556,7 @@
 
     // Always load pending applications alongside tenants
     loadPendingApplications();
+    loadWalkInAccounts();
   }
 
   async function loadPendingApplications() {
@@ -2520,10 +2576,10 @@
         <article class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-100 bg-white px-4 py-3">
           <div class="min-w-0">
             <p class="font-bold text-slate-900">${esc(app.fullName)}</p>
-            <p class="text-xs text-slate-600">${esc(app.requestedRoomType || 'Any room')} · ${esc(applicationStatusText(app.status))}</p>
+            <p class="text-xs text-slate-600">${esc(app.preferredRoomLabel || app.requestedRoomType || 'Any room')} · ${esc(app.reservation?.status === 'pending' ? 'Reservation fee awaiting review' : app.reservation?.status === 'reserved' ? 'Reserved · Awaiting tenant confirmation' : applicationStatusText(app.status))}</p>
           </div>
           ${archived ? '' : `<div class="flex flex-wrap items-center gap-3">
-            ${batchCheckbox(app.applicationId, app.fullName, app.status === 'pending_owner')}
+            ${batchCheckbox(app.applicationId, app.fullName, app.status === 'pending_owner' && !app.reservation)}
             <button type="button" onclick="openTenantReview(${Number(app.applicationId)})" class="rounded-lg border border-emerald-200 px-4 py-2 text-xs font-bold text-emerald-800">Review</button>
           </div>`}
         </article>`).join('') || `<p class="text-sm text-slate-600">${archived ? 'No archived applications.' : 'No open rental applications.'}</p>`;
@@ -2554,7 +2610,7 @@
 
   document.getElementById('prepareBulkOffers').onclick = async () => {
     const applications = [...selectedOwnerRecords(applicationBatch).keys()].map(id => applicationReviews.get(id));
-    if (!applications.length || applications.some(app => app?.status !== 'pending_owner')) return;
+    if (!applications.length || applications.some(app => app?.status !== 'pending_owner' || app.reservation)) return;
     const request = ++bulkOfferRequest;
     bulkOfferRows.replaceChildren();
     bulkOfferFeedback.textContent = 'Loading available rooms…';
@@ -2664,7 +2720,13 @@
         ['Boarding house / branch', app.boardingHouseName], ['Preferred room (tenant’s choice)', app.preferredRoomLabel || app.requestedRoomType],
         ['Email', app.email], ['Phone', app.contactNumber], ['Gender', app.gender],
         ['Status', applicationStatusText(app.status)], ['Offered room', app.room?.roomNumber],
-        ['Move-in date', app.moveInDate]
+        ['Move-in date', app.moveInDate],
+        ...(app.reservation ? [
+          ['Reservation status', app.reservation.status === 'pending' ? 'Awaiting payment review' : app.reservation.status === 'reserved' ? 'Reserved' : app.reservation.status],
+          ['Fee due (10%)', `₱${Number(app.reservation.fee).toFixed(2)}`],
+          ['Monthly rent', `₱${Number(app.reservation.monthlyRent).toFixed(2)}`],
+          ['Payment method', app.reservation.method === 'Cash' ? 'Cash on Hand' : app.reservation.method], ['Transaction reference', app.reservation.reference]
+        ] : [])
       ].map(([label, value]) => `<div><dt class="font-semibold">${label}</dt><dd>${esc(value || '—')}</dd></div>`).join('')}</dl>
       <p class="whitespace-pre-wrap">${esc(app.message || 'No inquiry message submitted.')}</p>
       <div><h4 class="font-semibold">Government ID</h4>${DormMapPreview.render(app.validIdPicture, 'Government ID')}</div>`;
@@ -2683,21 +2745,33 @@
     const declineButton = document.getElementById('declineTenantReview');
     document.getElementById('acceptAppName').textContent = app.fullName;
     renderTenantReviewDetails(app);
-    document.getElementById('tenantOfferFields').hidden = !actionable;
-    declineButton.hidden = offerButton.hidden = !actionable;
+    const reservationPending = app.reservation?.status === 'pending';
+    const ordinaryOffer = actionable && !app.reservation;
+    const standardFields = document.getElementById('tenantOfferFields');
+    const reservationFields = document.getElementById('tenantReservationReview');
+    standardFields.hidden = standardFields.disabled = !ordinaryOffer;
+    reservationFields.hidden = reservationFields.disabled = !reservationPending;
+    declineButton.hidden = !actionable;
+    offerButton.hidden = !ordinaryOffer && !reservationPending;
     offerButton.disabled = true;
     declineButton.disabled = actionable;
-    offerButton.textContent = app.status === 'accepted_by_owner' ? 'Update Offer' : 'Accept & Send Offer';
+    offerButton.textContent = reservationPending ? 'Approve reservation' : app.status === 'accepted_by_owner' ? 'Update Offer' : 'Accept & Send Offer';
     declineButton.textContent = app.status === 'accepted_by_owner' ? 'Cancel Offer' : 'Decline';
     document.getElementById('acceptAppOccupants').value = app.occupantCount || 1;
     document.getElementById('acceptAppRent').value = app.monthlyRent ?? '';
     date.value = app.moveInDate || new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Manila' }).format(new Date());
+    document.getElementById('acceptReservationDate').value = date.value;
+    document.getElementById('reservationPaymentChecked').checked = false;
     roomSelect.replaceChildren(new Option('Choose a room', ''));
-    showTenantReviewMessage(actionable ? 'Loading available rooms…' : '');
+    showTenantReviewMessage(ordinaryOffer ? 'Loading available rooms…' : '');
     document.getElementById('acceptAppModal').classList.remove('hidden');
     document.getElementById('tenantReviewScroll').scrollTop = 0;
     document.getElementById('closeTenantReview').focus({ preventScroll: true });
-    if (!actionable) return;
+    if (!ordinaryOffer) {
+      offerButton.disabled = !reservationPending;
+      declineButton.disabled = false;
+      return;
+    }
 
     try {
       const { data } = await ownerRequest('/owner-dashboard/api/rooms');
@@ -2735,8 +2809,13 @@
     let saved = false;
     const url = `/owner-dashboard/api/pending-applications/${app.userId}`;
     try {
-      const response = accept
-        ? await ownerRequest(url + '/accept', {
+      const response = accept && app.reservation
+        ? await ownerRequest(`/owner-dashboard/api/pending-applications/${app.applicationId}/approve-reservation`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paymentChecked: document.getElementById('reservationPaymentChecked').checked,
+              moveInDate: document.getElementById('acceptReservationDate').value })
+          })
+        : accept ? await ownerRequest(url + '/accept', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               applicationId: app.applicationId, roomId: document.getElementById('acceptAppRoomSelect').value,
@@ -2749,17 +2828,20 @@
       if (reviewingApplication === app) {
         const savedApp = accept ? {
           ...app, ...response.data,
+          reservation: app.reservation ? { ...app.reservation, status: 'reserved' } : null,
           room: { roomNumber: document.getElementById('acceptAppRoomSelect').selectedOptions[0]?.dataset.roomNumber }
-        } : { ...app, status: 'declined_by_owner' };
+        } : { ...app, status: 'declined_by_owner', reservation: app.reservation ? { ...app.reservation, status: 'closed' } : null };
         renderTenantReviewDetails(savedApp);
         showTenantReviewMessage(response.message, 'success');
         document.getElementById('tenantOfferFields').hidden = true;
+        document.getElementById('tenantReservationReview').hidden = true;
         offer.hidden = decline.hidden = true;
         document.getElementById('tenantReviewScroll').scrollTop = 0;
         document.getElementById('closeTenantReview').focus({ preventScroll: true });
       } else ownerToast(response.message);
       loadTenants();
       loadOverview();
+      if (app.reservation) loadRooms();
     } catch (error) {
       if (reviewingApplication === app) showTenantReviewMessage(error.message, 'error');
       else ownerToast(error.message, true);
@@ -2786,6 +2868,99 @@
     declineArmed = true;
     event.currentTarget.textContent = reviewingApplication?.status === 'accepted_by_owner' ? 'Confirm Cancellation' : 'Confirm Decline';
     showTenantReviewMessage('Confirm to notify the tenant and close this application.');
+  });
+
+  const walkInDialog = document.getElementById('walkInDialog');
+  const walkInForm = document.getElementById('walkInForm');
+  const walkInError = document.getElementById('walkInError');
+  const walkInBranch = document.getElementById('walkInBranch');
+  const walkInRoom = document.getElementById('walkInRoom');
+  const walkInReservation = DormReservations.setup(walkInForm.querySelector('[data-reservation]'));
+  const walkInList = document.getElementById('walkInAccounts');
+  let walkInRooms = [];
+  let walkInEditId;
+
+  async function loadWalkInAccounts() {
+    try {
+      const { data } = await ownerRequest('/owner-dashboard/api/walk-in-accounts');
+      walkInList.innerHTML = data.map(account => `<div class="flex flex-wrap items-center justify-between gap-2 py-2">
+        <div><p class="font-semibold">${esc(account.fullName)}</p><p class="text-xs text-slate-600">${esc(account.email)}</p></div>
+        ${account.walkInPasswordPending ? `<button type="button" data-walk-in-password="${Number(account.id)}" class="rounded-lg border px-3 py-1.5 text-xs font-semibold">Edit temporary password</button>` : '<span class="text-xs text-emerald-800">Account claimed</span>'}
+      </div>`).join('') || '<p class="py-2 text-slate-600">No walk-in accounts yet.</p>';
+    } catch (error) { walkInList.textContent = error.message; }
+  }
+
+  function updateWalkInRoom() {
+    const room = walkInRooms.find(item => String(item.id) === walkInRoom.value);
+    const reserving = walkInForm.elements.mode.value === 'reserve';
+    document.getElementById('walkInRentLabel').hidden = reserving;
+    walkInForm.elements.monthlyRent.disabled = reserving;
+    walkInForm.elements.monthlyRent.value = reserving ? '' : room?.rentalPrice ?? '';
+    walkInReservation.select(reserving && room ? `bh-${walkInBranch.value}` : '', reserving ? walkInRoom.value : '');
+  }
+
+  function updateWalkInBranch() {
+    walkInRoom.replaceChildren(new Option('Choose an available room', ''), ...walkInRooms
+      .filter(room => String(room.boardingHouseId) === walkInBranch.value)
+      .map(room => new Option([room.floor, roomLabel(room)].filter(Boolean).join(' · '), room.id)));
+    updateWalkInRoom();
+  }
+
+  function openWalkIn(editId) {
+    walkInEditId = editId;
+    walkInForm.reset();
+    walkInReservation.select('', '');
+    walkInError.textContent = '';
+    const details = document.getElementById('walkInAccountDetails');
+    details.hidden = details.disabled = Boolean(walkInEditId);
+    document.getElementById('walkInDialogTitle').textContent = walkInEditId ? 'Edit temporary password' : 'Create walk-in tenant account';
+    document.getElementById('saveWalkIn').textContent = walkInEditId ? 'Save password' : 'Create account';
+    walkInDialog.showModal();
+  }
+
+  walkInBranch.addEventListener('change', updateWalkInBranch);
+  walkInRoom.addEventListener('change', updateWalkInRoom);
+  walkInForm.elements.mode.addEventListener('change', updateWalkInRoom);
+  document.getElementById('closeWalkIn').onclick = () => walkInDialog.close();
+  document.getElementById('newWalkIn').onclick = async event => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      const { data } = await ownerRequest('/owner-dashboard/api/rooms');
+      walkInRooms = data.filter(room => room.branchApprovalStatus === 'approved' && room.boardingHouseId && room.status === 'available' && Number(room.availableSlots) > 0);
+      if (!walkInRooms.length) return ownerToast('Add an available room to an approved branch first.', true);
+      const branches = new Map(walkInRooms.map(room => [room.boardingHouseId, room.boardingHouseName]));
+      openWalkIn();
+      walkInBranch.replaceChildren(...Array.from(branches, ([id, name]) => new Option(name, id)));
+      if (branches.has(panelBranch('tenants'))) walkInBranch.value = String(panelBranch('tenants'));
+      updateWalkInBranch();
+    } catch (error) { ownerToast(error.message, true); }
+    finally { button.disabled = false; }
+  };
+  walkInList.addEventListener('click', event => {
+    const button = event.target.closest('[data-walk-in-password]');
+    if (button) openWalkIn(button.dataset.walkInPassword);
+  });
+  walkInForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = event.submitter;
+    if (button.disabled) return;
+    button.disabled = true;
+    walkInError.textContent = '';
+    const editId = walkInEditId;
+    const values = Object.fromEntries(new FormData(walkInForm));
+    try {
+      const { message } = await ownerRequest('/owner-dashboard/api/walk-in-accounts' + (editId ? `/${editId}/password` : ''), {
+        method: editId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...values, ...walkInReservation.values() })
+      });
+      walkInForm.elements.temporaryPassword.value = '';
+      walkInDialog.close();
+      ownerToast(message);
+      loadTenants();
+      if (!editId) { loadRooms(); loadOverview(); }
+    } catch (error) { walkInError.textContent = error.message; }
+    finally { button.disabled = false; }
   });
 
   function setTenantRoomOptions(selectedRoomId = '') {

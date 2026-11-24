@@ -2,6 +2,8 @@ import { storeReviewFile } from '../services/reviewFileService.js';
 import { createRegistrationInquiry, isTenantGender, notifyRegistrationInquiry, registrationApplicationDetails } from '../services/tenantApplicationService.js';
 import { passwordResetDelivery } from '../services/passwordResetMailService.js';
 import { validateOwnerSetup, validateOwnerPaymentSetup, registerPropertyInventory } from '../services/ownerRegistrationService.js';
+import { validWalkInPassword } from '../services/walkInTenantService.js';
+import { reservationRequested, reservationTransaction } from '../services/tenantReservationService.js';
 
       /*
     MIT License
@@ -337,7 +339,7 @@ export const handleResetPassword = async (req, res) => {
     if (!user) return fail(400, invalidResetLink);
     const hash = await bcrypt.hash(password, 10);
     const [updated] = await User.update({
-      password: hash, resetPasswordToken: null, resetPasswordExpires: null
+      password: hash, resetPasswordToken: null, resetPasswordExpires: null, walkInPasswordPending: false
     }, { where: { ...resetTokenWhere(token), id: user.id } });
     if (!updated) return fail(400, invalidResetLink);
     const redirect = '/login?passwordUpdated=1';
@@ -431,6 +433,44 @@ export const dashboardPage = async (req, res) => {
   });
 };
 
+async function startLoginSession(req, user) {
+  await new Promise((resolve, reject) => req.session.regenerate(error => error ? reject(error) : resolve()));
+  req.session.userId = user.id;
+  req.session.accountType = normalizeAccountType(user.accountType);
+  req.session.userName = user.fullName;
+  await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
+}
+
+const validWalkInClaim = req => req.session.walkInClaim?.expires > Date.now();
+
+export const walkInClaimPage = (req, res) => {
+  if (!validWalkInClaim(req)) return res.redirect('/login');
+  resetHeaders(res).render('walkInClaim', { title: 'Set your tenant password' });
+};
+
+export const claimWalkInAccount = async (req, res, next) => {
+  if (!validWalkInClaim(req)) return res.redirect('/login');
+  const claim = req.session.walkInClaim;
+  const renderError = error => resetHeaders(res).status(422).render('walkInClaim', { title: 'Set your tenant password', error });
+  const { password, confirmPassword } = req.body || {};
+  if (!validWalkInPassword(password)) return renderError('Use at least 8 characters and at most 72 bytes for your password.');
+  if (password !== confirmPassword) return renderError('The passwords do not match.');
+  try {
+    const user = await User.findOne({ where: { id: claim.id, accountType: 'tenant', walkInPasswordPending: true, isArchived: false, isSuspended: false } });
+    if (!user || resetTokenHash(user.password) !== claim.credential) {
+      delete req.session.walkInClaim;
+      return res.redirect('/login');
+    }
+    if (await bcrypt.compare(password, user.password)) return renderError('Choose a password that differs from the temporary password.');
+    const [updated] = await User.update({ password: await bcrypt.hash(password, 12), walkInPasswordPending: false,
+      resetPasswordToken: null, resetPasswordExpires: null }, { where: { id: user.id, password: user.password,
+      walkInPasswordPending: true, isArchived: false, isSuspended: false } });
+    if (!updated) return res.redirect('/login');
+    await startLoginSession(req, user);
+    res.redirect(303, '/tenant-dashboard');
+  } catch (error) { next(error); }
+};
+
 export const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -461,7 +501,7 @@ export const loginUser = async (req, res) => {
     }
 
     // 2. Check if account is suspended
-    if (user.isSuspended) {
+    if (user.isSuspended || user.isArchived) {
       return renderLoginPage(res, {
         authAccountType: requestedAccountType || normalizeAccountType(user.accountType),
         authError: "Your account has been suspended. Please contact BPLO administration.",
@@ -479,8 +519,15 @@ export const loginUser = async (req, res) => {
       });
     }
 
+    if (user.accountType === 'tenant' && user.walkInPasswordPending) {
+      await new Promise((resolve, reject) => req.session.regenerate(error => error ? reject(error) : resolve()));
+      req.session.walkInClaim = { id: user.id, credential: resetTokenHash(user.password), expires: Date.now() + 10 * 60 * 1000 };
+      await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
+      return res.redirect(303, '/claim-walk-in');
+    }
+
     // 4. Auto-verify email upon authentic login
-    if (!user.emailVerified) {
+    if (!user.emailVerified && !user.walkInOwnerId) {
       user.emailVerified = true;
       user.verificationToken = null;
       await user.save().catch(() => {});
@@ -488,11 +535,7 @@ export const loginUser = async (req, res) => {
 
     // Rotate the login session and persist it before redirecting to a dashboard.
     const actualRole = normalizeAccountType(user.accountType);
-    await new Promise((resolve, reject) => req.session.regenerate(error => error ? reject(error) : resolve()));
-    req.session.userId = user.id;
-    req.session.accountType = actualRole;
-    req.session.userName = user.fullName;
-    await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
+    await startLoginSession(req, user);
 
     // 6. Direct user to their respective dashboard
     if (actualRole === 'super_admin') return res.redirect('/admin');
@@ -630,7 +673,8 @@ export const registerUser = async (req, res) => {
     }
     const hashed = await bcrypt.hash(password, 10);
     const verificationToken = Math.random().toString(36).substring(2, 18);
-    const { user, inquiry } = await sequelize.transaction(async transaction => {
+    const options = isTenant && reservationRequested(req.body) ? reservationTransaction : {};
+    const { user, inquiry } = await sequelize.transaction(options, async transaction => {
       const details = isTenant ? await registrationApplicationDetails(req.body, transaction) : null;
       const created = await User.create({
         accountType: normalizedAccountType,
@@ -681,7 +725,7 @@ export const registerUser = async (req, res) => {
         }, { transaction });
         await registerPropertyInventory(created, setup, galleries, transaction);
       }
-      const registered = details && await createRegistrationInquiry(created, details, transaction);
+      const registered = isTenant && await createRegistrationInquiry(created, details, transaction, req.body);
       return { user: created, inquiry: registered?.created ? registered.application : null };
     });
 
@@ -708,7 +752,7 @@ export const registerUser = async (req, res) => {
     console.error("Register error:", error);
     return renderRegisterPage(res, {
       authAccountType: req.body.accountType || "boarding_house_owner",
-      authError: error.status === 422 ? error.message : "Registration failed. Please check your inputs and try again.",
+      authError: [404, 409, 422].includes(error.status) ? error.message : "Registration failed. Please check your inputs and try again.",
       authValues: req.body,
     });
   }
