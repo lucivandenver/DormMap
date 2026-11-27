@@ -1,3 +1,4 @@
+import { approvedBarangayOfficials, requestTargetNames } from '../services/dataRequestTargets.js';
 import { activityPage } from '../services/logPagination.js';
 import { auditBarangays } from '../services/auditBarangays.js';
 import { nextPeriod, periodStart, reportDay } from '../services/reportCalendar.js';
@@ -132,6 +133,14 @@ export const registrationAnalytics = async (req, res, next) => {
 // DATA REQUESTS CONTROLLERS (BPLO TO BARANGAY)
 // ==========================================
 
+export const listDataRequestTargets = async (req, res, next) => {
+  try {
+    const officials = await approvedBarangayOfficials();
+    const data = [...new Set(officials.map(official => official.barangay).filter(Boolean))];
+    res.json({ data });
+  } catch (error) { next(error); }
+};
+
 export const listDataRequests = async (req, res, next) => {
   try {
     const where = {};
@@ -150,19 +159,11 @@ export const listDataRequests = async (req, res, next) => {
       order: [['createdAt', 'DESC']]
     });
 
-    // Compute progress stats for each request
-    const totalBarangaysCount = await Barangay.count({ where: { isActive: true } });
+    const legacyTargets = requests.some(request => request.targetType === 'all_barangays' && !request.targetBarangays)
+      ? [...new Set((await approvedBarangayOfficials()).map(official => official.barangay).filter(Boolean))] : [];
     const requestsWithStats = await Promise.all(requests.map(async (r) => {
       const plain = r.get({ plain: true });
-      let targetCount = totalBarangaysCount;
-      let targetList = [];
-      try {
-        if (plain.targetType === 'selected_barangays' && plain.targetBarangays) {
-          targetList = JSON.parse(plain.targetBarangays);
-          targetCount = targetList.length;
-        }
-      } catch (e) {}
-
+      const targetCount = requestTargetNames(plain, legacyTargets).length;
       const submissions = await BploDataSubmission.findAll({
         where: { requestId: r.id },
         attributes: ['barangay', 'status', 'createdAt']
@@ -201,18 +202,25 @@ export const createDataRequest = async (req, res, next) => {
       return res.status(422).json({ error: 'Title, purpose, and deadline are required.' });
     }
 
-    let parsedTargets = null;
-    if (targetType === 'selected_barangays') {
-      if (Array.isArray(targetBarangays)) {
-        parsedTargets = JSON.stringify(targetBarangays);
-      } else if (typeof targetBarangays === 'string') {
-        try {
-          parsedTargets = JSON.stringify(JSON.parse(targetBarangays));
-        } catch {
-          parsedTargets = JSON.stringify([targetBarangays]);
-        }
-      }
+    const type = targetType || 'all_barangays';
+    if (!['all_barangays', 'selected_barangays'].includes(type)) {
+      return res.status(422).json({ error: 'Choose a valid target group.' });
     }
+    const officials = await approvedBarangayOfficials();
+    const eligible = new Set(officials.map(official => official.barangay).filter(Boolean));
+    let targets = [...eligible];
+    if (type === 'selected_barangays') {
+      let selection = targetBarangays;
+      if (typeof selection === 'string') {
+        try { selection = JSON.parse(selection); } catch { selection = [selection]; }
+      }
+      if (!Array.isArray(selection) || selection.some(name => !eligible.has(name))) {
+        return res.status(422).json({ error: 'Choose only barangays with an approved, active official account.' });
+      }
+      targets = [...new Set(selection)];
+    }
+    if (!targets.length) return res.status(422).json({ error: 'Choose at least one approved barangay.' });
+    const targetNames = new Set(targets);
 
     const requestRecord = await BploDataRequest.create({
       title: title.trim(),
@@ -222,8 +230,8 @@ export const createDataRequest = async (req, res, next) => {
       periodDetails: periodDetails || null,
       submissionDeadline,
       priority: priority || 'normal',
-      targetType: targetType || 'all_barangays',
-      targetBarangays: parsedTargets,
+      targetType: type,
+      targetBarangays: JSON.stringify(targets),
       requiredFormat: requiredFormat || 'PDF, XLSX, CSV',
       instructions: instructions ? instructions.trim() : null,
       status: 'active',
@@ -232,23 +240,7 @@ export const createDataRequest = async (req, res, next) => {
 
     // Notify targeted Barangay Officials
     try {
-      let targetBarangayNames = [];
-      if (targetType === 'selected_barangays' && parsedTargets) {
-        targetBarangayNames = JSON.parse(parsedTargets);
-      } else {
-        const allBrgys = await Barangay.findAll({ where: { isActive: true }, attributes: ['name'] });
-        targetBarangayNames = allBrgys.map(b => b.name);
-      }
-
-      const barangayUsers = await User.findAll({
-        where: {
-          accountType: 'barangay',
-          barangay: { [Op.in]: targetBarangayNames },
-          isArchived: false,
-        },
-        attributes: ['id', 'barangay', 'fullName']
-      });
-
+      const barangayUsers = officials.filter(official => targetNames.has(official.barangay));
       const priorityLabel = priority === 'urgent' ? '[URGENT] ' : (priority === 'high' ? '[HIGH PRIORITY] ' : '');
       for (const u of barangayUsers) {
         await BarangayNotification.create({
@@ -262,7 +254,7 @@ export const createDataRequest = async (req, res, next) => {
       console.error('Error sending request notifications:', notifErr);
     }
 
-    await audit(req, 'create_data_request', 'BploDataRequest', requestRecord.id, { title, priority, targetType });
+    await audit(req, 'create_data_request', 'BploDataRequest', requestRecord.id, { title, priority, targetType: type });
     res.status(201).json({ message: 'Data request created and broadcasted to barangays.', data: requestRecord });
   } catch (error) { next(error); }
 };
@@ -272,13 +264,9 @@ export const getDataRequestDetails = async (req, res, next) => {
     const record = await BploDataRequest.findByPk(req.params.id);
     if (!record) return res.status(404).json({ error: 'Data request not found.' });
 
-    const allBarangays = await Barangay.findAll({ where: { isActive: true }, order: [['name', 'ASC']] });
-    let targeted = allBarangays.map(b => b.name);
-    try {
-      if (record.targetType === 'selected_barangays' && record.targetBarangays) {
-        targeted = JSON.parse(record.targetBarangays);
-      }
-    } catch {}
+    const officials = await approvedBarangayOfficials();
+    const byBarangay = new Map(officials.filter(official => official.barangay).map(official => [official.barangay, official]));
+    const targeted = requestTargetNames(record, [...byBarangay.keys()]);
 
     const submissions = await BploDataSubmission.findAll({
       where: { requestId: record.id },
@@ -286,23 +274,17 @@ export const getDataRequestDetails = async (req, res, next) => {
     });
 
     // Build complete compliance matrix
-    const matrix = allBarangays.map(b => {
-      const isTargeted = targeted.includes(b.name);
-      const sub = submissions.find(s => s.barangay === b.name);
+    const matrix = targeted.map(name => {
+      const official = byBarangay.get(name);
+      const sub = submissions.find(s => s.barangay === name);
       const isOverdue = !sub && new Date(record.submissionDeadline) < new Date() && record.status === 'active';
 
-      let status = 'not_applicable';
-      if (isTargeted) {
-        if (!sub) status = isOverdue ? 'overdue' : 'pending';
-        else status = sub.status;
-      }
-
       return {
-        barangay: b.name,
-        officialName: b.officialName,
-        officialEmail: b.officialEmail,
-        isTargeted,
-        status,
+        barangay: name,
+        officialName: official?.fullName || null,
+        officialEmail: official?.email || null,
+        isTargeted: true,
+        status: sub?.status || (isOverdue ? 'overdue' : 'pending'),
         submission: sub ? sub.get({ plain: true }) : null,
       };
     });
@@ -341,13 +323,8 @@ export const sendDataRequestReminder = async (req, res, next) => {
     const record = await BploDataRequest.findByPk(req.params.id);
     if (!record) return res.status(404).json({ error: 'Data request not found.' });
 
-    let targeted = [];
-    if (record.targetType === 'selected_barangays' && record.targetBarangays) {
-      try { targeted = JSON.parse(record.targetBarangays); } catch {}
-    } else {
-      const allB = await Barangay.findAll({ where: { isActive: true }, attributes: ['name'] });
-      targeted = allB.map(b => b.name);
-    }
+    const officials = await approvedBarangayOfficials();
+    const targeted = requestTargetNames(record, officials.map(official => official.barangay).filter(Boolean));
 
     const existingSubmissions = await BploDataSubmission.findAll({
       where: { requestId: record.id, status: { [Op.in]: ['submitted', 'under_review', 'approved'] } },
@@ -356,13 +333,7 @@ export const sendDataRequestReminder = async (req, res, next) => {
     const submittedBarangays = new Set(existingSubmissions.map(s => s.barangay));
     const pendingBarangays = targeted.filter(b => !submittedBarangays.has(b));
 
-    const pendingOfficials = await User.findAll({
-      where: {
-        accountType: 'barangay',
-        barangay: { [Op.in]: pendingBarangays },
-        isArchived: false,
-      }
-    });
+    const pendingOfficials = officials.filter(official => pendingBarangays.includes(official.barangay));
 
     for (const u of pendingOfficials) {
       await BarangayNotification.create({
@@ -485,21 +456,18 @@ export const reviewSubmission = async (req, res, next) => {
 
 export const getComplianceMatrix = async (req, res, next) => {
   try {
-    const barangays = await Barangay.findAll({ where: { isActive: true }, order: [['name', 'ASC']] });
+    const officials = await approvedBarangayOfficials();
     const activeRequests = await BploDataRequest.findAll({ where: { status: 'active' }, order: [['submissionDeadline', 'ASC']] });
     const allSubmissions = await BploDataSubmission.findAll({ order: [['createdAt', 'DESC']] });
 
-    const matrix = barangays.map(b => {
-      const submissions = allSubmissions.filter(s => s.barangay === b.name);
+    const byBarangay = new Map(officials.filter(official => official.barangay).map(official => [official.barangay, official]));
+    const approvedNames = [...byBarangay.keys()];
+    const names = [...new Set([...approvedNames, ...activeRequests.flatMap(request => requestTargetNames(request, approvedNames))])].sort();
+    const matrix = names.map(barangay => {
+      const official = byBarangay.get(barangay);
+      const submissions = allSubmissions.filter(s => s.barangay === barangay);
       const requestStatuses = activeRequests.map(r => {
-        let isTarget = true;
-        try {
-          if (r.targetType === 'selected_barangays' && r.targetBarangays) {
-            isTarget = JSON.parse(r.targetBarangays).includes(b.name);
-          }
-        } catch {}
-
-        if (!isTarget) return { requestId: r.id, title: r.title, status: 'n/a' };
+        if (!requestTargetNames(r, approvedNames).includes(barangay)) return { requestId: r.id, title: r.title, status: 'n/a' };
 
         const sub = submissions.find(s => s.requestId === r.id);
         const isOverdue = !sub && new Date(r.submissionDeadline) < new Date();
@@ -517,9 +485,9 @@ export const getComplianceMatrix = async (req, res, next) => {
       const totalOverdue = requestStatuses.filter(r => r.status === 'overdue').length;
 
       return {
-        barangay: b.name,
-        officialName: b.officialName,
-        officialEmail: b.officialEmail,
+        barangay,
+        officialName: official?.fullName || null,
+        officialEmail: official?.email || null,
         requestStatuses,
         totalSubmissions: submissions.length,
         totalApproved,
@@ -1195,7 +1163,7 @@ export const adminMapData = async (req, res, next) => {
 
 export const listBarangayAccounts = async (req, res, next) => {
   try {
-    const where = { accountType: 'barangay', isArchived: false };
+    const where = { accountType: 'barangay', isArchived: req.query.archived === 'true' };
     if (req.query.status) where.applicationStatus = req.query.status;
     const users = await User.findAll({ where, attributes: ['id', 'fullName', 'email', 'barangay', 'positionTitle', 'contactNumber', 'applicationStatus', 'applicationReviewNote', 'validIdPicture', 'barangayClearance', 'supportingDocuments', 'isSuspended', 'createdAt'], order: [['createdAt', 'DESC']] });
     res.json({ data: users });
@@ -1271,6 +1239,32 @@ export const reviewBarangayAccount = async (req, res, next) => {
     await user.update({ applicationStatus: status, applicationReviewedAt: new Date(), applicationReviewNote: note || null, isSuspended: req.body.action === 'suspend' });
     await audit(req, `barangay_account_${req.body.action}`, 'User', user.id, { barangay: user.barangay, note });
     res.json({ message: `Barangay account ${status}.` });
+  } catch (error) { next(error); }
+};
+
+export const archiveBarangayAccount = async (req, res, next) => {
+  try {
+    const { action } = req.body;
+    if (!['archive', 'restore'].includes(action)) return res.status(422).json({ error: 'Choose Archive or Restore.' });
+    const archived = action === 'archive';
+    const result = await User.sequelize.transaction(async transaction => {
+      const user = await User.findOne({
+        where: { id: req.params.id, accountType: 'barangay' }, transaction, lock: transaction.LOCK.UPDATE
+      });
+      if (!user) return { status: 404, error: 'Barangay account not found.' };
+      if (user.isArchived === archived) return {};
+      if (!archived && user.barangay && await User.findOne({
+        where: { accountType: 'barangay', barangay: user.barangay, isArchived: false }, transaction, lock: transaction.LOCK.UPDATE
+      })) return { status: 409, error: 'An official account already exists for this barangay.' };
+      await user.update({ isArchived: archived }, { transaction });
+      await AdminAuditLog.create({
+        actorId: req.session.userId, action: 'barangay_account_' + action, entityType: 'User',
+        entityId: user.id, details: { barangay: user.barangay }, ipAddress: req.ip
+      }, { transaction });
+      return {};
+    });
+    if (result.error) return res.status(result.status).json({ error: result.error });
+    res.json({ message: archived ? 'Barangay account archived.' : 'Barangay account restored.' });
   } catch (error) { next(error); }
 };
 

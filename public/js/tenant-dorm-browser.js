@@ -88,7 +88,7 @@
           <p class="text-emerald-800 font-bold text-xs">${escapeHtml(rate(item))}<br><span class="font-normal">${escapeHtml(item.pricingLabel || 'Confirm price basis')}</span></p>
           <p class="text-xs text-slate-500">${escapeHtml(item.ownerName)} · ${escapeHtml(item.barangay)}</p>
           <p class="text-xs text-slate-600">${escapeHtml(item.propertyType)} · ${item.floorCount || 'Unspecified'} floors · ${Number(item.availableBeds || 0)} bedspaces available</p>
-          ${window.DormRoomDetails?.render(item.roomInventory) || ''}
+          ${window.DormRoomDetails?.render(item.roomInventory, item) || ''}
           ${application ? `<p class="text-xs font-semibold text-emerald-800">Application: ${escapeHtml(item.application.status.replace(/_/g, ' '))}</p>` : ''}
           <div class="flex gap-2 flex-wrap">
             <button type="button" data-action="save" aria-pressed="${item.isSaved}" ${saving.has(item.id) ? 'disabled' : ''} class="px-3 py-2 rounded-xl border border-emerald-800 text-emerald-900 text-xs font-bold">${saving.has(item.id) ? 'Saving…' : item.isSaved ? '♥ Saved' : '♡ Save dorm'}</button>

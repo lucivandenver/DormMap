@@ -19,8 +19,8 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
   const { sequelize } = await import('../../models/db.js');
   const { migrateSchema, closeDatabase } = await import('../../services/schemaService.js');
   const { User } = await import('../../models/userModel.js');
-  const { BoardingHouse, OwnerRoom, OwnerTenant, OwnerGallery, OwnerInquiry } = await import('../../models/ownerModels.js');
-  const { Barangay, EducationalInstitution, BarangayNotification } = await import('../../models/adminModels.js');
+  const { BoardingHouse, BoardingHouseReview, RoomReview, OwnerRoom, OwnerTenant, OwnerGallery, OwnerInquiry } = await import('../../models/ownerModels.js');
+  const { Barangay, BploDataRequest, EducationalInstitution, BarangayNotification } = await import('../../models/adminModels.js');
   const { TenantApplication } = await import('../../models/tenantModels.js');
   const { OwnerPayment } = await import('../../models/ownerModels.js');
   const { Payment, PaymentReceipt, PaymentWebhook, PaymentAuditLog } = await import('../../models/paymentModels.js');
@@ -260,6 +260,31 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.equal((await request(`/admin/api/barangay-accounts/${official.id}/review`, adminCookie, body)).status, 200);
       assert.equal((await request('/barangay-dashboard', officialCookie)).status, 200);
       assert.ok((await (await request('/api/eligible-barangays')).json()).includes('Review Barangay'));
+      const eligibleTargets = async () => (await (await request('/admin/api/data-request-targets', adminCookie)).json()).data;
+      assert.ok((await eligibleTargets()).includes('Review Barangay'));
+      assert.ok(!(await eligibleTargets()).includes(`Review Barangay ${suffix}`));
+      const dataRequestBody = { title: 'Approved audience test', purpose: 'Request test', submissionDeadline: '2027-12-01' };
+      const submitRequest = values => request('/admin/api/data-requests', adminCookie, {
+        method: 'POST', headers: body.headers, body: JSON.stringify({ ...dataRequestBody, ...values })
+      });
+      const targetOnly = { targetType: 'selected_barangays' };
+      assert.equal((await submitRequest({ ...targetOnly, targetBarangays: [] })).status, 422);
+      assert.equal((await submitRequest({ ...targetOnly, targetBarangays: [`Review Barangay ${suffix}`] })).status, 422);
+      const sent = await submitRequest({ targetType: 'all_barangays' });
+      assert.equal(sent.status, 201, await sent.clone().text());
+      const dataRequest = (await sent.json()).data;
+      assert.ok(JSON.parse(dataRequest.targetBarangays).includes('Review Barangay'));
+      const received = await (await request('/barangay-dashboard/api/data-requests', officialCookie)).json();
+      assert.ok(received.data.some(item => item.id === dataRequest.id));
+      const archiveUrl = `/admin/api/barangay-accounts/${official.id}/archive`;
+      const changeArchive = action => request(archiveUrl, adminCookie, { ...body, body: JSON.stringify({ action }) });
+      assert.equal((await changeArchive('archive')).status, 200);
+      assert.equal((await request('/barangay-dashboard/api/overview', officialCookie)).status, 403);
+      assert.ok(!(await eligibleTargets()).includes('Review Barangay'));
+      const archived = await (await request('/admin/api/barangay-accounts?archived=true', adminCookie)).json();
+      assert.ok(archived.data.some(account => account.id === official.id));
+      assert.equal((await changeArchive('restore')).status, 200);
+      assert.ok((await eligibleTargets()).includes('Review Barangay'));
       const suspended = { ...body, body: JSON.stringify({ action: 'suspend', note: 'Review test' }) };
       assert.equal((await request(`/admin/api/barangay-accounts/${official.id}/review`, adminCookie, suspended)).status, 200);
       assert.equal((await request('/barangay-dashboard/api/overview', officialCookie)).status, 403);
@@ -1337,6 +1362,24 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.equal((await bedspace.reload()).reservationSlots, 0);
       assert.equal(bedspace.availableSlots, 1);
 
+      const ratingUrl = '/tenant-dashboard/api/boarding-house-rating';
+      const reviewPayload = { rating: 5, comment: 'Quiet room with good light', roomId: bedspace.id };
+      assert.equal((await request(ratingUrl, cookie, post(reviewPayload))).status, 403);
+      assert.equal((await request(ratingUrl, applicantCookie, post({ ...reviewPayload, roomId: otherRoom.id }))).status, 409);
+      const savedReview = await request(ratingUrl, applicantCookie, post(reviewPayload));
+      assert.equal(savedReview.status, 200, await savedReview.clone().text());
+      assert.equal((await savedReview.json()).ratingCount, 1);
+      const publicReviews = `/api/boarding-houses/bh-${property.id}/rooms/${bedspace.id}/reviews`;
+      assert.equal((await request(ratingUrl, applicantCookie, post({ ...reviewPayload, rating: 4 }))).status, 200);
+      const reviews = (await (await request(publicReviews)).json()).data;
+      assert.deepEqual(reviews.map(({ rating, comment }) => ({ rating, comment })), [{ rating: 4, comment: reviewPayload.comment }]);
+      assert.equal(reviews[0].tenantUserId, undefined);
+      assert.equal((await request(publicReviews.replace(`bh-${property.id}`, `bh-${house.id}`))).status, 404);
+      const ratedListing = (await (await request('/api/boarding-houses')).json()).find(item => item.id === `bh-${property.id}`);
+      assert.equal(ratedListing.ratingAverage, 4);
+      assert.equal(ratedListing.roomInventory.find(item => item.id === bedspace.id).ratingAverage, 4);
+      assert.equal(ratedListing.roomInventory.find(item => item.id === otherRoom.id).ratingCount, 0);
+
       const stay = await OwnerTenant.findOne({ where: { tenantUserId: applicant.id, status: 'active' } });
       const billResponse = await request('/owner-dashboard/api/payments', ownerCookie,
         post({ tenantId: stay.id, boardingHouseId: property.id, amount: '1000', dueDate: '2026-01-15', month: '2026-01' }));
@@ -1470,6 +1513,9 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       await OwnerTenant.destroy({ where: { ownerId: { [Op.in]: ids } } });
       await Barangay.destroy({ where: { name: { [Op.like]: 'Review Barangay %' } } });
       await EducationalInstitution.destroy({ where: { name: { [Op.like]: 'Review School %' } } });
+      await RoomReview.destroy({ where: { tenantUserId: { [Op.in]: ids } } });
+      await BoardingHouseReview.destroy({ where: { tenantUserId: { [Op.in]: ids } } });
+      await BploDataRequest.destroy({ where: { createdBy: { [Op.in]: ids } } });
       await OwnerRoom.destroy({ where: { ownerId: { [Op.in]: ids } } });
       await OwnerGallery.destroy({ where: { ownerId: { [Op.in]: ids } } });
       await BoardingHouse.destroy({ where: { ownerId: { [Op.in]: ids } } });

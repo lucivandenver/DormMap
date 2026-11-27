@@ -1,3 +1,4 @@
+import { isRequestTargeted } from '../services/dataRequestTargets.js';
 import { activityPage } from '../services/logPagination.js';
 import { storeReviewFile } from '../services/reviewFileService.js';
 import { tenantBranchAssignments } from '../services/propertyBranchesService.js';
@@ -58,12 +59,7 @@ export const overview = async (req, res, next) => {
 
     // Fetch active BPLO data requests count for this barangay
     const allActiveRequests = await BploDataRequest.findAll({ where: { status: 'active' } });
-    const targetRequests = allActiveRequests.filter(r => {
-      if (r.targetType === 'all_barangays') return true;
-      try {
-        return JSON.parse(r.targetBarangays || '[]').includes(barangay);
-      } catch { return false; }
-    });
+    const targetRequests = allActiveRequests.filter(request => isRequestTargeted(request, barangay));
 
     const mySubmissions = await BploDataSubmission.findAll({ where: { barangay } });
     const submittedReqIds = new Set(mySubmissions.map(s => s.requestId));
@@ -156,13 +152,7 @@ export const getBarangayDataRequests = async (req, res, next) => {
       order: [['createdAt', 'DESC']]
     });
 
-    const applicableRequests = allRequests.filter(r => {
-      if (r.targetType === 'all_barangays') return true;
-      try {
-        const targets = JSON.parse(r.targetBarangays || '[]');
-        return targets.includes(barangay);
-      } catch { return false; }
-    }).map(r => {
+    const applicableRequests = allRequests.filter(request => isRequestTargeted(request, barangay)).map(r => {
       const plain = r.get({ plain: true });
       const sub = submissions.find(s => s.requestId === r.id);
       const today = new Date();
@@ -201,6 +191,19 @@ export const submitBarangayData = async (req, res, next) => {
     if (!title || !title.trim()) {
       return res.status(422).json({ error: 'Submission title is required.' });
     }
+
+    const rawReqId = requestId ? Number(requestId) : null;
+    if (rawReqId !== null) {
+      if (!Number.isSafeInteger(rawReqId) || rawReqId < 1) return res.status(422).json({ error: 'Invalid data request.' });
+      const dataRequest = await BploDataRequest.findOne({ where: { id: rawReqId, status: 'active' } });
+      if (!dataRequest || !isRequestTargeted(dataRequest, barangay)) {
+        return res.status(404).json({ error: 'This data request is unavailable for your barangay.' });
+      }
+    }
+    const previous = previousSubmissionId && await BploDataSubmission.findOne({
+      where: { id: previousSubmissionId, barangay, requestId: rawReqId }
+    });
+    if (previousSubmissionId && !previous) return res.status(404).json({ error: 'Previous submission not found.' });
 
     // Auto-calculate summary data for this barangay
     const ownerFilter = ownersWhere(barangay);
@@ -286,15 +289,10 @@ export const submitBarangayData = async (req, res, next) => {
 
     // Versioning and Request ID sanitization
     let version = 1;
-    const rawReqId = requestId && !isNaN(Number(requestId)) && Number(requestId) > 0 ? Number(requestId) : null;
-    const rawPrevId = previousSubmissionId && !isNaN(Number(previousSubmissionId)) && Number(previousSubmissionId) > 0 ? Number(previousSubmissionId) : null;
-    let prevId = rawPrevId;
+    let prevId = previous?.id || null;
 
-    if (prevId) {
-      const prev = await BploDataSubmission.findByPk(prevId);
-      if (prev) {
-        version = (prev.version || 1) + 1;
-      }
+    if (previous) {
+      version = (previous.version || 1) + 1;
     } else if (rawReqId) {
       const prevReqSub = await BploDataSubmission.findOne({
         where: { requestId: rawReqId, barangay },

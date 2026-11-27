@@ -9,3 +9,9 @@ table td button{min-height:36px;padding:.35rem .5rem;border-radius:.45rem}table 
 }
 .portal-feedback-popup[role="alert"] { color: #9f1239; border-color: #fecdd3; }
 .portal-feedback-announcement { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+.portal-confirm-dialog { position: fixed; inset: 0; margin: auto; width: min(28rem, calc(100vw - 2rem)); border: 0; border-radius: 1rem; padding: 1.25rem; background: white; color: #0f172a; }
+.portal-confirm-dialog::backdrop { background: #0f172a99; }
+.portal-confirm-dialog form { display: flex; justify-content: center; gap: .65rem; margin-top: 1rem; }
+.portal-confirm-dialog button { border: 1px solid #cbd5e1; border-radius: .5rem; padding: .35rem .8rem; }
+.portal-confirm-dialog button[value="continue"] { background: #047857; color: white; }

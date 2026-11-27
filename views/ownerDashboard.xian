@@ -265,7 +265,7 @@
   <!-- Main Content Wrapper -->
   <main class="px-3 pb-8 pt-20 lg:ml-64 lg:px-5">
     <div id="portalFeedback" class="hidden" role="status"></div>
-    <script src="/js/portal-feedback.js?v=2"></script>
+    <script src="/js/portal-feedback.js?v=3"></script>
     <script src="/js/document-preview.js"></script>
     <div class="mx-auto max-w-7xl">
       <!-- Title Header -->

@@ -1,3 +1,5 @@
+import { BoardingHouse, OwnerRoom, RoomReview } from '../models/ownerModels.js';
+import { approvedOwnerWhere } from '../services/dormListingService.js';
 
     /*
     MIT License
@@ -106,3 +108,28 @@ export const institutionsApi = async (req, res) => {
     res.status(500).json({ error: "Unable to load institutions" });
   }
 };
+
+export async function publicRoomReviews(req, res, next) {
+  try {
+    const listing = /^(bh|owner)-([1-9]\d*)$/.exec(req.params.listing);
+    const roomId = Number(req.params.roomId);
+    if (!listing || !Number.isSafeInteger(roomId) || roomId < 1) return res.sendStatus(404);
+    const room = await OwnerRoom.findByPk(roomId, { attributes: ['id', 'ownerId', 'boardingHouseId'] });
+    if (!room) return res.sendStatus(404);
+    const owner = await User.findOne({ where: { id: room.ownerId, ...approvedOwnerWhere }, attributes: ['id'] });
+    if (!owner) return res.sendStatus(404);
+    const house = listing[1] === 'bh'
+      ? await BoardingHouse.findOne({ where: { id: Number(listing[2]), ownerId: owner.id, approvalStatus: 'approved' } })
+      : null;
+    const visible = listing[1] === 'bh'
+      ? house && (room.boardingHouseId === house.id || (!room.boardingHouseId && house.isPrimary))
+      : Number(listing[2]) === owner.id && !await BoardingHouse.count({ where: { ownerId: owner.id } });
+    if (!visible) return res.sendStatus(404);
+    const page = Math.max(1, Math.min(10000, Number.parseInt(req.query.page, 10) || 1));
+    const { rows, count } = await RoomReview.findAndCountAll({
+      where: { roomId, comment: { [Op.ne]: null } }, attributes: ['rating', 'comment', 'updatedAt'],
+      order: [['updatedAt', 'DESC'], ['id', 'DESC']], limit: 5, offset: (page - 1) * 5
+    });
+    res.json({ data: rows, page, pages: Math.max(1, Math.ceil(count / 5)) });
+  } catch (error) { next(error); }
+}

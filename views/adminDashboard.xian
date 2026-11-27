@@ -151,7 +151,7 @@
   <!-- Main Content Area -->
   <main class="px-4 pb-12 pt-20 lg:ml-64 lg:px-8">
     <div id="portalFeedback" class="hidden" role="status"></div>
-    <script src="/js/portal-feedback.js?v=2"></script>
+    <script src="/js/portal-feedback.js?v=3"></script>
     <script src="/js/document-preview.js"></script>
     <div class="mx-auto max-w-7xl">
       <!-- Section Header -->
@@ -480,19 +480,9 @@
       <!-- VIEW 6: BARANGAYS -->
       <section data-view="barangays" class="hidden space-y-6">
         <div class="rounded-2xl border border-emerald-100 bg-white p-5 space-y-4">
-          <div class="flex flex-wrap justify-between gap-3"><div><h2 class="text-lg font-bold">Barangay accounts</h2><p class="text-sm text-slate-500">Review officials before they access their dashboard or receive owner applications.</p></div><div class="flex flex-wrap gap-2"><button class="button" onclick="openRecordForm('barangay-accounts')">Create Barangay Account</button><button class="button secondary" onclick="loadBarangayAccounts()">Refresh accounts</button></div></div>
-          <div class="table-wrap"><table><thead><tr><th>Official</th><th>Barangay / Position</th><th>Status / Note</th><th>Review</th></tr></thead><tbody id="barangayAccountsTable" data-paginate></tbody></table></div>
-        </div>
-        <div class="toolbar bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
-          <input id="barangaysSearch" class="field" placeholder="Search barangay">
-          <button class="button flex items-center gap-1.5" onclick="openRecordForm('barangays')"><svg class="icon-bw-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add Barangay Map Record</button>
-          <button class="button secondary flex items-center gap-1.5" onclick="loadCollection('barangays')">Refresh</button>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Barangay</th><th>Assigned Official</th><th>Official Email</th><th>Status</th><th>Action</th></tr></thead>
-            <tbody id="barangaysTable" data-paginate></tbody>
-          </table>
+          <div class="flex flex-wrap justify-between gap-3"><div><h2 class="text-lg font-bold">Barangay accounts</h2><p class="text-sm text-slate-500">Review officials before they access their dashboard or receive owner applications.</p></div><div class="flex flex-wrap gap-2"><button class="button" onclick="openRecordForm('barangay-accounts')">Create Barangay</button><button class="button secondary" onclick="loadBarangayAccounts()">Refresh accounts</button></div></div>
+          <label class="inline-flex items-center gap-2 text-sm"><input id="showArchivedBarangays" type="checkbox"> View archived accounts</label>
+          <div class="table-wrap"><table><thead><tr><th>Official</th><th>Barangay / Position</th><th>Status / Note</th><th>Review</th><th>Actions</th></tr></thead><tbody id="barangayAccountsTable" data-paginate></tbody></table></div>
         </div>
       </section>
 
@@ -674,9 +664,10 @@
       <div>
         <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Target Barangays</label>
         <select name="targetType" id="dataReqTargetType" class="field" onchange="toggleBarangaySelection(this.value)">
-          <option value="all_barangays">All 28 Barangays</option>
+          <option value="all_barangays">All approved barangays</option>
           <option value="selected_barangays">Selected Barangays Only</option>
         </select>
+        <p id="dataRequestTargetStatus" class="mt-2 text-sm text-slate-600" role="status"></p>
         <div id="selectedBarangaysBox" class="hidden mt-2 p-3 border rounded-xl bg-slate-50 max-h-36 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-2"></div>
       </div>
       <div>
@@ -755,6 +746,13 @@
 </div>
 
 <!-- GENERIC CRUD MODAL -->
+<dialog id="ownerDocumentDialog" aria-labelledby="ownerDocumentTitle" class="m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl backdrop:bg-slate-950/60 sm:p-6">
+  <div class="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
+    <div><h2 id="ownerDocumentTitle" class="text-lg font-bold">Review documents</h2><p id="ownerDocumentProperty" class="text-sm text-slate-600"></p></div>
+    <form method="dialog"><button type="submit" class="button secondary" autofocus>Close</button></form>
+  </div>
+  <div id="ownerDocumentFiles" class="mt-4 grid gap-4 sm:grid-cols-2"></div>
+</dialog>
 <div id="modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/50 p-4"><div class="w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl bg-white p-6 shadow-2xl"><div class="flex items-center justify-between"><h2 id="modalTitle" class="text-lg font-bold"></h2><button onclick="closeModal('modal')">✕</button></div><form id="recordForm" class="mt-5 space-y-3"></form></div></div>
 
 <!-- TOAST -->
@@ -972,7 +970,7 @@ function setPanel(panel) {
   if (panel === 'owners') loadOwners();
   if (panel === 'featured') loadFeaturedListings();
   if (panel === 'renewals') loadPermitRenewals();
-  if (['barangays', 'institutions', 'permits'].includes(panel)) loadCollection(panel);
+  if (['institutions', 'permits'].includes(panel)) loadCollection(panel);
   if (panel === 'barangays') loadBarangayAccounts();
   if (panel === 'settings') loadSettings();
   if (panel === 'maintenance') loadMaintenance();
@@ -1498,7 +1496,6 @@ function inspectHouse(id) {
 }
 
 // 2. DATA REQUESTS HUB
-let cachedBarangays = [];
 async function loadDataRequests() {
   try {
     const q = new URLSearchParams({
@@ -1534,7 +1531,7 @@ async function loadDataRequests() {
         </div>
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-100 text-xs">
           <div class="flex items-center gap-4 text-slate-500">
-            <span>Target: <b>${r.targetType === 'all_barangays' ? 'All 28 Barangays' : `${r.targetCount} Selected`}</b></span>
+            <span>Target: <b>${r.targetType === 'all_barangays' ? `${r.targetCount} barangays` : `${r.targetCount} selected`}</b></span>
             <span>Submissions: <b class="text-emerald-700">${r.submittedCount} / ${r.targetCount}</b></span>
             <span>Approved: <b class="text-emerald-700">${r.approvedCount}</b></span>
             <span>Pending: <b class="text-amber-700">${r.pendingCount}</b></span>
@@ -1551,16 +1548,22 @@ async function loadDataRequests() {
 }
 
 async function openCreateDataRequestModal() {
-  const allB = await request(api + '/barangays');
-  cachedBarangays = allB.data || [];
-  const box = document.getElementById('selectedBarangaysBox');
-  box.innerHTML = cachedBarangays.map(b => `
-    <label class="flex items-center gap-1.5 text-xs text-slate-700">
-      <input type="checkbox" name="selectedBarangayCheckbox" value="${esc(b.name)}" checked>
-      ${esc(b.name)}
-    </label>
-  `).join('');
-  openModal('createDataRequestModal');
+  try {
+    const { data } = await request(api + '/data-request-targets');
+    const box = document.getElementById('selectedBarangaysBox');
+    box.innerHTML = data.map(name => `
+      <label class="flex items-center gap-1.5 text-xs text-slate-700">
+        <input type="checkbox" name="selectedBarangayCheckbox" value="${esc(name)}">
+        ${esc(name)}
+      </label>
+    `).join('');
+    const select = document.getElementById('dataReqTargetType');
+    select.options[0].textContent = `All approved barangays (${data.length})`;
+    document.getElementById('dataRequestTargetStatus').textContent = data.length ? '' : 'No approved barangay accounts are available.';
+    document.querySelector('#createDataRequestForm button[type="submit"]').disabled = data.length === 0;
+    toggleBarangaySelection(select.value);
+    openModal('createDataRequestModal');
+  } catch (error) { toast(error.message, true); }
 }
 
 function toggleBarangaySelection(val) {
@@ -1575,16 +1578,23 @@ document.getElementById('createDataRequestForm').onsubmit = async (e) => {
 
   if (payload.targetType === 'selected_barangays') {
     const checked = Array.from(form.querySelectorAll('input[name="selectedBarangayCheckbox"]:checked')).map(x => x.value);
+    if (!checked.length) {
+      document.getElementById('dataRequestTargetStatus').textContent = 'Choose at least one barangay.';
+      return;
+    }
     payload.targetBarangays = checked;
   }
 
+  const save = form.querySelector('button[type="submit"]');
+  save.disabled = true;
   try {
     await request(api + '/data-requests', { method: 'POST', body: JSON.stringify(payload) });
     closeModal('createDataRequestModal');
     form.reset();
     toast('Data request successfully created and broadcasted.');
     loadDataRequests();
-  } catch (err) { toast(err.message, true); }
+  } catch (err) { document.getElementById('dataRequestTargetStatus').textContent = err.message; }
+  finally { save.disabled = false; }
 };
 
 async function viewDataRequestMatrix(id) {
@@ -1820,18 +1830,44 @@ async function exportSubmissionExcel(id) {
 }
 
 let barangayApplications = [];
+let barangayAccountsRequest = 0;
+const archivedBarangays = document.getElementById('showArchivedBarangays');
+archivedBarangays.onchange = () => {
+  window.DormMapPagination?.reset(document.getElementById('barangayAccountsTable'));
+  loadBarangayAccounts();
+};
 async function loadBarangayAccounts() {
+  const sequence = ++barangayAccountsRequest;
+  const archived = archivedBarangays.checked;
   try {
-    const d = await request(api + '/barangay-accounts');
+    const d = await request(api + '/barangay-accounts?archived=' + archived);
+    if (sequence !== barangayAccountsRequest) return;
     barangayApplications = d.data;
     document.getElementById('barangayAccountsTable').innerHTML = d.data.length ? d.data.map(x => `<tr>
       <td><b>${esc(x.fullName)}</b><br>${esc(x.email)}</td>
       <td>${esc(x.barangay || 'Profile incomplete')}<br>${esc(x.positionTitle || '')}</td>
       <td><span class="badge">${esc(x.applicationStatus)}</span><p>${esc(x.applicationReviewNote || '')}</p></td>
-      <td><button type="button" class="button secondary" onclick="openBarangayReview(${x.id})">Review</button></td>
-    </tr>`).join('') : '<tr><td colspan="4">No barangay account applications yet.</td></tr>';
-  } catch (e) { toast(e.message, true); }
+      <td>${archived ? '—' : `<button type="button" class="button secondary" onclick="openBarangayReview(${Number(x.id)})">Review</button>`}</td>
+      <td><button type="button" class="button secondary" onclick="changeBarangayArchive(${Number(x.id)}, '${archived ? 'restore' : 'archive'}')">${archived ? 'Restore' : 'Archive'}</button></td>
+    </tr>`).join('') : `<tr><td colspan="5" class="py-4 text-slate-600">${archived ? 'No archived barangay accounts.' : 'No barangay accounts yet.'}</td></tr>`;
+  } catch (e) { if (sequence === barangayAccountsRequest) toast(e.message, true); }
 }
+
+async function changeBarangayArchive(id, action) {
+  const message = action === 'archive'
+    ? 'Archive this barangay account and revoke dashboard access?'
+    : 'Restore this barangay account and its previous approval status?';
+  if (!await DormMapFeedback.confirm(message)) return;
+  try {
+    const result = await request(api + '/barangay-accounts/' + id + '/archive', {
+      method: 'PATCH', body: JSON.stringify({ action })
+    });
+    toast(result.message);
+    loadBarangayAccounts();
+    loadOverview();
+  } catch (error) { toast(error.message, true); }
+}
+
 function openBarangayReview(id) {
   const application = barangayApplications.find(item => Number(item.id) === Number(id));
   if (!application) return;
@@ -1895,6 +1931,7 @@ function openBarangayReview(id) {
 }
 
 // 4. OWNERS
+let ownerApplications = [];
 let ownerCurrentPage = 1;
 let ownerListRequest = 0;
 async function loadOwners(page = ownerCurrentPage) {
@@ -1909,19 +1946,14 @@ async function loadOwners(page = ownerCurrentPage) {
     document.getElementById('ownerPaginationLabel').textContent = `Page ${d.pagination.page} of ${Math.max(1,d.pagination.pages)} · ${d.pagination.total} applications`;
     document.getElementById('ownerPrevPage').disabled = ownerCurrentPage <= 1;
     document.getElementById('ownerNextPage').disabled = ownerCurrentPage >= d.pagination.pages;
+    ownerApplications = d.data;
     document.getElementById('ownersTable').innerHTML = d.data.length ? d.data.map(x => `
       <tr>
         <td><b>${esc(x.fullName)}</b><br><span class="text-xs text-slate-500">${esc(x.boardingHouseName || 'No Property')} · ${esc(x.email)}</span></td>
         <td>${esc(x.barangay || '—')}
           ${x.branches?.length ? `<ul class="mt-1 text-xs text-slate-500">${x.branches.map(branch => `<li>Branch ${branch.number} · ${esc(branch.barangay || 'No barangay')} · ${esc(branch.status)}</li>`).join('')}</ul>` : ''}
         </td>
-        <td><details>
-          <summary class="cursor-pointer text-xs font-bold text-emerald-800">Review documents</summary>
-          ${DormMapPreview.render(x.businessPermit, 'business permit')}
-          ${DormMapPreview.render(x.validIdPicture, 'government ID')}
-          ${DormMapPreview.render(x.barangayClearance, 'barangay clearance')}
-          ${DormMapPreview.render(x.boardingHousePicture, 'property photo')}
-        </details></td>
+        <td><button type="button" class="button secondary text-xs" onclick="openOwnerDocuments(${Number(x.id)})">Review documents</button></td>
         <td><span class="badge status-${esc(x.applicationStatus)}">${esc(x.applicationStatus)}</span></td>
         <td>${new Date(x.createdAt).toLocaleDateString()}</td>
         <td>
@@ -1943,6 +1975,31 @@ async function loadOwners(page = ownerCurrentPage) {
     `).join('') : '<tr><td colspan="6" class="text-center text-slate-500 py-6">No owner applications found.</td></tr>';
   } catch (e) { toast(e.message, true); }
 }
+
+function openOwnerDocuments(id) {
+  const owner = ownerApplications.find(record => Number(record.id) === id);
+  if (!owner) return;
+  const attachments = owner.supportingDocuments;
+  const documents = [
+    ['Business permit', owner.businessPermit],
+    ['Government ID', owner.validIdPicture || DormMapPreview.attachment(attachments, 'governmentId')],
+    ['Barangay clearance', owner.barangayClearance],
+    ['Property photo', owner.boardingHousePicture],
+    ['Rental permit', owner.rentalPermit],
+    ['Proof of ownership', DormMapPreview.attachment(attachments, 'proofOfOwnership')],
+    ['Sanitation permit', DormMapPreview.attachment(attachments, 'sanitationPermit')],
+    ['Fire safety permit', DormMapPreview.attachment(attachments, 'fireSafetyPermit')]
+  ].filter(([, url]) => url);
+  document.getElementById('ownerDocumentProperty').textContent = [owner.boardingHouseName, owner.fullName].filter(Boolean).join(' · ');
+  const files = document.getElementById('ownerDocumentFiles');
+  files.innerHTML = documents.map(([label, url]) =>
+    `<section class="rounded-xl border border-slate-200 p-3"><h3 class="text-sm font-bold">${label}</h3>${DormMapPreview.render(url, label)}</section>`
+  ).join('') || '<p class="text-sm text-slate-600">No documents attached.</p>';
+  document.getElementById('ownerDocumentDialog').showModal();
+}
+document.getElementById('ownerDocumentDialog').addEventListener('close', () => {
+  document.getElementById('ownerDocumentFiles').replaceChildren();
+});
 
 function selectOwnerAction(select, id) {
   const action = select.value;
@@ -2089,7 +2146,6 @@ const config = {
     ['email', 'Login email', 'email'], ['positionTitle', 'Position (optional)', 'text'],
     ['password', 'New password', 'password']
   ] },
-  barangays: { title: 'Barangay', fields: [['name','Barangay name','text'],['officialName','Assigned official','text'],['officialEmail','Official email','email'],['latitude','Map latitude','number'],['longitude','Map longitude','number'],['isActive','Active','checkbox']] },
   institutions: { title: 'Educational Institution', fields: [['name','Institution name','text'],['schoolType','School type','text'],['address','Address','text'],['barangay','Barangay','text'],['latitude','Latitude','number'],['longitude','Longitude','number'],['isActive','Active','checkbox']] },
   permits: { title: 'Business Permit', fields: [['ownerId','Owner user ID','number'],['permitNumber','Permit number','text'],['issueDate','Issue date','date'],['expirationDate','Expiration date','date'],['status','Status','text'],['documentUrl','Document URL','url'],['notes','Notes','text']] }
 };
@@ -2098,15 +2154,7 @@ async function loadCollection(type) {
   try {
     const d = await request(api + '/' + type);
     const rows = d.data;
-    document.getElementById(type + 'Table').innerHTML = rows.length ? rows.map(x => type === 'barangays' ? `
-      <tr>
-        <td><b>${esc(x.name)}</b></td>
-        <td>${esc(x.officialName || '—')}</td>
-        <td>${esc(x.officialEmail || '—')}</td>
-        <td><span class="badge status-${x.isActive ? 'active' : 'suspended'}">${x.isActive ? 'Active' : 'Inactive'}</span></td>
-        <td><button class="text-emerald-700 font-bold" onclick='openRecordForm("${type}",${esc(JSON.stringify(x))})'>Edit</button> <button class="text-rose-700 font-bold" onclick="deleteRecord('${type}',${x.id})">Delete</button></td>
-      </tr>
-    ` : type === 'institutions' ? `
+    document.getElementById(type + 'Table').innerHTML = rows.length ? rows.map(x => type === 'institutions' ? `
       <tr>
         <td><b>${esc(x.name)}</b></td>
         <td>${esc(x.schoolType)}</td>
@@ -2147,7 +2195,6 @@ function openRecordForm(type, record = {}) {
       toast('Record saved.');
       if (type === 'barangay-accounts') {
         loadBarangayAccounts();
-        loadCollection('barangays');
       } else loadCollection(type);
       loadOverview();
     } catch (err) { toast(err.message, true); }
