@@ -883,6 +883,54 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.ok((await loadBranch('tenants', house.id)).some(item => item.id === branchTenant.id));
       assert.ok((await loadBranch('payments', branch.id)).some(item => item.tenantId === branchTenant.id));
 
+      const report = async (branchId, type, filters = {}) => {
+        const query = new URLSearchParams({ boardingHouseId: branchId, type, ...filters });
+        const response = await request(`/owner-dashboard/api/reports?${query}`, ownerCookie);
+        assert.equal(response.status, 200, await response.clone().text());
+        return (await response.json()).data;
+      };
+      assert.ok((await report(branch.id, 'payments')).some(row => row.tenantName === branchTenant.fullName));
+      assert.ok(!(await report(house.id, 'payments')).some(row => row.tenantName === branchTenant.fullName));
+      assert.deepEqual((await report(branch.id, 'tenants')).map(row => row.fullName), [otherTenant.fullName]);
+      const roomReport = await report(branch.id, 'rooms');
+      assert.deepEqual(roomReport.map(row => [row.id, row.roomNumber, row.tenants]), [[branchRoom.id, '401', [otherTenant.fullName]]]);
+      assert.ok((await report(house.id, 'rooms')).some(row => row.id === primaryRoom.id && row.tenants.includes(branchTenant.fullName)));
+
+      await saveTenant(owner.id, otherTenant.id, { status: 'moved_out' });
+      const archivedTenant = await OwnerTenant.create({
+        ownerId: owner.id, roomId: branchRoom.id, fullName: 'Archived branch resident', status: 'moved_out', archivedAt: new Date()
+      });
+      assert.deepEqual(await report(branch.id, 'tenants'), []);
+      assert.deepEqual((await report(branch.id, 'rooms'))[0].tenants, []);
+      const archivedIds = new Set([otherTenant.id, archivedTenant.id]);
+      assert.deepEqual(new Set((await report(branch.id, 'tenants', { view: 'archive' })).map(row => row.id)), archivedIds);
+      const archiveResponse = await request(`/owner-dashboard/api/tenants?boardingHouseId=${branch.id}&view=archive`, ownerCookie);
+      assert.deepEqual(new Set((await archiveResponse.json()).data.map(row => row.id)), archivedIds);
+
+      const branchBill = bills.find(item => item.tenantId === branchTenant.id && item.month === '2027-02');
+      await OwnerPayment.update({ status: 'paid', paidDate: '2027-03-10', amountPaid: '90.25' }, { where: { id: branchBill.id } });
+      await OwnerPayment.create({
+        ownerId: owner.id, tenantId: branchTenant.id, roomId: branchRoom.id, status: 'paid',
+        amount: '55.00', month: '2027-03', dueDate: '2027-03-11', paidDate: '2027-03-11'
+      });
+      await OwnerPayment.create({
+        ownerId: owner.id, tenantId: branchTenant.id, roomId: branchRoom.id, status: 'paid',
+        amount: '20.00', month: '2027-03', dueDate: '2027-03-10'
+      });
+      await TenantApplication.create({
+        ownerId: owner.id, tenantId: second.id, status: 'tenancy_ended', boardingHouseId: house.id, boardingHouseName: house.name,
+        reservationRoomId: branchRoom.id, reservationFee: '300.00', reservationAmountPaid: '225.75',
+        reservationApprovedAt: new Date('2027-03-09T16:00:00Z')
+      });
+      assert.deepEqual(await report(branch.id, 'income', { from: '2027-03-10', to: '2027-03-10' }), [{ month: '2027-03', total: 316 }]);
+      assert.deepEqual(await report(branch.id, 'income', { from: '2027-03-10', to: '2027-03-11' }), [{ month: '2027-03', total: 371 }]);
+      assert.deepEqual(await report(house.id, 'income', { from: '2027-03-10', to: '2027-03-10' }), []);
+      assert.ok((await report(branch.id, 'income')).some(row => row.month === '2027-03' && row.total === 391));
+      assert.equal((await request('/owner-dashboard/api/reports?type=income&from=2027-02-30', ownerCookie)).status, 422);
+      assert.equal((await request('/owner-dashboard/api/reports?type=income&from=2027-03-11&to=2027-03-10', ownerCookie)).status, 422);
+      const foreignBranch = await BoardingHouse.create({ ownerId: pending.id, name: 'Foreign branch' });
+      assert.equal((await request(`/owner-dashboard/api/reports?type=rooms&boardingHouseId=${foreignBranch.id}`, ownerCookie)).status, 404);
+
       const moved = await request(`/owner-dashboard/api/boarding-houses/${branch.id}`, ownerCookie, {
         ...post,
         body: JSON.stringify({ latitude: 12.774, longitude: 121.476, amenities: '["Wi-Fi"]', rentPerHead: 1600, rentPerRoom: 4900 }),

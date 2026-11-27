@@ -299,7 +299,7 @@
                 </p>
               </div>
             </div>
-            <button onclick="show('tenants')"
+            <button onclick="showPendingTenants()"
               class="flex-shrink-0 bg-white text-amber-700 font-black text-xs px-4 py-2.5 rounded-xl hover:bg-amber-50 transition active:scale-95 shadow-sm">
               Review Applications →
             </button>
@@ -641,27 +641,27 @@
           </select>
         </label>
 
-        <section class="rounded-2xl border border-emerald-100 bg-white p-4" aria-labelledby="walkInHeading">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <h2 id="walkInHeading" class="font-bold text-slate-900">Walk-in tenant accounts</h2>
-            <button type="button" id="newWalkIn" class="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white">Create walk-in account</button>
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex flex-wrap gap-2" role="group" aria-label="Tenant status">
+            <button type="button" data-manage-tenants-view="active" aria-pressed="true" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 aria-pressed:border-emerald-600 aria-pressed:bg-emerald-50 aria-pressed:text-emerald-900">Current Tenants</button>
+            <button type="button" data-manage-tenants-view="pending" aria-pressed="false" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 aria-pressed:border-emerald-600 aria-pressed:bg-emerald-50 aria-pressed:text-emerald-900">Pending</button>
+            <button type="button" data-manage-tenants-view="archive" aria-pressed="false" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 aria-pressed:border-emerald-600 aria-pressed:bg-emerald-50 aria-pressed:text-emerald-900">Archive</button>
           </div>
-          <div id="walkInAccounts" class="mt-2 divide-y divide-slate-100 text-sm"></div>
-        </section>
+          <input type="search" id="ownerTenantSearch" aria-label="Search tenants" placeholder="Search by name, contact, or room" class="block w-full max-w-sm rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+        </div>
 
         <!-- Pending Applications Banner -->
-        <div id="pendingAppsCard" data-owner-batch class="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-5 space-y-3">
+        <div id="pendingAppsCard" data-owner-batch class="hidden bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-5 space-y-3">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <svg class="w-5 h-5 text-amber-700 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
               <div>
-                <h3 class="text-sm font-bold text-amber-900">Rental Applications</h3>
-                <p class="text-xs text-amber-700">These tenants registered and selected your boarding house. Review and accept or decline.</p>
+                <h3 id="pendingAppsHeading" class="text-sm font-bold text-amber-900">Rental Applications</h3>
+                <p id="pendingAppsHelp" class="text-xs text-amber-700">These tenants registered and selected your boarding house. Review and accept or decline.</p>
               </div>
             </div>
             <span id="pendingAppsCount" class="bg-amber-500 text-white text-xs font-black px-3 py-1 rounded-full">0</span>
           </div>
-          <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="showArchivedApplications"> View archived applications</label>
           <div data-batch-toolbar class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs" hidden>
             <label class="flex items-center gap-2"><input type="checkbox" data-batch-all> Select up to 25</label>
             <span data-batch-count aria-live="polite"></span>
@@ -680,7 +680,6 @@
             <span class="text-base leading-none">＋</span> Register Tenant
           </button>
         </div>
-        <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="showArchivedTenants"> View archived tenant records</label>
         <div data-batch-toolbar class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs" hidden>
           <label class="flex items-center gap-2"><input type="checkbox" data-batch-all> Select up to 25 former tenants</label>
           <span data-batch-count aria-live="polite"></span>
@@ -700,10 +699,17 @@
               </tr>
             </thead>
             <tbody id="tenantsTable"><tr><td colspan="6" class="p-8 text-center text-slate-400 text-xs">Loading tenants...</td></tr></tbody>
-            <tbody id="formerTenantsTable"></tbody>
           </table>
         </div>
         </div>
+        <section id="ownerWalkInSection" class="rounded-2xl border border-emerald-100 bg-white p-4" aria-labelledby="walkInHeading">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 id="walkInHeading" class="font-bold text-slate-900">Walk-in tenant accounts</h2>
+            <button type="button" id="newWalkIn" class="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white">Create walk-in account</button>
+          </div>
+          <div id="walkInAccounts" class="mt-2 divide-y divide-slate-100 text-sm"></div>
+        </section>
+
       </section>
 
       <!-- PANEL 6: PAYMENTS -->
@@ -827,21 +833,26 @@
 
       <!-- PANEL 10: REPORTS -->
       <section data-panel="reports" class="hidden space-y-4">
-        <h2 class="text-lg font-bold text-slate-800">Reports Generator</h2>
-        <div class="grid gap-4 md:grid-cols-4">
-          <button onclick="loadReport('payments')" class="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs hover:border-slate-200 transition text-left space-y-3">
+        <label class="block max-w-sm text-sm font-semibold text-slate-700">Boarding house branch
+          <select id="reportBranch" class="mt-1 block w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm" disabled>
+            <option value="">Loading boarding houses…</option>
+          </select>
+        </label>
+        <p id="reportStatus" class="text-sm text-slate-600" role="status"></p>
+        <div id="reportTypes" class="gap-4 md:grid-cols-4" hidden>
+          <button type="button" data-report-type="payments" aria-pressed="false" class="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs hover:border-slate-200 transition text-left space-y-3 aria-pressed:border-emerald-600">
             <div class="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100/90 text-slate-700"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
             <h3 class="font-bold text-sm text-slate-900">Rental Collections</h3>
           </button>
-          <button onclick="loadReport('tenants')" class="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs hover:border-slate-200 transition text-left space-y-3">
+          <button type="button" data-report-type="tenants" aria-pressed="false" class="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs hover:border-slate-200 transition text-left space-y-3 aria-pressed:border-emerald-600">
             <div class="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100/90 text-slate-700"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
             <h3 class="font-bold text-sm text-slate-900">Tenant List</h3>
           </button>
-          <button onclick="loadReport('rooms')" class="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs hover:border-slate-200 transition text-left space-y-3">
+          <button type="button" data-report-type="rooms" aria-pressed="false" class="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs hover:border-slate-200 transition text-left space-y-3 aria-pressed:border-emerald-600">
             <div class="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100/90 text-slate-700"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/></svg></div>
             <h3 class="font-bold text-sm text-slate-900">Room Availability</h3>
           </button>
-          <button onclick="loadReport('income')" class="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs hover:border-slate-200 transition text-left space-y-3">
+          <button type="button" data-report-type="income" aria-pressed="false" class="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs hover:border-slate-200 transition text-left space-y-3 aria-pressed:border-emerald-600">
             <div class="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100/90 text-slate-700"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 3v18h18"/><rect width="4" height="7" x="7" y="10" rx="1"/><rect width="4" height="12" x="15" y="5" rx="1"/></svg></div>
             <h3 class="font-bold text-sm text-slate-900">Income Summary</h3>
           </button>
@@ -849,9 +860,29 @@
         <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm mt-6 hidden" id="reportPreviewArea" data-owner-name="{{userName}}">
           <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
             <h3 class="font-bold text-slate-800" id="reportTitle">Report</h3>
-            <button type="button" id="printOwnerReport" class="text-xs bg-emerald-700 text-white px-3 py-1.5 rounded-lg">Print Report</button>
+            <button type="button" id="printOwnerReport" class="text-xs bg-emerald-700 text-white px-3 py-1.5 rounded-lg disabled:opacity-50">Print Report</button>
           </div>
-          <div class="overflow-x-auto" id="reportOutput"></div>
+          <div id="reportTenantControls" class="mb-4" hidden>
+            <div class="flex flex-wrap items-center gap-3">
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Tenant status">
+                <button type="button" data-report-tenants-view="active" aria-pressed="true" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 aria-pressed:border-emerald-600 aria-pressed:bg-emerald-50 aria-pressed:text-emerald-900">Current Tenants</button>
+                <button type="button" data-report-tenants-view="pending" aria-pressed="false" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 aria-pressed:border-emerald-600 aria-pressed:bg-emerald-50 aria-pressed:text-emerald-900">Pending</button>
+                <button type="button" data-report-tenants-view="archive" aria-pressed="false" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 aria-pressed:border-emerald-600 aria-pressed:bg-emerald-50 aria-pressed:text-emerald-900">Archive</button>
+              </div>
+              <input type="search" id="reportTenantSearch" aria-label="Search tenants" placeholder="Search by name, contact, or room" class="block w-full max-w-sm rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+          </div>
+          <form id="reportIncomeFilters" class="flex-wrap items-end gap-3 mb-4" hidden>
+            <label class="text-sm font-semibold text-slate-700">From
+              <input type="date" name="from" class="mt-1 block rounded-lg border border-slate-200 px-2 py-1.5">
+            </label>
+            <label class="text-sm font-semibold text-slate-700">To
+              <input type="date" name="to" class="mt-1 block rounded-lg border border-slate-200 px-2 py-1.5">
+            </label>
+            <button type="submit" class="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white">Apply dates</button>
+            <button type="button" id="clearReportDates" class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">Clear</button>
+          </form>
+          <div class="overflow-x-auto" id="reportOutput" aria-live="polite"></div>
         </div>
       </section>
 
@@ -1505,6 +1536,7 @@
     else if (currentTab === 'amenities') loadAmenities();
     else if (currentTab === 'rules') loadHouseRules();
     else if (currentTab === 'activity') loadActivityLogs();
+    else if (currentTab === 'reports') refreshOwnerReports();
   }
 
   // ─── Overview ───
@@ -1542,7 +1574,7 @@
           bg: pendingCount > 0 ? 'bg-amber-50/50' : 'bg-white',
           border: pendingCount > 0 ? 'border-amber-300' : 'border-slate-100',
           text: pendingCount > 0 ? 'text-amber-700' : 'text-slate-900',
-          onclick: `show('tenants')`,
+          onclick: `showPendingTenants()`,
           badge: pendingCount > 0 ? `<span class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-amber-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">${pendingCount}</span>` : '',
         },
         { label: 'Pending Inquiries', value: cards.pendingInquiries, icon: `<svg class="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>`, bg: 'bg-white', border: 'border-slate-100', text: 'text-slate-900' },
@@ -1969,10 +2001,12 @@
       populateBhDropdowns();
       renderBoardingHouseCards();
       if (osmMap) renderOwnerMapPins();
+      return true;
     } catch (err) {
       const status = document.getElementById('ownerMapPinStatus');
       if (status) status.textContent = 'Could not load boarding house pins. Try Refresh Data.';
       console.error('Error loading boarding houses:', err);
+      return false;
     }
   }
 
@@ -2507,97 +2541,169 @@
   document.getElementById('archiveSelectedApplications').onclick = () => archiveOwnerSelection(applicationBatch, 'pending-applications', 'applications and close their open offers', loadPendingApplications);
   document.getElementById('archiveSelectedTenants').onclick = () => archiveOwnerSelection(tenantBatch, 'tenants', 'former tenant records', loadTenants);
   document.getElementById('archiveSelectedInquiries').onclick = () => archiveOwnerSelection(inquiryBatch, 'inquiries', 'inquiries', loadInquiries);
-  for (const [id, group, refresh] of [
-    ['showArchivedApplications', applicationBatch, loadPendingApplications],
-    ['showArchivedTenants', tenantBatch, loadTenants],
-    ['showArchivedInquiries', inquiryBatch, loadInquiries]
-  ]) {
-    document.getElementById(id).addEventListener('change', () => {
-      clearOwnerBatch(group);
-      ownerBatchFeedback(group, '');
-      refresh();
+  document.getElementById('showArchivedInquiries').addEventListener('change', () => {
+    clearOwnerBatch(inquiryBatch);
+    ownerBatchFeedback(inquiryBatch, '');
+    loadInquiries();
+  });
+
+  function tenantMatches(tenant, search) {
+    const terms = search.trim().toLowerCase().split(/\s+/);
+    const fields = [tenant.fullName, tenant.email, tenant.contactNumber, tenant.roomNumber, tenant.preferredRoomLabel]
+      .filter(Boolean).join(' ').toLowerCase();
+    return terms.every(term => fields.includes(term));
+  }
+
+  function markTenantView(buttons, view) {
+    buttons.forEach(button => button.setAttribute('aria-pressed', String(button.value === view)));
+  }
+
+  const manageTenantButtons = document.querySelectorAll('[data-manage-tenants-view]');
+  const ownerTenantSearch = document.getElementById('ownerTenantSearch');
+  const ownerTenantsTable = document.getElementById('tenantsTable');
+  let manageTenantView = 'active';
+  let ownerTenantRequest = 0;
+  let tenantRecords = [];
+
+  manageTenantButtons.forEach(button => {
+    button.value = button.dataset.manageTenantsView;
+    button.addEventListener('click', () => {
+      manageTenantView = button.value;
+      clearOwnerBatch(tenantBatch);
+      clearOwnerBatch(applicationBatch);
+      ownerBatchFeedback(tenantBatch, '');
+      ownerBatchFeedback(applicationBatch, '');
+      loadTenants();
     });
+  });
+  ownerTenantSearch.addEventListener('input', () => {
+    renderOwnerTenants();
+    renderPendingApplications();
+  });
+
+  function showPendingTenants() {
+    manageTenantView = 'pending';
+    show('tenants');
   }
 
   async function loadTenants() {
-    const archived = document.getElementById('showArchivedTenants').checked;
-    const batch = document.getElementById('ownerTenantBatch');
-    try {
-      if (!_allBoardingHouses.length) await loadBoardingHouses();
-      const query = branchQuery('tenants');
-      const { data } = await ownerRequest(`/owner-dashboard/api/tenants${withArchived(query, archived)}`);
-      if (query !== branchQuery('tenants') || archived !== document.getElementById('showArchivedTenants').checked) return;
-      const tbody = document.getElementById('tenantsTable');
-
-      const tenants = data || [];
-      const current = tenants.filter(t => t.status === 'active');
-      const former = tenants.filter(t => t.status !== 'active');
-      document.getElementById('ownerTenantHeading').textContent = archived ? 'Archived Tenant Records' : 'Current Tenants';
-      document.getElementById('registerOwnerTenant').classList.toggle('hidden', archived);
-      const tenantRow = t => `
-          <tr class="border-b border-slate-100 hover:bg-slate-50/50 transition">
-            <td class="p-4 font-bold text-slate-800">${esc(t.fullName)}<p class="text-xs font-medium text-slate-500">${esc(t.status)} · ${t.occupantCount || 1} occupant(s)${t.bedNumber ? ' · Bed '+Number(t.bedNumber) : ''}</p>${t.moveOutRequestedDate ? `<p class="mt-1 text-xs text-amber-800">Move-out requested for ${esc(t.moveOutRequestedDate)}</p>` : ''}${t.moveOutDate ? `<p class="mt-1 text-xs text-slate-500">Moved out ${esc(t.moveOutDate)}</p>` : ''}</td>
-            <td class="p-4 text-xs text-slate-500">${esc(t.contactNumber || t.email || '—')}</td>
-            <td class="p-4">${t.roomId ? 'Room ' + esc(t.roomNumber || t.roomId) : '<span class="text-slate-400 text-xs">Unassigned</span>'}<p class="text-xs text-slate-500">${[t.boardingHouseName, t.floor].filter(Boolean).map(esc).join(' · ')}</p></td>
-            <td class="p-4 font-semibold text-emerald-700">₱${Number(t.monthlyRent || 0).toLocaleString()}</td>
-            <td class="p-4">
-              <span class="font-bold ${Number(t.balance) > 0 ? 'text-rose-600' : 'text-slate-700'}">₱${Number(t.balance).toLocaleString()}</span>
-            </td>
-            <td class="p-4">
-              <div class="flex gap-2">
-                ${archived ? '<span class="text-xs text-slate-600">Archived</span>' : t.status === 'active' ? `
-                  <button type="button" onclick='editTenant(${esc(JSON.stringify(t))})' class="text-xs font-semibold text-emerald-800">Edit assignment</button>
-                  <button type="button" onclick='openEndTenant(${esc(JSON.stringify(t))})' class="text-xs font-semibold text-rose-700">End tenancy</button>
-                ` : `<button type="button" onclick='openTenantModal(${esc(JSON.stringify(t))}, true)' class="text-xs font-semibold text-emerald-800">Start new stay</button>
-                ${batchCheckbox(t.id, t.fullName)}`}
-                ${archived || t.tenantUserId ? '' : `<button type="button" onclick="deleteTenant(${t.id})" class="text-xs font-semibold text-slate-600">Remove</button>`}
-              </div>
-            </td>
-          </tr>
-        `;
-      tbody.innerHTML = (archived ? tenants : current).map(tenantRow).join('') || `<tr><td colspan="6" class="p-8 text-center text-sm text-slate-500">${archived ? 'No archived tenant records.' : 'No current tenants.'}</td></tr>`;
-      document.getElementById('formerTenantsTable').innerHTML = !archived && former.length
-        ? '<tr><th colspan="6" class="border-t bg-slate-50 p-4 text-left">Former Tenants</th></tr>' + former.map(tenantRow).join('')
-        : '';
-      syncOwnerBatch(batch);
-
-    } catch (err) {
-      console.error('Error loading tenants:', err);
+    const request = ++ownerTenantRequest;
+    const view = manageTenantView;
+    const archived = view === 'archive';
+    markTenantView(manageTenantButtons, view);
+    tenantBatch.classList.toggle('hidden', view === 'pending');
+    applicationBatch.classList.toggle('hidden', view === 'active');
+    document.getElementById('ownerWalkInSection').classList.toggle('hidden', view !== 'active');
+    document.getElementById('ownerTenantHeading').textContent = archived ? 'Tenant Archive' : 'Current Tenants';
+    document.getElementById('registerOwnerTenant').classList.toggle('hidden', archived);
+    document.getElementById('pendingAppsHeading').textContent = archived ? 'Archived Applications' : 'Rental Applications';
+    document.getElementById('pendingAppsHelp').classList.toggle('hidden', archived);
+    tenantRecords = [];
+    applicationReviews.clear();
+    ownerTenantsTable.dataset.state = 'loading';
+    document.getElementById('pendingAppsList').dataset.state = 'loading';
+    for (const group of [tenantBatch, applicationBatch]) {
+      const toolbar = group.querySelector('[data-batch-toolbar]');
+      toolbar.hidden = true;
+      toolbar.classList.remove('flex');
     }
+    renderOwnerTenants();
+    renderPendingApplications();
 
-    // Always load pending applications alongside tenants
-    loadPendingApplications();
-    loadWalkInAccounts();
+    try {
+      if (!_allBoardingHouses.length && !await loadBoardingHouses()) throw new Error('Could not load boarding houses.');
+      if (request !== ownerTenantRequest) return;
+      if (view !== 'active') loadPendingApplications();
+      if (view === 'active') loadWalkInAccounts();
+      if (view === 'pending') return;
+      const params = new URLSearchParams(branchQuery('tenants'));
+      if (archived) params.set('view', 'archive');
+      else params.set('status', 'active');
+      const { data } = await ownerRequest(`/owner-dashboard/api/tenants?${params}`);
+      if (request !== ownerTenantRequest) return;
+      tenantRecords = data;
+      ownerTenantsTable.dataset.state = '';
+    } catch (error) {
+      if (request !== ownerTenantRequest) return;
+      ownerTenantsTable.dataset.state = 'error';
+      document.getElementById('pendingAppsList').dataset.state = 'error';
+      renderPendingApplications();
+    }
+    renderOwnerTenants();
+  }
+
+  function renderOwnerTenants() {
+    const archived = manageTenantView === 'archive';
+    const state = ownerTenantsTable.dataset.state;
+    const tenants = tenantRecords.filter(tenant => tenantMatches(tenant, ownerTenantSearch.value));
+    const tenantRow = t => `
+        <tr class="border-b border-slate-100 hover:bg-slate-50/50 transition">
+          <td class="p-4 font-bold text-slate-800">${esc(t.fullName)}<p class="text-xs font-medium text-slate-500">${esc(t.status)} · ${t.occupantCount || 1} occupant(s)${t.bedNumber ? ' · Bed '+Number(t.bedNumber) : ''}</p>${t.moveOutRequestedDate ? `<p class="mt-1 text-xs text-amber-800">Move-out requested for ${esc(t.moveOutRequestedDate)}</p>` : ''}${t.moveOutDate ? `<p class="mt-1 text-xs text-slate-500">Moved out ${esc(t.moveOutDate)}</p>` : ''}</td>
+          <td class="p-4 text-xs text-slate-500">${esc(t.contactNumber || t.email || '—')}</td>
+          <td class="p-4">${t.roomId ? 'Room ' + esc(t.roomNumber || t.roomId) : '<span class="text-slate-400 text-xs">Unassigned</span>'}<p class="text-xs text-slate-500">${[t.boardingHouseName, t.floor].filter(Boolean).map(esc).join(' · ')}</p></td>
+          <td class="p-4 font-semibold text-emerald-700">₱${Number(t.monthlyRent || 0).toLocaleString()}</td>
+          <td class="p-4">
+            <span class="font-bold ${Number(t.balance) > 0 ? 'text-rose-600' : 'text-slate-700'}">₱${Number(t.balance).toLocaleString()}</span>
+          </td>
+          <td class="p-4">
+            <div class="flex gap-2">
+              ${t.archivedAt ? '<span class="text-xs text-slate-600">Archived</span>' : t.status === 'active' ? `
+                <button type="button" onclick='editTenant(${esc(JSON.stringify(t))})' class="text-xs font-semibold text-emerald-800">Edit assignment</button>
+                <button type="button" onclick='openEndTenant(${esc(JSON.stringify(t))})' class="text-xs font-semibold text-rose-700">End tenancy</button>
+              ` : `<button type="button" onclick='openTenantModal(${esc(JSON.stringify(t))}, true)' class="text-xs font-semibold text-emerald-800">Start new stay</button>
+              ${batchCheckbox(t.id, t.fullName)}`}
+              ${t.archivedAt || t.tenantUserId ? '' : `<button type="button" onclick="deleteTenant(${t.id})" class="text-xs font-semibold text-slate-600">Remove</button>`}
+            </div>
+          </td>
+        </tr>
+      `;
+    const message = state === 'loading' ? 'Loading tenants…' : state === 'error' ? 'Could not load tenants. Try Refresh Data.'
+      : ownerTenantSearch.value.trim() ? 'No matching tenants.' : archived ? 'No archived or former tenant records.' : 'No current tenants.';
+    ownerTenantsTable.innerHTML = tenants.map(tenantRow).join('') ||
+      `<tr><td colspan="6" class="p-8 text-center text-sm text-slate-500">${message}</td></tr>`;
+    if (state !== 'loading') syncOwnerBatch(tenantBatch);
   }
 
   async function loadPendingApplications() {
+    const request = ownerTenantRequest;
+    const view = manageTenantView;
+    if (view === 'active') return;
+    const list = document.getElementById('pendingAppsList');
     try {
-      const query = branchQuery('tenants');
-      const archived = document.getElementById('showArchivedApplications').checked;
-      const { data } = await ownerRequest(`/owner-dashboard/api/pending-applications${withArchived(query, archived)}`);
-      if (query !== branchQuery('tenants') || archived !== document.getElementById('showArchivedApplications').checked) return;
-      const card = document.getElementById('pendingAppsCard');
-      const list = document.getElementById('pendingAppsList');
-      const count = document.getElementById('pendingAppsCount');
-
-      count.textContent = data.length;
-
+      const query = withArchived(branchQuery('tenants'), view === 'archive');
+      const { data } = await ownerRequest(`/owner-dashboard/api/pending-applications${query}`);
+      if (request !== ownerTenantRequest) return;
       applicationReviews = new Map(data.map(app => [Number(app.applicationId), app]));
-      list.innerHTML = data.map(app => `
-        <article class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-100 bg-white px-4 py-3">
-          <div class="min-w-0">
-            <p class="font-bold text-slate-900">${esc(app.fullName)}</p>
-            <p class="text-xs text-slate-600">${esc(app.preferredRoomLabel || app.requestedRoomType || 'Any room')} · ${esc(app.reservation?.status === 'pending' ? 'Reservation fee awaiting review' : app.reservation?.status === 'reserved' ? 'Reserved · Awaiting tenant confirmation' : applicationStatusText(app.status))}</p>
-          </div>
-          ${archived ? '' : `<div class="flex flex-wrap items-center gap-3">
-            ${batchCheckbox(app.applicationId, app.fullName, app.status === 'pending_owner' && !app.reservation)}
-            <button type="button" onclick="openTenantReview(${Number(app.applicationId)})" class="rounded-lg border border-emerald-200 px-4 py-2 text-xs font-bold text-emerald-800">Review</button>
-          </div>`}
-        </article>`).join('') || `<p class="text-sm text-slate-600">${archived ? 'No archived applications.' : 'No open rental applications.'}</p>`;
-      syncOwnerBatch(card);
-    } catch (err) {
-      console.error('Error loading pending applications:', err);
+      list.dataset.state = '';
+    } catch (error) {
+      if (request !== ownerTenantRequest) return;
+      list.dataset.state = 'error';
+      applicationReviews.clear();
     }
+    renderPendingApplications();
+  }
+
+  function renderPendingApplications() {
+    const archived = manageTenantView === 'archive';
+    const list = document.getElementById('pendingAppsList');
+    const state = list.dataset.state;
+    const data = [...applicationReviews.values()].filter(tenant => tenantMatches(tenant, ownerTenantSearch.value));
+    document.getElementById('pendingAppsCount').textContent = data.length;
+    const message = state === 'loading' ? 'Loading applications…' : state === 'error' ? 'Could not load applications. Try Refresh Data.'
+      : ownerTenantSearch.value.trim() ? 'No matching applications.' : archived ? 'No archived applications.' : 'No open rental applications.';
+
+    list.innerHTML = data.map(app => `
+      <article class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-100 bg-white px-4 py-3">
+        <div class="min-w-0">
+          <p class="font-bold text-slate-900">${esc(app.fullName)}</p>
+          <p class="text-xs text-slate-600">${esc(app.preferredRoomLabel || app.requestedRoomType || 'Any room')} · ${esc(app.reservation?.status === 'pending' ? 'Reservation fee awaiting review' : app.reservation?.status === 'reserved' ? 'Reserved · Awaiting tenant confirmation' : applicationStatusText(app.status))}</p>
+        </div>
+        ${archived ? '' : `<div class="flex flex-wrap items-center gap-3">
+          ${batchCheckbox(app.applicationId, app.fullName, app.status === 'pending_owner' && !app.reservation)}
+          <button type="button" onclick="openTenantReview(${Number(app.applicationId)})" class="rounded-lg border border-emerald-200 px-4 py-2 text-xs font-bold text-emerald-800">Review</button>
+        </div>`}
+      </article>`).join('') || `<p class="text-sm text-slate-600">${message}</p>`;
+    if (state !== 'loading') syncOwnerBatch(applicationBatch);
   }
 
   let applicationReviews = new Map();
@@ -3872,40 +3978,186 @@ async function loadLegacyNotifications() {
   const ownerReportPreview = document.getElementById('reportPreviewArea');
   const ownerReportTitle = document.getElementById('reportTitle');
   const ownerReportOutput = document.getElementById('reportOutput');
+  const reportBranch = document.getElementById('reportBranch');
+  const reportStatus = document.getElementById('reportStatus');
+  const reportTypes = document.getElementById('reportTypes');
+  const reportTypeButtons = reportTypes.querySelectorAll('[data-report-type]');
+  const printOwnerReport = document.getElementById('printOwnerReport');
+  const reportTenantButtons = document.querySelectorAll('[data-report-tenants-view]');
+  const reportTenantSearch = document.getElementById('reportTenantSearch');
+  const reportIncomeFilters = document.getElementById('reportIncomeFilters');
   const reportPeso = value => '₱' + Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  let ownerReportRequest = 0;
+  let reportType = 'tenants';
+  let reportTenantView = 'active';
+  let reportRows = null;
+  let incomeDates = new URLSearchParams();
 
-  document.getElementById('printOwnerReport').addEventListener('click', () => {
-    DormMapReports.print(ownerReportTitle, ownerReportPreview.dataset.ownerName, ownerReportOutput);
+  const reports = {
+    payments: ['Rental Collections Report', ['Tenant name', 'Invoice total', 'Amount received', 'Due date', 'Status'],
+      row => [row.tenantName, reportPeso(row.totalAmount), row.status === 'paid' ? reportPeso(row.amountPaid ?? row.totalAmount) : null, row.dueDate, row.status]],
+    tenants: ['Tenant Roster', ['Tenant name', 'Contact', 'Room number', 'Monthly rent', 'Balance'],
+      row => [row.fullName, row.contactNumber || row.email, row.roomNumber, reportPeso(row.monthlyRent), reportPeso(row.balance)]],
+    pending: ['Pending Tenant Applications', ['Tenant name', 'Contact', 'Preferred room', 'Status'],
+      row => [row.fullName, row.contactNumber || row.email, row.preferredRoomLabel || row.requestedRoomType, applicationStatusText(row.status)]],
+    archive: ['Tenant Archive', ['Tenant name', 'Contact', 'Room number', 'Move-out date', 'Status'],
+      row => [row.fullName, row.contactNumber || row.email, row.roomNumber, row.moveOutDate, row.archivedAt ? 'Archived' : row.status === 'moved_out' ? 'Tenancy ended' : row.status]],
+    rooms: ['Room Availability', ['Room number', 'Floor', 'Room type', 'Capacity', 'Available slots', 'Status'],
+      row => [row.roomNumber, row.floor, row.roomType, row.capacity, row.availableSlots, row.status]],
+    income: ['Income Summary', ['Month received', 'Total collections'],
+      row => [row.month, reportPeso(row.total)]]
+  };
+
+  printOwnerReport.addEventListener('click', () => {
+    const context = [ownerReportPreview.dataset.ownerName, reportBranch.selectedOptions[0]?.textContent];
+    if (reportType === 'income') {
+      const from = incomeDates.get('from');
+      const to = incomeDates.get('to');
+      if (from) context.push('From ' + from);
+      if (to) context.push('Through ' + to);
+    }
+    DormMapReports.print(ownerReportTitle, context.filter(Boolean).join(' · '), ownerReportOutput);
   });
 
-  let ownerReportRequest = 0;
-  async function loadReport(type) {
-    const request = ++ownerReportRequest;
-    ownerReportPreview.classList.add('hidden');
-    try {
-      const { data } = await ownerRequest(`/owner-dashboard/api/reports?type=${type}`);
-      if (request !== ownerReportRequest) return;
+  reportBranch.addEventListener('change', loadReport);
+  reportTypeButtons.forEach(button => button.addEventListener('click', () => {
+    reportType = button.dataset.reportType;
+    loadReport();
+  }));
+  reportTenantButtons.forEach(button => {
+    button.value = button.dataset.reportTenantsView;
+    button.addEventListener('click', () => {
+      reportTenantView = button.value;
+      loadReport();
+    });
+  });
+  reportTenantSearch.addEventListener('input', () => {
+    if (reportRows && reportType === 'tenants') renderOwnerReport();
+  });
+  reportIncomeFilters.addEventListener('submit', event => {
+    event.preventDefault();
+    incomeDates = new URLSearchParams([...new FormData(reportIncomeFilters)].filter(([, value]) => value));
+    loadReport();
+  });
+  document.getElementById('clearReportDates').addEventListener('click', () => {
+    reportIncomeFilters.reset();
+    incomeDates = new URLSearchParams();
+    loadReport();
+  });
 
-      const reports = {
-        payments: ['Rental Collections Report', ['Tenant ID', 'Invoice total', 'Amount received', 'Due date', 'Status'],
-          row => {
-            const total = Number(row.amount) + Number(row.penalty || 0);
-            return [row.tenantId, reportPeso(total), row.status === 'paid' ? reportPeso(row.amountPaid ?? total) : null, row.dueDate, row.status];
-          }],
-        tenants: ['Tenant Roster', ['Tenant name', 'Contact', 'Monthly rent', 'Balance'],
-          row => [row.fullName, row.contactNumber || null, reportPeso(row.monthlyRent), reportPeso(row.balance)]],
-        rooms: ['Room Occupancy Status', ['Room number', 'Room type', 'Capacity', 'Available slots', 'Status'],
-          row => [row.roomNumber, row.roomType, row.capacity, row.availableSlots, row.status]],
-        income: ['Monthly Rent and Reservation Collections', ['Month received', 'Total collections'],
-          row => [row.month, reportPeso(row.total)]]
-      };
-      const [title, headers, rowValues] = reports[type];
-      ownerReportTitle.textContent = title;
-      DormMapReports.render(ownerReportOutput, headers, data.map(rowValues));
-      ownerReportPreview.classList.remove('hidden');
-    } catch (error) {
-      if (request === ownerReportRequest) ownerToast(error.message, true);
+  async function refreshOwnerReports() {
+    const request = ++ownerReportRequest;
+    const previousBranch = reportBranch.value;
+    reportBranch.disabled = true;
+    reportTypes.hidden = true;
+    reportTypes.classList.remove('grid');
+    ownerReportPreview.classList.add('hidden');
+    reportStatus.textContent = 'Loading boarding houses…';
+    const loaded = await loadBoardingHouses();
+    if (request !== ownerReportRequest) return;
+    if (!loaded) {
+      reportStatus.textContent = 'Could not load boarding houses. Try Refresh Data.';
+      return;
     }
+    const houses = _allBoardingHouses;
+    reportBranch.replaceChildren(new Option(houses.length ? 'Select a branch' : 'No boarding houses', ''),
+      ...houses.map(house => new Option(house.name + (house.isPrimary ? ' (Main)' : ''), house.id)));
+    reportBranch.options[0].disabled = true;
+    reportBranch.value = houses.some(house => String(house.id) === previousBranch) ? previousBranch
+      : houses.length === 1 ? String(houses[0].id) : '';
+    reportBranch.disabled = houses.length === 0;
+    loadReport();
+  }
+
+  function reportDefinition() {
+    return reports[reportType === 'tenants' && reportTenantView !== 'active' ? reportTenantView : reportType];
+  }
+
+  async function loadReport() {
+    const request = ++ownerReportRequest;
+    const branchId = reportBranch.value;
+    reportRows = null;
+    reportTypes.hidden = !branchId;
+    reportTypes.classList.toggle('grid', Boolean(branchId));
+    ownerReportPreview.classList.toggle('hidden', !branchId);
+    reportStatus.textContent = !branchId && !reportBranch.disabled ? 'Select a boarding house branch to view its reports.' : '';
+    if (!branchId) return;
+
+    printOwnerReport.disabled = true;
+    reportTypeButtons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.reportType === reportType)));
+    markTenantView(reportTenantButtons, reportTenantView);
+    document.getElementById('reportTenantControls').hidden = reportType !== 'tenants';
+    reportIncomeFilters.hidden = reportType !== 'income';
+    reportIncomeFilters.classList.toggle('flex', reportType === 'income');
+    ownerReportTitle.textContent = reportDefinition()[0];
+    ownerReportOutput.textContent = 'Loading report…';
+
+    const params = new URLSearchParams({ boardingHouseId: branchId });
+    let endpoint = 'reports';
+    if (reportType === 'tenants' && reportTenantView === 'pending') {
+      endpoint = 'pending-applications';
+    } else {
+      params.set('type', reportType);
+      if (reportType === 'tenants' && reportTenantView === 'archive') params.set('view', 'archive');
+      if (reportType === 'income') incomeDates.forEach((value, key) => params.set(key, value));
+    }
+
+    try {
+      const { data } = await ownerRequest(`/owner-dashboard/api/${endpoint}?${params}`);
+      if (request !== ownerReportRequest) return;
+      reportRows = data;
+      renderOwnerReport();
+      printOwnerReport.disabled = false;
+    } catch (error) {
+      if (request === ownerReportRequest) ownerReportOutput.textContent = error.message;
+    }
+  }
+
+  function renderOwnerReport() {
+    const [, headers, rowValues] = reportDefinition();
+    const rows = reportType === 'tenants' ? reportRows.filter(row => tenantMatches(row, reportTenantSearch.value)) : reportRows;
+    if (!rows.length && reportType === 'tenants' && reportTenantSearch.value.trim()) {
+      ownerReportOutput.textContent = 'No matching tenants.';
+      return;
+    }
+    DormMapReports.render(ownerReportOutput, headers, rows.map(rowValues));
+    if (reportType === 'rooms') showReportRoomOccupants(rows);
+    if (reportType === 'income') {
+      const total = rows.reduce((cents, row) => cents + Math.round(row.total * 100), 0) / 100;
+      const summary = document.createElement('p');
+      summary.className = 'mb-3 font-semibold text-emerald-900';
+      summary.textContent = 'Total income · ' + reportPeso(total);
+      ownerReportOutput.prepend(summary);
+    }
+  }
+
+  function showReportRoomOccupants(rooms) {
+    const rows = [...ownerReportOutput.querySelectorAll('tbody tr')];
+    rooms.forEach((room, index) => {
+      const row = rows[index];
+      const roomCell = row.cells[0];
+      const roomButton = document.createElement('button');
+      const detailRow = document.createElement('tr');
+      detailRow.id = 'reportRoomOccupants-' + room.id;
+      detailRow.hidden = true;
+      const detailCell = detailRow.insertCell();
+      detailCell.colSpan = row.cells.length;
+      detailCell.className = 'bg-slate-50 text-slate-700';
+      detailCell.textContent = room.tenants.length ? 'Current tenants · ' + room.tenants.join(', ') : 'No tenants assigned to this room.';
+      roomButton.type = 'button';
+      roomButton.textContent = room.roomNumber;
+      roomButton.className = 'font-semibold text-emerald-800 underline underline-offset-2';
+      roomButton.setAttribute('aria-expanded', 'false');
+      roomButton.setAttribute('aria-controls', detailRow.id);
+      roomButton.setAttribute('aria-label', ['Tenants in room ' + room.roomNumber, room.floor].filter(Boolean).join(', '));
+      roomCell.replaceChildren(roomButton);
+      row.classList.add('cursor-pointer', 'hover:bg-slate-50');
+      row.after(detailRow);
+      row.addEventListener('click', () => {
+        detailRow.hidden = !detailRow.hidden;
+        roomButton.setAttribute('aria-expanded', String(!detailRow.hidden));
+      });
+    });
   }
 
   // Run initialization
