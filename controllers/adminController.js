@@ -1,3 +1,4 @@
+import { listRegistrationAnalytics, registrationFilters } from '../services/adminRegistrationAnalytics.js';
 import { streamDatabaseBackup } from '../services/databaseBackupService.js';
 import { getQrPhConfiguration } from '../services/paymongoService.js';
 import { branchNumbers, orderBranches, tenantBranchAssignments } from '../services/propertyBranchesService.js';
@@ -99,6 +100,20 @@ export const overview = async (req, res, next) => {
       },
       recentActivity,
     });
+  } catch (error) { next(error); }
+};
+
+export const registrationAnalytics = async (req, res, next) => {
+  try {
+    const admin = await User.findByPk(req.session.userId, { attributes: ['accountType', 'isArchived', 'isSuspended'] });
+    if (!admin || !['super_admin', 'bplo_admin'].includes(admin.accountType) || admin.isArchived || admin.isSuspended) {
+      return res.status(403).json({ error: 'BPLO Super Admin access is required.' });
+    }
+    const filters = registrationFilters(req.query);
+    if (!filters) return res.status(422).json({ error: 'Choose a valid registration date and filters.' });
+    const requestedPage = page(req.query.page);
+    if (requestedPage > 1000000) return res.status(422).json({ error: 'Choose a valid page.' });
+    res.json(await listRegistrationAnalytics(filters, requestedPage, 25));
   } catch (error) { next(error); }
 };
 

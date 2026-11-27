@@ -924,6 +924,12 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       });
       assert.deepEqual(await report(branch.id, 'income', { from: '2027-03-10', to: '2027-03-10' }), [{ month: '2027-03', total: 316 }]);
       assert.deepEqual(await report(branch.id, 'income', { from: '2027-03-10', to: '2027-03-11' }), [{ month: '2027-03', total: 371 }]);
+      assert.deepEqual(await report(branch.id, 'income', { groupBy: 'day', from: '2027-03-10', to: '2027-03-11' }), [
+        { period: '2027-03-11', total: 55 }, { period: '2027-03-10', total: 316 }
+      ]);
+      assert.deepEqual(await report(branch.id, 'income', { groupBy: 'week', from: '2027-03-10', to: '2027-03-11' }), [
+        { period: '2027-03-08', total: 371 }
+      ]);
       assert.deepEqual(await report(house.id, 'income', { from: '2027-03-10', to: '2027-03-10' }), []);
       assert.ok((await report(branch.id, 'income')).some(row => row.month === '2027-03' && row.total === 391));
       assert.equal((await request('/owner-dashboard/api/reports?type=income&from=2027-02-30', ownerCookie)).status, 422);
@@ -1008,7 +1014,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
         selectedBoardingHouse: `bh-${branch.id}`, requestedRoomId: String(preferred.id) })) signup.set(field, value);
       const signedUp = await request('/register', null, { method: 'POST', body: signup });
       assert.equal(signedUp.status, 302, await signedUp.clone().text());
-      assert.equal(signedUp.headers.get('location'), '/login?registered=1');
+      assert.equal(signedUp.headers.get('location'), '/tenant-dashboard');
       const passwordTenant = await User.findOne({ where: { email } });
       assert.ok(passwordTenant);
       ids.push(passwordTenant.id);
@@ -1071,7 +1077,31 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       })) signup.set(field, value);
       const signedUp = await request('/register', null, { method: 'POST', body: signup });
       assert.equal(signedUp.status, 302, await signedUp.clone().text());
-      assert.equal(signedUp.headers.get('location'), '/login?registered=1');
+      assert.equal(signedUp.headers.get('location'), '/tenant-dashboard');
+      const newTenantCookie = signedUp.headers.get('set-cookie').split(';')[0];
+      const tenantOverview = await (await request('/tenant-dashboard/api/overview', newTenantCookie)).json();
+      assert.equal(tenantOverview.hasTenancy, false);
+      assert.equal(tenantOverview.hasOpenApplication, false);
+      assert.equal(tenantOverview.hasStayHistory, false);
+      const endpoint = '/admin/api/registration-analytics';
+      assert.equal((await request(endpoint, newTenantCookie)).status, 403);
+      const adminCookie = await login(admin.email);
+      const { reportDay } = await import('../../services/reportCalendar.js');
+      const today = reportDay();
+      for (const [period, date] of [['day', today], ['month', today.slice(0, 7)], ['year', today.slice(0, 4)]]) {
+        const filters = new URLSearchParams({ role: 'tenant', period, date, search: email });
+        const response = await request(`${endpoint}?${filters}`, adminCookie);
+        assert.equal(response.status, 200, await response.clone().text());
+        const result = await response.json();
+        assert.equal(result.total, 1);
+        assert.equal(result.byRole.tenant, 1);
+        assert.equal(result.accounts[0].email, email);
+        assert.equal(result.trend.reduce((sum, entry) => sum + entry.count, 0), 1);
+      }
+      assert.equal((await request(endpoint + '?period=day&date=2026-02-30', adminCookie)).status, 422);
+      await admin.update({ isSuspended: true });
+      try { assert.equal((await request(endpoint, adminCookie)).status, 403); }
+      finally { await admin.update({ isSuspended: false }); }
       const emailTenant = await User.findOne({ where: { email } });
       ids.push(emailTenant.id);
       for (const tenant of [await googleTenant.reload(), emailTenant]) {
@@ -1150,6 +1180,8 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const newApp = await make(other.ownerId, other.id === first.id ? house : otherHouse);
       await assert.rejects(offerApplication(other.ownerId, applicant.id, { applicationId: newApp.id, roomId: openRoom.id }), /active tenancy/);
       const applicantCookie = await login(applicant.email);
+      const overview = await (await request('/tenant-dashboard/api/overview', applicantCookie)).json();
+      assert.equal(overview.hasTenancy, true);
       const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Manila' }).format(new Date());
       const moveOut = await request('/tenant-dashboard/api/stays/move-out', applicantCookie, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: today }) });
       assert.equal(moveOut.status, 200, await moveOut.clone().text());

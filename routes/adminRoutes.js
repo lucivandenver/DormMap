@@ -8,6 +8,7 @@ router.use(requireSuperAdmin);
 // Dashboard Page & Overview
 router.get('/', controller.adminDashboardPage);
 router.get('/api/overview', controller.overview);
+router.get('/api/registration-analytics', controller.registrationAnalytics);
 router.get('/api/map-data', controller.adminMapData);
 router.get('/api/featured-listings', controller.getFeaturedListings);
 router.post('/api/featured-listings', controller.updateFeaturedListings);

@@ -1,6 +1,8 @@
 {{> head}}
 <link rel="stylesheet" href="/css/report-print.css">
 <script src="/js/report-print.js"></script>
+<link rel="stylesheet" href="/css/report-analytics.css">
+<script src="/js/report-analytics.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -873,6 +875,13 @@
             </div>
           </div>
           <form id="reportIncomeFilters" class="flex-wrap items-end gap-3 mb-4" hidden>
+            <label class="text-sm font-semibold text-slate-700">Group by
+              <select name="groupBy" class="mt-1 block rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+                <option value="day">Day</option>
+                <option value="week">Week</option>
+                <option value="month" selected>Month</option>
+              </select>
+            </label>
             <label class="text-sm font-semibold text-slate-700">From
               <input type="date" name="from" class="mt-1 block rounded-lg border border-slate-200 px-2 py-1.5">
             </label>
@@ -3992,6 +4001,8 @@ async function loadLegacyNotifications() {
   let reportTenantView = 'active';
   let reportRows = null;
   let incomeDates = new URLSearchParams();
+  const incomePeriodLabels = { day: 'Date received', week: 'Week starting Monday', month: 'Month received' };
+  const incomeGrouping = () => reportIncomeFilters.elements.groupBy.value;
 
   const reports = {
     payments: ['Rental Collections Report', ['Tenant name', 'Invoice total', 'Amount received', 'Due date', 'Status'],
@@ -4005,7 +4016,7 @@ async function loadLegacyNotifications() {
     rooms: ['Room Availability', ['Room number', 'Floor', 'Room type', 'Capacity', 'Available slots', 'Status'],
       row => [row.roomNumber, row.floor, row.roomType, row.capacity, row.availableSlots, row.status]],
     income: ['Income Summary', ['Month received', 'Total collections'],
-      row => [row.month, reportPeso(row.total)]]
+      row => [row.period ?? row.month, reportPeso(row.total)]]
   };
 
   printOwnerReport.addEventListener('click', () => {
@@ -4013,6 +4024,7 @@ async function loadLegacyNotifications() {
     if (reportType === 'income') {
       const from = incomeDates.get('from');
       const to = incomeDates.get('to');
+      context.push({ day: 'Daily', week: 'Weekly', month: 'Monthly' }[incomeGrouping()]);
       if (from) context.push('From ' + from);
       if (to) context.push('Through ' + to);
     }
@@ -4036,11 +4048,14 @@ async function loadLegacyNotifications() {
   });
   reportIncomeFilters.addEventListener('submit', event => {
     event.preventDefault();
-    incomeDates = new URLSearchParams([...new FormData(reportIncomeFilters)].filter(([, value]) => value));
+    incomeDates = new URLSearchParams(['from', 'to'].map(name => [name, reportIncomeFilters.elements[name].value])
+      .filter(([, value]) => value));
     loadReport();
   });
+  reportIncomeFilters.elements.groupBy.addEventListener('change', loadReport);
   document.getElementById('clearReportDates').addEventListener('click', () => {
-    reportIncomeFilters.reset();
+    reportIncomeFilters.elements.from.value = '';
+    reportIncomeFilters.elements.to.value = '';
     incomeDates = new URLSearchParams();
     loadReport();
   });
@@ -4099,36 +4114,54 @@ async function loadLegacyNotifications() {
     } else {
       params.set('type', reportType);
       if (reportType === 'tenants' && reportTenantView === 'archive') params.set('view', 'archive');
-      if (reportType === 'income') incomeDates.forEach((value, key) => params.set(key, value));
+      if (reportType === 'income') {
+        params.set('groupBy', incomeGrouping());
+        incomeDates.forEach((value, key) => params.set(key, value));
+      }
     }
 
     try {
-      const { data } = await ownerRequest(`/owner-dashboard/api/${endpoint}?${params}`);
+      const { data, analytics } = await ownerRequest(`/owner-dashboard/api/${endpoint}?${params}`);
       if (request !== ownerReportRequest) return;
       reportRows = data;
-      renderOwnerReport();
+      renderOwnerReport(analytics);
       printOwnerReport.disabled = false;
     } catch (error) {
       if (request === ownerReportRequest) ownerReportOutput.textContent = error.message;
     }
   }
 
-  function renderOwnerReport() {
+  function renderOwnerReport(analytics) {
     const [, headers, rowValues] = reportDefinition();
     const rows = reportType === 'tenants' ? reportRows.filter(row => tenantMatches(row, reportTenantSearch.value)) : reportRows;
     if (!rows.length && reportType === 'tenants' && reportTenantSearch.value.trim()) {
       ownerReportOutput.textContent = 'No matching tenants.';
       return;
     }
-    DormMapReports.render(ownerReportOutput, headers, rows.map(rowValues));
+    const columns = reportType === 'income' ? [incomePeriodLabels[incomeGrouping()], headers[1]] : headers;
+    DormMapReports.render(ownerReportOutput, columns, rows.map(rowValues));
     if (reportType === 'rooms') showReportRoomOccupants(rows);
-    if (reportType === 'income') {
-      const total = rows.reduce((cents, row) => cents + Math.round(row.total * 100), 0) / 100;
-      const summary = document.createElement('p');
-      summary.className = 'mb-3 font-semibold text-emerald-900';
-      summary.textContent = 'Total income · ' + reportPeso(total);
-      ownerReportOutput.prepend(summary);
-    }
+    if (reportType === 'income' && analytics) renderIncomeAnalytics(analytics);
+  }
+
+  function renderIncomeAnalytics({ total, rent, reservations, comparison, trend }) {
+    const { change, percent, current, previous, currentFrom, currentTo, previousFrom, previousTo } = comparison;
+    const direction = change > 0 ? 'up' : change < 0 ? 'down' : '';
+    const movement = change > 0 ? '↑ Increase' : change < 0 ? '↓ Decrease' : '→ No change';
+    const percentLabel = percent === null ? '' : ' (' + Math.abs(percent).toLocaleString('en-PH', { maximumFractionDigits: 1 }) + '%)';
+    const range = (from, to) => from === to ? from : from + ' to ' + to;
+    const cards = DormMapAnalytics.metrics([
+      { label: 'Total income', value: reportPeso(total) },
+      { label: 'Rent collected', value: reportPeso(rent) },
+      { label: 'Reservation fees collected', value: reportPeso(reservations) },
+      { label: 'Change vs. previous period', direction, value: movement + (change ? ' ' + reportPeso(Math.abs(change)) + percentLabel : ''),
+        note: ['Selected · ' + range(currentFrom, currentTo) + ' · ' + reportPeso(current),
+          'Previous · ' + range(previousFrom, previousTo) + ' · ' + reportPeso(previous)] }
+    ]);
+    const chart = DormMapAnalytics.chart('Recent income by ' + incomeGrouping(), trend.map(row => ({
+      period: incomeGrouping() === 'month' ? row.period.slice(0, 7) : row.period, value: row.total
+    })), reportPeso);
+    ownerReportOutput.prepend(cards, chart);
   }
 
   function showReportRoomOccupants(rooms) {

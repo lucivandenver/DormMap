@@ -734,6 +734,15 @@ export const registerUser = async (req, res) => {
 
     if (normalizedAccountType !== "super_admin") {
       void sendVerificationEmail(email, verificationToken).catch(mailError => console.error("Verification email failed:", mailError));
+      if (normalizedAccountType === 'tenant') {
+        await startLoginSession(req, user);
+        if (res.locals.registrationWantsJson) {
+          const result = { success: true, redirect: '/tenant-dashboard' };
+          if (req.registrationDraftDirectory) req.session.completedRegistrationDraft = { id: req.body.registrationDraft, path: req.path, status: 201, result };
+          return res.status(201).json(result);
+        }
+        return res.redirect('/tenant-dashboard');
+      }
       const approvalMessage = 'Application submitted. Please wait for the responsible office to approve your account.';
       if (res.locals.registrationWantsJson) {
         const result = { success: true, message: approvalMessage };
@@ -741,7 +750,7 @@ export const registerUser = async (req, res) => {
         return res.status(201).json(result);
       }
       if (normalizedAccountType === 'boarding_house_owner') return res.redirect('/register?accountType=boarding_house_owner&pendingApproval=1');
-      return res.redirect(['barangay', 'boarding_house_owner'].includes(normalizedAccountType) ? "/login?pendingApproval=1" : "/login?registered=1");
+      return res.redirect("/login?pendingApproval=1");
     }
 
     req.session.userId = user.id;
