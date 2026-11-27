@@ -1172,6 +1172,7 @@
       }
     });
 
+    renderTenantLocks();
     loadOverview();
   });
 
@@ -1189,24 +1190,49 @@
     if (overlay) overlay.classList.add('hidden');
   }
 
-  window.isTenantPending = false;
-  const lockedTabs = new Set(['rental-info', 'maintenance', 'documents']);
+  const tenancyTabs = ['my-room', 'payments', 'rental-info', 'maintenance', 'documents', 'messaging'];
+  let tenantAccess = null;
+  let pendingTenantTab;
+
+  function tenantTabLocked(tab) {
+    if (!tenancyTabs.includes(tab) || tenantAccess?.hasTenancy) return false;
+    if (tab === 'messaging') return !tenantAccess?.hasOpenApplication;
+    if (tab === 'my-room' || tab === 'payments') return !tenantAccess?.hasStayHistory;
+    return true;
+  }
+
+  function renderTenantLocks() {
+    for (const tab of tenancyTabs) {
+      const button = document.getElementById('btn-' + tab);
+      const locked = tenantTabLocked(tab);
+      button.classList.toggle('opacity-60', locked);
+      button.setAttribute('aria-disabled', String(locked));
+      const icon = button.querySelector('.lock-icon');
+      if (locked && !icon) button.insertAdjacentHTML('beforeend', '<span class="lock-icon ml-auto text-xs" aria-hidden="true">🔒</span>');
+      if (!locked) icon?.remove();
+    }
+  }
 
   function switchTab(tabId) {
     closeMobileSidebar();
-    if (window.isTenantPending && lockedTabs.has(tabId)) {
+    pendingTenantTab = null;
+    if (!tenantAccess && tenancyTabs.includes(tabId)) {
+      pendingTenantTab = tabId;
+      return;
+    }
+    if (tenantTabLocked(tabId)) {
       Swal.fire({
         icon: 'info',
-        title: '🔒 Feature Locked',
-        html: 'This module is available once you accept a room offer from your boarding house owner.<br><br>You can reach the owner under <strong>Messages</strong>.',
+        title: 'Feature locked',
+        text: tenantAccess?.hasOpenApplication
+          ? 'Accept a room offer from your boarding house owner to unlock this feature.'
+          : 'Browse boarding houses, send an inquiry, and accept a room offer to unlock this feature.',
         confirmButtonColor: '#023020',
-        confirmButtonText: '💬 Open Messages',
+        confirmButtonText: tenantAccess?.hasOpenApplication ? 'View applications' : 'Browse boarding houses',
         showCancelButton: true,
         cancelButtonText: 'Close'
-      }).then((res) => {
-        if (res.isConfirmed) {
-          switchTab('messaging');
-        }
+      }).then(result => {
+        if (result.isConfirmed) switchTab(tenantAccess?.hasOpenApplication ? 'dashboard' : 'browse-dorms');
       });
       return;
     }
@@ -1255,39 +1281,13 @@
       const res = await fetch('/tenant-dashboard/api/overview');
       const data = await res.json();
 
-      window.isTenantPending = data.isPending === true;
+      if (!res.ok) throw new Error(data.error || 'Unable to load your tenant dashboard.');
+      tenantAccess = data;
+      renderTenantLocks();
       const banner = document.getElementById('pendingNoticeBanner');
-
-      // Update sidebar lock indicators based strictly on isTenantPending
-      lockedTabs.forEach(tId => {
-        const btn = document.getElementById(`btn-${tId}`);
-        if (btn) {
-          if (window.isTenantPending) {
-            btn.classList.add('opacity-60');
-            if (!btn.querySelector('.lock-icon')) {
-              btn.insertAdjacentHTML('beforeend', `<span class="lock-icon ml-auto text-xs">🔒</span>`);
-            }
-          } else {
-            btn.classList.remove('opacity-60');
-            const icon = btn.querySelector('.lock-icon');
-            if (icon) icon.remove();
-          }
-        }
-      });
-
-      // Applications banner handling:
-      // Show banner if tenant is pending OR has applications needing review/action
-      const hasUnresolvedApps = (data.applications || []).some(a => ['pending_owner', 'accepted_by_owner'].includes(a.status));
-      if (window.isTenantPending || hasUnresolvedApps) {
-        if (banner) banner.classList.remove('hidden');
-        if (data.pendingBoardingHouse && document.getElementById('pendingHouseName')) {
-          document.getElementById('pendingHouseName').innerText = data.pendingBoardingHouse;
-        }
-        renderApplicationsList(data.applications || []);
-      } else {
-        // Confirmed active tenant with no pending inquiries -> hide pending warning banner
-        if (banner) banner.classList.add('hidden');
-      }
+      banner.classList.toggle('hidden', data.hasTenancy && !data.hasOpenApplication);
+      if (!banner.classList.contains('hidden')) renderApplicationsList(data.applications || []);
+      if (pendingTenantTab) switchTab(pendingTenantTab);
 
       document.getElementById('card-room').innerText = data.cards.currentRoom;
       document.getElementById('card-rent').innerText = `₱${Number(data.cards.monthlyRent || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}`;

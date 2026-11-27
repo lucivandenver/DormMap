@@ -230,8 +230,12 @@ export const overview = async (req, res, next) => {
       });
     }
 
+    const hasStayHistory = !hasTenancy && Boolean(await OwnerTenant.count({ where: { tenantUserId: user.id } }));
     res.json({
       isPending,
+      hasTenancy,
+      hasStayHistory,
+      hasOpenApplication,
       pendingBoardingHouse: user.selectedBoardingHouse || (enrichedApplications[0]?.boardingHouseName || 'Target Boarding House'),
       applications: enrichedApplications,
       applicationStats: {

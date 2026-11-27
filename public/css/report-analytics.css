@@ -1,0 +1,17 @@
+.analytics-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: .8rem; margin-bottom: 1rem; }
+.analytics-metrics > div, .analytics-chart { border: 1px solid #e2e8f0; border-radius: 12px; padding: .9rem 1rem; background: #fff; }
+.analytics-metrics dt { color: #475569; font-size: .82rem; }
+.analytics-metrics dd { margin: .2rem 0 0; color: #0f172a; font-size: 1.25rem; font-weight: 700; }
+.analytics-metrics .analytics-note { font-size: .8rem; font-weight: 400; color: #475569; }
+.analytics-metrics .analytics-up { color: #047857; }
+.analytics-metrics .analytics-down { color: #be123c; }
+.analytics-chart { margin: 1rem 0; }
+.analytics-chart figcaption { font-weight: 700; color: #0f172a; }
+.analytics-chart ul { display: grid; gap: .35rem; margin: .6rem 0 0; padding: 0; list-style: none; }
+.analytics-chart li { display: grid; grid-template-columns: 7rem minmax(1rem, 1fr) auto; gap: .6rem; align-items: center; color: #334155; font-size: .78rem; }
+.analytics-track { height: .58rem; border-radius: 4px; background: #e2e8f0; }
+.analytics-bar { display: block; height: 100%; border-radius: inherit; background: #0f766e; }
+.analytics-chart .analytics-track { min-width: 0; }
+@media print {
+  .analytics-chart, .analytics-metrics > div { break-inside: avoid; print-color-adjust: exact; }
+}

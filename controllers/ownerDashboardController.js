@@ -1,4 +1,6 @@
-import { confirmedRentAmount, positivePaymentAmount, rentBillTotal } from '../services/paymentAmounts.js';
+import { groupIncome, incomeAnalytics, incomeEntries } from '../services/incomeReport.js';
+import { isReportDay } from '../services/reportCalendar.js';
+import { positivePaymentAmount, rentBillTotal } from '../services/paymentAmounts.js';
 import { PAYMENT_QR_FIELDS, ownerPaymentConfig, ownerPaymentQr, usesPaymentQr, validatePaymentMethods } from '../services/ownerPaymentConfig.js';
 import { assertCurrentSubmission, assertNoOnlineCheckout, assertReferenceAvailable, manilaToday, notifyPaymentReview, paymentNotes, paymentReference, prepareManualConfirmation, validatePaidDate } from '../services/manualPaymentService.js';
 import { createTenantApplication, closeDuplicatePendingApplications } from '../services/tenantApplicationService.js';
@@ -24,7 +26,6 @@ import { TenantApplication, MaintenanceRequest } from '../models/tenantModels.js
 import { sequelize } from '../models/db.js';
 
 const oid = (req) => req.session.userId;
-const manilaDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Manila' });
 
 function approvedReservations(ownerId) {
   return TenantApplication.findAll({
@@ -35,28 +36,10 @@ function approvedReservations(ownerId) {
 
 function reportDate(value) {
   if (value === undefined || value === '') return '';
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
-    !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().slice(0, 10) !== value) {
-    fail('Enter valid report dates.', 422);
-  }
+  if (!isReportDay(value)) fail('Enter valid report dates.', 422);
   return value;
 }
 
-function incomeByMonth(payments, reservations, from = '', to = '') {
-  const inRange = date => !(from || to) || (date && (!from || date >= from) && (!to || date <= to));
-  const totals = new Map();
-  const add = (month, amount) => totals.set(month, (totals.get(month) || 0) + Math.round(amount * 100));
-  for (const payment of payments) {
-    if (payment.status === 'paid' && inRange(payment.paidDate)) {
-      add(payment.paidDate?.slice(0, 7) || payment.month || 'Unknown', confirmedRentAmount(payment));
-    }
-  }
-  for (const reservation of reservations) {
-    const date = manilaDate.format(reservation.reservationApprovedAt);
-    if (inRange(date)) add(date.slice(0, 7), Number(reservation.reservationAmountPaid ?? reservation.reservationFee));
-  }
-  return new Map([...totals].map(([month, cents]) => [month, cents / 100]));
-}
 const selectedBranch = value => {
   if (value === undefined || value === '') return null;
   const id = Number(value);
@@ -128,7 +111,7 @@ export const overview = async (req, res, next) => {
     const totalRooms    = rooms.length;
     const availableRooms = rooms.filter(r => r.status === 'available' && r.availableSlots > 0).length;
     const occupiedRooms  = rooms.filter(r => r.status === 'occupied').length;
-    const income = incomeByMonth(payments, reservations);
+    const income = groupIncome(incomeEntries(payments, reservations));
     const currentMonth = manilaToday().slice(0, 7);
     const monthlyIncome = income.get(currentMonth) || 0;
     const pendingPayments = payments.filter(p => p.status === 'pending').length;
@@ -1084,6 +1067,8 @@ export const getReports = async (req, res, next) => {
       return res.json({ type, data });
     }
     if (type === 'income') {
+      const grouping = req.query.groupBy ?? 'month';
+      if (!['day', 'week', 'month'].includes(grouping)) fail('Choose Day, Week, or Month.', 422);
       const from = reportDate(req.query.from);
       const to = reportDate(req.query.to);
       if (from && to && from > to) fail('The start date must be on or before the end date.', 422);
@@ -1102,9 +1087,11 @@ export const getReports = async (req, res, next) => {
           return id ? id === branch.id : branch.isPrimary;
         });
       }
-      const data = [...incomeByMonth(payments, branchReservations, from, to)].sort(([a], [b]) => b.localeCompare(a))
-        .map(([month, total]) => ({ month, total }));
-      return res.json({ type, data });
+      const entries = incomeEntries(payments, branchReservations);
+      const periodKey = grouping === 'month' ? 'month' : 'period';
+      const data = [...groupIncome(entries, grouping, from, to)].sort(([a], [b]) => b.localeCompare(a))
+        .map(([period, total]) => ({ [periodKey]: period, total }));
+      return res.json({ type, data, analytics: incomeAnalytics(entries, grouping, from, to) });
     }
 
     res.status(400).json({ error: 'Invalid report type.' });
