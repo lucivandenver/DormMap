@@ -2,17 +2,18 @@
 <html lang="en">
 <head>
   <meta name="dormmap-maptiler-key" content="{{mapTilerKey}}">
-  <link rel="stylesheet" href="/css/full-map.css?v=6">
+  <link rel="stylesheet" href="/css/full-map.css?v=7">
   {{#if cartoBasemapKey}}<meta name="dormmap-carto-basemap-key" content="{{cartoBasemapKey}}">{{/if}}
   <script src="/js/full-map.js?v=7"></script>
   <link rel="stylesheet" href="/css/registration-layout.css?v=4">
-  <script src="/js/property-pin.js?v=4"></script>
+  <script src="/js/property-pin.js?v=5"></script>
   <script src="/js/owner-registration-counts.js" defer></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DormMap</title>
-  <link rel="stylesheet" href="/css/portal-updates.css?v=3">
-  <script src="/js/portal-updates.js?v=3" defer></script>
+  <link rel="stylesheet" href="/css/portal-updates.css?v=4">
+  <script src="/js/portal-feedback.js?v=4"></script>
+  <script src="/js/portal-updates.js?v=4" defer></script>
   <link rel="stylesheet" href="/css/portal-pagination.css">
   <script src="/js/portal-pagination.js" defer></script>
 
@@ -22,8 +23,8 @@
   <script src="/js/owner-room-plan.js" defer></script>
   <script src="/js/registration-files.js" defer></script>
   <script src="/js/password-visibility.js" defer></script>
-  <link rel="stylesheet" href="/css/room-cards.css">
-  <script src="/js/room-details.js?v=3"></script>
+  <script src="/js/room-details.js?v=4"></script>
+  <script src="/js/property-reviews.js"></script>
   <script src="/js/reservation-fields.js"></script>
   <!-- PWA Manifest & App Icons -->
   <link rel="manifest" href="/manifest.json">
@@ -42,8 +43,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://unpkg.com/lucide@latest" defer></script>
   <script src="/socket.io/socket.io.js" defer></script>
-  <script src="/js/dormmap-sockets.js?v=2" defer></script>
-  <script src="/js/pwa-register.js" defer></script>
+  <script src="/js/dormmap-sockets.js?v=3" defer></script>
+  <script src="/js/pwa-register.js?v=2" defer></script>
   <style>
     :root {
       font-family: Inter, system-ui, sans-serif;

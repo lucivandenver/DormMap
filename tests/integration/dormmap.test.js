@@ -19,7 +19,7 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
   const { sequelize } = await import('../../models/db.js');
   const { migrateSchema, closeDatabase } = await import('../../services/schemaService.js');
   const { User } = await import('../../models/userModel.js');
-  const { BoardingHouse, BoardingHouseReview, RoomReview, OwnerRoom, OwnerTenant, OwnerGallery, OwnerInquiry } = await import('../../models/ownerModels.js');
+  const { BoardingHouse, BoardingHouseReview, OwnerRoom, OwnerTenant, OwnerGallery, OwnerInquiry } = await import('../../models/ownerModels.js');
   const { Barangay, BploDataRequest, EducationalInstitution, BarangayNotification } = await import('../../models/adminModels.js');
   const { TenantApplication } = await import('../../models/tenantModels.js');
   const { OwnerPayment } = await import('../../models/ownerModels.js');
@@ -138,6 +138,30 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const response = await request('/tenant-dashboard', cookie);
       assert.equal(response.status, 200);
       assert.match(await response.text(), /browseCompareButton/);
+    });
+    await t.test('BPLO can pin a non-school place and control its public visibility', async () => {
+      const endpoint = '/admin/api/institutions';
+      const adminCookie = await login(admin.email);
+      const name = `Review Café ${suffix}`;
+      const values = { name, schoolType: 'Restaurant / Café', address: 'Town center', barangay: 'Poblacion' };
+      const write = (method, body) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      assert.equal((await request(endpoint, cookie, write('POST', values))).status, 403);
+      assert.equal((await request(endpoint, adminCookie, write('POST', values))).status, 422);
+      const response = await request(endpoint, adminCookie, write('POST', { ...values, latitude: 12.7563, longitude: 121.492 }));
+      assert.equal(response.status, 201, await response.clone().text());
+      const { data: place } = await response.json();
+      try {
+        const location = await (await request('/api/map-place?' + new URLSearchParams({ kind: 'institution', name }))).json();
+        assert.equal(location.latitude, 12.7563);
+        assert.equal(location.longitude, 121.492);
+        assert.equal((await request(endpoint + '/' + place.id, adminCookie, write('PUT', { longitude: 121.49 }))).status, 422);
+        const index = () => request('/api/institutions').then(response => response.json());
+        assert.ok((await index()).some(item => item.id === place.id && item.schoolType === values.schoolType));
+        assert.equal((await request(endpoint + '/' + place.id, adminCookie, write('PUT', { isActive: false }))).status, 200);
+        assert.ok(!(await index()).some(item => item.id === place.id));
+      } finally {
+        await EducationalInstitution.destroy({ where: { id: place.id } });
+      }
     });
     await t.test('admin SQL backup restores the tables and data into an empty MySQL database', async () => {
       const { createConnection, escapeId } = await import('mysql2/promise');
@@ -726,7 +750,32 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const approve = { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'approve' }) };
       const applicationPath = `/barangay-dashboard/api/applications/${created.id}/review`;
       assert.equal((await request(applicationPath, branchOfficialCookie, approve)).status, 404);
+      const approval = await request(applicationPath, mainOfficialCookie, approve);
+      assert.equal(approval.status, 200, await approval.clone().text());
+      assert.match((await approval.json()).message, /submitted to BPLO/);
       assert.equal((await request(applicationPath, mainOfficialCookie, approve)).status, 200);
+      const reviewer = await login(admin.email);
+      const queue = await (await request('/admin/api/owners?status=awaiting_bplo&search=Layout', reviewer)).json();
+      assert.ok(queue.data.some(item => item.id === created.id && item.applicationStatus === 'approved_barangay'));
+      const notices = (await (await request('/api/portal/notifications', reviewer)).json()).items;
+      assert.equal(notices.filter(item => item.type === 'owner_application_bplo' && item.body.includes(created.boardingHouseName) && item.url === '/admin#owners').length, 1);
+      const removedAction = { ...approve, body: JSON.stringify({ action: 'forward' }) };
+      assert.equal((await request(applicationPath, mainOfficialCookie, removedAction)).status, 422);
+      const [mainRoom, localRoom] = await OwnerRoom.bulkCreate([
+        { ownerId: created.id, boardingHouseId: primary.id, roomNumber: 'Main Analytics Room' },
+        { ownerId: created.id, boardingHouseId: branch.id, roomNumber: 'Local Analytics Room', capacity: 2, availableSlots: 1 }
+      ]);
+      await OwnerTenant.bulkCreate([
+        { ownerId: created.id, roomId: mainRoom.id, fullName: 'Resident outside the jurisdiction' },
+        { ownerId: created.id, roomId: localRoom.id, fullName: 'Resident in the jurisdiction' }
+      ]);
+      const overview = await (await request('/barangay-dashboard/api/overview', branchOfficialCookie)).json();
+      assert.equal(overview.charts.monthly.length, 6);
+      assert.ok(overview.charts.monthly.every((row, index, rows) => index === 0 || row.period > rows[index - 1].period));
+      assert.deepEqual(overview.charts.properties.find(item => item.name === branch.name), { name: branch.name, total: 1, occupied: 1 });
+      assert.ok(!overview.charts.properties.some(item => item.name === primary.name));
+      assert.equal(overview.charts.properties.reduce((sum, item) => sum + item.total, 0),
+        Object.values(overview.charts.roomInventory).reduce((sum, count) => sum + count, 0));
       assert.ok((await publicListings()).some(item => item.id === `bh-${branch.id}` &&
         item.boardingHousePicture === branch.picture && item.galleryImages.includes(branchExtra) &&
         item.boardingHouseAddress === data.branch2_streetAddress && item.contactNumber === data.contactNumber));
@@ -1363,22 +1412,23 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.equal(bedspace.availableSlots, 1);
 
       const ratingUrl = '/tenant-dashboard/api/boarding-house-rating';
-      const reviewPayload = { rating: 5, comment: 'Quiet room with good light', roomId: bedspace.id };
+      const reviewPayload = { rating: 5, comment: 'Quiet property with good light', boardingHouseId: property.id };
       assert.equal((await request(ratingUrl, cookie, post(reviewPayload))).status, 403);
-      assert.equal((await request(ratingUrl, applicantCookie, post({ ...reviewPayload, roomId: otherRoom.id }))).status, 409);
+      assert.equal((await request(ratingUrl, applicantCookie, post({ ...reviewPayload, boardingHouseId: house.id }))).status, 409);
       const savedReview = await request(ratingUrl, applicantCookie, post(reviewPayload));
       assert.equal(savedReview.status, 200, await savedReview.clone().text());
       assert.equal((await savedReview.json()).ratingCount, 1);
-      const publicReviews = `/api/boarding-houses/bh-${property.id}/rooms/${bedspace.id}/reviews`;
+      const publicReviews = `/api/boarding-houses/bh-${property.id}/reviews`;
       assert.equal((await request(ratingUrl, applicantCookie, post({ ...reviewPayload, rating: 4 }))).status, 200);
       const reviews = (await (await request(publicReviews)).json()).data;
       assert.deepEqual(reviews.map(({ rating, comment }) => ({ rating, comment })), [{ rating: 4, comment: reviewPayload.comment }]);
       assert.equal(reviews[0].tenantUserId, undefined);
-      assert.equal((await request(publicReviews.replace(`bh-${property.id}`, `bh-${house.id}`))).status, 404);
+      assert.deepEqual((await (await request(`/api/boarding-houses/bh-${house.id}/reviews`)).json()).data, []);
+      assert.equal((await request(`/api/boarding-houses/bh-${property.id}/rooms/${bedspace.id}/reviews`)).status, 404);
       const ratedListing = (await (await request('/api/boarding-houses')).json()).find(item => item.id === `bh-${property.id}`);
       assert.equal(ratedListing.ratingAverage, 4);
-      assert.equal(ratedListing.roomInventory.find(item => item.id === bedspace.id).ratingAverage, 4);
-      assert.equal(ratedListing.roomInventory.find(item => item.id === otherRoom.id).ratingCount, 0);
+      assert.equal(ratedListing.roomInventory.find(item => item.id === bedspace.id).ratingAverage, undefined);
+      assert.equal(ratedListing.roomInventory.find(item => item.id === otherRoom.id).ratingCount, undefined);
 
       const stay = await OwnerTenant.findOne({ where: { tenantUserId: applicant.id, status: 'active' } });
       const billResponse = await request('/owner-dashboard/api/payments', ownerCookie,
@@ -1513,7 +1563,6 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       await OwnerTenant.destroy({ where: { ownerId: { [Op.in]: ids } } });
       await Barangay.destroy({ where: { name: { [Op.like]: 'Review Barangay %' } } });
       await EducationalInstitution.destroy({ where: { name: { [Op.like]: 'Review School %' } } });
-      await RoomReview.destroy({ where: { tenantUserId: { [Op.in]: ids } } });
       await BoardingHouseReview.destroy({ where: { tenantUserId: { [Op.in]: ids } } });
       await BploDataRequest.destroy({ where: { createdBy: { [Op.in]: ids } } });
       await OwnerRoom.destroy({ where: { ownerId: { [Op.in]: ids } } });

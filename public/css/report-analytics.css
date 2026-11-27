@@ -36,3 +36,7 @@
   .analytics-plot svg { min-width: 0 !important; }
   .analytics-report-toggle { display: none !important; }
 }
+
+.analytics-scatter svg { min-width: 290px; }
+.barangay-analytics-grid > div { min-width: 0; }
+.barangay-analytics-grid figure { height: 100%; margin: 0; }

@@ -25,7 +25,7 @@
     */
     
 import express from "express";
-import { homePage, aboutPage, boardingHousesPage, boardingHousesApi, institutionsApi, landingDataApi, landingEvents, eligibleBarangaysApi, mapPlaceApi, publicRoomReviews } from "../controllers/homeController.js";
+import { homePage, aboutPage, boardingHousesPage, boardingHousesApi, institutionsApi, landingDataApi, landingEvents, eligibleBarangaysApi, mapPlaceApi, publicBoardingHouseReviews } from "../controllers/homeController.js";
 import authRoutes from "./authRoutes.js";
 import adminRoutes from './adminRoutes.js';
 import barangayDashboardRoutes from './barangayDashboardRoutes.js';
@@ -41,7 +41,7 @@ router.get("/", homePage);
 router.get("/about", aboutPage);
 router.get('/boarding-houses', boardingHousesPage);
 router.get("/api/boarding-houses", boardingHousesApi);
-router.get("/api/boarding-houses/:listing/rooms/:roomId/reviews", publicRoomReviews);
+router.get("/api/boarding-houses/:listing/reviews", publicBoardingHouseReviews);
 router.get('/api/boarding-houses/:listing/reservation', reservationQuote);
 router.get('/api/boarding-houses/:listing/reservation/qr/:method', reservationQr);
 router.get("/api/institutions", institutionsApi);

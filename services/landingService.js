@@ -1,7 +1,7 @@
 import { Op } from 'sequelize';
 import { listTenantDorms, approvedOwnerWhere } from './dormListingService.js';
 import { User } from '../models/userModel.js';
-import { OwnerTenant, OwnerGallery, BoardingHouseReview, RoomReview } from '../models/ownerModels.js';
+import { OwnerTenant, OwnerGallery, BoardingHouseReview } from '../models/ownerModels.js';
 import { Barangay, EducationalInstitution, BploSystemSetting } from '../models/adminModels.js';
 import { activeBarangayWhere } from './registrationPolicy.js';
 import { broadcastEvent } from './websocketService.js';
@@ -64,9 +64,9 @@ export async function landingSnapshot() {
 }
 
 export function installLandingUpdates() {
-  for (const Model of [User, BoardingHouse, OwnerRoom, OwnerTenant, OwnerGallery, BoardingHouseReview, RoomReview, Barangay, EducationalInstitution]) {
+  for (const Model of [User, BoardingHouse, OwnerRoom, OwnerTenant, OwnerGallery, BoardingHouseReview, Barangay, EducationalInstitution]) {
     const hooks = ['afterCreate', 'afterUpdate', 'afterDestroy', 'afterBulkCreate', 'afterBulkUpdate', 'afterBulkDestroy'];
-    if (Model === RoomReview) hooks.push('afterUpsert');
+    if (Model === BoardingHouseReview) hooks.push('afterUpsert');
     for (const hook of hooks) {
       Model.addHook(hook, 'landing-public-refresh', (...args) => {
         const options = args.at(-1);

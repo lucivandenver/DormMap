@@ -8,7 +8,7 @@ import { getQrPhConfiguration } from '../services/paymongoService.js';
 import { branchNumbers, orderBranches, tenantBranchAssignments } from '../services/propertyBranchesService.js';
 import { dormigoQuestionsKey, getDormigoQuestions, validateDormigoQuestions } from '../services/dormigoQuestionsService.js';
 import bcrypt from 'bcrypt';
-import { submittedOwnerWhere } from '../services/registrationPolicy.js';
+import { awaitingBploOwnerStatuses, submittedOwnerWhere } from '../services/registrationPolicy.js';
 import { inventorySummary } from '../services/inventorySummaryService.js';
 import { setPublicMapStatus } from '../services/publicMapStatusService.js';
 import { publicDormListings } from '../services/landingService.js';
@@ -64,7 +64,7 @@ export const overview = async (req, res, next) => {
       User.count({ where: { accountType: { [Op.in]: ['tenant', 'boarding_house_owner'] }, isArchived: false } }),
       Promise.resolve(inventory.houses),
       Promise.resolve(inventory.activeHouses),
-      User.count({ where: { ...ownerWhere, applicationStatus: { [Op.in]: ['pending', 'revision_requested', 'forwarded_to_bplo'] } } }),
+      User.count({ where: { ...ownerWhere, applicationStatus: { [Op.in]: ['pending', 'revision_requested', ...awaitingBploOwnerStatuses] } } }),
       Promise.resolve(inventory.availableRooms),
       BusinessPermit.count(),
       BusinessPermit.count({ where: { expirationDate: { [Op.lt]: today } } }),
@@ -916,7 +916,8 @@ export const listOwners = async (req, res, next) => {
   try {
     const current = page(req.query.page); const limit = Math.min(page(req.query.limit, 5), 50);
     const where = { ...submittedOwnerWhere };
-    if (req.query.status) where.applicationStatus = req.query.status;
+    if (req.query.status) where.applicationStatus = req.query.status === 'awaiting_bplo'
+      ? { [Op.in]: awaitingBploOwnerStatuses } : req.query.status;
     if (req.query.search) where[Op.or] = ['fullName', 'email', 'boardingHouseName', 'barangay'].map((field) => ({ [field]: { [Op.like]: `%${req.query.search}%` } }));
     const result = await User.findAndCountAll({ where, attributes: { exclude: ['password', 'verificationToken', 'resetPasswordToken'] }, order: [['createdAt', 'DESC'], ['id', 'DESC']], limit, offset: (current - 1) * limit });
     const houses = await BoardingHouse.findAll({
@@ -976,15 +977,24 @@ function recordValues(body, fields) {
   return values;
 }
 
-const crud = (Model, entityType, fields) => ({
+function placeValues(values, creating) {
+  if (creating || 'latitude' in values || 'longitude' in values) {
+    if (values.latitude == null || values.longitude == null) {
+      throw Object.assign(new Error('Select a location on the map.'), { status: 422 });
+    }
+  }
+  return values;
+}
+
+const crud = (Model, entityType, fields, validate = values => values) => ({
   list: async (req, res, next) => { try { const where = req.query.search ? { name: { [Op.like]: `%${req.query.search}%` } } : {}; res.json({ data: await Model.findAll({ where, order: [['createdAt', 'DESC']] }) }); } catch (e) { next(e); } },
-  create: async (req, res, next) => { try { const record = await Model.create(recordValues(req.body, fields)); await audit(req, 'create', entityType, record.id); res.status(201).json({ data: record }); } catch (e) { next(e); } },
-  update: async (req, res, next) => { try { const record = await Model.findByPk(req.params.id); if (!record) return res.status(404).json({ error: `${entityType} not found.` }); await record.update(recordValues(req.body, fields)); await audit(req, 'update', entityType, record.id); res.json({ data: record }); } catch (e) { next(e); } },
+  create: async (req, res, next) => { try { const record = await Model.create(validate(recordValues(req.body, fields), true)); await audit(req, 'create', entityType, record.id); res.status(201).json({ data: record }); } catch (e) { next(e); } },
+  update: async (req, res, next) => { try { const record = await Model.findByPk(req.params.id); if (!record) return res.status(404).json({ error: `${entityType} not found.` }); await record.update(validate(recordValues(req.body, fields), false)); await audit(req, 'update', entityType, record.id); res.json({ data: record }); } catch (e) { next(e); } },
   remove: async (req, res, next) => { try { const record = await Model.findByPk(req.params.id); if (!record) return res.status(404).json({ error: `${entityType} not found.` }); await record.destroy(); await audit(req, 'delete', entityType, record.id, entityType === 'Barangay' ? { barangay: record.name } : {}); res.json({ message: 'Record deleted.' }); } catch (e) { next(e); } },
 });
 
 export const barangays = crud(Barangay, 'Barangay', ['name', 'officialName', 'officialEmail', 'latitude', 'longitude', 'isActive']);
-export const institutions = crud(EducationalInstitution, 'EducationalInstitution', ['name', 'schoolType', 'address', 'latitude', 'longitude', 'barangay', 'isActive']);
+export const institutions = crud(EducationalInstitution, 'EducationalInstitution', ['name', 'schoolType', 'address', 'latitude', 'longitude', 'barangay', 'isActive'], placeValues);
 export const permits = crud(BusinessPermit, 'BusinessPermit', ['ownerId', 'permitNumber', 'issueDate', 'expirationDate', 'status', 'documentUrl', 'notes']);
 export const listAudit = async (req, res, next) => {
   try {

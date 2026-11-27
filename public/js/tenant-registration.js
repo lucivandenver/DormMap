@@ -132,7 +132,7 @@
         entry.textContent = item;
         return entry;
       }));
-      details.querySelector('[data-details-rooms]').innerHTML = window.DormRoomDetails.render(house.roomInventory || [], house);
+      details.querySelector('[data-details-rooms]').innerHTML = window.DormRoomDetails.render(house.roomInventory || []);
       if (!details.open) details.showModal();
     }
 

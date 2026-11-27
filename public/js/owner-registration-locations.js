@@ -64,7 +64,7 @@ function ownerRegistrationLocations(form, step, onChange) {
     else {
       const hint = active().querySelector('[data-owner-map-hint]');
       if (hint) hint.textContent = 'Pick the boarding house location on the map before continuing.';
-      else alert('Pick the boarding house location on the map before continuing.');
+      else window.DormMapFeedback?.show('Pick the boarding house location on the map before continuing.', 'warning');
     }
     return false;
   }

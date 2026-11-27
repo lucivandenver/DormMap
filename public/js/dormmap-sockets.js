@@ -53,18 +53,8 @@
       // 1. REAL-TIME PAYMENT NOTIFICATIONS
       socket.on('payment_completed', (data) => {
         console.log('🔔 Payment completed event received:', data);
-        if (window.Swal && !window.Swal.isVisible?.()) {
-          window.Swal.fire({
-            icon: 'success',
-            title: 'Payment Successful!',
-            text: `Payment of ₱${Number(data.amount || 0).toLocaleString()} for ${data.boardingHouseName || 'Rent'} has been confirmed!`,
-            timer: 500,
-            timerProgressBar: true,
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false
-          });
-        }
+        window.DormMapFeedback?.show('Payment successful', 'success',
+          `Payment of ₱${Number(data.amount || 0).toLocaleString()} for ${data.boardingHouseName || 'rent'} was confirmed.`);
         // Auto refresh table or data if handlers exist
         if (typeof window.reloadPaymentsTable === 'function') {
           window.reloadPaymentsTable();
@@ -76,17 +66,9 @@
         console.log('💬 New chat message received:', data);
         if (typeof window.handleIncomingSocketMessage === 'function') {
           window.handleIncomingSocketMessage(data);
-        } else if (window.Swal && !window.Swal.isVisible?.() && data.senderName) {
-          window.Swal.fire({
-            icon: 'info',
-            title: `New Message from ${data.senderName}`,
-            text: data.message || 'You received a new inquiry.',
-            timer: 500,
-            timerProgressBar: true,
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false
-          });
+        } else if (data.senderName) {
+          window.DormMapFeedback?.show(`New message from ${data.senderName}`, 'info',
+            data.message || 'You received a new inquiry.');
         }
       });
 
@@ -101,18 +83,7 @@
 
       // 4. REAL-TIME SYSTEM NOTIFICATIONS
       socket.on('system_notification', (data) => {
-        if (window.Swal && !window.Swal.isVisible?.()) {
-          window.Swal.fire({
-            icon: data.type || 'info',
-            title: data.title || 'DorMap Notice',
-            text: data.message || '',
-            timer: 500,
-            timerProgressBar: true,
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false
-          });
-        }
+        window.DormMapFeedback?.show(data.title || 'DormMap notice', data.type || 'info', data.message || '');
       });
 
     } catch (e) {

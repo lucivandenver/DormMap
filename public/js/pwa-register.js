@@ -63,7 +63,7 @@
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
 
     if (isStandalone) {
-      alert('DormMap is already installed and running as a standalone app.');
+      window.DormMapFeedback?.show('DormMap is already installed.', 'info');
       return;
     }
 

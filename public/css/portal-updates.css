@@ -3,12 +3,12 @@
 table td button{min-height:36px;padding:.35rem .5rem;border-radius:.45rem}table td button:hover{background:#ecfdf5}table td button:focus-visible{outline:2px solid #059669;outline-offset:2px}.portal-notification-item:focus-visible{outline:3px solid #10b981;outline-offset:-3px}
 
 .portal-feedback-popup {
-  position: fixed; top: 1rem; right: 1rem; z-index: 10001; max-width: min(28rem, calc(100vw - 2rem));
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10001;
+  width: max-content; max-width: min(28rem, calc(100vw - 2rem)); text-align: center; overflow-wrap: anywhere;
   padding: .7rem 1rem; border: 1px solid #a7f3d0; border-radius: .75rem; background: #fff;
   color: #065f46; box-shadow: 0 8px 30px #0f172a28; font-weight: 600; pointer-events: none;
 }
 .portal-feedback-popup[role="alert"] { color: #9f1239; border-color: #fecdd3; }
-.portal-feedback-announcement { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 
 .portal-confirm-dialog { position: fixed; inset: 0; margin: auto; width: min(28rem, calc(100vw - 2rem)); border: 0; border-radius: 1rem; padding: 1.25rem; background: white; color: #0f172a; }
 .portal-confirm-dialog::backdrop { background: #0f172a99; }

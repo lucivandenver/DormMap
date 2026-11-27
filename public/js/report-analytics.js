@@ -185,5 +185,61 @@
     return figure;
   }
 
-  window.DormMapAnalytics = { metrics, chart, plot, donut };
+  function scatter(title, points) {
+    const figure = figureWithTitle(title);
+    if (!points.length) {
+      figure.append('No boarding houses with rooms recorded.');
+      return figure;
+    }
+    const width = 480, height = 240, left = 46, right = 460, top = 27, bottom = 191;
+    const step = Math.max(1, Math.ceil(points.reduce((max, point) => Math.max(max, point.total), 1) / 4));
+    const x = total => left + (right - left) * total / (step * 4);
+    const y = percent => bottom - (bottom - top) * percent / 100;
+    const graphic = svg('svg', { viewBox: `0 0 ${width} ${height}`, 'aria-label': title });
+    const addLabel = (text, attributes) => {
+      const label = svg('text', attributes);
+      label.textContent = text;
+      graphic.append(label);
+    };
+    for (let tick = 0; tick <= 4; tick++) {
+      const percent = tick * 25;
+      graphic.append(svg('line', { x1: left, x2: right, y1: y(percent), y2: y(percent), stroke: '#dce5ee' }));
+      const rooms = tick * step;
+      addLabel(percent + '%', { x: left - 7, y: y(percent) + 4, 'text-anchor': 'end' });
+      addLabel(rooms, { x: x(rooms), y: bottom + 17, 'text-anchor': 'middle' });
+    }
+    addLabel('Occupancy rate', { x: left, y: 14 });
+    addLabel('Total rooms', { x: (left + right) / 2, y: height - 10, 'text-anchor': 'middle' });
+
+    const detail = document.createElement('p');
+    detail.className = 'analytics-chart-detail';
+    detail.setAttribute('aria-live', 'polite');
+    const groups = new Map();
+    for (const point of points) {
+      const key = `${point.total}:${point.occupied}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(point);
+    }
+    for (const group of groups.values()) {
+      const { occupied, total } = group[0];
+      const percent = occupied / total * 100;
+      const description = `${group.map(item => item.name).join(', ')} · ${occupied} of ${total} rooms occupied (${Number(percent.toFixed(1))}%)`;
+      const mark = svg('g', { tabindex: '0', role: 'img', 'aria-label': description });
+      mark.append(svg('circle', { cx: x(total), cy: y(percent), r: 12, fill: 'transparent', class: 'analytics-plot-hit' }));
+      mark.append(svg('circle', { cx: x(total), cy: y(percent), r: group.length > 1 ? 6 : 4.5, fill: palette[0] }));
+      const describe = () => { detail.textContent = description; };
+      mark.addEventListener('focus', describe);
+      mark.addEventListener('pointerenter', describe);
+      mark.addEventListener('click', () => { mark.focus(); describe(); });
+      graphic.append(mark);
+    }
+    detail.textContent = 'Select a point to see the boarding house and room counts.';
+    const viewport = document.createElement('div');
+    viewport.className = 'analytics-plot analytics-scatter';
+    viewport.append(graphic);
+    figure.append(viewport, detail);
+    return figure;
+  }
+
+  window.DormMapAnalytics = { metrics, chart, plot, donut, scatter };
 })();

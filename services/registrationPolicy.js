@@ -19,3 +19,5 @@ export const submittedOwnerWhere = {
   mapPin: { [Op.ne]: '' },
   barangay: { [Op.ne]: '' }
 };
+
+export const awaitingBploOwnerStatuses = ['approved_barangay', 'forwarded_to_bplo', 'pending_bplo'];

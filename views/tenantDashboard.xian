@@ -248,7 +248,6 @@
   <!-- Main Content View Area -->
   <main class="lg:pl-64 pt-16 min-h-screen transition-all duration-200">
     <div id="portalFeedback" class="hidden" role="status"></div>
-    <script src="/js/portal-feedback.js?v=3"></script>
     <script src="/js/document-preview.js"></script>
     <div class="w-full max-w-[1560px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 py-6 space-y-6">
       
@@ -439,9 +438,9 @@
         </section>
         <section class="rounded-xl bg-white p-4"><h3 class="font-bold">Roommates</h3><p id="roommates-text" class="text-sm text-slate-600"></p></section>
         <section id="tenantBoardingHouseRating" class="hidden rounded-xl border border-amber-200 bg-white p-4 sm:p-5" aria-labelledby="tenantRatingHeading">
-          <h3 id="tenantRatingHeading" class="font-bold text-slate-900">Review your room</h3>
-          <p class="mt-1 text-sm text-slate-600">Share a star rating and optional feedback about the room where you currently stay.</p>
-          <div class="mt-3 flex items-center gap-1" role="radiogroup" aria-label="Room rating">
+          <h3 id="tenantRatingHeading" class="font-bold text-slate-900">Review your boarding house</h3>
+          <p class="mt-1 text-sm text-slate-600">Share a star rating and optional feedback about the boarding house where you currently stay.</p>
+          <div class="mt-3 flex items-center gap-1" role="radiogroup" aria-label="Boarding house rating">
             <button type="button" data-tenant-rating="1" role="radio" aria-label="1 star" aria-checked="false" class="text-3xl leading-none text-slate-300">★</button>
             <button type="button" data-tenant-rating="2" role="radio" aria-label="2 stars" aria-checked="false" class="text-3xl leading-none text-slate-300">★</button>
             <button type="button" data-tenant-rating="3" role="radio" aria-label="3 stars" aria-checked="false" class="text-3xl leading-none text-slate-300">★</button>
@@ -449,10 +448,10 @@
             <button type="button" data-tenant-rating="5" role="radio" aria-label="5 stars" aria-checked="false" class="text-3xl leading-none text-slate-300">★</button>
             <span id="tenantRatingSummary" class="ml-2 text-sm font-semibold text-slate-600"></span>
           </div>
-          <label for="tenantRoomFeedback" class="mt-4 block text-sm font-semibold text-slate-800">Written feedback (optional)</label>
-          <textarea id="tenantRoomFeedback" rows="3" maxlength="1000" class="mt-1 w-full rounded-xl border border-slate-200 p-3 text-sm" aria-describedby="tenantRoomFeedbackHelp" placeholder="What was your experience staying in this room?"></textarea>
-          <p id="tenantRoomFeedbackHelp" class="mt-1 text-xs text-slate-600">Feedback appears on the public room listing without your name. Keep personal information out of your review.</p>
-          <button id="saveTenantRating" type="button" class="mt-3 rounded-full bg-emerald-800 px-4 py-2 text-sm font-bold text-white">Submit rating</button>
+          <label for="tenantBoardingHouseFeedback" class="mt-4 block text-sm font-semibold text-slate-800">Written feedback (optional)</label>
+          <textarea id="tenantBoardingHouseFeedback" rows="3" maxlength="1000" class="mt-1 w-full rounded-xl border border-slate-200 p-3 text-sm" aria-describedby="tenantBoardingHouseFeedbackHelp" placeholder="What was your experience staying at this boarding house?"></textarea>
+          <p id="tenantBoardingHouseFeedbackHelp" class="mt-1 text-xs text-slate-600">Feedback appears on the public boarding house details without your name. Keep personal information out of your review.</p>
+          <button id="saveTenantRating" type="button" class="mt-3 rounded-full bg-emerald-800 px-4 py-2 text-sm font-bold text-white">Submit review</button>
           <p id="tenantRatingMessage" role="status" class="mt-2 text-sm text-slate-600"></p>
         </section>
         <div class="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
@@ -533,6 +532,9 @@
             <div data-qr-fields hidden class="space-y-3">
               <p class="text-sm text-slate-600">Use your owner's QR code for the selected method, then upload proof and enter the transaction reference.</p>
               <img id="rentPaymentQr" class="mx-auto max-h-52 w-full max-w-52 rounded-xl border border-slate-200 object-contain" alt="Owner’s payment QR code">
+              <div class="text-center">
+                <a id="rentPaymentQrDownload" hidden class="rounded-xl border border-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50" download>Download QR code</a>
+              </div>
               <label class="block text-sm font-semibold">Transaction reference number
                 <input name="reference" maxlength="100" autocomplete="off" aria-describedby="rentReferenceHint" class="mt-1 block w-full rounded-xl border border-slate-200 p-2">
                 <span id="rentReferenceHint" class="mt-1 block text-xs font-normal text-slate-600"></span>
@@ -1148,7 +1150,7 @@
 </dialog>
 <style>#tenantBranchGallery::backdrop,#dormCompareDialog::backdrop{background:rgba(15,23,42,.55)}#dormCompareTable th,#dormCompareTable td{padding:12px;min-width:150px;border:1px solid #e2e8f0;vertical-align:top;overflow-wrap:anywhere}#dormCompareTable th{background:#ecfdf5;color:#023020}button:disabled{cursor:not-allowed}</style>
 <script src="/js/branch-gallery.js"></script>
-<script src="/js/tenant-dorm-browser.js?v=4"></script>
+<script src="/js/tenant-dorm-browser.js?v=5"></script>
 <script>
   window.currentUserId = Number("{{userId}}") || 0;
   let paymentHistoryChart = null;
@@ -1389,14 +1391,14 @@
       const ratingCard = document.getElementById('tenantBoardingHouseRating');
       const rating = data.rating || {};
       ratingCard.classList.toggle('hidden', !rating.canRate);
-      ratedRoomId = rating.roomId;
-      document.getElementById('tenantRoomFeedback').value = rating.myComment || '';
+      ratedBoardingHouseId = rating.boardingHouseId;
+      document.getElementById('tenantBoardingHouseFeedback').value = rating.myComment || '';
       selectedBoardingHouseRating = Number(rating.myRating || 0);
       paintTenantRatingStars();
       document.getElementById('tenantRatingSummary').textContent = rating.ratingCount
         ? `${Number(rating.ratingAverage).toFixed(1)} · ${rating.ratingCount} ${rating.ratingCount === 1 ? 'rating' : 'ratings'}`
         : 'No ratings yet';
-      document.getElementById('saveTenantRating').textContent = rating.myRating ? 'Update rating' : 'Submit rating';
+      document.getElementById('saveTenantRating').textContent = rating.myRating ? 'Update rating' : 'Submit review';
       document.getElementById('tenantRatingMessage').textContent = '';
 
       document.getElementById('roommates-text').textContent = data.roommates?.join(', ') || 'No other active tenants listed.';
@@ -1421,7 +1423,7 @@
   }
 
   let selectedBoardingHouseRating = 0;
-  let ratedRoomId = null;
+  let ratedBoardingHouseId = null;
   function paintTenantRatingStars() {
     document.querySelectorAll('[data-tenant-rating]').forEach(button => {
       const selected = Number(button.dataset.tenantRating) <= selectedBoardingHouseRating;
@@ -1443,7 +1445,7 @@
     try {
       const response = await fetch('/tenant-dashboard/api/boarding-house-rating', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rating: selectedBoardingHouseRating, roomId: ratedRoomId, comment: document.getElementById('tenantRoomFeedback').value })
+        body: JSON.stringify({ rating: selectedBoardingHouseRating, boardingHouseId: ratedBoardingHouseId, comment: document.getElementById('tenantBoardingHouseFeedback').value })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Your rating could not be saved.');
@@ -1554,8 +1556,20 @@
     const qrPayment = ['GCash', 'QR Ph'].includes(method);
     const qr = document.getElementById('rentPaymentQr');
     const source = rentPaymentOptions.qrCodes?.[method];
-    if (qrPayment && source) qr.src = source;
-    else qr.removeAttribute('src');
+    const download = document.getElementById('rentPaymentQrDownload');
+    const hasQr = Boolean(qrPayment && source);
+    qr.hidden = !hasQr;
+    download.hidden = !hasQr;
+    download.classList.toggle('inline-flex', hasQr);
+    if (hasQr) {
+      qr.src = source;
+      download.href = source;
+      const extension = source.match(/\.(?:jpe?g|png|webp)$/i)?.[0] || '';
+      download.download = `DormMap-${method.replace(' ', '-')}-QR${extension}`;
+    } else {
+      qr.removeAttribute('src');
+      download.removeAttribute('href');
+    }
     rentPaymentForm.querySelector('[data-qr-fields]').hidden = !qrPayment;
     rentPaymentForm.querySelector('[data-cash-instructions]').hidden = qrPayment;
     for (const name of ['proof', 'reference']) {

@@ -112,7 +112,7 @@
           </button>
           <button data-panel="institutions" class="nav-item">
             <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 22V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v18"/><path d="M18 22V8a2 2 0 0 0-2-2h-2"/><path d="M6 12h4"/><path d="M6 16h4"/></svg>
-            <span>Educational Institutions</span>
+            <span>Nearby Places</span>
           </button>
           <button data-panel="permits" class="nav-item">
             <svg width="18" height="18" class="icon-bw w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
@@ -151,7 +151,6 @@
   <!-- Main Content Area -->
   <main class="px-4 pb-12 pt-20 lg:ml-64 lg:px-8">
     <div id="portalFeedback" class="hidden" role="status"></div>
-    <script src="/js/portal-feedback.js?v=3"></script>
     <script src="/js/document-preview.js"></script>
     <div class="mx-auto max-w-7xl">
       <!-- Section Header -->
@@ -400,7 +399,7 @@
             <option value="">All Statuses</option>
             <option value="pending">Pending</option>
             <option value="revision_requested">Revision Requested</option>
-            <option value="forwarded_to_bplo">Forwarded by Barangay</option>
+            <option value="awaiting_bplo">Awaiting BPLO review</option>
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
           </select>
@@ -489,13 +488,13 @@
       <!-- VIEW 7: INSTITUTIONS -->
       <section data-view="institutions" class="hidden space-y-6">
         <div class="toolbar bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
-          <input id="institutionsSearch" class="field" placeholder="Search institution">
-          <button class="button flex items-center gap-1.5" onclick="openRecordForm('institutions')"><svg class="icon-bw-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add Institution</button>
+          <input id="institutionsSearch" type="search" class="field" aria-label="Search nearby places" placeholder="Search place by name">
+          <button class="button flex items-center gap-1.5" onclick="openPlaceForm()"><svg class="icon-bw-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add Nearby Place</button>
           <button class="button secondary flex items-center gap-1.5" onclick="loadCollection('institutions')">Refresh</button>
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Name</th><th>Type</th><th>Barangay</th><th>Coordinates</th><th>Action</th></tr></thead>
+            <thead><tr><th>Name</th><th>Category</th><th>Barangay</th><th>Map location</th><th>Actions</th></tr></thead>
             <tbody id="institutionsTable" data-paginate></tbody>
           </table>
         </div>
@@ -753,6 +752,36 @@
   </div>
   <div id="ownerDocumentFiles" class="mt-4 grid gap-4 sm:grid-cols-2"></div>
 </dialog>
+<dialog id="nearbyPlaceDialog" aria-labelledby="nearbyPlaceTitle" class="rounded-2xl bg-white p-5 sm:p-6 shadow-2xl text-slate-900">
+  <div class="flex items-center justify-between gap-4">
+    <h2 id="nearbyPlaceTitle" class="text-lg font-bold"></h2>
+    <button type="button" class="button secondary" aria-label="Close nearby place form" onclick="document.getElementById('nearbyPlaceDialog').close()">✕</button>
+  </div>
+  <form id="nearbyPlaceForm" class="mt-4 space-y-4">
+    <div class="grid gap-3 sm:grid-cols-2">
+      <label class="block text-sm font-medium">Place name<input name="name" class="field mt-1" required maxlength="150"></label>
+      <label class="block text-sm font-medium">Category<select name="schoolType" class="field mt-1" required></select></label>
+      <label class="block text-sm font-medium">Address<input name="address" class="field mt-1"></label>
+      <label class="block text-sm font-medium">Barangay<input name="barangay" class="field mt-1"></label>
+    </div>
+    <fieldset class="min-w-0">
+      <legend class="text-sm font-bold">Map location</legend>
+      <p id="nearbyPlaceMapHelp" class="mb-2 text-sm text-slate-600">Zoom in, then click or tap where the place is. You can drag the pin to adjust it.</p>
+      <div id="nearbyPlaceMap" class="rounded-xl border border-slate-200" role="region" aria-label="Select a location on the map" aria-describedby="nearbyPlaceMapHelp"></div>
+      <div class="mt-2 flex flex-wrap items-center gap-2">
+        <button type="button" id="pinNearbyPlaceCenter" class="button secondary">Pin map center</button>
+        <p id="nearbyPlacePinStatus" class="text-sm text-slate-700" role="status"></p>
+      </div>
+    </fieldset>
+    <label class="inline-flex items-center gap-2 text-sm font-medium"><input name="isActive" type="checkbox"> Show on public map</label>
+    <p id="nearbyPlaceError" class="text-sm text-rose-700" role="alert" hidden></p>
+    <div class="flex justify-end gap-2">
+      <button type="button" class="button secondary" onclick="document.getElementById('nearbyPlaceDialog').close()">Cancel</button>
+      <button type="submit" class="button">Save</button>
+    </div>
+  </form>
+</dialog>
+
 <div id="modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/50 p-4"><div class="w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl bg-white p-6 shadow-2xl"><div class="flex items-center justify-between"><h2 id="modalTitle" class="text-lg font-bold"></h2><button onclick="closeModal('modal')">✕</button></div><form id="recordForm" class="mt-5 space-y-3"></form></div></div>
 
 <!-- TOAST -->
@@ -845,6 +874,10 @@
   .status-under_review { background: #faf5ff; color: #6b21a8; border-color: #e9d5ff; }
   .status-revision_requested, .status-revision_required { background: #fffbeb; color: #92400e; border-color: #fde68a; }
   .status-rejected, .status-expired, .status-cancelled, .status-overdue { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+  #nearbyPlaceDialog { position: fixed; inset: 0; margin: auto; width: min(42rem, calc(100% - 2rem)); max-height: calc(100dvh - 2rem); overflow-y: auto; }
+  #nearbyPlaceDialog::backdrop { background: #0f172a99; }
+  #nearbyPlaceMap { height: clamp(11rem, 32dvh, 20rem); }
+
 </style>
 
 <script>
@@ -861,7 +894,7 @@ const titles = {
   featured: 'Featured Boarding Houses',
   renewals: 'Permit Renewal Requests',
   barangays: 'Barangay Management',
-  institutions: 'Educational Institutions',
+  institutions: 'Nearby Places',
   permits: 'Business Permits Registry',
   settings: 'System Settings & Configuration',
   maintenance: 'System Maintenance & Monitoring',
@@ -2146,21 +2179,118 @@ const config = {
     ['email', 'Login email', 'email'], ['positionTitle', 'Position (optional)', 'text'],
     ['password', 'New password', 'password']
   ] },
-  institutions: { title: 'Educational Institution', fields: [['name','Institution name','text'],['schoolType','School type','text'],['address','Address','text'],['barangay','Barangay','text'],['latitude','Latitude','number'],['longitude','Longitude','number'],['isActive','Active','checkbox']] },
   permits: { title: 'Business Permit', fields: [['ownerId','Owner user ID','number'],['permitNumber','Permit number','text'],['issueDate','Issue date','date'],['expirationDate','Expiration date','date'],['status','Status','text'],['documentUrl','Document URL','url'],['notes','Notes','text']] }
 };
 
+const nearbyPlaceCategories = [
+  'School / University', 'Restaurant / Café', 'Shop / Market', 'Clinic / Hospital',
+  'Transport', 'Government / Public Service', 'Park / Recreation', 'Other'
+];
+const nearbyPlaceDialog = document.getElementById('nearbyPlaceDialog');
+const nearbyPlaceForm = document.getElementById('nearbyPlaceForm');
+let nearbyPlaceMap;
+nearbyPlaceDialog.addEventListener('close', () => {
+  if (nearbyPlaceDialog.open) return;
+  nearbyPlaceMap?.remove();
+  nearbyPlaceMap = null;
+});
+
+function openPlaceForm(record = {}) {
+  if (!window.L) {
+    toast('The map could not load. Refresh the page to try again.', true);
+    return;
+  }
+  document.getElementById('nearbyPlaceTitle').textContent = record.id ? 'Edit Nearby Place' : 'Add Nearby Place';
+  const fields = nearbyPlaceForm.elements;
+  for (const key of ['name', 'address', 'barangay']) fields[key].value = record[key] || '';
+  const categories = new Set(nearbyPlaceCategories);
+  if (record.schoolType) categories.add(record.schoolType);
+  fields.schoolType.replaceChildren(new Option('Select a category', ''), ...Array.from(categories, value => new Option(value, value)));
+  fields.schoolType.value = record.schoolType || '';
+  fields.isActive.checked = record.isActive !== false;
+  const status = document.getElementById('nearbyPlacePinStatus');
+  const error = document.getElementById('nearbyPlaceError');
+  const save = nearbyPlaceForm.querySelector('[type="submit"]');
+  error.hidden = true;
+  save.disabled = false;
+  status.textContent = 'No pin selected';
+  const existing = record.latitude != null && record.longitude != null
+    ? [Number(record.latitude), Number(record.longitude)] : null;
+  const center = gisRawData.center || { lat: 12.7563, lng: 121.4920 };
+  nearbyPlaceMap?.remove();
+  nearbyPlaceDialog.showModal();
+  const map = L.map('nearbyPlaceMap', { scrollWheelZoom: false }).setView(existing || center, existing ? 17 : 14);
+  nearbyPlaceMap = map;
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+  let marker;
+  const setPin = point => {
+    if (marker) marker.setLatLng(point);
+    else marker = L.marker(point, { draggable: true, title: 'Selected location', alt: 'Selected location' }).addTo(map);
+    status.textContent = 'Location pinned';
+    error.hidden = true;
+  };
+  if (existing) setPin(existing);
+  map.on('click', event => setPin(event.latlng));
+  document.getElementById('pinNearbyPlaceCenter').onclick = () => setPin(map.getCenter());
+  nearbyPlaceForm.onsubmit = async event => {
+    event.preventDefault();
+    if (!marker) {
+      error.textContent = 'Select a location on the map before saving.';
+      error.hidden = false;
+      return;
+    }
+    const data = Object.fromEntries(new FormData(nearbyPlaceForm));
+    const { lat, lng } = marker.getLatLng().wrap();
+    Object.assign(data, { latitude: lat, longitude: lng, isActive: fields.isActive.checked });
+    save.disabled = true;
+    error.hidden = true;
+    try {
+      await request(`${api}/institutions${record.id ? '/' + record.id : ''}`, {
+        method: record.id ? 'PUT' : 'POST',
+        body: JSON.stringify(data)
+      });
+      if (nearbyPlaceMap === map) nearbyPlaceDialog.close();
+      toast('Nearby place saved.');
+      loadCollection('institutions');
+      loadOverview();
+    } catch (err) {
+      if (nearbyPlaceMap === map) {
+        error.textContent = err.message;
+        error.hidden = false;
+      }
+      toast(err.message, true);
+    } finally {
+      if (nearbyPlaceMap === map) save.disabled = false;
+    }
+  };
+}
+
+const institutionsSearch = document.getElementById('institutionsSearch');
+let placeSearchTimer;
+let collectionRequest = 0;
+institutionsSearch.addEventListener('input', () => {
+  clearTimeout(placeSearchTimer);
+  placeSearchTimer = setTimeout(() => loadCollection('institutions'), 200);
+});
+
 async function loadCollection(type) {
+  const isPlace = type === 'institutions';
+  const sequence = isPlace ? ++collectionRequest : null;
+  const search = isPlace && institutionsSearch.value.trim();
   try {
-    const d = await request(api + '/' + type);
+    const d = await request(api + '/' + type + (search ? '?' + new URLSearchParams({ search }) : ''));
+    if (isPlace && sequence !== collectionRequest) return;
     const rows = d.data;
     document.getElementById(type + 'Table').innerHTML = rows.length ? rows.map(x => type === 'institutions' ? `
       <tr>
         <td><b>${esc(x.name)}</b></td>
         <td>${esc(x.schoolType)}</td>
         <td>${esc(x.barangay || '—')}</td>
-        <td>${esc(x.latitude || '—')}, ${esc(x.longitude || '—')}</td>
-        <td><button class="text-emerald-700 font-bold" onclick='openRecordForm("${type}",${esc(JSON.stringify(x))})'>Edit</button> <button class="text-rose-700 font-bold" onclick="deleteRecord('${type}',${x.id})">Delete</button></td>
+        <td>${x.latitude != null && x.longitude != null ? 'Pinned' : 'No pin'}</td>
+        <td><button class="text-emerald-700 font-bold" onclick='openPlaceForm(${esc(JSON.stringify(x))})'>Edit</button> <button class="text-rose-700 font-bold" onclick="deleteRecord('${type}',${x.id})">Delete</button></td>
       </tr>
     ` : `
       <tr>
@@ -2170,7 +2300,7 @@ async function loadCollection(type) {
         <td><span class="badge status-${esc(x.status)}">${esc(x.status)}</span></td>
         <td><button class="text-emerald-700 font-bold" onclick='openRecordForm("${type}",${esc(JSON.stringify(x))})'>Edit</button> <button class="text-rose-700 font-bold" onclick="deleteRecord('${type}',${x.id})">Delete</button></td>
       </tr>
-    `).join('') : `<tr><td colspan="5" class="text-center text-slate-500 py-6">No ${type} records yet.</td></tr>`;
+    `).join('') : `<tr><td colspan="5" class="text-center text-slate-500 py-6">${isPlace ? 'No nearby places found.' : 'No permit records yet.'}</td></tr>`;
   } catch (e) { toast(e.message, true); }
 }
 

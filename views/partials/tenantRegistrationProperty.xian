@@ -1,4 +1,4 @@
-<script src="/js/tenant-registration.js?v=4" defer></script>
+<script src="/js/tenant-registration.js?v=5" defer></script>
 <div class="registration-property" data-registration-property>
   <label for="registrationHouseSearch">Search boarding house <small>(optional)</small></label>
   <div class="registration-property-search">

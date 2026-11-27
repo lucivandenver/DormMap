@@ -2,7 +2,7 @@ import { branchNumbers, orderBranches } from './propertyBranchesService.js';
 import { GALLERY_CATEGORIES } from './propertyPhotoService.js';
 import { Op, fn, col } from 'sequelize';
 import { User } from '../models/userModel.js';
-import { BoardingHouse, OwnerRoom, OwnerTenant, OwnerGallery, BoardingHouseReview, RoomReview } from '../models/ownerModels.js';
+import { BoardingHouse, OwnerRoom, OwnerTenant, OwnerGallery, BoardingHouseReview } from '../models/ownerModels.js';
 import { TenantApplication } from '../models/tenantModels.js';
 import { SavedDorm } from '../models/savedDormModel.js';
 
@@ -51,15 +51,6 @@ function price(value) {
   return Number.isFinite(number) && number >= 0 ? number : null;
 }
 
-function roomPhoto(value) {
-  if (!value) return null;
-  let photos;
-  try { photos = JSON.parse(value); } catch { photos = [value]; }
-  return (Array.isArray(photos) ? photos : [photos]).find(url =>
-    typeof url === 'string' && /^\/uploads\/[a-z0-9_.-]+$/i.test(url)
-  ) || null;
-}
-
 export async function listTenantDorms(tenantId, query = {}, { includeUnregistered = false } = {}) {
   const owners = await User.findAll({
     where: includeUnregistered ? { accountType: 'boarding_house_owner', isSuspended: false, isArchived: false, [Op.or]: [{ applicationStatus: { [Op.in]: ['approved','approved_barangay'] }, publicMapUnregistered: false }, { publicMapUnregistered: true, publicMapPublished: true }] } : approvedOwnerWhere,
@@ -76,21 +67,16 @@ export async function listTenantDorms(tenantId, query = {}, { includeUnregistere
     OwnerTenant.findAll({ where: { ownerId: { [Op.in]: ownerIds }, status: 'active' }, attributes: ['ownerId','roomId','occupantCount','bedNumber'] }),
     OwnerGallery.findAll({ where: { ownerId: { [Op.in]: ownerIds } }, order: [['sortOrder', 'ASC'], ['id', 'ASC']] }),
   ]);
-  const summary = (model, field, ids) => ids.length ? model.findAll({
-    where: { [field]: { [Op.in]: ids } },
-    attributes: [field, [fn('AVG', col('rating')), 'ratingAverage'], [fn('COUNT', col('id')), 'ratingCount']],
-    group: [field], raw: true,
-  }) : [];
-  const [propertyRatings, roomRatings] = await Promise.all([
-    summary(BoardingHouseReview, 'boardingHouseId', houses.map(house => house.id)),
-    summary(RoomReview, 'roomId', rooms.map(room => room.id))
-  ]);
-  const ratingMap = (rows, field) => new Map(rows.map(row => [Number(row[field]), {
-    ratingAverage: Math.round(Number(row.ratingAverage || 0) * 10) / 10,
-    ratingCount: Number(row.ratingCount || 0),
+  const propertyRatings = await BoardingHouseReview.findAll({
+    where: { boardingHouseId: { [Op.in]: houses.map(house => house.id) } },
+    attributes: ['boardingHouseId', [fn('AVG', col('rating')), 'ratingAverage'], [fn('COUNT', col('id')), 'ratingCount']],
+    group: ['boardingHouseId'], raw: true,
+  });
+  const ratingsByHouse = new Map(propertyRatings.map(row => [Number(row.boardingHouseId), {
+    ratingAverage: Math.round(Number(row.ratingAverage) * 10) / 10,
+    ratingCount: Number(row.ratingCount),
   }]));
-  const ratingsByHouse = ratingMap(propertyRatings, 'boardingHouseId');
-  const ratingsByRoom = ratingMap(roomRatings, 'roomId');
+
   const savedKeys = new Set(saved.map(item => item.listingKey));
   const listings = [];
   for (const owner of owners) {
@@ -139,9 +125,8 @@ export async function listTenantDorms(tenantId, query = {}, { includeUnregistere
       const app = applications.find(item => item.ownerId === owner.id &&
         (house ? item.boardingHouseId === house.id || (!item.boardingHouseId && item.boardingHouseName === name) : item.boardingHouseName === name));
       const roomInventory = houseRooms.map(room => {
-        const review = ratingsByRoom.get(Number(room.id)) || { ratingAverage: 0, ratingCount: 0 };
         const active = occupants.filter(tenant => tenant.ownerId === owner.id && tenant.roomId === room.id);
-        return { ...review, photo: roomPhoto(room.photos), amenities: room.amenities, description: room.description, id: room.id, roomNumber: room.roomNumber, floor: room.floor, roomType: room.roomType, rentalBasis: room.rentalBasis, rentalPrice: Number(room.rentalPrice), capacity: room.capacity, bedCount: room.bedCount, occupiedPeople: active.reduce((sum, tenant) => sum + Number(tenant.occupantCount || 1), 0), occupiedBeds: room.rentalBasis === 'bed' ? active.length : null, unavailableReported: room.reservedSlots, reservedForTenants: room.reservationSlots, availableSlots: room.status === 'available' ? Number(room.availableSlots) : 0, status: room.status, genderPref: room.genderPref, furnished: room.furnished, aircon: room.aircon };
+        return { id: room.id, roomNumber: room.roomNumber, floor: room.floor, roomType: room.roomType, rentalBasis: room.rentalBasis, rentalPrice: Number(room.rentalPrice), capacity: room.capacity, bedCount: room.bedCount, occupiedPeople: active.reduce((sum, tenant) => sum + Number(tenant.occupantCount || 1), 0), occupiedBeds: room.rentalBasis === 'bed' ? active.length : null, unavailableReported: room.reservedSlots, reservedForTenants: room.reservationSlots, availableSlots: room.status === 'available' ? Number(room.availableSlots) : 0, status: room.status, genderPref: room.genderPref, furnished: room.furnished, aircon: room.aircon };
       });
       const bases = [...new Set(roomInventory.map(room => room.rentalBasis))];
       listings.push({
