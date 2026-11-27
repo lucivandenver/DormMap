@@ -29,18 +29,31 @@ const manilaDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Manila' })
 function approvedReservations(ownerId) {
   return TenantApplication.findAll({
     where: { ownerId, reservationApprovedAt: { [Op.ne]: null } },
-    attributes: ['reservationApprovedAt', 'reservationFee', 'reservationAmountPaid'],
+    attributes: ['boardingHouseId', 'reservationRoomId', 'reservationApprovedAt', 'reservationFee', 'reservationAmountPaid'],
   });
 }
 
-function incomeByMonth(payments, reservations) {
+function reportDate(value) {
+  if (value === undefined || value === '') return '';
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+    !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().slice(0, 10) !== value) {
+    fail('Enter valid report dates.', 422);
+  }
+  return value;
+}
+
+function incomeByMonth(payments, reservations, from = '', to = '') {
+  const inRange = date => !(from || to) || (date && (!from || date >= from) && (!to || date <= to));
   const totals = new Map();
   const add = (month, amount) => totals.set(month, (totals.get(month) || 0) + Math.round(amount * 100));
   for (const payment of payments) {
-    if (payment.status === 'paid') add(payment.paidDate?.slice(0, 7) || payment.month || 'Unknown', confirmedRentAmount(payment));
+    if (payment.status === 'paid' && inRange(payment.paidDate)) {
+      add(payment.paidDate?.slice(0, 7) || payment.month || 'Unknown', confirmedRentAmount(payment));
+    }
   }
   for (const reservation of reservations) {
-    add(manilaDate.format(reservation.reservationApprovedAt).slice(0, 7), Number(reservation.reservationAmountPaid ?? reservation.reservationFee));
+    const date = manilaDate.format(reservation.reservationApprovedAt);
+    if (inRange(date)) add(date.slice(0, 7), Number(reservation.reservationAmountPaid ?? reservation.reservationFee));
   }
   return new Map([...totals].map(([month, cents]) => [month, cents / 100]));
 }
@@ -382,30 +395,40 @@ export const deleteRoom = async (req, res, next) => {
   try { const data = await removeRoom(oid(req), req.params.id); await audit(req, 'deleteRoom', 'Inventory', data?.id || req.params.id, {}); res.status(200).json({ data, message: 'Room removed.' }); } catch (error) { next(error); }
 };
 
+async function listOwnerTenants(ownerId, branchId, filters) {
+  const where = { ownerId, ...filters };
+  const [tenants, rooms, houses] = await Promise.all([
+    OwnerTenant.findAll({ where, order: [['createdAt', 'DESC']] }),
+    OwnerRoom.findAll({ where: { ownerId }, attributes: ['id', 'roomNumber', 'floor', 'boardingHouseId'] }),
+    BoardingHouse.findAll({ where: { ownerId }, attributes: ['id', 'name', 'isPrimary'] })
+  ]);
+  const roomsById = new Map(rooms.map(room => [room.id, room]));
+  const housesById = new Map(houses.map(house => [house.id, house]));
+  return tenants.flatMap(tenant => {
+    const room = roomsById.get(tenant.roomId);
+    const boardingHouseId = propertyForRoom(room, houses);
+    if (branchId && boardingHouseId !== branchId) return [];
+    return [{
+      ...tenant.toJSON(), boardingHouseId, roomNumber: room?.roomNumber || null, floor: room?.floor || null,
+      boardingHouseName: housesById.get(boardingHouseId)?.name || null
+    }];
+  });
+}
+
+function tenantArchiveFilter() {
+  return { [Op.or]: [{ archivedAt: { [Op.ne]: null } }, { status: { [Op.ne]: 'active' } }] };
+}
+
 export const getTenants = async (req, res, next) => {
   try {
-    const where = { ownerId: oid(req), archivedAt: req.query.archived === 'true' ? { [Op.ne]: null } : null };
-    if (req.query.status) where.status = req.query.status;
+    const filters = req.query.view === 'archive' ? tenantArchiveFilter()
+      : { archivedAt: req.query.archived === 'true' ? { [Op.ne]: null } : null };
+    if (req.query.status) filters.status = req.query.status;
     if (req.query.search) {
-      where[Op.or] = ['fullName', 'email', 'contactNumber'].map(f => ({ [f]: { [Op.like]: `%${req.query.search}%` } }));
+      filters[Op.and] = { [Op.or]: ['fullName', 'email', 'contactNumber'].map(f => ({ [f]: { [Op.like]: `%${req.query.search}%` } })) };
     }
-    const branchId = selectedBranch(req.query.boardingHouseId);
-    const [tenants, rooms, houses] = await Promise.all([
-      OwnerTenant.findAll({ where, order: [['createdAt', 'DESC']] }),
-      OwnerRoom.findAll({ where: { ownerId: oid(req) }, attributes: ['id', 'roomNumber', 'floor', 'boardingHouseId'] }),
-      BoardingHouse.findAll({ where: { ownerId: oid(req) }, attributes: ['id', 'name', 'isPrimary'] })
-    ]);
-    const roomsById = new Map(rooms.map(room => [room.id, room]));
-    const housesById = new Map(houses.map(house => [house.id, house]));
-    res.json({ data: tenants.flatMap(tenant => {
-      const room = roomsById.get(tenant.roomId);
-      const boardingHouseId = propertyForRoom(room, houses);
-      if (branchId && boardingHouseId !== branchId) return [];
-      return [{
-        ...tenant.toJSON(), boardingHouseId, roomNumber: room?.roomNumber || null, floor: room?.floor || null,
-        boardingHouseName: housesById.get(boardingHouseId)?.name || null
-      }];
-    }) });
+    const data = await listOwnerTenants(oid(req), selectedBranch(req.query.boardingHouseId), filters);
+    res.json({ data });
   } catch (err) { next(err); }
 };
 
@@ -466,34 +489,40 @@ export const updateWalkInPassword = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+async function listOwnerPayments(ownerId, branchId, filters = {}) {
+  const where = { ownerId, ...filters };
+  const [payments, tenants, rooms, houses] = await Promise.all([
+    OwnerPayment.findAll({ where, order: [['dueDate', 'DESC']] }),
+    OwnerTenant.findAll({ where: { ownerId }, attributes: ['id', 'fullName', 'roomId'] }),
+    OwnerRoom.findAll({ where: { ownerId }, attributes: ['id', 'roomNumber', 'boardingHouseId'] }),
+    BoardingHouse.findAll({ where: { ownerId }, attributes: ['id', 'name', 'isPrimary'] })
+  ]);
+  const tenantsById = new Map(tenants.map(tenant => [tenant.id, tenant]));
+  const roomsById = new Map(rooms.map(room => [room.id, room]));
+  const housesById = new Map(houses.map(house => [house.id, house]));
+  return payments.flatMap(payment => {
+    const tenant = tenantsById.get(payment.tenantId);
+    const room = roomsById.get(payment.roomId || tenant?.roomId);
+    const boardingHouseId = payment.boardingHouseId || propertyForRoom(room, houses);
+    if (branchId && boardingHouseId !== branchId) return [];
+    return [{
+      ...payment.toJSON(), boardingHouseId, roomNumber: room?.roomNumber || null,
+      boardingHouseName: housesById.get(boardingHouseId)?.name || null,
+      totalAmount: rentBillTotal(payment),
+      tenantName: tenant?.fullName || null
+    }];
+  });
+}
+
 export const getPayments = async (req, res, next) => {
   try {
-    const where = { ownerId: oid(req) };
-    if (req.query.status) where.status = req.query.status;
-    if (req.query.tenantId) where.tenantId = req.query.tenantId;
-    const branchId = selectedBranch(req.query.boardingHouseId);
-    const [payments, tenants, rooms, houses] = await Promise.all([
-      OwnerPayment.findAll({ where, order: [['dueDate', 'DESC']] }),
-      OwnerTenant.findAll({ where: { ownerId: oid(req) }, attributes: ['id', 'fullName', 'roomId'] }),
-      OwnerRoom.findAll({ where: { ownerId: oid(req) }, attributes: ['id', 'roomNumber', 'boardingHouseId'] }),
-      BoardingHouse.findAll({ where: { ownerId: oid(req) }, attributes: ['id', 'name', 'isPrimary'] })
-    ]);
-    const tenantsById = new Map(tenants.map(tenant => [tenant.id, tenant]));
-    const roomsById = new Map(rooms.map(room => [room.id, room]));
-    const housesById = new Map(houses.map(house => [house.id, house]));
-    const data = payments.flatMap(payment => {
-      const tenant = tenantsById.get(payment.tenantId);
-      const room = roomsById.get(payment.roomId || tenant?.roomId);
-      const boardingHouseId = payment.boardingHouseId || propertyForRoom(room, houses);
-      if (branchId && boardingHouseId !== branchId) return [];
-      return [{
-        ...payment.toJSON(), boardingHouseId, roomNumber: room?.roomNumber || null,
-        boardingHouseName: housesById.get(boardingHouseId)?.name || null,
-        totalAmount: rentBillTotal(payment),
-        tenantName: tenant?.fullName || `Tenant #${payment.tenantId}`
-      }];
-    });
-    res.json({ data, today: manilaToday() });
+    const filters = {};
+    if (req.query.status) filters.status = req.query.status;
+    if (req.query.tenantId) filters.tenantId = req.query.tenantId;
+    const data = await listOwnerPayments(oid(req), selectedBranch(req.query.boardingHouseId), filters);
+    res.json({ data: data.map(payment => ({
+      ...payment, tenantName: payment.tenantName || `Tenant #${payment.tenantId}`
+    })), today: manilaToday() });
   } catch (err) { next(err); }
 };
 
@@ -1017,25 +1046,63 @@ export const updateLocation = async (req, res, next) => {
 export const getReports = async (req, res, next) => {
   try {
     const type = req.query.type || 'payments';
-    const id = oid(req);
+    const ownerId = oid(req);
+    const branchId = selectedBranch(req.query.boardingHouseId);
+    const where = { ownerId };
+    const branch = branchId && await BoardingHouse.findOne({ where: { id: branchId, ownerId }, attributes: ['id', 'isPrimary'] });
+    if (branchId && !branch) fail('Boarding house branch not found.', 404);
 
     if (type === 'payments') {
-      const data = await OwnerPayment.findAll({ where: { ownerId: id }, order: [['dueDate', 'DESC']] });
+      const payments = await listOwnerPayments(ownerId, branchId);
+      const data = payments.map(({ id, tenantId, tenantName, amount, penalty, totalAmount, amountPaid, dueDate, status }) =>
+        ({ id, tenantId, tenantName, amount, penalty, totalAmount, amountPaid, dueDate, status }));
       return res.json({ type, data });
     }
     if (type === 'tenants') {
-      const data = await OwnerTenant.findAll({ where: { ownerId: id } });
+      const archive = req.query.view === 'archive';
+      const tenants = await listOwnerTenants(ownerId, branchId, archive ? tenantArchiveFilter() : { status: 'active', archivedAt: null });
+      const data = tenants.map(({ id, fullName, contactNumber, email, roomNumber, monthlyRent, balance, status, archivedAt, moveOutDate }) =>
+        ({ id, fullName, contactNumber, email, roomNumber, monthlyRent, balance, status, archivedAt, moveOutDate }));
       return res.json({ type, data });
     }
     if (type === 'rooms') {
-      const data = await OwnerRoom.findAll({ where: { ownerId: id } });
+      const roomScope = !branch ? {} : branch.isPrimary
+        ? { [Op.or]: [{ boardingHouseId: branch.id }, { boardingHouseId: null }] }
+        : { boardingHouseId: branch.id };
+      const rooms = await OwnerRoom.findAll({
+        where: { ...where, ...roomScope },
+        attributes: ['id', 'roomNumber', 'floor', 'roomType', 'capacity', 'availableSlots', 'status'],
+        order: [['floor', 'ASC'], ['roomNumber', 'ASC'], ['id', 'ASC']]
+      });
+      const occupants = await OwnerTenant.findAll({
+        where: { ...where, roomId: { [Op.in]: rooms.map(room => room.id) }, status: 'active', archivedAt: null },
+        attributes: ['roomId', 'fullName'], order: [['fullName', 'ASC'], ['id', 'ASC']]
+      });
+      const tenantsByRoom = new Map(rooms.map(room => [room.id, []]));
+      for (const tenant of occupants) tenantsByRoom.get(tenant.roomId).push(tenant.fullName);
+      const data = rooms.map(room => ({ ...room.toJSON(), tenants: tenantsByRoom.get(room.id) }));
       return res.json({ type, data });
     }
     if (type === 'income') {
+      const from = reportDate(req.query.from);
+      const to = reportDate(req.query.to);
+      if (from && to && from > to) fail('The start date must be on or before the end date.', 422);
       const [payments, reservations] = await Promise.all([
-        OwnerPayment.findAll({ where: { ownerId: id, status: 'paid' } }), approvedReservations(id),
+        listOwnerPayments(ownerId, branchId, { status: 'paid' }), approvedReservations(ownerId),
       ]);
-      const data = [...incomeByMonth(payments, reservations)].sort(([a], [b]) => b.localeCompare(a))
+      let branchReservations = reservations;
+      if (branch) {
+        const reservationRoomIds = reservations.map(row => row.reservationRoomId).filter(Boolean);
+        const reservationRooms = await OwnerRoom.findAll({
+          where: { ownerId, id: { [Op.in]: reservationRoomIds } }, attributes: ['id', 'boardingHouseId']
+        });
+        const roomBranches = new Map(reservationRooms.map(room => [room.id, room.boardingHouseId]));
+        branchReservations = reservations.filter(row => {
+          const id = roomBranches.get(row.reservationRoomId) || row.boardingHouseId;
+          return id ? id === branch.id : branch.isPrimary;
+        });
+      }
+      const data = [...incomeByMonth(payments, branchReservations, from, to)].sort(([a], [b]) => b.localeCompare(a))
         .map(([month, total]) => ({ month, total }));
       return res.json({ type, data });
     }
