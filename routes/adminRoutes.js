@@ -17,6 +17,7 @@ router.get('/api/barangay-accounts', controller.listBarangayAccounts);
 router.post('/api/barangay-accounts', controller.saveBarangayAccount);
 router.put('/api/barangay-accounts/:id', controller.saveBarangayAccount);
 router.patch('/api/barangay-accounts/:id/review', controller.reviewBarangayAccount);
+router.patch('/api/barangay-accounts/:id/archive', controller.archiveBarangayAccount);
 
 
 // Owner Applications & Review
@@ -26,6 +27,7 @@ router.get('/api/owners', controller.listOwners);
 router.patch('/api/owners/:id/review', controller.reviewOwner);
 
 // Data Requests Management
+router.get('/api/data-request-targets', controller.listDataRequestTargets);
 router.get('/api/data-requests', controller.listDataRequests);
 router.post('/api/data-requests', controller.createDataRequest);
 router.get('/api/data-requests/:id', controller.getDataRequestDetails);

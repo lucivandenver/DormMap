@@ -11,7 +11,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DormMap</title>
-  <link rel="stylesheet" href="/css/portal-updates.css?v=2">
+  <link rel="stylesheet" href="/css/portal-updates.css?v=3">
   <script src="/js/portal-updates.js?v=3" defer></script>
   <link rel="stylesheet" href="/css/portal-pagination.css">
   <script src="/js/portal-pagination.js" defer></script>
@@ -22,7 +22,8 @@
   <script src="/js/owner-room-plan.js" defer></script>
   <script src="/js/registration-files.js" defer></script>
   <script src="/js/password-visibility.js" defer></script>
-  <script src="/js/room-details.js?v=2"></script>
+  <link rel="stylesheet" href="/css/room-cards.css">
+  <script src="/js/room-details.js?v=3"></script>
   <script src="/js/reservation-fields.js"></script>
   <!-- PWA Manifest & App Icons -->
   <link rel="manifest" href="/manifest.json">

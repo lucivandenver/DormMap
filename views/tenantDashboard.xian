@@ -248,7 +248,7 @@
   <!-- Main Content View Area -->
   <main class="lg:pl-64 pt-16 min-h-screen transition-all duration-200">
     <div id="portalFeedback" class="hidden" role="status"></div>
-    <script src="/js/portal-feedback.js?v=2"></script>
+    <script src="/js/portal-feedback.js?v=3"></script>
     <script src="/js/document-preview.js"></script>
     <div class="w-full max-w-[1560px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 py-6 space-y-6">
       
@@ -439,9 +439,9 @@
         </section>
         <section class="rounded-xl bg-white p-4"><h3 class="font-bold">Roommates</h3><p id="roommates-text" class="text-sm text-slate-600"></p></section>
         <section id="tenantBoardingHouseRating" class="hidden rounded-xl border border-amber-200 bg-white p-4 sm:p-5" aria-labelledby="tenantRatingHeading">
-          <h3 id="tenantRatingHeading" class="font-bold text-slate-900">Rate your boarding house</h3>
-          <p class="mt-1 text-sm text-slate-600">Share a 1 to 5 star rating for the place where you currently stay.</p>
-          <div class="mt-3 flex items-center gap-1" role="radiogroup" aria-label="Boarding house rating">
+          <h3 id="tenantRatingHeading" class="font-bold text-slate-900">Review your room</h3>
+          <p class="mt-1 text-sm text-slate-600">Share a star rating and optional feedback about the room where you currently stay.</p>
+          <div class="mt-3 flex items-center gap-1" role="radiogroup" aria-label="Room rating">
             <button type="button" data-tenant-rating="1" role="radio" aria-label="1 star" aria-checked="false" class="text-3xl leading-none text-slate-300">★</button>
             <button type="button" data-tenant-rating="2" role="radio" aria-label="2 stars" aria-checked="false" class="text-3xl leading-none text-slate-300">★</button>
             <button type="button" data-tenant-rating="3" role="radio" aria-label="3 stars" aria-checked="false" class="text-3xl leading-none text-slate-300">★</button>
@@ -449,6 +449,9 @@
             <button type="button" data-tenant-rating="5" role="radio" aria-label="5 stars" aria-checked="false" class="text-3xl leading-none text-slate-300">★</button>
             <span id="tenantRatingSummary" class="ml-2 text-sm font-semibold text-slate-600"></span>
           </div>
+          <label for="tenantRoomFeedback" class="mt-4 block text-sm font-semibold text-slate-800">Written feedback (optional)</label>
+          <textarea id="tenantRoomFeedback" rows="3" maxlength="1000" class="mt-1 w-full rounded-xl border border-slate-200 p-3 text-sm" aria-describedby="tenantRoomFeedbackHelp" placeholder="What was your experience staying in this room?"></textarea>
+          <p id="tenantRoomFeedbackHelp" class="mt-1 text-xs text-slate-600">Feedback appears on the public room listing without your name. Keep personal information out of your review.</p>
           <button id="saveTenantRating" type="button" class="mt-3 rounded-full bg-emerald-800 px-4 py-2 text-sm font-bold text-white">Submit rating</button>
           <p id="tenantRatingMessage" role="status" class="mt-2 text-sm text-slate-600"></p>
         </section>
@@ -1386,6 +1389,8 @@
       const ratingCard = document.getElementById('tenantBoardingHouseRating');
       const rating = data.rating || {};
       ratingCard.classList.toggle('hidden', !rating.canRate);
+      ratedRoomId = rating.roomId;
+      document.getElementById('tenantRoomFeedback').value = rating.myComment || '';
       selectedBoardingHouseRating = Number(rating.myRating || 0);
       paintTenantRatingStars();
       document.getElementById('tenantRatingSummary').textContent = rating.ratingCount
@@ -1416,6 +1421,7 @@
   }
 
   let selectedBoardingHouseRating = 0;
+  let ratedRoomId = null;
   function paintTenantRatingStars() {
     document.querySelectorAll('[data-tenant-rating]').forEach(button => {
       const selected = Number(button.dataset.tenantRating) <= selectedBoardingHouseRating;
@@ -1437,7 +1443,7 @@
     try {
       const response = await fetch('/tenant-dashboard/api/boarding-house-rating', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rating: selectedBoardingHouseRating })
+        body: JSON.stringify({ rating: selectedBoardingHouseRating, roomId: ratedRoomId, comment: document.getElementById('tenantRoomFeedback').value })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Your rating could not be saved.');

@@ -8,7 +8,6 @@
     error: 'border-rose-200 bg-rose-50 text-rose-900',
     pending: 'border-slate-200 bg-slate-50 text-slate-800'
   };
-  let confirmation;
   let popupTimer;
 
   function popup(message, status) {
@@ -23,8 +22,6 @@
   }
 
   function show(message, status = 'success') {
-    confirmation?.(false);
-    confirmation = undefined;
     if (status === 'success' || status === 'error') {
       banner.className = 'portal-feedback-announcement';
       banner.setAttribute('role', status === 'error' ? 'alert' : 'status');
@@ -42,27 +39,46 @@
     banner.scrollIntoView({ block: 'nearest' });
   }
 
-  function confirm(message) {
-    show(message, 'pending');
-    const actions = document.createElement('div');
-    actions.className = 'mt-2 flex gap-2';
-    banner.append(actions);
+  async function confirm(message) {
+    const openDialog = document.querySelector('dialog[open]');
+    if (window.Swal?.fire && !openDialog) {
+      const result = await window.Swal.fire({
+        title: 'Confirm action',
+        text: message,
+        icon: 'question',
+        position: 'center',
+        showCancelButton: true,
+        confirmButtonText: 'Continue',
+        cancelButtonText: 'Cancel',
+        focusCancel: true,
+        confirmButtonColor: '#047857'
+      });
+      return result.isConfirmed;
+    }
+
+    const dialog = document.createElement('dialog');
+    dialog.className = 'portal-confirm-dialog';
+    dialog.setAttribute('aria-label', 'Confirm action');
+    const text = document.createElement('p');
+    text.textContent = message;
+    const actions = document.createElement('form');
+    actions.method = 'dialog';
+    for (const [value, label] of [['cancel', 'Cancel'], ['continue', 'Continue']]) {
+      const button = document.createElement('button');
+      button.type = 'submit';
+      button.value = value;
+      button.textContent = label;
+      button.autofocus = value === 'cancel';
+      actions.append(button);
+    }
+    dialog.append(text, actions);
+    document.body.append(dialog);
     return new Promise(resolve => {
-      confirmation = resolve;
-      for (const [label, confirmed] of [['Continue', true], ['Cancel', false]]) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'rounded-lg border border-slate-300 bg-white px-3 py-1.5';
-        button.textContent = label;
-        button.onclick = () => {
-          confirmation = undefined;
-          banner.className = 'hidden';
-          banner.replaceChildren();
-          resolve(confirmed);
-        };
-        actions.append(button);
-      }
-      actions.lastElementChild.focus({ preventScroll: true });
+      dialog.addEventListener('close', () => {
+        resolve(dialog.returnValue === 'continue');
+        dialog.remove();
+      }, { once: true });
+      dialog.showModal();
     });
   }
 
