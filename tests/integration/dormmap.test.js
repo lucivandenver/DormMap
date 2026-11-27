@@ -628,6 +628,8 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.equal(draftResponse.status, 201);
       const draftCookie = draftResponse.headers.get('set-cookie').split(';')[0];
       const { id } = await draftResponse.json();
+      const resumedDraft = await request('/owner-registration/uploads', draftCookie, { method: 'POST' });
+      assert.equal((await resumedDraft.json()).id, id);
       const headers = { Accept: 'application/json' };
       const upload = field => {
         const body = new FormData();
@@ -843,6 +845,13 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const readLanding = async () => (await (await request('/api/landing-data')).json()).listings;
       assert.ok(!(await readLanding()).some(item => item.bhId === branch.id));
       assert.equal((await request(`/barangay-dashboard/api/branches/${branch.id}/review`, localCookie, post)).status, 200);
+      const adminAudit = await (await request('/admin/api/audit-logs?page=1', adminCookie)).json();
+      assert.equal(adminAudit.data.length, 5);
+      assert.ok(adminAudit.pagination.total > 5);
+      assert.equal(adminAudit.data.find(row => row.action === 'branch_review' && row.entityId === branch.id)?.barangay, 'Labasan');
+      const secondAuditPage = await (await request('/admin/api/audit-logs?page=2', adminCookie)).json();
+      assert.equal(secondAuditPage.pagination.page, 2);
+      assert.ok(secondAuditPage.data.every(row => !adminAudit.data.some(firstPage => firstPage.id === row.id)));
 
       const approvedBranches = await readBranches();
       assert.ok(!approvedBranches.data.some(item => item.id === branch.id));

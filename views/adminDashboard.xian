@@ -1,6 +1,6 @@
 {{> head}}
-<link rel="stylesheet" href="/css/report-analytics.css">
-<script src="/js/report-analytics.js"></script>
+<link rel="stylesheet" href="/css/report-analytics.css?v=2">
+<script src="/js/report-analytics.js?v=2"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <body class="bg-slate-100 text-slate-800">
@@ -151,7 +151,7 @@
   <!-- Main Content Area -->
   <main class="px-4 pb-12 pt-20 lg:ml-64 lg:px-8">
     <div id="portalFeedback" class="hidden" role="status"></div>
-    <script src="/js/portal-feedback.js"></script>
+    <script src="/js/portal-feedback.js?v=2"></script>
     <script src="/js/document-preview.js"></script>
     <div class="mx-auto max-w-7xl">
       <!-- Section Header -->
@@ -166,26 +166,18 @@
       <!-- VIEW 1: OVERVIEW -->
       <section data-view="overview" class="space-y-6">
         <div id="metricCards" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"></div>
-        <div class="grid gap-6 xl:grid-cols-5">
-          <section class="rounded-2xl bg-white p-5 shadow-xs border border-slate-100 xl:col-span-3">
-            <div class="flex items-center justify-between">
-              <h2 class="font-bold text-slate-900">Monthly Registrations</h2>
-              <span class="text-xs text-slate-400">Last 6 Months</span>
-            </div>
-            <div id="registrationChart" class="mt-5 flex h-48 items-end gap-3"></div>
-          </section>
-          <section class="rounded-2xl bg-white p-5 shadow-xs border border-slate-100 xl:col-span-2">
-            <h2 class="font-bold text-slate-900">Permit Status Summary</h2>
-            <div id="permitChart" class="mt-5 space-y-3"></div>
-          </section>
+        <div class="grid gap-4 xl:grid-cols-2" aria-label="System analytics">
+          <div id="registrationChart"></div>
+          <div id="permitChart"></div>
+          <div id="submissionStatusChart"></div>
+          <div id="roomInventoryChart"></div>
         </div>
         <section class="rounded-2xl bg-white p-5 shadow-xs border border-slate-100">
           <h2 class="font-bold text-slate-900">Recent Administrative Activity</h2>
-          <div id="recentActivity" class="mt-4 divide-y divide-slate-100"></div>
+          <div id="recentActivity" data-paginate class="mt-4 divide-y divide-slate-100"></div>
         </section>
       </section>
 
-      <!-- VIEW: MUNICIPAL GIS MAP -->
       <section data-view="registration_analytics" class="hidden space-y-4">
         <form id="registrationAnalyticsFilters" class="rounded-2xl border border-slate-100 bg-white p-4">
           <div class="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -233,13 +225,14 @@
             <tbody id="registrationAccounts"></tbody>
           </table>
         </div>
-        <div class="flex flex-wrap items-center gap-3">
+        <div id="registrationPaging" class="flex flex-wrap items-center justify-center gap-3">
           <button type="button" id="registrationPrevious" class="button secondary" disabled>Previous</button>
           <button type="button" id="registrationNext" class="button secondary" disabled>Next</button>
           <span id="registrationPage" class="text-sm text-slate-600"></span>
         </div>
       </section>
 
+      <!-- VIEW: MUNICIPAL GIS MAP -->
       <section data-view="gis_map" class="hidden space-y-5">
         <!-- Top Controls Toolbar -->
         <div class="rounded-2xl bg-white p-4 shadow-xs border border-slate-100 flex flex-wrap items-center justify-between gap-3">
@@ -349,7 +342,7 @@
           </button>
         </div>
 
-        <div id="dataRequestsContainer" class="grid gap-4"></div>
+        <div id="dataRequestsContainer" data-paginate class="grid gap-4"></div>
       </section>
 
       <!-- VIEW 3: BARANGAY SUBMISSIONS MANAGEMENT -->
@@ -394,7 +387,7 @@
                 <th>Action</th>
               </tr>
             </thead>
-            <tbody id="submissionsTable"></tbody>
+            <tbody id="submissionsTable" data-paginate></tbody>
           </table>
         </div>
       </section>
@@ -411,7 +404,7 @@
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
           </select>
-          <button class="button flex items-center gap-1.5" onclick="loadOwners()"><svg class="icon-bw-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>Search</button>
+          <button class="button flex items-center gap-1.5" onclick="loadOwners(1)"><svg class="icon-bw-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>Search</button>
         </div>
         <div class="table-wrap">
           <table>
@@ -428,7 +421,7 @@
             <tbody id="ownersTable"></tbody>
           </table>
         </div>
-        <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-white p-4"><p id="ownerPaginationLabel" class="text-sm text-slate-600"></p><div class="flex gap-2"><button id="ownerPrevPage" class="button secondary" onclick="loadOwners(ownerCurrentPage-1)">Previous</button><button id="ownerNextPage" class="button secondary" onclick="loadOwners(ownerCurrentPage+1)">Next</button></div></div>
+        <div class="flex flex-wrap items-center justify-center gap-3 rounded-2xl border bg-white p-4"><p id="ownerPaginationLabel" class="text-sm text-slate-600"></p><div class="flex gap-2"><button id="ownerPrevPage" class="button secondary" onclick="loadOwners(ownerCurrentPage-1)">Previous</button><button id="ownerNextPage" class="button secondary" onclick="loadOwners(ownerCurrentPage+1)">Next</button></div></div>
       </section>
 
       <section data-view="featured" class="hidden space-y-5">
@@ -449,7 +442,7 @@
             </label>
           </div>
           <p id="featuredListingsStatus" role="status" class="mt-4 text-sm text-slate-600">Loading verified listings…</p>
-          <div id="featuredListingsOptions" class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3"></div>
+          <div id="featuredListingsOptions" data-paginate class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3"></div>
           <p id="featuredListingsNoMatches" class="mt-3 text-sm text-slate-500" role="status" hidden>No boarding houses match your filters.</p>
         </div>
       </section>
@@ -479,7 +472,7 @@
                 <th>Action</th>
               </tr>
             </thead>
-            <tbody id="renewalsTable"></tbody>
+            <tbody id="renewalsTable" data-paginate></tbody>
           </table>
         </div>
       </section>
@@ -488,7 +481,7 @@
       <section data-view="barangays" class="hidden space-y-6">
         <div class="rounded-2xl border border-emerald-100 bg-white p-5 space-y-4">
           <div class="flex flex-wrap justify-between gap-3"><div><h2 class="text-lg font-bold">Barangay accounts</h2><p class="text-sm text-slate-500">Review officials before they access their dashboard or receive owner applications.</p></div><div class="flex flex-wrap gap-2"><button class="button" onclick="openRecordForm('barangay-accounts')">Create Barangay Account</button><button class="button secondary" onclick="loadBarangayAccounts()">Refresh accounts</button></div></div>
-          <div class="table-wrap"><table><thead><tr><th>Official</th><th>Barangay / Position</th><th>Status / Note</th><th>Review</th></tr></thead><tbody id="barangayAccountsTable"></tbody></table></div>
+          <div class="table-wrap"><table><thead><tr><th>Official</th><th>Barangay / Position</th><th>Status / Note</th><th>Review</th></tr></thead><tbody id="barangayAccountsTable" data-paginate></tbody></table></div>
         </div>
         <div class="toolbar bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
           <input id="barangaysSearch" class="field" placeholder="Search barangay">
@@ -498,7 +491,7 @@
         <div class="table-wrap">
           <table>
             <thead><tr><th>Barangay</th><th>Assigned Official</th><th>Official Email</th><th>Status</th><th>Action</th></tr></thead>
-            <tbody id="barangaysTable"></tbody>
+            <tbody id="barangaysTable" data-paginate></tbody>
           </table>
         </div>
       </section>
@@ -513,7 +506,7 @@
         <div class="table-wrap">
           <table>
             <thead><tr><th>Name</th><th>Type</th><th>Barangay</th><th>Coordinates</th><th>Action</th></tr></thead>
-            <tbody id="institutionsTable"></tbody>
+            <tbody id="institutionsTable" data-paginate></tbody>
           </table>
         </div>
       </section>
@@ -527,7 +520,7 @@
         <div class="table-wrap">
           <table>
             <thead><tr><th>Permit No.</th><th>Owner ID</th><th>Expires</th><th>Status</th><th>Action</th></tr></thead>
-            <tbody id="permitsTable"></tbody>
+            <tbody id="permitsTable" data-paginate></tbody>
           </table>
         </div>
       </section>
@@ -615,7 +608,7 @@
       <section data-view="audit" class="hidden space-y-6">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Timestamp</th><th>Action</th><th>Entity</th><th>Actor ID</th><th>IP Address</th></tr></thead>
+            <thead><tr><th>Timestamp</th><th>Action</th><th>Entity</th><th>Barangay</th><th>Actor</th><th>IP Address</th></tr></thead>
             <tbody id="auditTable"></tbody>
           </table>
         </div>
@@ -726,7 +719,7 @@
           <thead>
             <tr><th>Barangay</th><th>Assigned Official</th><th>Status</th><th>Submitted On</th><th>Action</th></tr>
           </thead>
-          <tbody id="reqMatrixTable"></tbody>
+          <tbody id="reqMatrixTable" data-paginate></tbody>
         </table>
       </div>
     </div>
@@ -1068,6 +1061,7 @@ updateRegistrationDatePicker();
 
 async function loadRegistrationAnalytics(requestedPage = 1) {
   const sequence = ++registrationRequest;
+  document.getElementById('registrationPaging').classList.add('hidden');
   const filters = new URLSearchParams(appliedRegistrationFilters);
   filters.set('page', requestedPage);
   registrationStatus.textContent = 'Loading registrations…';
@@ -1078,7 +1072,9 @@ async function loadRegistrationAnalytics(requestedPage = 1) {
   try {
     const data = await request(api + '/registration-analytics?' + filters);
     if (sequence !== registrationRequest) return;
+    if (data.page > data.pages) return loadRegistrationAnalytics(data.pages);
     registrationPage = data.page;
+    document.getElementById('registrationPaging').classList.toggle('hidden', data.pages <= 1);
     registrationStatus.textContent = data.total ? '' : 'No accounts match these filters.';
     const formatCount = value => Number(value).toLocaleString('en-PH');
     const roleCounts = [...registrationRoleLabels].map(([key, label]) => ({ label, value: formatCount(data.byRole[key] || 0) }));
@@ -1086,10 +1082,12 @@ async function loadRegistrationAnalytics(requestedPage = 1) {
     if (data.trend.length) {
       const allTime = !appliedRegistrationFilters.has('date');
       const trend = allTime ? data.trend.slice(-12) : data.trend;
-      registrationCharts.append(DormMapAnalytics.chart(
+      registrationCharts.append(DormMapAnalytics.plot(
         trend.length < data.trend.length ? 'Registration trend · latest 12 months with registrations' : 'Registration trend',
-        trend.map(row => ({ period: row.period, value: row.count })), formatCount
+        trend, [{ key: 'count', label: 'Registrations' }], formatCount, trend.length > 1 ? 'line' : 'bar'
       ));
+      registrationCharts.append(DormMapAnalytics.donut('Registrations by account type',
+        [...registrationRoleLabels].map(([key, label]) => ({ period: label, value: data.byRole[key] || 0 })), formatCount));
     }
     registrationRows.innerHTML = data.accounts.map(row => {
       const status = row.isArchived ? 'Archived' : row.isSuspended ? 'Suspended' : 'Registered';
@@ -1184,40 +1182,22 @@ async function loadOverview() {
       </article>
     `).join('');
 
-    const max = Math.max(1, ...(d.charts.monthly || []).map(x => Number(x.count)));
-    document.getElementById('registrationChart').innerHTML = d.charts.monthly?.length ? d.charts.monthly.map(x => `
-      <div class="group relative flex flex-1 flex-col items-center gap-2">
-        <span class="text-xs font-bold text-slate-700">${x.count}</span>
-        <div class="w-full rounded-t-lg bg-gradient-to-t from-emerald-800 to-emerald-500 group-hover:from-emerald-700 group-hover:to-teal-400 transition-all shadow-xs cursor-pointer" style="height:${Math.max(12, Number(x.count)/max*130)}px" title="${esc(x.month)}: ${x.count} registrations"></div>
-        <span class="text-[10px] font-medium text-slate-500">${esc(x.month)}</span>
-      </div>
-    `).join('') : '<p class="text-sm text-slate-500">No registrations recorded in the last 6 months.</p>';
-
-    const permitStatusColors = {
-      active: { bg: 'bg-emerald-50', text: 'text-emerald-800', bar: 'bg-emerald-500' },
-      pending: { bg: 'bg-blue-50', text: 'text-blue-800', bar: 'bg-blue-500' },
-      renewal_requested: { bg: 'bg-amber-50', text: 'text-amber-800', bar: 'bg-amber-500' },
-      expired: { bg: 'bg-rose-50', text: 'text-rose-800', bar: 'bg-rose-500' },
-      rejected: { bg: 'bg-slate-100', text: 'text-slate-800', bar: 'bg-slate-500' },
-    };
-    document.getElementById('permitChart').innerHTML = d.charts.permitStatus?.length ? d.charts.permitStatus.map(x => {
-      const style = permitStatusColors[x.status] || { bg: 'bg-slate-50', text: 'text-slate-700', bar: 'bg-slate-400' };
-      return `
-        <div class="flex items-center justify-between rounded-xl ${style.bg} p-3 border border-slate-100">
-          <div class="flex items-center gap-2">
-            <span class="h-2.5 w-2.5 rounded-full ${style.bar}"></span>
-            <span class="capitalize font-semibold text-xs ${style.text}">${esc(x.status.replace('_', ' '))}</span>
-          </div>
-          <b class="text-sm font-bold text-slate-900">${x.count}</b>
-        </div>
-      `;
-    }).join('') : '<p class="text-sm text-slate-500">No permit records yet.</p>';
+    const count = value => Number(value).toLocaleString('en-PH');
+    const statusRows = rows => rows.map(row => ({ period: row.status.replaceAll('_', ' '), value: Number(row.count) }));
+    const renderChart = (id, chart) => document.getElementById(id).replaceChildren(chart);
+    renderChart('registrationChart', DormMapAnalytics.plot('Registrations by month · last 6 months',
+      d.charts.monthly.map(row => ({ period: row.month, count: row.count })), [{ key: 'count', label: 'Registrations' }], count, 'line'));
+    renderChart('permitChart', DormMapAnalytics.donut('Business permits by status', statusRows(d.charts.permitStatus), count));
+    renderChart('submissionStatusChart', DormMapAnalytics.chart('Barangay submissions by status', statusRows(d.charts.submissionStats), count));
+    renderChart('roomInventoryChart', DormMapAnalytics.chart('Room inventory', [
+      { period: 'Available rooms', value: d.cards.availableRooms }, { period: 'Occupied rooms', value: d.cards.occupiedRooms }
+    ], count));
 
     document.getElementById('recentActivity').innerHTML = d.recentActivity?.length ? d.recentActivity.map(x => `
       <div class="py-3 text-xs text-slate-700 flex items-center justify-between">
         <div>
           <b class="text-slate-900">${esc(x.action)}</b>
-          <span class="ml-2 text-slate-500">${esc(x.entityType)} #${esc(x.entityId || '')}</span>
+          <span class="ml-2 text-slate-500">${esc(x.barangay || x.entityType)}${!x.barangay && x.entityId ? ' #' + esc(x.entityId) : ''}</span>
         </div>
         <span class="text-[10px] text-slate-400">${new Date(x.createdAt).toLocaleString()}</span>
       </div>
@@ -1916,11 +1896,16 @@ function openBarangayReview(id) {
 
 // 4. OWNERS
 let ownerCurrentPage = 1;
-async function loadOwners(page = 1) {
+let ownerListRequest = 0;
+async function loadOwners(page = ownerCurrentPage) {
+  const sequence = ++ownerListRequest;
   ownerCurrentPage = Math.max(1, Number(page) || 1);
   try {
-    const q = new URLSearchParams({ page: ownerCurrentPage, search: document.getElementById('ownerSearch').value, status: document.getElementById('ownerStatus').value });
+    const q = new URLSearchParams({ page: ownerCurrentPage, limit: 5, search: document.getElementById('ownerSearch').value, status: document.getElementById('ownerStatus').value });
     const d = await request(api + '/owners?' + q);
+    if (sequence !== ownerListRequest) return;
+    if (d.pagination.page > Math.max(1, d.pagination.pages)) return loadOwners(Math.max(1, d.pagination.pages));
+    document.getElementById('ownerPaginationLabel').parentElement.classList.toggle('hidden', d.pagination.pages <= 1);
     document.getElementById('ownerPaginationLabel').textContent = `Page ${d.pagination.page} of ${Math.max(1,d.pagination.pages)} · ${d.pagination.total} applications`;
     document.getElementById('ownerPrevPage').disabled = ownerCurrentPage <= 1;
     document.getElementById('ownerNextPage').disabled = ownerCurrentPage >= d.pagination.pages;
@@ -1939,17 +1924,32 @@ async function loadOwners(page = 1) {
         </details></td>
         <td><span class="badge status-${esc(x.applicationStatus)}">${esc(x.applicationStatus)}</span></td>
         <td>${new Date(x.createdAt).toLocaleDateString()}</td>
-        <td class="space-x-1 text-xs">
-          <button type="button" class="text-emerald-800 font-bold" onclick="openOwnerTenantAssignments(${x.id})">Tenants</button>
-          <button class="text-red-700 font-bold" onclick="reviewOwnerMap(${x.id}, '${x.publicMapUnregistered ? 'registered' : 'unregistered'}')">${x.publicMapUnregistered ? 'Mark registered' : 'Mark unregistered'}</button>
-          ${x.publicMapUnregistered ? `<button onclick="reviewOwnerMap(${x.id}, '${x.publicMapPublished ? 'hide' : 'publish'}')">${x.publicMapPublished ? 'Hide red pin' : 'Publish red pin'}</button>` : ''}
-          <button class="text-emerald-700 font-bold" onclick="reviewOwner(${x.id}, 'approve')">Approve</button>
-          <button class="text-amber-700 font-bold" onclick="reviewOwner(${x.id}, 'revision')">Revision</button>
-          <button class="text-rose-700 font-bold" onclick="reviewOwner(${x.id}, 'reject')">Reject</button>
+        <td>
+          <select class="field text-sm" aria-label="Actions for ${esc(x.fullName)}" onchange="selectOwnerAction(this, ${Number(x.id)})">
+            <option value="">Choose action</option>
+            <option value="tenants">View tenants</option>
+            <optgroup label="Application review">
+              <option value="approve">Approve</option>
+              <option value="revision">Request revision</option>
+              <option value="reject">Reject</option>
+            </optgroup>
+            <optgroup label="Public map">
+              <option value="${x.publicMapUnregistered ? 'registered' : 'unregistered'}">${x.publicMapUnregistered ? 'Mark registered' : 'Mark unregistered'}</option>
+              ${x.publicMapUnregistered ? `<option value="${x.publicMapPublished ? 'hide' : 'publish'}">${x.publicMapPublished ? 'Hide red pin' : 'Publish red pin'}</option>` : ''}
+            </optgroup>
+          </select>
         </td>
       </tr>
     `).join('') : '<tr><td colspan="6" class="text-center text-slate-500 py-6">No owner applications found.</td></tr>';
   } catch (e) { toast(e.message, true); }
+}
+
+function selectOwnerAction(select, id) {
+  const action = select.value;
+  select.value = '';
+  if (action === 'tenants') openOwnerTenantAssignments(id);
+  else if (['approve', 'revision', 'reject'].includes(action)) reviewOwner(id, action);
+  else if (action) reviewOwnerMap(id, action);
 }
 
 async function openOwnerTenantAssignments(ownerId) {
@@ -1958,7 +1958,7 @@ async function openOwnerTenantAssignments(ownerId) {
     document.getElementById('modalTitle').textContent = 'Tenant branch assignments';
     const form = document.getElementById('recordForm');
     form.onsubmit = null;
-    form.innerHTML = data.length ? `<ul class="divide-y">${data.map(tenant => `
+    form.innerHTML = data.length ? `<ul class="divide-y" data-paginate>${data.map(tenant => `
       <li class="py-2"><b>${esc(tenant.fullName)}</b>
         <p class="text-sm text-slate-500">${esc(tenant.selectedBoardingHouse || 'Unassigned')}${tenant.branchNumber ? ` · Branch ${tenant.branchNumber}` : ''}</p>
       </li>`).join('')}</ul>` : '<p class="text-sm text-slate-500">No tenant records.</p>';
@@ -2165,19 +2165,26 @@ async function deleteRecord(type, id) {
   } catch (e) { toast(e.message, true); }
 }
 
-async function loadAudit() {
+let auditPage = 1;
+let auditRequest = 0;
+async function loadAudit(page = auditPage) {
+  const sequence = ++auditRequest;
   try {
-    const d = await request(api + '/audit-logs');
+    const d = await request(api + '/audit-logs?page=' + page);
+    if (sequence !== auditRequest) return;
+    auditPage = d.pagination.page;
     document.getElementById('auditTable').innerHTML = d.data.length ? d.data.map(x => `
       <tr>
         <td>${new Date(x.createdAt).toLocaleString()}</td>
         <td><b>${esc(x.action)}</b></td>
         <td>${esc(x.entityType)} #${esc(x.entityId || '')}</td>
-        <td>${esc(x.actorId || 'System')}</td>
+        <td>${esc(x.barangay || '—')}</td>
+        <td>${esc(x.actorName || x.actorId || 'System')}</td>
         <td>${esc(x.ipAddress || '—')}</td>
       </tr>
-    `).join('') : '<tr><td colspan="5" class="text-center text-slate-500 py-6">No audit records yet.</td></tr>';
-  } catch (e) { toast(e.message, true); }
+    `).join('') : '<tr><td colspan="6" class="text-center text-slate-500 py-6">No audit records yet.</td></tr>';
+    window.DormMapPagination?.server(document.getElementById('auditTable'), d.pagination, loadAudit);
+  } catch (e) { if (sequence === auditRequest) toast(e.message, true); }
 }
 
 document.getElementById('announcementForm').onsubmit = async (e) => {
@@ -2189,7 +2196,7 @@ document.getElementById('announcementForm').onsubmit = async (e) => {
   } catch (err) { toast(err.message, true); }
 };
 
-// Initial Load
-loadOverview();
+// The shared navigation script restores a recognized deep link.
+if (!Array.from(document.querySelectorAll('#adminNav [data-panel]')).some(button => '#' + button.dataset.panel === location.hash)) loadOverview();
 </script>
 {{> footer}}

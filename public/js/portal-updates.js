@@ -13,6 +13,7 @@
   document.body.append(panel);
   const state=panel.querySelector('.portal-live-state');
   const notificationItems=panel.querySelector('[data-notification-items]');
+  notificationItems.setAttribute('data-paginate', '');
   const toggle=()=>{panel.hidden=!panel.hidden;bell.setAttribute('aria-expanded',String(!panel.hidden));if(!panel.hidden){refresh();panel.querySelector('[data-read-all]').focus();}};
   bell.addEventListener('click',toggle);
   panel.querySelector('[data-close]').onclick=()=>{panel.hidden=true;bell.setAttribute('aria-expanded','false');bell.focus();};
@@ -26,7 +27,7 @@
     container.querySelectorAll('[data-notice]').forEach(button=>button.onclick=async()=>{const item=items.find(n=>`${n.source}:${n.id}`===button.dataset.notice);try{await read(item.id,item.source);if(!item.isRead)setUnread(unread-1);button.remove();if(container===notificationItems&&!container.querySelector('[data-notice]'))renderItems(container,[]);panel.hidden=true;location.hash=new URL(item.url,location.origin).hash;await refresh();}catch(error){state.textContent=error.message;}});
   }
   async function refresh(){if(loading){queued=true;return;}loading=true;try{
-    const res=await fetch('/api/portal/notifications',{cache:'no-store'});if(!res.ok){if([401,403].includes(res.status))state.textContent='Sign in again to receive updates.';return;}const data=await res.json();unread=data.unread;
+    const res=await fetch('/api/portal/notifications',{cache:'no-store'});if(!res.ok){if([401,403].includes(res.status)){ unauthorized=true;stream?.close();stream=null;state.textContent='Sign in again to receive updates.'; }return;}const data=await res.json();unread=data.unread;
     setUnread(data.unread);
     renderItems(notificationItems,data.items.filter(item=>!item.isRead));
     const containers=document.querySelectorAll('#notificationsList,#notificationsContainer,#notificationList');containers.forEach(el=>renderItems(el,data.items));
@@ -34,21 +35,85 @@
     Object.entries(data.pending||{}).forEach(([key,value])=>{categories[key]=Math.max(categories[key]||0,value);});
     document.querySelectorAll('nav button,#nav button,.nav-item').forEach(button=>{const key=button.dataset.view||button.dataset.panel||button.id.replace('btn-','');const qty=categories[key==='messaging'?'messages':key]||0;let badge=button.querySelector('.portal-nav-count');if(qty&&!badge){badge=document.createElement('span');badge.className='portal-nav-count';button.append(badge);}if(badge){badge.textContent=qty;badge.hidden=!qty;}button.classList.toggle('portal-attention',qty>0);});
   }catch{state.textContent='Connection interrupted. Retrying automatically.';}finally{loading=false;if(queued){queued=false;schedule();}}}
-  function schedule(){clearTimeout(timer);timer=setTimeout(refresh,250);}
+  function schedule(){if(unauthorized||document.hidden||timer)return;timer=setTimeout(()=>{timer=null;refresh();},200);}
   async function refreshVisible(){
-    if([...document.querySelectorAll('[id$="Modal"],[role="dialog"]')].some(el=>el.getClientRects().length)||document.querySelector('dialog[open],.swal2-container')||document.activeElement?.matches('input,textarea,select'))return;
+    if(document.hidden||[...document.querySelectorAll('[id$="Modal"],[role="dialog"]')].some(el=>el.getClientRects().length)||document.querySelector('dialog[open],.swal2-container')||document.activeElement?.matches('input,textarea,select')){
+      pendingView=true;
+      return;
+    }
+    pendingView=false;
     const section=[...document.querySelectorAll('section[data-panel],section[data-view],.tab-content')].find(el=>!el.classList.contains('hidden'));
     const tab=section?.dataset.panel||section?.dataset.view||section?.id.replace('tab-','');
     const functions={super_admin:{overview:'loadOverview',owners:'loadOwners',barangays:'loadBarangayAccounts',submissions:'loadSubmissions',renewals:'loadPermitRenewals',audit:'loadAudit'},barangay:{overview:'loadOverview',applications:'loadApplications',data_requests:'loadBarangayDataRequests',renewals:'loadBarangayPermitRenewals',owners:'loadOwners',houses:'loadHouses',messages:'loadMessages',submissions:'loadSubmissions'},boarding_house_owner:{overview:'loadOverview',profile:'loadBoardingHouses',maintenance:'loadOwnerMaintenance',applications:'loadPendingApplications',messages:'loadMessages',rooms:'loadRooms',tenants:'loadTenants',payments:'loadPayments',inquiries:'loadInquiries'},tenant:{dashboard:'loadOverview','my-room':'loadRoomAndHistory',messaging:'loadConversations',payments:'loadPaymentHistory',maintenance:'loadMaintenance',documents:'loadDocuments','browse-dorms':'loadBrowseBoardingHouses'}};
     const fn=window[functions[role]?.[tab]];if(typeof fn==='function'){try{await fn();}catch(error){console.warn('Live view refresh:',error.message);}}
-    if(role==='boarding_house_owner'&&tab==='messages'){const peer=document.querySelector('#msgRecipientId')?.value;if(peer&&typeof window.openChat==='function')await window.openChat(Number(peer));}
   }
-  let visibleTimer;function changed(){schedule();clearTimeout(visibleTimer);visibleTimer=setTimeout(refreshVisible,500);}
-  const stream=new EventSource('/api/portal/events');stream.addEventListener('portal-update',()=>{state.textContent='Live updates connected';changed();});stream.onerror=()=>{state.textContent='Reconnecting… Saved notifications remain available.';};
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden)changed();});window.addEventListener('hashchange',schedule);
-  setInterval(()=>{if(!document.hidden)changed();},30000); // resync after missed events or restarts
-  // Refresh after successful writes, including local actions. No document reload.
-  const original=window.fetch;window.fetch=async function(input,options){const response=await original.apply(this,arguments);const method=String(options?.method||'GET').toUpperCase();if(response.ok&&!['GET','HEAD'].includes(method)&&!String(input).includes('/api/portal/'))changed();return response;};
+  let visibleTimer, stream, socket, fallbackTimer;
+  let pendingView = false, sseConnected = false, unauthorized = false, connectedBefore = false;
+  function changed() {
+    if (unauthorized) return;
+    schedule();
+    pendingView = true;
+    if (!visibleTimer) visibleTimer = setTimeout(() => { visibleTimer = null; refreshVisible(); }, 400);
+  }
+  function startFallback() {
+    if (unauthorized || socket?.connected || stream || typeof EventSource !== 'function') return;
+    stream = new EventSource('/api/portal/events');
+    stream.addEventListener('portal-update', () => {
+      sseConnected = true;
+      state.textContent = 'Live updates connected';
+      changed();
+    });
+    stream.onerror = () => {
+      sseConnected = false;
+      state.textContent = 'Reconnecting… Saved notifications remain available.';
+    };
+  }
+  function connectSocket(activeSocket) {
+    if (socket === activeSocket) return;
+    socket = activeSocket;
+    const connected = () => {
+      const recovering = connectedBefore || Boolean(stream);
+      connectedBefore = true;
+      clearTimeout(fallbackTimer);
+      stream?.close();
+      stream = null;
+      sseConnected = false;
+      state.textContent = 'Live updates connected';
+      if (recovering || socket.recovered) changed();
+      else schedule();
+    };
+    const disconnected = () => {
+      state.textContent = 'Reconnecting… Saved notifications remain available.';
+      startFallback();
+    };
+    socket.on('connect', connected);
+    socket.on('connect_error', disconnected);
+    socket.on('disconnect', disconnected);
+    socket.on('portal-invalidate', changed);
+    if (socket.connected) connected();
+  }
+  document.addEventListener('dormmap:socket-ready', event => connectSocket(event.detail));
+  if (window.DormMapSocket?.socket) connectSocket(window.DormMapSocket.socket);
+  fallbackTimer = setTimeout(startFallback, 2500);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) changed(); });
+  window.addEventListener('pageshow', event => { if (event.persisted) changed(); });
+  window.addEventListener('hashchange', schedule);
+  window.addEventListener('online', changed);
+  document.addEventListener('focusout', () => { if (pendingView) changed(); });
+  document.addEventListener('close', () => { if (pendingView) changed(); }, true);
+  setInterval(() => {
+    if (document.hidden || unauthorized) return;
+    if (pendingView || (!socket?.connected && !sseConnected)) changed();
+    else if (!panel.hidden) schedule();
+  }, 30000);
+  // Dashboard mutations already refresh their view. This only synchronizes badges after successful writes.
+  const original = window.fetch;
+  window.fetch = async function (input, options) {
+    const response = await original.apply(this, arguments);
+    const method = String(options?.method || input?.method || 'GET').toUpperCase();
+    if (response.ok && !['GET','HEAD'].includes(method) && !String(input?.url || input).includes('/api/portal/')) schedule();
+    return response;
+  };
   window.DormMapPortal={refresh};
   refresh();
 })();

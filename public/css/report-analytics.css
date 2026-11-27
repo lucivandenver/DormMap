@@ -15,3 +15,24 @@
 @media print {
   .analytics-chart, .analytics-metrics > div { break-inside: avoid; print-color-adjust: exact; }
 }
+.analytics-plot { overflow-x: auto; margin-top: .5rem; }
+.analytics-plot svg { display: block; width: 100%; color: #475569; }
+.analytics-plot text { fill: currentColor; font-size: 11px; }
+.analytics-plot g { outline: none; cursor: pointer; }
+.analytics-plot g:hover .analytics-plot-hit, .analytics-plot g:focus .analytics-plot-hit { fill: #0f766e18; stroke: #047857; stroke-width: 1; }
+.analytics-chart ul.analytics-legend { display: flex; flex-wrap: wrap; column-gap: 1.1rem; row-gap: .3rem; }
+.analytics-chart .analytics-legend li { display: flex; gap: .4rem; }
+.analytics-swatch { width: .65rem; height: .65rem; border-radius: .15rem; flex: none; }
+.analytics-chart-detail { margin: .3rem 0 0; color: #334155; font-size: .82rem; }
+.analytics-donut-content { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin: .8rem 0 .3rem; }
+.analytics-donut-content ul.analytics-legend { flex-direction: column; }
+.analytics-donut { position: relative; width: 8rem; height: 8rem; border-radius: 50%; display: grid; place-items: center; flex: none; }
+.analytics-donut::before { position: absolute; inset: 23%; border-radius: 50%; background: #fff; content: ''; }
+.analytics-donut strong { position: relative; color: #0f172a; }
+.analytics-report-toggle { display: flex; justify-content: end; gap: .45rem; margin-top: .5rem; }
+.analytics-report-toggle button { border: 1px solid #cbd5e1; border-radius: .45rem; padding: .2rem .65rem; font-size: .8rem; color: #065f46; }
+.analytics-report-toggle button[aria-pressed="true"] { background: #ecfdf5; border-color: #047857; font-weight: 700; }
+@media print {
+  .analytics-plot svg { min-width: 0 !important; }
+  .analytics-report-toggle { display: none !important; }
+}

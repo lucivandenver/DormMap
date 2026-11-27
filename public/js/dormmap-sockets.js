@@ -5,6 +5,8 @@
 (function () {
   'use strict';
 
+  const portal = ['/admin', '/barangay-dashboard', '/owner-dashboard', '/tenant-dashboard'];
+  if (!portal.includes(location.pathname.replace(/\/$/, ''))) return;
   let socket = null;
   const isSocketIoAvailable = typeof window.io === 'function';
 
@@ -18,8 +20,9 @@
 
       socket = window.io({
         transports: ['websocket', 'polling'],
-        reconnectionAttempts: 10,
-        reconnectionDelay: 2000
+        timeout: 7000,
+        reconnectionDelay: 1200,
+        reconnectionDelayMax: 15000
       });
 
       window.DormMapSocket = {
@@ -31,6 +34,8 @@
           if (socket) socket.on(event, callback);
         }
       };
+
+      document.dispatchEvent(new CustomEvent('dormmap:socket-ready', { detail: socket }));
 
       socket.on('connect', () => {
         console.log('⚡ Connected to DorMap Real-Time WebSocket Server (ID:', socket.id, ')');
@@ -48,12 +53,12 @@
       // 1. REAL-TIME PAYMENT NOTIFICATIONS
       socket.on('payment_completed', (data) => {
         console.log('🔔 Payment completed event received:', data);
-        if (window.Swal) {
+        if (window.Swal && !window.Swal.isVisible?.()) {
           window.Swal.fire({
             icon: 'success',
             title: 'Payment Successful!',
             text: `Payment of ₱${Number(data.amount || 0).toLocaleString()} for ${data.boardingHouseName || 'Rent'} has been confirmed!`,
-            timer: 4000,
+            timer: 500,
             timerProgressBar: true,
             toast: true,
             position: 'top-end',
@@ -71,12 +76,12 @@
         console.log('💬 New chat message received:', data);
         if (typeof window.handleIncomingSocketMessage === 'function') {
           window.handleIncomingSocketMessage(data);
-        } else if (window.Swal && data.senderName) {
+        } else if (window.Swal && !window.Swal.isVisible?.() && data.senderName) {
           window.Swal.fire({
             icon: 'info',
             title: `New Message from ${data.senderName}`,
             text: data.message || 'You received a new inquiry.',
-            timer: 4000,
+            timer: 500,
             timerProgressBar: true,
             toast: true,
             position: 'top-end',
@@ -96,12 +101,12 @@
 
       // 4. REAL-TIME SYSTEM NOTIFICATIONS
       socket.on('system_notification', (data) => {
-        if (window.Swal) {
+        if (window.Swal && !window.Swal.isVisible?.()) {
           window.Swal.fire({
             icon: data.type || 'info',
             title: data.title || 'DorMap Notice',
             text: data.message || '',
-            timer: 5000,
+            timer: 500,
             timerProgressBar: true,
             toast: true,
             position: 'top-end',

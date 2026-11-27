@@ -66,12 +66,20 @@ export function incomeAnalytics(entries, grouping, from, to, today = reportDay()
   const current = sum(currentFrom, currentTo);
   const previous = sum(previousFrom, previousTo);
   const trend = [];
-  const trendStart = periodStart(from || bounds.first || currentFrom, grouping);
-  const trendEnd = to || bounds.last || currentTo;
+  const trendEnd = to || [bounds.last, currentTo].sort().at(-1);
   let period = periodStart(trendEnd, grouping);
+  let recentStart = period;
+  for (let index = 0; index < 5; index++) recentStart = periodStart(shiftReportDay(recentStart, -1), grouping);
+  const trendStart = periodStart(from || (to ? bounds.first || currentFrom : [bounds.first || recentStart, recentStart].sort()[0]), grouping);
   while (period >= trendStart && trend.length < 12) {
     const end = shiftReportDay(nextPeriod(period, grouping), -1);
-    trend.unshift({ period, total: sum(from > period ? from : period, end > trendEnd ? trendEnd : end) / 100 });
+    const start = from > period ? from : period;
+    const finish = end > trendEnd ? trendEnd : end;
+    const totals = { rent: 0, reservation: 0 };
+    for (const entry of dated) {
+      if (includesDate(entry.date, start, finish)) totals[entry.kind] += entry.cents;
+    }
+    trend.unshift({ period, total: (totals.rent + totals.reservation) / 100, rent: totals.rent / 100, reservations: totals.reservation / 100 });
     period = periodStart(shiftReportDay(period, -1), grouping);
   }
 

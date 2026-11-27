@@ -16,7 +16,7 @@ export function initWebSocket(httpServer, sessionMiddleware) {
     try {
       const userId = socket.request.session?.userId;
       if (userId) {
-        const user = await User.findByPk(userId);
+        const user = await User.findByPk(userId, { attributes: ['id', 'accountType', 'applicationStatus', 'isArchived', 'isSuspended'] });
         if (!user || user.isSuspended || user.isArchived) return next(new Error('Account unavailable.'));
         socket.data.userId = user.id;
         socket.data.role = user.accountType === 'barangay' && user.applicationStatus !== 'approved'
@@ -72,7 +72,9 @@ export function getIo() {
 export function emitToUser(userId, event, data) {
   if (userId) pushUserUpdate(userId, {kind:event});
   if (io && userId) {
-    io.to(`user_${userId}`).emit(event, data);
+    const recipient = io.to(`user_${userId}`);
+    recipient.emit('portal-invalidate');
+    recipient.emit(event, data);
   }
 }
 

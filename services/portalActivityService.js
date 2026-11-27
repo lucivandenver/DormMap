@@ -23,7 +23,7 @@ export function notificationTarget(role, type='', link='') {
   return `${base}#${panel}`;
 }
 export function installPortalActivity(app) {
-  async function auth(req,res,next){try{const user=req.session.userId&&await User.findByPk(req.session.userId);if(!user||user.isArchived||user.isSuspended)return res.status(401).json({error:'Sign in again to view updates.'});if(!paths[normalizeRole(user.accountType)])return res.status(403).json({error:'This account has no portal access.'});if(user.accountType==='barangay'&&user.applicationStatus!=='approved')return res.status(403).json({error:'Account approval is required.'});req.portalUser=user;next();}catch(error){next(error);}}
+  async function auth(req,res,next){try{const user=req.session.userId&&await User.findByPk(req.session.userId,{attributes:['id','accountType','applicationStatus','isArchived','isSuspended','barangay']});if(!user||user.isArchived||user.isSuspended)return res.status(401).json({error:'Sign in again to view updates.'});if(!paths[normalizeRole(user.accountType)])return res.status(403).json({error:'This account has no portal access.'});if(user.accountType==='barangay'&&user.applicationStatus!=='approved')return res.status(403).json({error:'Account approval is required.'});req.portalUser=user;next();}catch(error){next(error);}}
   app.get('/api/portal/events',auth,openUserStream);
   app.get('/api/portal/notifications',auth,async(req,res,next)=>{try{
     const user=req.portalUser,owner=user.accountType==='boarding_house_owner',model=owner?OwnerNotification:BarangayNotification,where=owner?{ownerId:user.id}:{userId:user.id};
@@ -63,7 +63,9 @@ export function installPortalActivity(app) {
     });
     model.addHook('afterCreate','portal-data',signal);model.addHook('afterUpdate','portal-data',signal);model.addHook('afterDestroy','portal-data',signal);
     if(['User','TenantApplication','MaintenanceRequest','BoardingHouse','OwnerRoom','OwnerTenant','OwnerPayment','OwnerMessage','BarangayMessage'].includes(model.name)) {
-      model.addHook('beforeBulkUpdate','portal-bulk-identities',async options=>{options.portalRows=await model.findAll({where:options.where,transaction:options.transaction});});
+      const attributes = ['id', 'ownerId', 'tenantUserId', 'tenantId', 'senderId', 'recipientId']
+        .filter(key => Object.hasOwn(model.rawAttributes, key));
+      model.addHook('beforeBulkUpdate','portal-bulk-identities',async options=>{options.portalRows=await model.findAll({where:options.where,attributes,transaction:options.transaction});});
       model.addHook('afterBulkUpdate','portal-bulk-data',options=>{return Promise.all((options.portalRows||[]).map(row=>signal(row,options)));});
     }
   }

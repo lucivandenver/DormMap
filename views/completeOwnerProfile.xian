@@ -622,7 +622,7 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="/js/owner-registration-locations.js?v=3"></script>
-  <script src="/js/owner-registration-submit.js"></script>
+  <script src="/js/owner-registration-submit.js?v=2"></script>
   <script>
     let mapInitialized = false;
     let map, marker;

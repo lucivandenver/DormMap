@@ -89,6 +89,34 @@ const registerUpload = (req, res, next) => {
     next();
   });
 };
+const activeRegistrationDrafts = new Set();
+function lockRegistrationDraft(req, res, next) {
+  const id = req.body?.registrationDraft;
+  if (!id || id !== req.session.registrationDraft) return next();
+  const key = req.sessionID + ':' + id;
+  if (activeRegistrationDrafts.has(key)) {
+    return res.status(409).json({ retryable: true, error: 'Your application is still being saved. Try again shortly.' });
+  }
+  activeRegistrationDrafts.add(key);
+  let released = false;
+  req.releaseRegistrationDraft = () => {
+    if (released) return;
+    released = true;
+    activeRegistrationDrafts.delete(key);
+  };
+  res.once('finish', req.releaseRegistrationDraft);
+  next();
+}
+function completeRegistration(handler) {
+  return async (req, res, next) => {
+    try {
+      await handler(req, res, next);
+    } finally {
+      req.releaseRegistrationDraft?.();
+      if (res.destroyed && !res.writableFinished) req.cleanRegistrationFiles?.();
+    }
+  };
+}
 const loadStagedRegistration = async (req, res, next) => {
   try {
     const finished = req.session.completedRegistrationDraft;
@@ -97,22 +125,34 @@ const loadStagedRegistration = async (req, res, next) => {
     }
     await useRegistrationDraft(req, stagedFields);
     next();
-  } catch (error) { return registrationError(req, res, error); }
+  } catch (error) {
+    req.releaseRegistrationDraft?.();
+    if (res.destroyed) req.cleanRegistrationFiles?.();
+    return registrationError(req, res, error);
+  }
 };
 const cleanRegistration = (req, res, next) => {
-  res.on('finish', () => {
+  req.cleanRegistrationFiles = () => {
     for (const file of Object.values(req.files || {}).flat()) {
       if (!file.staged && file.path && (!req.registrationSaved || file.fieldname !== 'profilePicture')) fs.rm(file.path, { force: true }, () => {});
     }
     if (req.registrationSaved && req.registrationDraftDirectory) {
       fs.rm(req.registrationDraftDirectory, { recursive: true, force: true }, () => {});
     }
-  });
+  };
+  res.once('finish', req.cleanRegistrationFiles);
   next();
 };
 
 router.post('/owner-registration/uploads', async (req, res, next) => {
-  try { res.status(201).json({ id: await startRegistrationDraft(req) }); } catch (error) { next(error); }
+  try {
+    const id = await startRegistrationDraft(req);
+    await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
+    res.status(201).json({ id });
+  } catch (error) {
+    if (error.status) return registrationError(req, res, error);
+    next(error);
+  }
 });
 router.post('/owner-registration/uploads/:draft/:field', async (req, res, next) => {
   try {
@@ -132,7 +172,7 @@ router.post('/owner-registration/uploads/:draft/:field', async (req, res, next) 
     }
   });
 });
-router.post("/register", cleanRegistration, registerUpload, loadStagedRegistration, registerUser);
+router.post("/register", cleanRegistration, registerUpload, lockRegistrationDraft, loadStagedRegistration, completeRegistration(registerUser));
 router.get("/forgot-password", forgotPasswordPage);
 router.post("/forgot-password", sendPasswordResetLink);
 router.get("/reset-password", resetPasswordPage);
@@ -262,7 +302,7 @@ router.get("/complete-owner-profile", async (req, res, next) => {
   });
 });
 
-router.post("/complete-owner-profile", cleanRegistration, registerUpload, loadStagedRegistration, async (req, res) => {
+router.post("/complete-owner-profile", cleanRegistration, registerUpload, lockRegistrationDraft, loadStagedRegistration, completeRegistration(async (req, res) => {
   const pendingId = req.session.pendingOwnerUserId || req.session.userId;
   if (!pendingId) return res.redirect("/login");
 
@@ -353,7 +393,10 @@ router.post("/complete-owner-profile", cleanRegistration, registerUpload, loadSt
 
     if (wantsJson) {
       const result = { success: true, redirect: '/owner-dashboard' };
-      if (req.registrationDraftDirectory) req.session.completedRegistrationDraft = { id: req.body.registrationDraft, path: req.path, status: 200, result };
+      if (req.registrationDraftDirectory) {
+        req.session.completedRegistrationDraft = { id: req.body.registrationDraft, path: req.path, status: 200, result };
+        await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
+      }
       return res.json(result);
     }
     return res.redirect("/owner-dashboard");
@@ -361,7 +404,7 @@ router.post("/complete-owner-profile", cleanRegistration, registerUpload, loadSt
     console.error("Owner profile completion error:", err);
     return renderError(err.status === 422 ? err.message : "Failed to save property details. Please try again.");
   }
-});
+}));
 
 function renderTenantProfile(res, error = '', values = {}) {
   res.status(error ? 422 : 200).render("completeTenantProfile", {

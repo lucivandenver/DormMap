@@ -1,4 +1,4 @@
-<script src="/js/owner-registration-submit.js"></script>
+<script src="/js/owner-registration-submit.js?v=2"></script>
 <script src="/js/owner-registration-locations.js?v=3"></script>
 <style>
   .dormmap-auth-shell {
@@ -806,6 +806,7 @@
       actions.forEach(button => { button.disabled = true; });
       const data = await pending;
       if (data?.success) {
+        window.Swal?.fire({ toast: true, icon: 'success', titleText: data.message, position: 'top-end', timer: 500, showConfirmButton: false });
         status.dataset.state = 'success';
         status.textContent = data.message;
         for (const child of ownerSteps[2].children) if (child !== status) child.hidden = true;

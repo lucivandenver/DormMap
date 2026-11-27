@@ -1,3 +1,6 @@
+import { activityPage } from '../services/logPagination.js';
+import { auditBarangays } from '../services/auditBarangays.js';
+import { nextPeriod, periodStart, reportDay } from '../services/reportCalendar.js';
 import { listRegistrationAnalytics, registrationFilters } from '../services/adminRegistrationAnalytics.js';
 import { streamDatabaseBackup } from '../services/databaseBackupService.js';
 import { getQrPhConfiguration } from '../services/paymongoService.js';
@@ -75,17 +78,25 @@ export const overview = async (req, res, next) => {
     const availableRooms = Number(availableResult || 0);
     const occupiedRooms = inventory.occupiedRooms;
 
-    const monthly = await User.findAll({
-      attributes: [[fn('DATE_FORMAT', col('createdAt'), '%Y-%m'), 'month'], [fn('COUNT', col('id')), 'count']],
-      where: { createdAt: { [Op.gte]: new Date(today.getFullYear(), today.getMonth() - 5, 1) } },
-      group: [fn('DATE_FORMAT', col('createdAt'), '%Y-%m')], order: [[fn('DATE_FORMAT', col('createdAt'), '%Y-%m'), 'ASC']], raw: true,
-    });
-
-    const submissionStats = await BploDataSubmission.findAll({
-      attributes: ['status', [fn('COUNT', col('id')), 'count']],
-      group: ['status'],
-      raw: true
-    });
+    const reportMonth = periodStart(reportDay(today), 'month');
+    const start = new Date(reportMonth);
+    start.setUTCMonth(start.getUTCMonth() - 5);
+    const startDay = start.toISOString().slice(0, 10);
+    const monthKey = fn('DATE_FORMAT', fn('ADDTIME', col('createdAt'), '08:00:00'), '%Y-%m');
+    const [registrationCounts, submissionStats, permitStatus, activity] = await Promise.all([User.findAll({
+      attributes: [[monthKey, 'month'], [fn('COUNT', col('id')), 'count']],
+      where: { createdAt: { [Op.gte]: new Date(startDay + 'T00:00:00+08:00') } },
+      group: [monthKey], raw: true
+    }),
+    BploDataSubmission.findAll({ attributes: ['status', [fn('COUNT', col('id')), 'count']], group: ['status'], raw: true }),
+    BusinessPermit.findAll({ attributes: ['status', [fn('COUNT', col('id')), 'count']], group: ['status'], raw: true }),
+    auditBarangays(recentActivity)]);
+    const counts = new Map(registrationCounts.map(row => [row.month, Number(row.count)]));
+    const monthly = [];
+    for (let date = startDay; date <= reportMonth; date = nextPeriod(date, 'month')) {
+      const month = date.slice(0, 7);
+      monthly.push({ month, count: counts.get(month) || 0 });
+    }
 
     res.json({
       cards: { 
@@ -95,10 +106,10 @@ export const overview = async (req, res, next) => {
       },
       charts: { 
         monthly, 
-        permitStatus: await BusinessPermit.findAll({ attributes: ['status', [fn('COUNT', col('id')), 'count']], group: ['status'], raw: true }),
+        permitStatus,
         submissionStats
       },
-      recentActivity,
+      recentActivity: activity,
     });
   } catch (error) { next(error); }
 };
@@ -113,7 +124,7 @@ export const registrationAnalytics = async (req, res, next) => {
     if (!filters) return res.status(422).json({ error: 'Choose a valid registration date and filters.' });
     const requestedPage = page(req.query.page);
     if (requestedPage > 1000000) return res.status(422).json({ error: 'Choose a valid page.' });
-    res.json(await listRegistrationAnalytics(filters, requestedPage, 25));
+    res.json(await listRegistrationAnalytics(filters, requestedPage, 5));
   } catch (error) { next(error); }
 };
 
@@ -935,11 +946,11 @@ export const exportDatabase = async (req, res, next) => {
 
 export const listOwners = async (req, res, next) => {
   try {
-    const current = page(req.query.page); const limit = Math.min(page(req.query.limit, 10), 50);
+    const current = page(req.query.page); const limit = Math.min(page(req.query.limit, 5), 50);
     const where = { ...submittedOwnerWhere };
     if (req.query.status) where.applicationStatus = req.query.status;
     if (req.query.search) where[Op.or] = ['fullName', 'email', 'boardingHouseName', 'barangay'].map((field) => ({ [field]: { [Op.like]: `%${req.query.search}%` } }));
-    const result = await User.findAndCountAll({ where, attributes: { exclude: ['password', 'verificationToken', 'resetPasswordToken'] }, order: [['createdAt', 'DESC']], limit, offset: (current - 1) * limit });
+    const result = await User.findAndCountAll({ where, attributes: { exclude: ['password', 'verificationToken', 'resetPasswordToken'] }, order: [['createdAt', 'DESC'], ['id', 'DESC']], limit, offset: (current - 1) * limit });
     const houses = await BoardingHouse.findAll({
       where: { ownerId: { [Op.in]: result.rows.map(owner => owner.id) } },
       attributes: ['id', 'ownerId', 'name', 'barangay', 'isPrimary', 'approvalStatus']
@@ -1001,13 +1012,18 @@ const crud = (Model, entityType, fields) => ({
   list: async (req, res, next) => { try { const where = req.query.search ? { name: { [Op.like]: `%${req.query.search}%` } } : {}; res.json({ data: await Model.findAll({ where, order: [['createdAt', 'DESC']] }) }); } catch (e) { next(e); } },
   create: async (req, res, next) => { try { const record = await Model.create(recordValues(req.body, fields)); await audit(req, 'create', entityType, record.id); res.status(201).json({ data: record }); } catch (e) { next(e); } },
   update: async (req, res, next) => { try { const record = await Model.findByPk(req.params.id); if (!record) return res.status(404).json({ error: `${entityType} not found.` }); await record.update(recordValues(req.body, fields)); await audit(req, 'update', entityType, record.id); res.json({ data: record }); } catch (e) { next(e); } },
-  remove: async (req, res, next) => { try { const record = await Model.findByPk(req.params.id); if (!record) return res.status(404).json({ error: `${entityType} not found.` }); await record.destroy(); await audit(req, 'delete', entityType, record.id); res.json({ message: 'Record deleted.' }); } catch (e) { next(e); } },
+  remove: async (req, res, next) => { try { const record = await Model.findByPk(req.params.id); if (!record) return res.status(404).json({ error: `${entityType} not found.` }); await record.destroy(); await audit(req, 'delete', entityType, record.id, entityType === 'Barangay' ? { barangay: record.name } : {}); res.json({ message: 'Record deleted.' }); } catch (e) { next(e); } },
 });
 
 export const barangays = crud(Barangay, 'Barangay', ['name', 'officialName', 'officialEmail', 'latitude', 'longitude', 'isActive']);
 export const institutions = crud(EducationalInstitution, 'EducationalInstitution', ['name', 'schoolType', 'address', 'latitude', 'longitude', 'barangay', 'isActive']);
 export const permits = crud(BusinessPermit, 'BusinessPermit', ['ownerId', 'permitNumber', 'issueDate', 'expirationDate', 'status', 'documentUrl', 'notes']);
-export const listAudit = async (req, res, next) => { try { res.json({ data: await AdminAuditLog.findAll({ order: [['createdAt', 'DESC']], limit: 100 }) }); } catch (e) { next(e); } };
+export const listAudit = async (req, res, next) => {
+  try {
+    const { data, pagination } = await activityPage(AdminAuditLog, {}, req.query.page);
+    res.json({ data: await auditBarangays(data), pagination });
+  } catch (error) { next(error); }
+};
 export const createAnnouncement = async (req, res, next) => { try { const record = await Announcement.create({ title: req.body.title, message: req.body.message, audience: req.body.audience || 'all', publishedBy: req.session.userId }); await audit(req, 'publish', 'Announcement', record.id); res.status(201).json({ data: record }); } catch (e) { next(e); } };
 
 // ==========================================
