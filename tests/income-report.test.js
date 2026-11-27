@@ -20,7 +20,11 @@ test('compares equal custom ranges and uses Manila dates for reservations', () =
   assert.equal(result.comparison.previousTo, '2026-12-31');
   assert.equal(result.comparison.change, -10);
   assert.equal(result.comparison.percent, -10);
-  assert.deepEqual(result.trend.map(row => row.total), [10.25, 79.75, 0]);
+  assert.deepEqual(result.trend, [
+    { period: '2027-01-01', total: 10.25, rent: 0, reservations: 10.25 },
+    { period: '2027-01-02', total: 79.75, rent: 79.75, reservations: 0 },
+    { period: '2027-01-03', total: 0, rent: 0, reservations: 0 }
+  ]);
 });
 
 test('uses matching month-to-date windows for an unfiltered comparison', () => {

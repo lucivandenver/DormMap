@@ -82,7 +82,14 @@ app.use(express.json({
 app.use(express.urlencoded({ extended: true }));
 app.get('/uploads/:filename', servePropertyPhoto);
 app.use('/uploads', express.static(uploadDir));
-app.use(express.static(publicDir));
+app.use(express.static(publicDir, {
+  setHeaders(res, filename) {
+    const revision = new URL(res.req.originalUrl, 'http://localhost').searchParams.get('v');
+    if (revision && /\.(?:js|css)$/.test(filename)) {
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+    }
+  }
+}));
 
 const sessionMiddleware = session(sessionOptions());
 app.use(sessionMiddleware);

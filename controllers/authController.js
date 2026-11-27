@@ -746,7 +746,10 @@ export const registerUser = async (req, res) => {
       const approvalMessage = 'Application submitted. Please wait for the responsible office to approve your account.';
       if (res.locals.registrationWantsJson) {
         const result = { success: true, message: approvalMessage };
-        if (req.registrationDraftDirectory) req.session.completedRegistrationDraft = { id: req.body.registrationDraft, path: req.path, status: 201, result };
+        if (req.registrationDraftDirectory) {
+          req.session.completedRegistrationDraft = { id: req.body.registrationDraft, path: req.path, status: 201, result };
+          await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
+        }
         return res.status(201).json(result);
       }
       if (normalizedAccountType === 'boarding_house_owner') return res.redirect('/register?accountType=boarding_house_owner&pendingApproval=1');

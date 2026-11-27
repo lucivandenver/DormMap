@@ -18,6 +18,7 @@
       headings.append(heading);
     }
     const body = table.createTBody();
+    body.setAttribute('data-paginate', '');
     for (const row of rows) {
       const cells = body.insertRow();
       for (const value of row) cells.insertCell().textContent = value ?? '—';

@@ -11,11 +11,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DormMap</title>
-  <link rel="stylesheet" href="/css/portal-updates.css">
-  <script src="/js/portal-updates.js?v=2" defer></script>
+  <link rel="stylesheet" href="/css/portal-updates.css?v=2">
+  <script src="/js/portal-updates.js?v=3" defer></script>
+  <link rel="stylesheet" href="/css/portal-pagination.css">
+  <script src="/js/portal-pagination.js" defer></script>
 
   <link rel="stylesheet" href="/css/adaptive-navigation.css">
-  <script src="/js/adaptive-navigation.js" defer></script>
+  <script src="/js/adaptive-navigation.js?v=2" defer></script>
   <link rel="stylesheet" href="/css/room-registration.css">
   <script src="/js/owner-room-plan.js" defer></script>
   <script src="/js/registration-files.js" defer></script>
@@ -37,9 +39,9 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="/js/dormmap-sockets.js"></script>
+  <script src="https://unpkg.com/lucide@latest" defer></script>
+  <script src="/socket.io/socket.io.js" defer></script>
+  <script src="/js/dormmap-sockets.js?v=2" defer></script>
   <script src="/js/pwa-register.js" defer></script>
   <style>
     :root {

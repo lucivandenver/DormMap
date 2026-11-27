@@ -9,10 +9,33 @@
     pending: 'border-slate-200 bg-slate-50 text-slate-800'
   };
   let confirmation;
+  let popupTimer;
+
+  function popup(message, status) {
+    const overlay = document.createElement('div');
+    overlay.className = 'portal-feedback-popup';
+    overlay.setAttribute('role', status === 'error' ? 'alert' : 'status');
+    overlay.textContent = message;
+    document.querySelector('.portal-feedback-popup')?.remove();
+    (document.querySelector('dialog[open]') || document.body).append(overlay);
+    clearTimeout(popupTimer);
+    popupTimer = setTimeout(() => overlay.remove(), 500);
+  }
 
   function show(message, status = 'success') {
     confirmation?.(false);
     confirmation = undefined;
+    if (status === 'success' || status === 'error') {
+      banner.className = 'portal-feedback-announcement';
+      banner.setAttribute('role', status === 'error' ? 'alert' : 'status');
+      banner.textContent = message;
+      if (window.Swal?.fire && !window.Swal.isVisible?.() && !document.querySelector('dialog[open]')) {
+        window.Swal.fire({ toast: true, position: 'top-end', icon: status, titleText: message, timer: 500, showConfirmButton: false, showClass: { popup: '' }, hideClass: { popup: '' } });
+      } else {
+        popup(message, status);
+      }
+      return;
+    }
     banner.className = base + ' ' + colors[status];
     banner.setAttribute('role', status === 'error' ? 'alert' : 'status');
     banner.textContent = message;

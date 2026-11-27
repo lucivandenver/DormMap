@@ -7,7 +7,9 @@ export const requireBarangayOfficial = async (req, res, next) => {
     return res.redirect('/login');
   }
   try {
-    const user = await User.findByPk(req.session.userId);
+    const user = await User.findByPk(req.session.userId, {
+      attributes: ['accountType', 'isArchived', 'isSuspended', 'barangay', 'applicationStatus', 'applicationReviewNote']
+    });
     if (!user || user.accountType !== 'barangay' || user.isArchived) {
       if (isApi) return res.status(403).json({ error: 'Account unavailable.' });
       return res.redirect('/login');
@@ -24,6 +26,7 @@ export const requireBarangayOfficial = async (req, res, next) => {
         reviewNote: user.applicationReviewNote, barangay: user.barangay,
       });
     }
+    req.officialBarangay = user.barangay;
     next();
   } catch (error) {
     console.error('Barangay authorization check failed:', error);

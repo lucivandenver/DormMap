@@ -22,10 +22,22 @@ async function removeExpiredDrafts() {
 }
 
 export async function startRegistrationDraft(req) {
+  const attempt = req.body?.attempt;
+  if (attempt !== undefined && (typeof attempt !== 'string' || !/^[a-f0-9]{32}$/.test(attempt))) {
+    throw draftError('Please start a new registration upload.');
+  }
+  const existing = req.session.registrationDraft;
+  if (existing && attempt === req.session.registrationDraftAttempt && existing !== req.session.completedRegistrationDraft?.id) {
+    const directory = await registrationDraftDirectory(req, existing).catch(error => {
+      if (error.status !== 410) throw error;
+    });
+    if (directory) return existing;
+  }
   const id = randomUUID();
   await mkdir(path.join(draftRoot, id), { recursive: true, mode: 0o700 });
-  await removeExpiredDrafts();
+  void removeExpiredDrafts().catch(error => console.error('Registration draft cleanup:', error.message));
   req.session.registrationDraft = id;
+  req.session.registrationDraftAttempt = attempt;
   return id;
 }
 

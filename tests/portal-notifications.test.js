@@ -44,7 +44,7 @@ test('each portal bell renders a single live unread badge', async () => {
       },
       location: { pathname: route },
       EventSource: class { addEventListener() {} },
-      fetch, setInterval() {}
+      fetch, setInterval() {}, setTimeout() {}, clearTimeout() {}
     };
     runInNewContext(source, context);
     runInNewContext(source, context);

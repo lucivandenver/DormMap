@@ -1,3 +1,4 @@
+import { activityPage } from '../services/logPagination.js';
 import { storeReviewFile } from '../services/reviewFileService.js';
 import { tenantBranchAssignments } from '../services/propertyBranchesService.js';
 import { namedMessages } from '../services/messageIdentityService.js';
@@ -14,9 +15,14 @@ import {
 } from '../models/adminModels.js';
 import { buildBarangayMasterlistWorkbook } from '../services/excelService.js';
 
-const barangayOf = async (req) => (await User.findByPk(req.session.userId))?.barangay;
-const audit = (req, action, entityType, entityId, details = {}) => 
-  AdminAuditLog.create({ actorId: req.session.userId, action, entityType, entityId, details, ipAddress: req.ip });
+const barangayOf = async req => {
+  if (req.officialBarangay) return req.officialBarangay;
+  req.barangayLookup ||= User.findByPk(req.session.userId, { attributes: ['barangay'] });
+  return (await req.barangayLookup)?.barangay;
+};
+const audit = async (req, action, entityType, entityId, details = {}) =>
+  AdminAuditLog.create({ actorId: req.session.userId, action, entityType, entityId,
+    details: { ...details, barangay: details.barangay || await barangayOf(req) }, ipAddress: req.ip });
 const ownersWhere = (barangay) => ({ accountType: 'boarding_house_owner', barangay, isArchived: false });
 
 export const barangayDashboardPage = async (req, res, next) => {
@@ -853,7 +859,7 @@ export const notifications = async (req, res, next) => {
 
 export const auditLogs = async (req, res, next) => { 
   try { 
-    res.json({ data: await AdminAuditLog.findAll({ where: { actorId: req.session.userId }, order: [['createdAt', 'DESC']], limit: 100 }) }); 
+    res.json(await activityPage(AdminAuditLog, { actorId: req.session.userId }, req.query.page));
   } catch (e) { next(e); } 
 };
 

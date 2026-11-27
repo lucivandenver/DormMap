@@ -1,8 +1,8 @@
 {{> head}}
 <link rel="stylesheet" href="/css/report-print.css">
-<script src="/js/report-print.js"></script>
-<link rel="stylesheet" href="/css/report-analytics.css">
-<script src="/js/report-analytics.js"></script>
+<script src="/js/report-print.js?v=2"></script>
+<link rel="stylesheet" href="/css/report-analytics.css?v=2">
+<script src="/js/report-analytics.js?v=2"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -265,7 +265,7 @@
   <!-- Main Content Wrapper -->
   <main class="px-3 pb-8 pt-20 lg:ml-64 lg:px-5">
     <div id="portalFeedback" class="hidden" role="status"></div>
-    <script src="/js/portal-feedback.js"></script>
+    <script src="/js/portal-feedback.js?v=2"></script>
     <script src="/js/document-preview.js"></script>
     <div class="mx-auto max-w-7xl">
       <!-- Title Header -->
@@ -350,7 +350,7 @@
             </button>
           </div>
 
-          <div id="boardingHouseListGrid" class="grid gap-4 sm:grid-cols-2">
+          <div id="boardingHouseListGrid" data-paginate class="grid gap-4 sm:grid-cols-2">
             <!-- Populated dynamically by loadBoardingHouses() -->
           </div>
         </div>
@@ -456,7 +456,7 @@
             </div>
           </div>
 
-          <div id="myDocGrid" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div id="myDocGrid" data-paginate class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <!-- Populated by JS -->
           </div>
 
@@ -628,7 +628,7 @@
                 <th class="p-4">Actions</th>
               </tr>
             </thead>
-            <tbody id="roomsTable">
+            <tbody id="roomsTable" data-paginate>
               <tr><td colspan="7" class="p-8 text-center text-slate-400 text-xs">Loading rooms...</td></tr>
             </tbody>
           </table>
@@ -672,7 +672,7 @@
           </div>
           <p data-batch-note class="text-xs text-amber-900" hidden>Use Review to verify reservation fees or update a sent offer.</p>
           <p data-batch-feedback class="whitespace-pre-line text-sm" role="status"></p>
-          <div id="pendingAppsList" class="space-y-2"></div>
+          <div id="pendingAppsList" data-paginate class="space-y-2"></div>
         </div>
 
         <div id="ownerTenantBatch" data-owner-batch class="space-y-3">
@@ -700,7 +700,7 @@
                 <th class="p-4">Actions</th>
               </tr>
             </thead>
-            <tbody id="tenantsTable"><tr><td colspan="6" class="p-8 text-center text-slate-400 text-xs">Loading tenants...</td></tr></tbody>
+            <tbody id="tenantsTable" data-paginate><tr><td colspan="6" class="p-8 text-center text-slate-400 text-xs">Loading tenants...</td></tr></tbody>
           </table>
         </div>
         </div>
@@ -709,7 +709,7 @@
             <h2 id="walkInHeading" class="font-bold text-slate-900">Walk-in tenant accounts</h2>
             <button type="button" id="newWalkIn" class="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white">Create walk-in account</button>
           </div>
-          <div id="walkInAccounts" class="mt-2 divide-y divide-slate-100 text-sm"></div>
+          <div id="walkInAccounts" data-paginate class="mt-2 divide-y divide-slate-100 text-sm"></div>
         </section>
 
       </section>
@@ -785,13 +785,13 @@
                 <th class="p-4">Actions</th>
               </tr>
             </thead>
-            <tbody id="paymentsTable"></tbody>
+            <tbody id="paymentsTable" data-paginate></tbody>
           </table>
         </div>
 
         <div class="rounded-2xl border border-emerald-100 bg-white p-5 space-y-3">
           <div class="flex flex-wrap items-center justify-between gap-3"><div><h3 class="font-bold text-slate-900">Previous online checkouts</h3><p class="text-xs text-slate-500">Review existing PayMongo records and download receipts.</p></div><button class="rounded-full border px-4 py-2 text-sm" onclick="loadOnlinePayments()">Refresh</button></div>
-          <div id="onlinePaymentsList" class="space-y-3 text-sm text-slate-600">Loading checkout records…</div>
+          <div id="onlinePaymentsList" data-paginate class="space-y-3 text-sm text-slate-600">Loading checkout records…</div>
         </div>
       </section>
 
@@ -805,16 +805,25 @@
           <button type="button" id="archiveSelectedInquiries" data-batch-action class="rounded-lg border border-slate-200 bg-white px-3 py-2 font-semibold disabled:opacity-50">Archive selected</button>
         </div>
         <p data-batch-feedback class="whitespace-pre-line text-sm" role="status"></p>
-        <div class="grid gap-4" id="inquiriesList"></div>
+        <div class="overflow-x-auto rounded-2xl border border-slate-100 bg-white">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-50 text-slate-700">
+              <tr><th class="p-4" scope="col">Client</th><th class="p-4" scope="col">Inquiry</th><th class="p-4" scope="col">Status</th><th class="p-4" scope="col">Actions</th></tr>
+            </thead>
+            <tbody id="inquiriesList" data-paginate></tbody>
+          </table>
+        </div>
       </section>
 
       <!-- PANEL 8: MESSAGES -->
       <section data-panel="messages" class="hidden space-y-4">
         <h2 class="text-lg font-bold text-slate-800">Messaging Hub</h2>
         <div class="grid gap-4 md:grid-cols-3 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden h-[500px]">
-          <div class="border-r border-slate-100 p-4 overflow-y-auto space-y-2" id="inboxList"></div>
-          <div class="col-span-2 flex flex-col h-full bg-slate-50/50">
-            <div class="flex-1 p-4 overflow-y-auto space-y-3" id="messageChat"></div>
+          <div class="flex min-h-0 min-w-0 flex-col border-r border-slate-100">
+            <div class="min-h-0 flex-1 space-y-2 overflow-y-auto p-4" id="inboxList" data-paginate></div>
+          </div>
+          <div class="col-span-2 flex min-h-0 min-w-0 flex-col bg-slate-50/50">
+            <div class="min-h-0 flex-1 space-y-3 overflow-y-auto p-4" id="messageChat" data-paginate data-page-last></div>
             <form id="sendMessageForm" class="p-3 border-t border-slate-200 bg-white flex gap-2">
               <input type="hidden" id="msgRecipientId">
               <input type="text" id="msgInput" placeholder="Write your message..." class="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:border-emerald-700">
@@ -830,7 +839,7 @@
           <h2 class="text-lg font-bold text-slate-800">Activity</h2>
           <button onclick="markAllNotificationsRead()" class="text-xs text-emerald-700 font-bold hover:underline">Mark All Read</button>
         </div>
-        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm divide-y divide-slate-100" id="notificationsList"></div>
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm divide-y divide-slate-100" id="notificationsList" data-paginate></div>
       </section>
 
       <!-- PANEL 10: REPORTS -->
@@ -895,7 +904,7 @@
         </div>
       </section>
 
-      <section data-panel="maintenance" class="hidden space-y-4"><h2 class="text-xl font-bold">Tenant maintenance requests</h2><p class="text-sm text-slate-500">Review reported issues and send a status update to the tenant.</p><div id="ownerMaintenanceList" class="space-y-3"></div></section>
+      <section data-panel="maintenance" class="hidden space-y-4"><h2 class="text-xl font-bold">Tenant maintenance requests</h2><p class="text-sm text-slate-500">Review reported issues and send a status update to the tenant.</p><div id="ownerMaintenanceList" data-paginate class="space-y-3"></div></section>
       <!-- PANEL 11: MAP -->
       <section data-panel="map" class="hidden bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
         <div class="flex items-center justify-between">
@@ -2552,6 +2561,7 @@
   document.getElementById('archiveSelectedInquiries').onclick = () => archiveOwnerSelection(inquiryBatch, 'inquiries', 'inquiries', loadInquiries);
   document.getElementById('showArchivedInquiries').addEventListener('change', () => {
     clearOwnerBatch(inquiryBatch);
+    window.DormMapPagination?.reset(document.getElementById('inquiriesList'));
     ownerBatchFeedback(inquiryBatch, '');
     loadInquiries();
   });
@@ -3490,23 +3500,19 @@
       if (archived !== archivedFilter.checked) return;
       const list = document.getElementById('inquiriesList');
       list.innerHTML = data.map(i => `
-        <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
-          <div class="flex justify-between items-start">
-            <div>
-              <h3 class="font-bold text-slate-800">${esc(i.clientName)}</h3>
-              <p class="text-xs text-slate-500">${esc(i.clientPhone || i.clientEmail || '')}</p>
-            </div>
-            <span class="px-2 py-1 rounded-full text-xs font-bold ${i.status === 'replied' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}">${esc(i.status)}</span>
-          </div>
-          <p class="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg">${esc(i.message)}</p>
-          ${i.reply ? `<p class="text-sm text-slate-700 border-l-2 border-emerald-700 pl-3"><strong>Reply:</strong> ${esc(i.reply)}</p>` : ''}
-          ${archived ? '' : `<div class="flex flex-wrap gap-2 justify-end">
+        <tr class="border-t border-slate-100 align-top">
+          <td class="p-4"><b class="text-slate-900">${esc(i.clientName)}</b>
+            <p class="mt-1 text-xs text-slate-500">${esc(i.clientPhone || i.clientEmail || '—')}</p></td>
+          <td class="p-4 min-w-48 max-w-xl break-words">${esc(i.message)}
+            ${i.reply ? `<p class="mt-2 border-l-2 border-emerald-600 pl-2 text-xs"><b>Reply</b> ${esc(i.reply)}</p>` : ''}</td>
+          <td class="p-4"><span class="rounded-full px-2 py-1 text-xs font-semibold ${i.status === 'replied' ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-700'}">${esc(i.status)}</span></td>
+          <td class="p-4">${archived ? '—' : `<div class="flex flex-wrap items-center gap-2">
             ${batchCheckbox(i.id, i.clientName)}
-            <button type="button" onclick="replyInquiryModal(${Number(i.id)})" class="bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs">Reply / Set Visit</button>
-            <button type="button" onclick="archiveInquiry(${Number(i.id)})" class="border border-slate-200 px-3 py-1.5 rounded-lg text-xs">Archive</button>
-          </div>`}
-        </div>
-      `).join('') || `<p class="text-sm text-slate-600">${archived ? 'No archived inquiries.' : 'No open inquiries.'}</p>`;
+            <button type="button" onclick="replyInquiryModal(${Number(i.id)})" class="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs text-white">Reply / Set Visit</button>
+            <button type="button" onclick="archiveInquiry(${Number(i.id)})" class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs">Archive</button>
+          </div>`}</td>
+        </tr>
+      `).join('') || `<tr><td colspan="4" class="p-6 text-center text-sm text-slate-600">${archived ? 'No archived inquiries.' : 'No open inquiries.'}</td></tr>`;
       syncOwnerBatch(inquiryBatch);
     } catch (error) {
       ownerBatchFeedback(inquiryBatch, error.message);
@@ -3538,57 +3544,67 @@
   }
 
   // ─── Messaging ───
+  let ownerMessages = [];
+  let messageRequest;
   async function loadMessages() {
-    const res = await fetch('/owner-dashboard/api/messages');
-    const { data } = await res.json();
-    const inbox = document.getElementById('inboxList');
-    const inboxUsers = {};
-    
-    data.forEach(m => {
-      const peer = m.peerId;
-      if (!inboxUsers[peer]) {
-        inboxUsers[peer] = m;
+    if (messageRequest) return messageRequest;
+    messageRequest = ownerRequest('/owner-dashboard/api/messages').then(({ data }) => {
+      ownerMessages = data;
+      const inbox = document.getElementById('inboxList');
+      const peers = new Map();
+      for (const message of data) {
+        if (!peers.has(message.peerId)) peers.set(message.peerId, message);
       }
-    });
-
-    inbox.innerHTML = Object.entries(inboxUsers).map(([peer, m]) => `
-      <button onclick="openChat(${peer})" class="w-full text-left p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition">
-        <h4 class="font-bold text-slate-800 text-sm">${esc(m.peerName)}</h4>
-        <p class="text-xs text-slate-500 truncate mt-1">${esc(m.message)}</p>
-      </button>
-    `).join('');
+      inbox.innerHTML = [...peers].map(([peer, message]) => `
+        <button type="button" onclick="openChat(${Number(peer)})" class="w-full rounded-xl border border-slate-100 p-3 text-left hover:bg-slate-50">
+          <h4 class="text-sm font-bold text-slate-800">${esc(message.peerName)}</h4>
+          <p class="mt-1 truncate text-xs text-slate-500">${esc(message.message)}</p>
+        </button>
+      `).join('');
+      const selectedPeer = Number(document.getElementById('msgRecipientId').value);
+      if (selectedPeer) renderOwnerChat(selectedPeer);
+    }).catch(error => ownerToast(error.message, true)).finally(() => { messageRequest = null; });
+    return messageRequest;
   }
 
-  async function openChat(peerId) {
+  function openChat(peerId) {
     document.getElementById('msgRecipientId').value = peerId;
-    const res = await fetch('/owner-dashboard/api/messages');
-    const { data } = await res.json();
-    peerId = Number(peerId);
-    const filtered = data.filter(m => Number(m.peerId) === peerId).reverse();
+    window.DormMapPagination?.reset(document.getElementById('messageChat'));
+    renderOwnerChat(Number(peerId));
+  }
+
+  function renderOwnerChat(peerId) {
+    const messages = ownerMessages.filter(message => Number(message.peerId) === peerId).reverse();
     const chat = document.getElementById('messageChat');
-    chat.innerHTML = filtered.map(m => `
-      <div class="flex ${m.senderId === peerId ? 'justify-start' : 'justify-end'}">
-        <div class="rounded-2xl px-4 py-2 text-sm max-w-xs ${m.senderId === peerId ? 'bg-slate-200 text-slate-800' : 'bg-emerald-700 text-white'}">
-          ${esc(m.message)}
+    chat.innerHTML = messages.map(message => `
+      <div class="flex ${message.senderId === peerId ? 'justify-start' : 'justify-end'}">
+        <div class="max-w-xs rounded-2xl px-4 py-2 text-sm ${message.senderId === peerId ? 'bg-slate-200 text-slate-800' : 'bg-emerald-700 text-white'}">
+          ${esc(message.message)}
         </div>
       </div>
     `).join('');
-    chat.scrollTop = chat.scrollHeight;
   }
 
-  document.getElementById('sendMessageForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
+  document.getElementById('sendMessageForm').addEventListener('submit', async event => {
+    event.preventDefault();
     const recipientId = document.getElementById('msgRecipientId').value;
-    const message = document.getElementById('msgInput').value;
-    if (!recipientId || !message.trim()) return;
-
-    await fetch('/owner-dashboard/api/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ recipientId, message })
-    });
-    document.getElementById('msgInput').value = '';
-    openChat(recipientId);
+    const input = document.getElementById('msgInput');
+    if (!recipientId || !input.value.trim()) return;
+    const button = event.currentTarget.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      await ownerRequest('/owner-dashboard/api/messages', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipientId, message: input.value })
+      });
+      input.value = '';
+      if (messageRequest) await messageRequest;
+      await loadMessages();
+    } catch (error) {
+      ownerToast(error.message, true);
+    } finally {
+      button.disabled = false;
+    }
   });
 
   async function loadOwnerMaintenance() {
@@ -3968,19 +3984,27 @@ async function loadLegacyNotifications() {
   });
 
   // ─── Activity Logs ───
-  async function loadActivityLogs() {
-    const res = await fetch('/owner-dashboard/api/activity-logs');
-    const { data } = await res.json();
-    const tbody = document.getElementById('activityTable');
-    tbody.innerHTML = data.map(l => `
-      <tr class="border-b border-slate-100 text-xs">
-        <td class="p-4 font-bold text-slate-800">${l.action}</td>
-        <td class="p-4">${l.entityType || '-'}</td>
-        <td class="p-4 truncate max-w-xs">${JSON.stringify(l.details)}</td>
-        <td class="p-4">${l.ipAddress || '-'}</td>
-        <td class="p-4">${new Date(l.createdAt).toLocaleString()}</td>
-      </tr>
-    `).join('');
+  let activityPageNumber = 1;
+  let activityRequest = 0;
+  async function loadActivityLogs(page = activityPageNumber) {
+    const request = ++activityRequest;
+    try {
+      const { data, pagination } = await ownerRequest('/owner-dashboard/api/activity-logs?page=' + page);
+      if (request !== activityRequest) return;
+      activityPageNumber = pagination.page;
+      const tbody = document.getElementById('activityTable');
+      tbody.innerHTML = data.map(log => `
+        <tr class="border-b border-slate-100 text-xs">
+          <td class="p-4 font-bold text-slate-800">${esc(log.action)}</td>
+          <td class="p-4">${esc(log.entityType || '—')}</td>
+          <td class="p-4 truncate max-w-xs">${esc(JSON.stringify(log.details))}</td>
+          <td class="p-4">${new Date(log.createdAt).toLocaleString()}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="4" class="p-6 text-center text-slate-500">No activity logs recorded yet.</td></tr>';
+      window.DormMapPagination?.server(tbody, pagination, loadActivityLogs);
+    } catch (error) {
+      if (request === activityRequest) ownerToast(error.message, true);
+    }
   }
 
   // ─── Reports ───
@@ -4001,6 +4025,7 @@ async function loadLegacyNotifications() {
   let reportTenantView = 'active';
   let reportRows = null;
   let incomeDates = new URLSearchParams();
+  let incomeChartMode = 'bar';
   const incomePeriodLabels = { day: 'Date received', week: 'Week starting Monday', month: 'Month received' };
   const incomeGrouping = () => reportIncomeFilters.elements.groupBy.value;
 
@@ -4158,10 +4183,29 @@ async function loadLegacyNotifications() {
         note: ['Selected · ' + range(currentFrom, currentTo) + ' · ' + reportPeso(current),
           'Previous · ' + range(previousFrom, previousTo) + ' · ' + reportPeso(previous)] }
     ]);
-    const chart = DormMapAnalytics.chart('Recent income by ' + incomeGrouping(), trend.map(row => ({
-      period: incomeGrouping() === 'month' ? row.period.slice(0, 7) : row.period, value: row.total
-    })), reportPeso);
-    ownerReportOutput.prepend(cards, chart);
+    const chart = document.createElement('div');
+    const toggle = document.createElement('div');
+    toggle.className = 'analytics-report-toggle';
+    toggle.setAttribute('role', 'group');
+    toggle.setAttribute('aria-label', 'Income graph type');
+    const rows = trend.map(row => ({ ...row, period: incomeGrouping() === 'month' ? row.period.slice(0, 7) : row.period }));
+    const draw = () => {
+      const series = incomeChartMode === 'bar'
+        ? [{ key: 'rent', label: 'Rent' }, { key: 'reservations', label: 'Reservation fees' }]
+        : [{ key: 'total', label: 'Total income' }];
+      chart.replaceChildren(DormMapAnalytics.plot('Income by ' + incomeGrouping(), rows, series, reportPeso, incomeChartMode));
+      for (const button of toggle.children) button.setAttribute('aria-pressed', String(button.value === incomeChartMode));
+    };
+    for (const [value, label] of [['bar', 'Bars'], ['line', 'Trend line']]) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.value = value;
+      button.textContent = label;
+      button.onclick = () => { incomeChartMode = value; draw(); };
+      toggle.append(button);
+    }
+    draw();
+    ownerReportOutput.prepend(cards, toggle, chart);
   }
 
   function showReportRoomOccupants(rooms) {
@@ -4173,6 +4217,7 @@ async function loadLegacyNotifications() {
       const detailRow = document.createElement('tr');
       detailRow.id = 'reportRoomOccupants-' + room.id;
       detailRow.hidden = true;
+      detailRow.setAttribute('data-page-detail', '');
       const detailCell = detailRow.insertCell();
       detailCell.colSpan = row.cells.length;
       detailCell.className = 'bg-slate-50 text-slate-700';
@@ -4193,8 +4238,8 @@ async function loadLegacyNotifications() {
     });
   }
 
-  // Run initialization
-  show('overview');
+  // The shared navigation script restores a recognized deep link.
+  if (!Array.from(document.querySelectorAll('#nav [data-view]')).some(button => '#' + button.dataset.view === location.hash)) show('overview');
 </script>
 </body>
 </html>

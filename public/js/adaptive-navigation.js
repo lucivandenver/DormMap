@@ -15,7 +15,12 @@
        }
      };
      updateActions();
-     new MutationObserver(updateActions).observe(document.body, { childList: true, subtree: true });
+     let actionFrame = 0;
+     new MutationObserver(records => {
+       if (actionFrame || !records.some(record => [...record.addedNodes].some(node =>
+         node.nodeType === 1 && (node.matches('button') || node.querySelector('button'))))) return;
+       actionFrame = requestAnimationFrame(() => { actionFrame = 0; updateActions(); });
+     }).observe(document.body, { childList: true, subtree: true });
    }
    const portalButtons=[...document.querySelectorAll('#sidebar nav button')];
    if(portalButtons.length){

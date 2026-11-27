@@ -1,3 +1,4 @@
+import { activityPage } from '../services/logPagination.js';
 import { groupIncome, incomeAnalytics, incomeEntries } from '../services/incomeReport.js';
 import { isReportDay } from '../services/reportCalendar.js';
 import { positivePaymentAmount, rentBillTotal } from '../services/paymentAmounts.js';
@@ -633,7 +634,7 @@ export const getInquiries = async (req, res, next) => {
   try {
     const where = { ownerId: oid(req), isArchived: req.query.archived === 'true' };
     if (req.query.status) where.status = req.query.status;
-    const data = await OwnerInquiry.findAll({ where, order: [['createdAt', 'DESC']] });
+    const data = await OwnerInquiry.findAll({ where, order: [['createdAt', 'DESC'], ['id', 'DESC']] });
     res.json({ data });
   } catch (err) { next(err); }
 };
@@ -1102,8 +1103,7 @@ export const getReports = async (req, res, next) => {
 
 export const getActivityLogs = async (req, res, next) => {
   try {
-    const data = await OwnerActivityLog.findAll({ where: { ownerId: oid(req) }, order: [['createdAt', 'DESC']], limit: 100 });
-    res.json({ data });
+    res.json(await activityPage(OwnerActivityLog, { ownerId: oid(req) }, req.query.page));
   } catch (err) { next(err); }
 };
 

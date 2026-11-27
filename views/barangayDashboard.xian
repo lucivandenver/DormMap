@@ -1,6 +1,6 @@
 {{> head}}
 <link rel="stylesheet" href="/css/report-print.css">
-<script src="/js/report-print.js"></script>
+<script src="/js/report-print.js?v=2"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 <body class="bg-slate-100 text-slate-800 font-sans transition-colors duration-200">
 <div class="min-h-screen flex flex-col" id="barangayApp">
@@ -165,7 +165,7 @@
   <!-- Main Content Wrapper -->
   <main class="px-4 pb-12 pt-20 lg:ml-64 lg:px-8">
     <div id="portalFeedback" class="hidden" role="status"></div>
-    <script src="/js/portal-feedback.js"></script>
+    <script src="/js/portal-feedback.js?v=2"></script>
     <script src="/js/document-preview.js"></script>
     <div class="mx-auto max-w-7xl">
       <!-- Title Header -->
@@ -257,7 +257,7 @@
 
         <div>
           <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Active BPLO Data Requests</h3>
-          <div id="barangayDataRequestsList" class="grid gap-4"></div>
+          <div id="barangayDataRequestsList" data-paginate class="grid gap-4"></div>
         </div>
 
         <div class="pt-4">
@@ -276,7 +276,7 @@
                   <th>Action</th>
                 </tr>
               </thead>
-              <tbody id="barangaySubmissionsTable"></tbody>
+              <tbody id="barangaySubmissionsTable" data-paginate></tbody>
             </table>
           </div>
         </div>
@@ -308,7 +308,7 @@
                 <th>BPLO Remarks</th>
               </tr>
             </thead>
-            <tbody id="barangayRenewalsTable"></tbody>
+            <tbody id="barangayRenewalsTable" data-paginate></tbody>
           </table>
         </div>
       </section>
@@ -338,7 +338,7 @@
                 <th>Review Action</th>
               </tr>
             </thead>
-            <tbody id="apps"></tbody>
+            <tbody id="apps" data-paginate></tbody>
           </table>
         </div>
       </section>
@@ -360,7 +360,7 @@
                 <th>Actions</th>
               </tr>
             </thead>
-            <tbody id="ownerRows"></tbody>
+            <tbody id="ownerRows" data-paginate></tbody>
           </table>
         </div>
       </section>
@@ -375,7 +375,7 @@
             </div>
             <button type="button" id="refreshBarangayBranches" class="button secondary">Refresh branches</button>
           </div>
-          <div id="barangayBranchApplications" class="space-y-3" aria-live="polite">Loading branches…</div>
+          <div id="barangayBranchApplications" data-paginate class="space-y-3" aria-live="polite">Loading branches…</div>
         </section>
         <div class="table-wrap">
           <table>
@@ -389,7 +389,7 @@
                 <th>Actions</th>
               </tr>
             </thead>
-            <tbody id="houseRows"></tbody>
+            <tbody id="houseRows" data-paginate></tbody>
           </table>
         </div>
       </section>
@@ -409,7 +409,7 @@
                 <th>Manage</th>
               </tr>
             </thead>
-            <tbody id="permitRows"></tbody>
+            <tbody id="permitRows" data-paginate></tbody>
           </table>
         </div>
       </section>
@@ -424,7 +424,7 @@
             </div>
             <span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">Live Alerts</span>
           </div>
-          <div id="alertRows" class="mt-4 divide-y divide-slate-100"></div>
+          <div id="alertRows" data-paginate class="mt-4 divide-y divide-slate-100"></div>
         </div>
       </section>
 
@@ -446,7 +446,7 @@
                 <th>Move-in / recorded</th>
               </tr>
             </thead>
-            <tbody id="tenantRows"></tbody>
+            <tbody id="tenantRows" data-paginate></tbody>
           </table>
         </div>
       </section>
@@ -491,7 +491,7 @@
 
           <div class="rounded-2xl bg-white p-6 shadow-xs border border-slate-100 lg:col-span-3">
             <h2 class="font-bold text-slate-900">Recent Barangay Announcements</h2>
-            <div id="announcementList" class="mt-4 space-y-3">
+            <div id="announcementList" data-paginate class="mt-4 space-y-3">
               <p class="text-xs text-slate-400">Loading announcements...</p>
             </div>
           </div>
@@ -506,7 +506,7 @@
             <div class="table-wrap mt-3">
               <table>
                 <thead><tr><th>Sender ID</th><th>Subject</th><th>Message</th></tr></thead>
-                <tbody id="messageRows"></tbody>
+                <tbody id="messageRows" data-paginate></tbody>
               </table>
             </div>
           </div>
@@ -575,7 +575,7 @@
             <h2 class="font-bold text-slate-900">Activity</h2>
             <span class="text-xs text-slate-400">All alerts & activities</span>
           </div>
-          <div id="notificationList" class="mt-4 divide-y"></div>
+          <div id="notificationList" data-paginate class="mt-4 divide-y"></div>
         </div>
       </section>
 
@@ -1728,9 +1728,14 @@ async function loadLegacyNotifications() {
 }
 
 // 14. AUDIT
-async function loadAudit() {
+let auditPage = 1;
+let auditRequest = 0;
+async function loadAudit(page = auditPage) {
+  const sequence = ++auditRequest;
   try {
-    let d = await req(api + '/audit-logs');
+    let d = await req(api + '/audit-logs?page=' + page);
+    if (sequence !== auditRequest) return;
+    auditPage = d.pagination.page;
     document.getElementById('auditRows').innerHTML = d.data.length ? d.data.map(x => `
       <tr>
         <td class="text-xs">${new Date(x.createdAt).toLocaleString()}</td>
@@ -1739,7 +1744,8 @@ async function loadAudit() {
         <td class="text-xs">${esc(x.ipAddress || '—')}</td>
       </tr>
     `).join('') : '<tr><td colspan="4" class="text-slate-400 text-center py-4">No audit logs recorded yet.</td></tr>';
-  } catch (e) { toast(e.message, true); }
+    window.DormMapPagination?.server(document.getElementById('auditRows'), d.pagination, loadAudit);
+  } catch (e) { if (sequence === auditRequest) toast(e.message, true); }
 }
 
 // 15. PROFILE
@@ -1801,7 +1807,7 @@ async function generateReport(type) {
   }
 }
 
-// Initial Load
-loadOverview();
+// The shared navigation script restores a recognized deep link.
+if (!Array.from(document.querySelectorAll('#nav [data-view]')).some(button => '#' + button.dataset.view === location.hash)) loadOverview();
 </script>
 {{> footer}}

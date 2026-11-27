@@ -503,7 +503,7 @@
             </div>
             <span id="listingCount" class="rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-900">0 listings</span>
           </div>
-          <div id="boardingHouseList" class="max-h-72 space-y-4 overflow-y-auto" aria-live="polite">
+          <div id="boardingHouseList" data-paginate class="max-h-72 space-y-4 overflow-y-auto" aria-live="polite">
             <p class="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">Select a boarding house pin on the map to see its details.</p>
           </div>
         </div>
@@ -1651,14 +1651,21 @@
       }
     }
     refreshLanding();
-    document.addEventListener('DOMContentLoaded', () => {
-      window.DormMapSocket?.on('landing_updated', refreshLanding);
-      window.DormMapSocket?.on('connect', refreshLanding);
-    });
+    let landingTimer;
+    let landingConnected = false;
+    function scheduleLanding() {
+      if (document.hidden || landingTimer) return;
+      landingTimer = setTimeout(() => { landingTimer = null; refreshLanding(); }, 300);
+    }
     const landingEvents = new EventSource('/api/landing/events');
-    landingEvents.addEventListener('landing-update', refreshLanding);
-    setInterval(() => { if (!document.hidden) refreshLanding(); }, 15000);
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshLanding(); });
+    landingEvents.addEventListener('landing-update', () => {
+      if (landingConnected || !loadingLanding) scheduleLanding();
+      landingConnected = true;
+    });
+    setInterval(() => {
+      if (landingEvents.readyState !== EventSource.OPEN || !window.allBoardingHousesCache) scheduleLanding();
+    }, 30000);
+    document.addEventListener('visibilitychange', scheduleLanding);
 
     setTimeout(() => map.invalidateSize(), 250);
     window.addEventListener('resize', () => map.invalidateSize());
