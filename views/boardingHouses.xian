@@ -43,12 +43,6 @@
         return min > 0 ? `₱${min.toLocaleString()} / month` : 'Contact for price';
       };
       const basePrice = house => Number(house.rentalPriceMin || house.rentPerHead || house.rentPerRoom || 0) || null;
-      const rating = house => {
-        const average = Number(house.ratingAverage || 0), count = Number(house.ratingCount || 0);
-        const stars = '★'.repeat(Math.round(average)) + '☆'.repeat(5 - Math.round(average));
-        const label = count ? `${average.toFixed(1)} · ${count} ${count === 1 ? 'tenant rating' : 'tenant ratings'}` : 'No tenant ratings yet';
-        return `<div class="flex items-center gap-2" aria-label="${escape(count ? `${average.toFixed(1)} out of 5 from ${count} tenant ratings` : 'No tenant ratings yet')}"><span class="text-lg tracking-wide text-amber-400" aria-hidden="true">${stars}</span><span class="text-xs font-semibold text-slate-600">${label}</span></div>`;
-      };
       let houses = [];
       function draw() {
         const query = controls[0].value.trim().toLowerCase();
@@ -73,7 +67,7 @@
           const cover = house.boardingHousePicture || house.galleryImages?.find(Boolean) || '';
           const types = [...new Set([house.propertyType, ...(Array.isArray(house.roomTypes) ? house.roomTypes : [])].filter(Boolean))];
           const image = cover ? `<img src="${escape(cover)}" alt="${escape(title(house))}" loading="lazy" class="h-48 w-full object-cover" onerror="this.remove()">` : '<div class="flex h-48 items-center justify-center bg-slate-100 text-sm font-semibold text-slate-400">No property photo</div>';
-          return `<article class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div class="relative">${image}<span class="absolute left-3 top-3 rounded-full bg-white px-3 py-1 text-xs font-bold text-emerald-900 shadow-sm">✓ Verified</span></div><div class="space-y-3 p-4"><div><h2 class="truncate text-lg font-bold text-slate-950">${escape(title(house))}</h2><p class="mt-1 text-sm text-slate-600">${escape(house.barangay || house.boardingHouseAddress || 'Bongabong')}</p></div>${rating(house)}<div class="flex flex-wrap gap-2 text-xs"><span class="rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-700">${Number(house.roomsAvailable || 0)} available rooms</span>${types.map(item => `<span class="rounded-full bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-800">${escape(item)}</span>`).join('')}</div><div class="flex items-center justify-between gap-3 border-t border-slate-100 pt-3"><span class="font-bold text-emerald-950">${price(house)}</span><a class="shrink-0 rounded-full bg-emerald-950 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800" href="/?listing=${encodeURIComponent(house.id)}#map">View details</a></div></div></article>`;
+          return `<article class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div class="relative">${image}<span class="absolute left-3 top-3 rounded-full bg-white px-3 py-1 text-xs font-bold text-emerald-900 shadow-sm">✓ Verified</span></div><div class="space-y-3 p-4"><div><h2 class="truncate text-lg font-bold text-slate-950">${escape(title(house))}</h2><p class="mt-1 text-sm text-slate-600">${escape(house.barangay || house.boardingHouseAddress || 'Bongabong')}</p></div><div class="flex flex-wrap gap-2 text-xs"><span class="rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-700">${Number(house.roomsAvailable || 0)} available rooms</span>${types.map(item => `<span class="rounded-full bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-800">${escape(item)}</span>`).join('')}</div><div class="flex items-center justify-between gap-3 border-t border-slate-100 pt-3"><span class="font-bold text-emerald-950">${price(house)}</span><a class="shrink-0 rounded-full bg-emerald-950 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800" href="/?listing=${encodeURIComponent(house.id)}#map">View details</a></div></div></article>`;
         }).join('') || '<div class="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 sm:col-span-2 xl:col-span-3">No verified boarding houses match those filters.</div>';
       }
       controls.forEach(input => input.addEventListener('input', () => {

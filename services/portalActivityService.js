@@ -1,4 +1,4 @@
-import { submittedOwnerWhere } from './registrationPolicy.js';
+import { awaitingBploOwnerStatuses, submittedOwnerWhere } from './registrationPolicy.js';
 import { Op } from 'sequelize';
 import { User } from '../models/userModel.js';
 import { sequelize } from '../models/db.js';
@@ -13,8 +13,8 @@ const paths={super_admin:'/admin',barangay:'/barangay-dashboard',boarding_house_
 export function notificationTarget(role, type='', link='') {
   role=normalizeRole(role);
   const base=paths[role]; if(!base)return '/login';
-  const aliases=role==='tenant'?{messages:'messaging',payments:'payments',applications:'dashboard',rooms:'my-room',profile:'profile'}:role==='super_admin'?{applications:'owners',profile:'owners',permit:'permits'}:role==='barangay'?{applications:'applications',branches:'houses',profile:'owners',permit:'permits'}:{applications:'tenants',branches:'profile',profile:'my-profile'};
-  const allowed={super_admin:['overview','owners','barangays','submissions','data_requests','renewals','permits','maintenance','announcements','audit'],barangay:['overview','owners','houses','applications','messages','notifications','submissions','data_requests','renewals','permits','announcements'],boarding_house_owner:['overview','profile','my-profile','rooms','tenants','payments','applications','inquiries','messages','maintenance','permit','notifications'],tenant:['dashboard','messaging','payments','maintenance','documents','announcements','my-room','profile','notifications']}[role];
+  const aliases=role==='tenant'?{messages:'messaging',payments:'payments',applications:'dashboard',rooms:'my-room',profile:'profile'}:role==='super_admin'?{applications:'owners',profile:'owners',permit:'permits'}:role==='barangay'?{applications:'applications',owners:'applications',branches:'houses',profile:'applications',permit:'permits',alerts:'permits'}:{applications:'tenants',branches:'profile',profile:'my-profile'};
+  const allowed={super_admin:['overview','owners','barangays','submissions','data_requests','renewals','permits','maintenance','announcements','audit'],barangay:['overview','houses','applications','messages','notifications','submissions','data_requests','renewals','permits','announcements'],boarding_house_owner:['overview','profile','my-profile','rooms','tenants','payments','applications','inquiries','messages','maintenance','permit','notifications'],tenant:['dashboard','messaging','payments','maintenance','documents','announcements','my-room','profile','notifications']}[role];
   let panel=String(link).startsWith('#')?String(link).slice(1):'';
   if(!panel)panel=/barangay_registration/.test(type)?'barangays':/data_request|reminder|submission/.test(type)?(role==='barangay'?'data_requests':'submissions'):/message|inquiry/.test(type)?'messages':/payment|bill/.test(type)?'payments':/maintenance/.test(type)?'maintenance':/branch/.test(type)?'branches':/application|tenant_confirmed/.test(type)?'applications':/renewal/.test(type)?(['super_admin','barangay'].includes(role)?'renewals':'permit'):/permit/.test(type)?'permit':/announcement/.test(type)?'announcements':/document/.test(type)?'profile':/account/.test(type)?'profile':/registration/.test(type)?'applications':'notifications';
   if(role==='boarding_house_owner'&&type==='application_update')panel='my-profile';
@@ -33,7 +33,11 @@ export function installPortalActivity(app) {
     if(role==='boarding_house_owner')pending.tenants=await TenantApplication.count({where:{ownerId:user.id,status:'pending_owner'}});
     if(role==='tenant')pending.dashboard=await TenantApplication.count({where:{tenantId:user.id,status:'accepted_by_owner'}});
     if(['barangay','super_admin'].includes(role)){
-      pending[role==='barangay'?'applications':'owners']=await User.count({where:{...submittedOwnerWhere,applicationStatus:{[Op.in]:['pending','pending_barangay','pending_bplo']},...(role==='barangay'?{boardingHouseAddress:user.barangay}:{})}});
+      const statuses = role === 'barangay' ? ['pending', 'pending_barangay'] : ['pending', 'pending_barangay', ...awaitingBploOwnerStatuses];
+      pending[role==='barangay'?'applications':'owners']=await User.count({where:{
+        ...submittedOwnerWhere, applicationStatus: { [Op.in]: statuses },
+        ...(role === 'barangay' ? { barangay: user.barangay } : {})
+      }});
       if(role==='super_admin')pending.barangays=await User.count({where:{accountType:'barangay',isArchived:false,applicationStatus:'pending'}});
       if (role === 'barangay') pending.houses = await BoardingHouse.count({
         where: { isPrimary: false, approvalStatus: 'pending', barangay: user.barangay },

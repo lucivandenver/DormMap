@@ -1,42 +1,48 @@
 (() => {
-  const banner = document.getElementById('portalFeedback');
-  if (!banner) return;
-
-  const base = 'mb-4 rounded-xl border px-4 py-3 text-sm font-medium';
-  const colors = {
-    success: 'border-emerald-200 bg-emerald-50 text-emerald-900',
-    error: 'border-rose-200 bg-rose-50 text-rose-900',
-    pending: 'border-slate-200 bg-slate-50 text-slate-800'
-  };
+  const duration = 1000;
   let popupTimer;
 
-  function popup(message, status) {
-    const overlay = document.createElement('div');
-    overlay.className = 'portal-feedback-popup';
-    overlay.setAttribute('role', status === 'error' ? 'alert' : 'status');
-    overlay.textContent = message;
-    document.querySelector('.portal-feedback-popup')?.remove();
-    (document.querySelector('dialog[open]') || document.body).append(overlay);
-    clearTimeout(popupTimer);
-    popupTimer = setTimeout(() => overlay.remove(), 500);
-  }
-
-  function show(message, status = 'success') {
-    if (status === 'success' || status === 'error') {
-      banner.className = 'portal-feedback-announcement';
-      banner.setAttribute('role', status === 'error' ? 'alert' : 'status');
+  function show(message, status = 'success', description = '') {
+    const banner = document.getElementById('portalFeedback');
+    if (status === 'pending') {
+      if (!banner) return;
+      banner.className = 'mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-800';
+      banner.setAttribute('role', 'status');
       banner.textContent = message;
-      if (window.Swal?.fire && !window.Swal.isVisible?.() && !document.querySelector('dialog[open]')) {
-        window.Swal.fire({ toast: true, position: 'top-end', icon: status, titleText: message, timer: 500, showConfirmButton: false, showClass: { popup: '' }, hideClass: { popup: '' } });
-      } else {
-        popup(message, status);
-      }
+      banner.scrollIntoView({ block: 'nearest' });
       return;
     }
-    banner.className = base + ' ' + colors[status];
-    banner.setAttribute('role', status === 'error' ? 'alert' : 'status');
-    banner.textContent = message;
-    banner.scrollIntoView({ block: 'nearest' });
+
+    if (banner) {
+      banner.className = 'hidden';
+      banner.textContent = '';
+    }
+    clearTimeout(popupTimer);
+    document.querySelector('.portal-feedback-popup')?.remove();
+    const dialog = [...document.querySelectorAll('dialog[open]')].at(-1);
+    const swal = window.Swal;
+    if (!dialog && swal?.fire && (!swal.isVisible?.() || swal.getPopup?.()?.classList.contains('portal-transient-alert'))) {
+      return swal.fire({
+        position: 'center',
+        icon: status,
+        titleText: message,
+        text: description,
+        timer: duration,
+        showConfirmButton: false,
+        backdrop: false,
+        heightAuto: false,
+        customClass: { popup: 'portal-transient-alert' },
+        showClass: { popup: '' },
+        hideClass: { popup: '' }
+      });
+    }
+
+    const popup = document.createElement('div');
+    popup.className = 'portal-feedback-popup';
+    popup.setAttribute('role', status === 'error' ? 'alert' : 'status');
+    popup.textContent = description ? `${message} ${description}` : message;
+    (dialog || document.body).append(popup);
+    popupTimer = setTimeout(() => popup.remove(), duration);
   }
 
   async function confirm(message) {

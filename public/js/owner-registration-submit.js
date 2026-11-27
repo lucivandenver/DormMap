@@ -124,9 +124,7 @@
     } catch (error) {
       status.dataset.state = 'error';
       status.textContent = error.message;
-      if (window.Swal && !document.querySelector('dialog[open]')) {
-        window.Swal.fire({ toast: true, icon: 'error', titleText: error.message, position: 'top-end', timer: 500, showConfirmButton: false });
-      }
+      window.DormMapFeedback?.show(error.message, 'error');
       return null;
     }
   };

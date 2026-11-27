@@ -5,11 +5,14 @@ import { tenantBranchAssignments } from '../services/propertyBranchesService.js'
 import { namedMessages } from '../services/messageIdentityService.js';
 import { listApprovedBranchPins, listBarangayBranches, reviewBranch } from '../services/branchReviewService.js';
 import { OwnerTenant, OwnerRoom, BoardingHouse, OwnerGallery } from '../models/ownerModels.js';
+import { reportDay, shiftReportDay } from '../services/reportCalendar.js';
 import { inventorySummary } from '../services/inventorySummaryService.js';
 import { setPublicMapStatus } from '../services/publicMapStatusService.js';
 import path from 'path';
 import { Op, fn, col } from 'sequelize';
 import { User } from '../models/userModel.js';
+import { sequelize } from '../models/db.js';
+import { submittedOwnerWhere } from '../services/registrationPolicy.js';
 import { 
   BusinessPermit, AdminAuditLog, Announcement, BarangayMessage, 
   BarangayNotification, BploDataRequest, BploDataSubmission, BploPermitRenewal 
@@ -21,9 +24,9 @@ const barangayOf = async req => {
   req.barangayLookup ||= User.findByPk(req.session.userId, { attributes: ['barangay'] });
   return (await req.barangayLookup)?.barangay;
 };
-const audit = async (req, action, entityType, entityId, details = {}) =>
+const audit = async (req, action, entityType, entityId, details = {}, transaction) =>
   AdminAuditLog.create({ actorId: req.session.userId, action, entityType, entityId,
-    details: { ...details, barangay: details.barangay || await barangayOf(req) }, ipAddress: req.ip });
+    details: { ...details, barangay: details.barangay || await barangayOf(req) }, ipAddress: req.ip }, { transaction });
 const ownersWhere = (barangay) => ({ accountType: 'boarding_house_owner', barangay, isArchived: false });
 
 export const barangayDashboardPage = async (req, res, next) => {
@@ -43,93 +46,70 @@ export const overview = async (req, res, next) => {
     const barangay = await barangayOf(req);
     if (!barangay) return res.status(422).json({ error: 'Your official account has no assigned barangay.' });
 
-    const today = new Date();
-    const next30 = new Date();
-    next30.setDate(today.getDate() + 30);
-
-    const ownerFilter = ownersWhere(barangay);
-    const owners = await User.findAll({ 
-      where: ownerFilter, 
-      attributes: ['id', 'roomsAvailable', 'occupiedRooms', 'applicationStatus', 'boardingHouseName', 'createdAt', 'isSuspended', 'publicMapUnregistered'],
-      raw: true 
+    const today = reportDay();
+    const next30 = shiftReportDay(today, 30);
+    const [branchOwners, allActiveRequests, mySubmissions] = await Promise.all([
+      BoardingHouse.findAll({ where: { barangay }, attributes: ['ownerId'], group: ['ownerId'], raw: true }),
+      BploDataRequest.findAll({ where: { status: 'active' } }),
+      BploDataSubmission.findAll({ where: { barangay } })
+    ]);
+    const owners = await User.findAll({
+      where: {
+        accountType: 'boarding_house_owner', isArchived: false,
+        [Op.or]: [{ barangay }, { id: { [Op.in]: branchOwners.map(branch => branch.ownerId) } }]
+      },
+      attributes: ['id', 'barangay', 'applicationStatus', 'boardingHouseName', 'createdAt'],
+      raw: true
     });
-    
-    const ownerIds = owners.map((x) => x.id);
-    const permitWhere = { ownerId: { [Op.in]: ownerIds.length ? ownerIds : [0] } };
-
-    // Fetch active BPLO data requests count for this barangay
-    const allActiveRequests = await BploDataRequest.findAll({ where: { status: 'active' } });
+    // Permits belong to the owner account and do not carry a branch ID.
+    const localOwners = owners.filter(owner => owner.barangay === barangay);
+    const permitWhere = { ownerId: { [Op.in]: localOwners.map(owner => owner.id) } };
     const targetRequests = allActiveRequests.filter(request => isRequestTargeted(request, barangay));
-
-    const mySubmissions = await BploDataSubmission.findAll({ where: { barangay } });
     const submittedReqIds = new Set(mySubmissions.map(s => s.requestId));
     const pendingDataRequests = targetRequests.filter(r => !submittedReqIds.has(r.id)).length;
     const revisionSubmissionsCount = mySubmissions.filter(s => s.status === 'revision_requested').length;
 
-    const inventory = await inventorySummary(owners);
-    const [tenants, unreadMessages, expiredPermits, expiringPermits, permitStatus, monthly, tenantStats, pendingRenewalsCount] = await Promise.all([
-      Promise.resolve(inventory.tenants),
+    const [inventory, unreadMessages, expiredPermits, expiringPermits, permitStatus, pendingRenewalsCount] = await Promise.all([
+      inventorySummary(owners, { barangay }),
       BarangayMessage.count({ where: { recipientId: req.session.userId, isRead: false } }),
       BusinessPermit.count({ where: { ...permitWhere, expirationDate: { [Op.lt]: today } } }),
       BusinessPermit.count({ where: { ...permitWhere, expirationDate: { [Op.between]: [today, next30] } } }),
-      BusinessPermit.findAll({ 
-        where: permitWhere, 
-        attributes: ['status', [fn('COUNT', col('id')), 'count']], 
-        group: ['status'], 
-        raw: true 
-      }),
-      User.findAll({ 
-        attributes: [
-          [fn('DATE_FORMAT', col('createdAt'), '%b %Y'), 'month'], 
-          [fn('COUNT', col('id')), 'count']
-        ], 
-        where: { ...ownerFilter, createdAt: { [Op.gte]: new Date(today.getFullYear(), today.getMonth() - 5, 1) } }, 
-        group: [fn('DATE_FORMAT', col('createdAt'), '%b %Y')], 
-        raw: true 
-      }),
-      OwnerTenant.findAll({
-        attributes: [[fn('DATE_FORMAT', col('createdAt'), '%b'), 'month'], [fn('COUNT', col('id')), 'count']],
-        where: { ownerId: { [Op.in]: ownerIds }, createdAt: { [Op.gte]: new Date(today.getFullYear(), today.getMonth()-5, 1) } },
-        group: [fn('DATE_FORMAT', col('createdAt'), '%b')], raw: true
+      BusinessPermit.findAll({
+        where: permitWhere,
+        attributes: ['status', [fn('COUNT', col('id')), 'count']],
+        group: ['status'],
+        raw: true
       }),
       BploPermitRenewal.count({ where: { barangay, status: { [Op.in]: ['pending_barangay', 'revision_required'] } } })
     ]);
-
-    const vacantRooms = inventory.availableRooms;
-    const occupiedRooms = inventory.occupiedRooms;
-    const currentMonthStr = today.toLocaleString('default', { month: 'short', year: 'numeric' });
-    const currentMonthRegs = monthly.find(m => m.month === currentMonthStr)?.count || 0;
-
-    // Historical occupancy cannot be reconstructed from current tenant records.
-    const occupancyTrends = [{ month: 'Current', occupied: occupiedRooms, vacant: vacantRooms }];
 
     res.json({ 
       barangay, 
       cards: { 
         houses: inventory.houses,
-        pending: owners.filter(x => ['pending', 'revision_requested'].includes(x.applicationStatus)).length, 
-        activeOwners: owners.filter(x => x.applicationStatus === 'approved' || x.applicationStatus === 'approved_barangay').length, 
+        pending: localOwners.filter(x => ['pending', 'revision_requested'].includes(x.applicationStatus)).length,
+        activeOwners: localOwners.filter(x => x.applicationStatus === 'approved' || x.applicationStatus === 'approved_barangay').length,
         expiredPermits, 
         expiringPermits, 
-        tenants, 
-        vacantRooms, 
-        occupiedRooms, 
-        monthlyRegistrations: currentMonthRegs, 
+        tenants: inventory.tenants,
+        vacantRooms: inventory.availableRooms,
+        occupiedRooms: inventory.occupiedRooms,
+        monthlyRegistrations: inventory.monthly.at(-1).properties,
         unreadMessages,
         pendingDataRequests,
         revisionSubmissionsCount,
         pendingRenewalsCount,
       }, 
-      charts: { 
-        monthly, 
-        occupancyTrends,
+      charts: {
+        monthly: inventory.monthly,
         permitStatus,
-        availableRooms: { vacant: vacantRooms, occupied: occupiedRooms },
-        tenantStats: {
-          total: tenants,
-          monthly: tenantStats
-        }
-      } 
+        roomInventory: {
+          available: inventory.availableRooms,
+          occupied: inventory.occupiedRooms,
+          unavailable: inventory.unavailableRooms,
+        },
+        properties: inventory.properties,
+      }
     });
   } catch (error) { next(error); }
 };
@@ -633,7 +613,7 @@ export const applications = async (req, res, next) => {
     }
     const owners = await User.findAll({
       where, order: [['createdAt', 'DESC']],
-      attributes: ['id', 'fullName', 'email', 'profilePicture', 'publicMapUnregistered', 'boardingHouseName', 'boardingHouseAddress', 'barangay', 'mapPin', 'galleryImages', 'boardingHouseLatitude', 'boardingHouseLongitude',
+      attributes: ['id', 'fullName', 'email', 'profilePicture', 'publicMapUnregistered', 'isSuspended', 'contactNumber', 'boardingHouseName', 'boardingHouseAddress', 'barangay', 'mapPin', 'galleryImages', 'boardingHouseLatitude', 'boardingHouseLongitude',
         'validIdPicture', 'businessPermit', 'barangayClearance', 'proofOfOwnership', 'rentalPermit', 'supportingDocuments', 'applicationStatus', 'applicationReviewNote', 'createdAt']
     });
     const houses = await BoardingHouse.findAll({
@@ -673,6 +653,7 @@ export const applications = async (req, res, next) => {
       if (!branches.length) branches.push(mainLocation);
       return { ...submission, branches, id, applicationStatus, applicationReviewNote, createdAt,
         profilePicture: legacy.profilePicture, publicMapUnregistered: legacy.publicMapUnregistered,
+        contactNumber: legacy.contactNumber || submission.contactNumber, isSuspended: legacy.isSuspended,
         validIdPicture: legacy.validIdPicture || submission.validIdPicture,
         businessPermit: legacy.businessPermit || submission.businessPermit,
         barangayClearance: legacy.barangayClearance || submission.barangayClearance,
@@ -687,39 +668,55 @@ export const applications = async (req, res, next) => {
 
 export const reviewApplication = async (req, res, next) => {
   try {
-    const barangay = await barangayOf(req); 
-    const owner = await User.findOne({ where: { id: req.params.id, ...ownersWhere(barangay) } });
-    if (!owner) return res.status(404).json({ error: 'Application not found in your barangay.' });
-
-    const actionMap = { 
-      approve: 'approved_barangay', 
-      reject: 'rejected', 
-      revision: 'revision_requested', 
-      forward: 'forwarded_to_bplo', 
-      suspend: 'suspended' 
+    const barangay = await barangayOf(req);
+    const { action } = req.body;
+    const actions = {
+      approve: { status: 'approved_barangay', message: 'Application approved and submitted to BPLO.' },
+      reject: { status: 'rejected', message: 'Application rejected.' },
+      revision: { status: 'revision_requested', message: 'Revision requested.' },
     };
+    if (!Object.hasOwn(actions, action)) return res.status(422).json({ error: 'Invalid application action.' });
+    const { status, message } = actions[action];
+    const note = typeof req.body.note === 'string' ? req.body.note.trim() : '';
 
-    if (!actionMap[req.body.action]) return res.status(422).json({ error: 'Invalid application action.' });
-    
-    const action = req.body.action; 
-    const newStatus = actionMap[action];
-    
-    await owner.update({ 
-      applicationStatus: newStatus, 
-      applicationReviewedAt: new Date(), 
-      applicationReviewNote: req.body.note?.trim() || null, 
-      isSuspended: action === 'suspend' 
+    const result = await sequelize.transaction(async transaction => {
+      const owner = await User.findOne({
+        where: { ...ownersWhere(barangay), id: req.params.id }, transaction, lock: transaction.LOCK.UPDATE,
+      });
+      if (!owner) return { error: 'Application not found in your barangay.', code: 404 };
+      if (action === 'approve' && owner.applicationStatus === status) return { data: { id: owner.id, applicationStatus: status }, message };
+      if (!['pending', 'pending_barangay', 'revision_requested'].includes(owner.applicationStatus)) {
+        return { error: 'This application has already been reviewed. Refresh the list.', code: 409 };
+      }
+      if (action === 'approve' && !await User.count({ where: { ...submittedOwnerWhere, id: owner.id }, transaction })) {
+        return { error: 'The owner needs to complete the property application before approval.', code: 422 };
+      }
+      await owner.update({
+        applicationStatus: status, applicationReviewedAt: new Date(), applicationReviewNote: note || null
+      }, { transaction });
+      await BarangayNotification.create({
+        userId: owner.id,
+        title: 'Boarding house application updated',
+        body: message + (note ? ` Note: ${note}` : ''),
+        type: 'application_update'
+      }, { transaction });
+      if (action === 'approve') {
+        const admins = await User.findAll({
+          where: { accountType: { [Op.in]: ['super_admin', 'bplo_admin'] }, isArchived: false, isSuspended: false },
+          attributes: ['id'], transaction
+        });
+        await BarangayNotification.bulkCreate(admins.map(admin => ({
+          userId: admin.id,
+          title: 'Owner application ready for BPLO review',
+          body: `${owner.boardingHouseName} was approved by Barangay ${barangay} and is ready for BPLO review.`,
+          type: 'owner_application_bplo'
+        })), { transaction });
+      }
+      await audit(req, `barangay_owner_${action}`, 'User', owner.id, { barangay, status, note: note || null }, transaction);
+      return { data: { id: owner.id, applicationStatus: status }, message };
     });
-
-    await BarangayNotification.create({
-      userId: owner.id,
-      title: `Application Status Updated: ${newStatus.replace('_', ' ').toUpperCase()}`,
-      body: `Your boarding house application status for ${owner.boardingHouseName || 'your property'} has been updated to ${newStatus}.${req.body.note ? ` Note: ${req.body.note}` : ''}`,
-      type: 'application_update'
-    });
-
-    await audit(req, `barangay_owner_${action}`, 'User', owner.id, { barangay, status: newStatus, note: req.body.note || null });
-    res.json({ data: owner, message: `Application ${action}ed successfully.` });
+    if (result.error) return res.status(result.code).json({ error: result.error });
+    res.json(result);
   } catch (error) { next(error); }
 };
 

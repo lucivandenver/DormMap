@@ -87,9 +87,6 @@ html:has(.dormmap-full-map[open], .dormmap-property-dialog[open]) { overflow: hi
 .dormmap-listing-heading { display: flex; align-items: center; gap: .7rem; }
 .dormmap-listing-popup p { margin: .55rem 0; }
 .dormmap-listing-distance { color: #64748b; font-size: .8rem; }
-.dormmap-listing-rating { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
-.dormmap-listing-rating-stars { color: #f59e0b; letter-spacing: .04em; }
-.dormmap-listing-rating-score { color: #475569; font-size: .75rem; font-weight: 600; }
 .dormmap-listing-rooms { color: #047857; font-weight: 700; }
 .dormmap-listing-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
 .dormmap-listing-actions button, .dormmap-focus-listing {

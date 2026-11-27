@@ -1,4 +1,4 @@
-import { BoardingHouse, OwnerRoom, RoomReview } from '../models/ownerModels.js';
+import { BoardingHouse, BoardingHouseReview } from '../models/ownerModels.js';
 import { approvedOwnerWhere } from '../services/dormListingService.js';
 
     /*
@@ -87,11 +87,11 @@ export const mapPlaceApi = async (req, res) => {
   try {
     const kind = req.query.kind;
     const name = typeof req.query.name === 'string' ? req.query.name.trim() : '';
-    if (!['institution', 'barangay'].includes(kind) || !name || name.length > 150) return res.status(400).json({ error: 'Choose a barangay or institution.' });
+    if (!['institution', 'barangay'].includes(kind) || !name || name.length > 150) return res.status(400).json({ error: 'Choose a barangay or nearby place.' });
     const Model = kind === 'institution' ? EducationalInstitution : Barangay;
     const record = await Model.findOne({ where: { name, isActive: true } });
     const place = storedPlace(record) || await lookupPlace(name, kind);
-    if (!place) return res.status(404).json({ error: 'No verified map location found. BPLO can add the correct coordinates in Settings.' });
+    if (!place) return res.status(404).json({ error: 'No verified map location found. BPLO can update this location on the map.' });
     res.json(place);
   } catch (error) { console.error('Place search failed:', error.message); res.status(503).json({ error: 'Location search is temporarily unavailable. Try again later.' }); }
 };
@@ -105,31 +105,29 @@ export const institutionsApi = async (req, res) => {
     res.json(list);
   } catch (error) {
     console.error("Institutions API error:", error);
-    res.status(500).json({ error: "Unable to load institutions" });
+    res.status(500).json({ error: "Unable to load nearby places" });
   }
 };
 
-export async function publicRoomReviews(req, res, next) {
+export async function publicBoardingHouseReviews(req, res, next) {
   try {
-    const listing = /^(bh|owner)-([1-9]\d*)$/.exec(req.params.listing);
-    const roomId = Number(req.params.roomId);
-    if (!listing || !Number.isSafeInteger(roomId) || roomId < 1) return res.sendStatus(404);
-    const room = await OwnerRoom.findByPk(roomId, { attributes: ['id', 'ownerId', 'boardingHouseId'] });
-    if (!room) return res.sendStatus(404);
-    const owner = await User.findOne({ where: { id: room.ownerId, ...approvedOwnerWhere }, attributes: ['id'] });
-    if (!owner) return res.sendStatus(404);
-    const house = listing[1] === 'bh'
-      ? await BoardingHouse.findOne({ where: { id: Number(listing[2]), ownerId: owner.id, approvalStatus: 'approved' } })
-      : null;
-    const visible = listing[1] === 'bh'
-      ? house && (room.boardingHouseId === house.id || (!room.boardingHouseId && house.isPrimary))
-      : Number(listing[2]) === owner.id && !await BoardingHouse.count({ where: { ownerId: owner.id } });
-    if (!visible) return res.sendStatus(404);
-    const page = Math.max(1, Math.min(10000, Number.parseInt(req.query.page, 10) || 1));
-    const { rows, count } = await RoomReview.findAndCountAll({
-      where: { roomId, comment: { [Op.ne]: null } }, attributes: ['rating', 'comment', 'updatedAt'],
-      order: [['updatedAt', 'DESC'], ['id', 'DESC']], limit: 5, offset: (page - 1) * 5
+    const listing = /^bh-([1-9]\d*)$/.exec(req.params.listing);
+    const houseId = Number(listing?.[1]);
+    if (!Number.isSafeInteger(houseId)) return res.sendStatus(404);
+    const house = await BoardingHouse.findOne({
+      where: { id: houseId, approvalStatus: 'approved' }, attributes: ['id', 'ownerId']
     });
-    res.json({ data: rows, page, pages: Math.max(1, Math.ceil(count / 5)) });
+    if (!house) return res.sendStatus(404);
+    const owner = await User.findOne({ where: { id: house.ownerId, ...approvedOwnerWhere }, attributes: ['id'] });
+    if (!owner) return res.sendStatus(404);
+
+    const page = Math.max(1, Math.min(10000, Number.parseInt(req.query.page, 10) || 1));
+    const pageSize = 5;
+    const { rows, count } = await BoardingHouseReview.findAndCountAll({
+      where: { boardingHouseId: house.id, comment: { [Op.ne]: null } },
+      attributes: ['rating', 'comment', 'updatedAt'],
+      order: [['updatedAt', 'DESC'], ['id', 'DESC']], limit: pageSize, offset: (page - 1) * pageSize
+    });
+    res.json({ data: rows, page, pages: Math.max(1, Math.ceil(count / pageSize)) });
   } catch (error) { next(error); }
 }

@@ -14,7 +14,7 @@ import { User } from '../models/userModel.js';
 import { Announcement, BarangayNotification } from '../models/adminModels.js';
 import {
   BoardingHouse, OwnerRoom, OwnerTenant, OwnerPayment,
-  OwnerMessage, OwnerNotification, OwnerActivityLog, OwnerInquiry, BoardingHouseReview, RoomReview
+  OwnerMessage, OwnerNotification, OwnerActivityLog, OwnerInquiry, BoardingHouseReview
 } from '../models/ownerModels.js';
 import { MaintenanceRequest, TenantDocument, TenantApplication } from '../models/tenantModels.js';
 
@@ -40,16 +40,16 @@ async function tenantRatingState(user, tenantRec, room, owner) {
     : null;
   if (!house && owner?.id) house = await BoardingHouse.findOne({ where: { ownerId: owner.id, isPrimary: true } });
   if (!house) return { ratingAverage: 0, ratingCount: 0, myRating: null, canRate: false };
-  const reviews = room ? await RoomReview.findAll({
-    where: { roomId: room.id }, attributes: ['rating', 'tenantUserId', 'comment']
-  }) : [];
+  const reviews = await BoardingHouseReview.findAll({
+    where: { boardingHouseId: house.id }, attributes: ['rating', 'tenantUserId', 'comment']
+  });
   const myReview = reviews.find(review => review.tenantUserId === user.id);
   const summary = summarizeRatings(reviews);
   return {
     ...summary,
     myRating: myReview?.rating || null,
     myComment: myReview?.comment || null,
-    roomId: room?.id || null,
+    boardingHouseId: house.id,
     canRate: Boolean(tenantRec?.status === 'active' && room && house.approvalStatus === 'approved' &&
       owner && ['approved', 'approved_barangay'].includes(owner.applicationStatus) && !owner.isSuspended && !owner.isArchived && !owner.publicMapUnregistered),
   };
@@ -60,11 +60,11 @@ export const submitBoardingHouseRating = async (req, res, next) => {
     const { rating, comment } = validateRatingPayload(req.body);
     const user = req.currentUser;
     const initial = await getTenantRecord(user);
-    if (!initial?.roomId) return res.status(403).json({ error: 'Only tenants with an active room assignment can rate a room.' });
+    if (!initial?.roomId) return res.status(403).json({ error: 'Only tenants with an active room assignment can review a boarding house.' });
     const result = await sequelize.transaction(async transaction => {
       const owner = await ownerLock(initial.ownerId, transaction);
       const stay = await getTenantRecord(user, { transaction });
-      if (!stay?.roomId || stay.ownerId !== initial.ownerId ||
+      if (!owner || !stay?.roomId || stay.ownerId !== initial.ownerId ||
           (req.body.roomId !== undefined && Number(req.body.roomId) !== stay.roomId)) {
         return { status: 409, error: 'Your room assignment changed. Refresh My Room before saving.' };
       }
@@ -74,16 +74,16 @@ export const submitBoardingHouseRating = async (req, res, next) => {
           ...(room.boardingHouseId ? { id: room.boardingHouseId } : { isPrimary: true }) }, transaction
       });
       if (!house || owner.isSuspended || owner.isArchived || owner.publicMapUnregistered || !['approved', 'approved_barangay'].includes(owner.applicationStatus)) {
-        return { status: 403, error: 'This room is not currently available for reviews.' };
+        return { status: 403, error: 'This boarding house is not currently available for reviews.' };
       }
-      const identity = { roomId: room.id, tenantUserId: user.id };
-      await RoomReview.upsert({ ...identity, rating, comment }, { transaction });
-      // Keep the existing property summary based on each tenant's most recent rating for the branch.
+      if (req.body.boardingHouseId !== undefined && Number(req.body.boardingHouseId) !== house.id) {
+        return { status: 409, error: 'Your boarding house changed. Refresh My Room before saving.' };
+      }
       await BoardingHouseReview.upsert({
         boardingHouseId: house.id, tenantUserId: user.id, ownerId: owner.id, ownerTenantId: stay.id, rating, comment
       }, { transaction });
-      const reviews = await RoomReview.findAll({ where: { roomId: room.id }, attributes: ['rating'], transaction });
-      return { message: 'Your room review was saved.', ...summarizeRatings(reviews), myRating: rating, myComment: comment };
+      const reviews = await BoardingHouseReview.findAll({ where: { boardingHouseId: house.id }, attributes: ['rating'], transaction });
+      return { message: 'Your boarding house review was saved.', ...summarizeRatings(reviews), myRating: rating, myComment: comment };
     });
     if (result.error) return res.status(result.status).json({ error: result.error });
     res.json(result);
