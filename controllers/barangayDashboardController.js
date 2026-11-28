@@ -6,7 +6,7 @@ import { namedMessages } from '../services/messageIdentityService.js';
 import { listApprovedBranchPins, listBarangayBranches, reviewBranch } from '../services/branchReviewService.js';
 import { OwnerTenant, OwnerRoom, BoardingHouse, OwnerGallery } from '../models/ownerModels.js';
 import { reportDay, shiftReportDay } from '../services/reportCalendar.js';
-import { inventorySummary } from '../services/inventorySummaryService.js';
+import { barangayInventoryOwners, inventorySummary } from '../services/inventorySummaryService.js';
 import { setPublicMapStatus } from '../services/publicMapStatusService.js';
 import path from 'path';
 import { Op, fn, col } from 'sequelize';
@@ -48,19 +48,11 @@ export const overview = async (req, res, next) => {
 
     const today = reportDay();
     const next30 = shiftReportDay(today, 30);
-    const [branchOwners, allActiveRequests, mySubmissions] = await Promise.all([
-      BoardingHouse.findAll({ where: { barangay }, attributes: ['ownerId'], group: ['ownerId'], raw: true }),
+    const [owners, allActiveRequests, mySubmissions] = await Promise.all([
+      barangayInventoryOwners(barangay),
       BploDataRequest.findAll({ where: { status: 'active' } }),
       BploDataSubmission.findAll({ where: { barangay } })
     ]);
-    const owners = await User.findAll({
-      where: {
-        accountType: 'boarding_house_owner', isArchived: false,
-        [Op.or]: [{ barangay }, { id: { [Op.in]: branchOwners.map(branch => branch.ownerId) } }]
-      },
-      attributes: ['id', 'barangay', 'applicationStatus', 'boardingHouseName', 'createdAt'],
-      raw: true
-    });
     // Permits belong to the owner account and do not carry a branch ID.
     const localOwners = owners.filter(owner => owner.barangay === barangay);
     const permitWhere = { ownerId: { [Op.in]: localOwners.map(owner => owner.id) } };

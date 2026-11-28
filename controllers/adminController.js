@@ -9,7 +9,7 @@ import { branchNumbers, orderBranches, tenantBranchAssignments } from '../servic
 import { dormigoQuestionsKey, getDormigoQuestions, validateDormigoQuestions } from '../services/dormigoQuestionsService.js';
 import bcrypt from 'bcrypt';
 import { awaitingBploOwnerStatuses, submittedOwnerWhere } from '../services/registrationPolicy.js';
-import { inventorySummary } from '../services/inventorySummaryService.js';
+import { municipalInventory } from '../services/inventorySummaryService.js';
 import { setPublicMapStatus } from '../services/publicMapStatusService.js';
 import { publicDormListings } from '../services/landingService.js';
 import { broadcastEvent } from '../services/websocketService.js';
@@ -49,7 +49,7 @@ export const overview = async (req, res, next) => {
     const today = new Date();
     const soon = new Date(); soon.setDate(today.getDate() + 30);
     const ownerWhere = { ...submittedOwnerWhere };
-    const inventory = await inventorySummary(await User.findAll({ where: ownerWhere, attributes: ['id','boardingHouseName','applicationStatus','isSuspended','publicMapUnregistered'] }));
+    const inventory = await municipalInventory();
 
     const [
       barangays, institutions, owners, tenants, clients, houses, activeHouses, 

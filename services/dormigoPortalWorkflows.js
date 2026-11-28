@@ -1,6 +1,6 @@
 const bplo = {
   label: 'BPLO Admin',
-  path: '/admin',
+  scope: 'bplo',
   workflows: {
     overview: ['Dashboard Overview', 'Open Dashboard Overview for municipal totals, room inventory, permit status, and recent activity.'],
     registration_analytics: ['User Analytics', 'Open User Analytics. Filter by account type or registration period, or search by name, email, or barangay.'],
@@ -22,7 +22,7 @@ const bplo = {
 
 const barangay = {
   label: 'Barangay Official',
-  path: '/barangay-dashboard',
+  scope: 'barangay',
   workflows: {
     overview: ['Dashboard Overview', 'Open Dashboard Overview for local property, room, and reporting summaries.'],
     data_requests: ['Data Requests & Submissions', 'Open Data Requests & Submissions to see requests addressed to your barangay, check deadlines, and submit the requested report.'],
@@ -43,7 +43,7 @@ const barangay = {
 
 const owner = {
   label: 'Boarding House Owner',
-  path: '/owner-dashboard',
+  scope: 'owner',
   workflows: {
     overview: ['Dashboard', 'Open Dashboard Overview for a summary of your property, rooms, tenants, and collections.'],
     profile: ['Boarding House Profile', 'Open the property profile to update the details of your boarding house. Select the applicable branch where available.'],
