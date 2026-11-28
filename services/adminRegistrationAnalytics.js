@@ -1,9 +1,39 @@
-import { Op, col, fn, literal } from 'sequelize';
+import { Op, col, fn, literal, where as sqlWhere } from 'sequelize';
 import { User } from '../models/userModel.js';
 import { isReportDay, nextPeriod } from './reportCalendar.js';
 
 const roles = ['tenant', 'boarding_house_owner', 'barangay', 'super_admin', 'bplo_admin'];
 const manilaMidnight = day => new Date(day + 'T00:00:00+08:00');
+
+// Resolve the same barangay for display and search, before grouping or pagination.
+const registrationBarangay = literal(`CASE WHEN \`User\`.accountType = 'tenant' THEN COALESCE(
+  (SELECT COALESCE(NULLIF(TRIM(house.barangay), ''), NULLIF(TRIM(owner.barangay), ''))
+   FROM TenantApplications AS application
+   LEFT JOIN BoardingHouses AS house ON house.id = application.boardingHouseId
+   LEFT JOIN Users AS owner ON owner.id = application.ownerId
+   WHERE application.tenantId = \`User\`.id
+     AND application.status IN ('confirmed', 'accepted_by_owner', 'pending_owner')
+     AND (application.status = 'confirmed' OR NULLIF(\`User\`.selectedBoardingHouse, '') IS NULL
+          OR application.boardingHouseName = \`User\`.selectedBoardingHouse
+          OR CONCAT('bh-', house.id) = \`User\`.selectedBoardingHouse
+          OR CONCAT('owner-', owner.id) = \`User\`.selectedBoardingHouse)
+   ORDER BY (application.status = 'confirmed') DESC, application.createdAt DESC, application.id DESC
+   LIMIT 1),
+  (SELECT CASE WHEN COUNT(DISTINCT COALESCE(NULLIF(TRIM(house.barangay), ''), NULLIF(TRIM(owner.barangay), ''))) = 1
+          THEN MAX(COALESCE(NULLIF(TRIM(house.barangay), ''), NULLIF(TRIM(owner.barangay), ''))) END
+   FROM BoardingHouses AS house
+   LEFT JOIN Users AS owner ON owner.id = house.ownerId
+   WHERE house.name = \`User\`.selectedBoardingHouse OR CONCAT('bh-', house.id) = \`User\`.selectedBoardingHouse),
+  (SELECT CASE WHEN COUNT(DISTINCT NULLIF(TRIM(owner.barangay), '')) = 1
+          THEN MAX(NULLIF(TRIM(owner.barangay), '')) END
+   FROM Users AS owner
+   WHERE owner.accountType = 'boarding_house_owner'
+     AND (CONCAT('owner-', owner.id) = \`User\`.selectedBoardingHouse OR (
+       owner.boardingHouseName = \`User\`.selectedBoardingHouse
+       AND NOT EXISTS (SELECT 1 FROM BoardingHouses WHERE name = \`User\`.selectedBoardingHouse)
+     ))),
+  \`User\`.barangay
+) ELSE \`User\`.barangay END`);
 
 export function registrationFilters({ search = '', role = '', period = 'all', date = '' }) {
   if (typeof search !== 'string' || search.length > 200 || (role !== '' && !roles.includes(role))) return null;
@@ -11,7 +41,11 @@ export function registrationFilters({ search = '', role = '', period = 'all', da
   const where = {};
   if (search.trim()) {
     const pattern = '%' + search.trim().replace(/[\\%_]/g, '\\$&') + '%';
-    where[Op.or] = ['fullName', 'email', 'barangay'].map(field => ({ [field]: { [Op.like]: pattern } }));
+    where[Op.or] = [
+      { fullName: { [Op.like]: pattern } },
+      { email: { [Op.like]: pattern } },
+      sqlWhere(registrationBarangay, Op.like, pattern)
+    ];
   }
   if (role) where.accountType = role;
   if (period === 'all') return { where, format: '%Y-%m' };
@@ -33,7 +67,7 @@ export async function listRegistrationAnalytics(filters, page, pageSize) {
       group: [bucket, 'accountType'], order: [[bucket, 'ASC']], raw: true
     }),
     User.findAll({
-      where, attributes: ['id', 'fullName', 'email', 'accountType', 'barangay', 'createdAt', 'isArchived', 'isSuspended'],
+      where, attributes: ['id', 'fullName', 'email', 'accountType', [registrationBarangay, 'barangay'], 'createdAt', 'isArchived', 'isSuspended'],
       order: [['createdAt', 'DESC'], ['id', 'DESC']], limit: pageSize, offset: (page - 1) * pageSize, raw: true
     })
   ]);
