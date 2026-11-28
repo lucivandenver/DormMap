@@ -1675,4 +1675,5 @@ window.addEventListener('hashchange', restoreLegacyView);
 window.addEventListener('popstate', restoreLegacyView);
 if (!Array.from(document.querySelectorAll('#nav [data-view]')).some(button => '#' + button.dataset.view === location.hash)) loadOverview();
 </script>
+{{> dormigoWidget portal=true}}
 {{> footer}}

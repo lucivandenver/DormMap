@@ -250,9 +250,11 @@
 
     </div>
 
+    {{#unless portal}}
     <div class="shrink-0 bg-emerald-50/60">
       <div id="dormigoQuestionButtons" hidden aria-label="Suggested questions"></div>
     </div>
+    {{/unless}}
 
     <!-- TYPING INDICATOR -->
     <div id="dormigoTyping" class="hidden px-4 pb-2 bg-white">
@@ -293,4 +295,4 @@
 </div>
 
 <!-- Dormigo Frontend Script Controller -->
-<script src="/js/dormigo-chat.js"></script>
+<script src="/js/dormigo-chat.js?v=2"></script>

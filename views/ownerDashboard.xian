@@ -4240,5 +4240,6 @@ async function loadLegacyNotifications() {
   // The shared navigation script restores a recognized deep link.
   if (!Array.from(document.querySelectorAll('#nav [data-view]')).some(button => '#' + button.dataset.view === location.hash)) show('overview');
 </script>
+{{> dormigoWidget portal=true}}
 </body>
 </html>

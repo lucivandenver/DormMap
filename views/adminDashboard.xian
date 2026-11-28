@@ -2431,4 +2431,5 @@ document.getElementById('announcementForm').onsubmit = async (e) => {
 // The shared navigation script restores a recognized deep link.
 if (!Array.from(document.querySelectorAll('#adminNav [data-panel]')).some(button => '#' + button.dataset.panel === location.hash)) loadOverview();
 </script>
+{{> dormigoWidget portal=true}}
 {{> footer}}
