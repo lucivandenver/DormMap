@@ -300,26 +300,6 @@
             <tbody id="apps" data-paginate></tbody>
           </table>
         </div>
-        <section class="space-y-3" aria-labelledby="barangayOwnerDirectoryHeading">
-          <h2 id="barangayOwnerDirectoryHeading" class="text-lg font-bold text-slate-900">Boarding House Owners</h2>
-          <div class="toolbar">
-            <input id="ownerSearch" class="field" placeholder="Search owner name, email, contact..." onkeyup="filterOwnersTable()">
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Owner Name</th>
-                  <th>Email & Contact</th>
-                  <th>Boarding House</th>
-                  <th>Status</th>
-                  <th>Registered Date</th>
-                </tr>
-              </thead>
-              <tbody id="ownerRows" data-paginate></tbody>
-            </table>
-          </div>
-        </section>
       </section>
 
       <!-- PANEL 6: BOARDING HOUSES -->
@@ -537,7 +517,7 @@
 
       <!-- PANEL 16: PROFILE -->
       <section data-panel="profile" class="hidden">
-        <form id="profileForm" class="max-w-xl rounded-2xl bg-white p-6 shadow-xs border border-slate-100 space-y-4">
+        <form id="profileForm" class="mx-auto max-w-xl rounded-2xl bg-white p-6 shadow-xs border border-slate-100 space-y-4">
           <h2 class="font-bold text-slate-900 text-lg border-b pb-3">Official Profile Information</h2>
           <div>
             <label class="block text-xs font-bold text-slate-700">Full Name</label>
@@ -811,7 +791,6 @@ const labels = {
 };
 
 let map;
-let allOwnersData = [];
 let allAppsData = [];
 
 const toast = (msg, bad = false) => DormMapFeedback.show(msg, bad ? 'error' : 'success');
@@ -840,7 +819,7 @@ function show(view) {
     overview: loadOverview,
     data_requests: loadBarangayDataRequests,
     renewals: loadBarangayPermitRenewals,
-    applications: loadOwnerApplications,
+    applications: loadApplications,
     houses: loadHouses,
     permits: loadPermitMonitoring,
     tenants: loadTenants,
@@ -1196,10 +1175,6 @@ document.getElementById('endorseRenewalForm').onsubmit = async (e) => {
 };
 
 // 4. APPLICATIONS
-function loadOwnerApplications() {
-  return Promise.all([loadApplications(), loadOwners()]);
-}
-
 function loadPermitMonitoring() {
   return loadPermits();
 }
@@ -1320,37 +1295,10 @@ async function submitAppReview() {
     const result = await req(`${api}/applications/${id}/review`, { method: 'PATCH', body: JSON.stringify({ action, note }) });
     closeReviewModal();
     toast(result.message);
-    loadOwnerApplications();
+    loadApplications();
     loadOverview();
   } catch (e) { toast(e.message, true); }
   finally { submit.disabled = false; }
-}
-
-// 5. OWNERS
-async function loadOwners() {
-  try {
-    let d = await req(api + '/applications');
-    allOwnersData = d.data || [];
-    filterOwnersTable();
-  } catch (e) { toast(e.message, true); }
-}
-
-function filterOwnersTable() {
-  const q = document.getElementById('ownerSearch').value.toLowerCase();
-  const filtered = allOwnersData.filter(x => 
-    (x.fullName || '').toLowerCase().includes(q) ||
-    (x.email || '').toLowerCase().includes(q) ||
-    (x.contactNumber || '').toLowerCase().includes(q)
-  );
-  document.getElementById('ownerRows').innerHTML = filtered.length ? filtered.map(x => `
-    <tr>
-      <td><b>${esc(x.fullName)}</b></td>
-      <td class="text-xs">${esc(x.email)}<br>${esc(x.contactNumber || 'No contact')}</td>
-      <td class="text-xs">${esc(x.boardingHouseName || '—')}</td>
-      <td><span class="badge status-${esc(x.applicationStatus)}">${esc(x.applicationStatus)}</span></td>
-      <td class="text-xs">${new Date(x.createdAt).toLocaleDateString()}</td>
-    </tr>
-  `).join('') : '<tr><td colspan="5" class="text-slate-400 text-center py-4">No owners matching filter.</td></tr>';
 }
 
 // 6. HOUSES
@@ -1395,10 +1343,13 @@ async function loadHouses() {
         </td>
         <td class="text-xs">${x.boardingHouseLatitude ? '📍 Geolocated' : '❌ Map pin missing'}</td>
         <td><span class="badge status-${x.isSuspended ? 'suspended' : x.applicationStatus}">${x.isSuspended ? 'Suspended' : esc(x.applicationStatus)}</span></td>
-        <td class="space-x-2">
+        <td class="space-y-2">
           <p class="text-xs font-semibold ${x.publicMapUnregistered ? 'text-red-700' : 'text-emerald-700'}">${x.publicMapUnregistered ? 'Unregistered' : 'Registered status'} · ${x.publicMapPublished ? 'Map published' : 'No unregistered notice published'}</p>
-          <button class="text-xs text-red-700 font-bold" onclick="setHouseMapStatus(${x.id}, '${x.publicMapUnregistered ? 'registered' : 'unregistered'}')">${x.publicMapUnregistered ? 'Mark registered' : 'Mark unregistered'}</button>
-          ${x.publicMapUnregistered ? `<button class="text-xs font-bold text-slate-700" onclick="setHouseMapStatus(${x.id}, '${x.publicMapPublished ? 'hide' : 'publish'}')">${x.publicMapPublished ? 'Hide red pin' : 'Publish red pin'}</button>` : ''}
+          <select class="field" aria-label="Public map actions for ${esc(x.boardingHouseName || x.fullName || 'this establishment')}" onchange="setHouseMapStatus(this, ${Number(x.id)})">
+            <option value="">Choose action</option>
+            <option value="${x.publicMapUnregistered ? 'registered' : 'unregistered'}">${x.publicMapUnregistered ? 'Mark registered' : 'Mark unregistered'}</option>
+            ${x.publicMapUnregistered ? `<option value="${x.publicMapPublished ? 'hide' : 'publish'}">${x.publicMapPublished ? 'Hide red pin' : 'Publish red pin'}</option>` : ''}
+          </select>
         </td>
       </tr>
       ${branchDetailRow(x.id, ownerBranches)}
@@ -1452,10 +1403,19 @@ document.querySelector('[data-panel="houses"]').addEventListener('click', async 
   }
 });
 
-async function setHouseMapStatus(id, action) {
-  if (!await DormMapFeedback.confirm(`Apply ${action} to this establishment's public map status?`)) return;
-  try { await req(`${api}/houses/${id}/map-status`, { method: 'PATCH', body: JSON.stringify({ action }) }); toast('Map status updated.'); loadHouses(); }
-  catch (e) { toast(e.message, true); }
+async function setHouseMapStatus(select, id) {
+  const action = select.value;
+  select.value = '';
+  if (!action) return;
+
+  select.disabled = true;
+  try {
+    if (!await DormMapFeedback.confirm(`Apply ${action} to this establishment's public map status?`)) return;
+    await req(`${api}/houses/${id}/map-status`, { method: 'PATCH', body: JSON.stringify({ action }) });
+    toast('Map status updated.');
+    await loadHouses();
+  } catch (e) { toast(e.message, true); }
+  finally { select.disabled = false; }
 }
 
 // 7. PERMITS

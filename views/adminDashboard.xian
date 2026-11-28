@@ -1223,9 +1223,9 @@ async function loadOverview() {
       d.charts.monthly.map(row => ({ period: row.month, count: row.count })), [{ key: 'count', label: 'Registrations' }], count, 'line'));
     renderChart('permitChart', DormMapAnalytics.donut('Business permits by status', statusRows(d.charts.permitStatus), count));
     renderChart('submissionStatusChart', DormMapAnalytics.chart('Barangay submissions by status', statusRows(d.charts.submissionStats), count));
-    renderChart('roomInventoryChart', DormMapAnalytics.chart('Room inventory', [
+    renderChart('roomInventoryChart', DormMapAnalytics.plot('Room inventory', [
       { period: 'Available rooms', value: d.cards.availableRooms }, { period: 'Occupied rooms', value: d.cards.occupiedRooms }
-    ], count));
+    ], [{ key: 'value', label: 'Rooms' }], count, 'bar'));
 
     document.getElementById('recentActivity').innerHTML = d.recentActivity?.length ? d.recentActivity.map(x => `
       <div class="py-3 text-xs text-slate-700 flex items-center justify-between">
