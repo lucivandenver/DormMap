@@ -16,6 +16,7 @@
   function initDormigo() {
     const root = document.getElementById('dormigoRoot');
     if (!root) return;
+    const portalChat = root.hasAttribute('data-portal-chat');
 
     const toggleBtn = document.getElementById('dormigoToggleBtn');
     const closeBtn = document.getElementById('dormigoCloseBtn');
@@ -193,10 +194,10 @@
       scrollToBottom();
 
       try {
-        const response = await fetch('/api/dormigo/chat', {
+        const response = await fetch(portalChat ? '/api/dormigo/portal-chat' : '/api/dormigo/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+          body: JSON.stringify(portalChat ? { message: userQuery } : {
             message: userQuery,
             history: conversationHistory.slice(-6)
           })
@@ -206,7 +207,7 @@
         if (typing) typing.classList.add('hidden');
 
         const replyData = json.data || {};
-        const replyText = replyData.reply || 'Sorry, I am unable to process your request at the moment.';
+        const replyText = replyData.reply || (portalChat && json.error) || 'Sorry, I am unable to process your request at the moment.';
         const actionCards = (replyData.actionCards || []).filter(card =>
           typeof card?.link === 'string' && /^\/(?![\/\\])[^\s\\]*$/.test(card.link));
 

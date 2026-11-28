@@ -1,3 +1,6 @@
+import { User } from '../models/userModel.js';
+import { dormigoPortalPolicy } from '../services/dormigoPortalWorkflows.js';
+import { processDormigoPortalChat } from '../services/dormigoPortalChat.js';
 import { getDormigoQuestions } from '../services/dormigoQuestionsService.js';
 import { processDormigoChat, fetchLiveDatabaseContext, SYSTEM_KNOWLEDGE } from '../services/dormigoAiService.js';
 
@@ -26,6 +29,29 @@ export const handleDormigoChat = async (req, res) => {
       }
     });
   }
+};
+
+export const handleDormigoPortalChat = async (req, res, next) => {
+  const { message } = req.body ?? {};
+  if (typeof message !== 'string' || !message.trim() || message.length > 2000) {
+    return res.status(400).json({ success: false, error: 'Enter a question of up to 2,000 characters.' });
+  }
+
+  const userId = req.session?.userId;
+  if (!userId) {
+    return res.status(403).json({ success: false, error: 'Sign in to use your portal assistant.' });
+  }
+
+  try {
+    const user = await User.findByPk(userId, { attributes: ['accountType', 'isArchived', 'isSuspended'] });
+    const policy = dormigoPortalPolicy(user?.accountType);
+    if (!policy || user.isArchived || user.isSuspended) {
+      return res.status(403).json({ success: false, error: 'Portal assistant access is unavailable for this account.' });
+    }
+
+    const data = await processDormigoPortalChat(message, policy);
+    return res.json({ success: true, data });
+  } catch (error) { next(error); }
 };
 
 export const getDormigoSuggestions = async (req, res) => {
