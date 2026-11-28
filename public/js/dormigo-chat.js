@@ -65,15 +65,19 @@
       requestAnimationFrame(() => {
         windowEl.classList.add('dormigo-window-open');
       });
-      refreshQuestions();
+      if (questionButtons) refreshQuestions();
       if (input && !matchMedia('(max-width: 639px)').matches) input.focus();
       scrollToBottom();
     }
 
+    function hideQuestions() {
+      suggestionRequest++;
+      if (questionButtons) questionButtons.hidden = true;
+    }
+
     function closeChat() {
       isOpen = false;
-      suggestionRequest++;
-      questionButtons.hidden = true;
+      hideQuestions();
       windowEl.classList.remove('dormigo-window-open');
       setTimeout(() => {
         if (!isOpen) windowEl.style.display = 'none';
@@ -165,8 +169,7 @@
     }
 
     async function sendMessage(userQuery) {
-      suggestionRequest++;
-      questionButtons.hidden = true;
+      hideQuestions();
       const timeStr = getCurrentTimeStr();
 
       // 1. Render User Message (Right-aligned green pill bubble)

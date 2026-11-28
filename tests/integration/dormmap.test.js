@@ -138,6 +138,14 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const response = await request('/tenant-dashboard', cookie);
       assert.equal(response.status, 200);
       assert.match(await response.text(), /browseCompareButton/);
+
+      const dashboard = await request('/admin', await login(admin.email));
+      assert.equal(dashboard.status, 200);
+      const html = await dashboard.text();
+      assert.match(html, /id="dormigoToggleBtn"/);
+      assert.doesNotMatch(html, /id="dormigoQuestionButtons"/);
+      const landing = await request('/');
+      assert.match(await landing.text(), /id="dormigoQuestionButtons"/);
     });
     await t.test('BPLO can pin a non-school place and control its public visibility', async () => {
       const endpoint = '/admin/api/institutions';
@@ -282,7 +290,11 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       const body = { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'approve' }) };
       assert.equal((await request(`/admin/api/barangay-accounts/${official.id}/review`, cookie, body)).status, 403);
       assert.equal((await request(`/admin/api/barangay-accounts/${official.id}/review`, adminCookie, body)).status, 200);
-      assert.equal((await request('/barangay-dashboard', officialCookie)).status, 200);
+      const dashboard = await request('/barangay-dashboard', officialCookie);
+      assert.equal(dashboard.status, 200);
+      const dashboardHtml = await dashboard.text();
+      assert.match(dashboardHtml, /id="dormigoToggleBtn"/);
+      assert.doesNotMatch(dashboardHtml, /id="dormigoQuestionButtons"/);
       assert.ok((await (await request('/api/eligible-barangays')).json()).includes('Review Barangay'));
       const eligibleTargets = async () => (await (await request('/admin/api/data-request-targets', adminCookie)).json()).data;
       assert.ok((await eligibleTargets()).includes('Review Barangay'));
@@ -707,7 +719,15 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.equal(response.status, 201, await response.clone().text());
       const retry = await register();
       assert.equal(retry.status, 201);
-      assert.deepEqual(await retry.json(), await response.json());
+      const registration = await response.json();
+      assert.deepEqual(await retry.json(), registration);
+      assert.equal(registration.success, true);
+      assert.equal(registration.redirect, '/register?accountType=boarding_house_owner&pendingApproval=1');
+      const confirmation = await request(registration.redirect, draftCookie);
+      assert.equal(confirmation.status, 200);
+      const confirmationHtml = await confirmation.text();
+      assert.match(confirmationHtml, /id="dormmapAuthRoot"[^>]*data-initial-open="false"/);
+      assert.match(confirmationHtml, /data-feedback-on-load="success">Application submitted/);
       const created=await User.findOne({where:{email:data.email}});assert.ok(created);ids.push(created.id);
       assert.deepEqual(JSON.parse(created.paymentMethods), ['Cash', 'GCash']);
       assert.equal(created.gcashQrCode, null);
@@ -786,6 +806,11 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       assert.ok((await map.json()).data.some(item => item.id === `bh-${branch.id}` && item.boardingHouseAddress === data.branch2_streetAddress));
       assert.equal((await request(`/barangay-dashboard/api/branches/${branch.id}/review`, branchOfficialCookie, approve)).status, 403);
       const ownerCookie = await login(created.email);
+      const ownerDashboard = await request('/owner-dashboard', ownerCookie);
+      assert.equal(ownerDashboard.status, 200);
+      const ownerHtml = await ownerDashboard.text();
+      assert.match(ownerHtml, /id="dormigoToggleBtn"/);
+      assert.doesNotMatch(ownerHtml, /id="dormigoQuestionButtons"/);
       const profile = await request('/owner-dashboard/api/profile', ownerCookie);
       assert.equal(profile.status, 200);
       const ownerProfile = (await profile.json()).data;

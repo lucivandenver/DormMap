@@ -806,10 +806,8 @@
       actions.forEach(button => { button.disabled = true; });
       const data = await pending;
       if (data?.success) {
-        window.DormMapFeedback?.show(data.message);
-        status.dataset.state = 'success';
-        status.textContent = data.message;
-        for (const child of ownerSteps[2].children) if (child !== status) child.hidden = true;
+        closeModal(false);
+        window.location.replace(data.redirect || '/register?accountType=boarding_house_owner&pendingApproval=1');
         return;
       }
       submittingOwner = false;

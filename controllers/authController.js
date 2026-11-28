@@ -232,12 +232,15 @@ export const loginPage = (req, res) => {
   });
 };
 
+const ownerRegistrationPendingUrl = '/register?accountType=boarding_house_owner&pendingApproval=1';
+
 export const registerPage = (req, res) => {
+  const awaitingOwnerApproval = req.query.accountType === 'boarding_house_owner' && req.query.pendingApproval === '1';
   const flashErr = req.flash("error_msg");
   const flashErrStr = Array.isArray(flashErr) ? (flashErr[0] || "") : (flashErr || "");
   return renderAuthHome(res, {
     authMode: "register",
-    authOpen: true,
+    authOpen: !awaitingOwnerApproval,
     authAccountType: normalizeAccountType(req.query.accountType) || "boarding_house_owner",
     authError: flashErrStr,
     authSuccess: req.query.pendingApproval === '1' ? 'Application submitted. Please wait for the responsible office to approve your account.' : '',
@@ -751,13 +754,14 @@ export const registerUser = async (req, res) => {
       const approvalMessage = 'Application submitted. Please wait for the responsible office to approve your account.';
       if (res.locals.registrationWantsJson) {
         const result = { success: true, message: approvalMessage };
+        if (normalizedAccountType === 'boarding_house_owner') result.redirect = ownerRegistrationPendingUrl;
         if (req.registrationDraftDirectory) {
           req.session.completedRegistrationDraft = { id: req.body.registrationDraft, path: req.path, status: 201, result };
           await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
         }
         return res.status(201).json(result);
       }
-      if (normalizedAccountType === 'boarding_house_owner') return res.redirect('/register?accountType=boarding_house_owner&pendingApproval=1');
+      if (normalizedAccountType === 'boarding_house_owner') return res.redirect(ownerRegistrationPendingUrl);
       return res.redirect("/login?pendingApproval=1");
     }
 
