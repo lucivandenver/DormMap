@@ -151,7 +151,7 @@
   }
 </style>
 
-<div id="dormigoRoot" class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[99999]">
+<div id="dormigoRoot"{{#if portal}} data-portal-chat{{/if}} class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[99999]">
   <!-- FLOATING TRIGGER BUTTON -->
   <div id="dormigoTriggerContainer" class="relative flex items-center justify-end">
     <!-- Green Pinpoint Icon Floating Action Button (Clean, No badge, No callout) -->
@@ -239,7 +239,7 @@
         <div class="space-y-1 w-full">
           <div class="dormigo-msg-bot p-3.5 text-xs sm:text-sm text-slate-800 leading-relaxed">
             <p class="font-medium text-slate-900">Hello! I'm your Virtual Dormigo Assistant.</p>
-            <p class="text-slate-700 mt-1">How can I help you today?</p>
+            <p class="text-slate-700 mt-1">{{#if portal}}Ask me how to use this DormMap portal.{{else}}How can I help you today?{{/if}}</p>
             <div class="flex justify-end mt-1">
               <span class="text-[10px] text-slate-400 font-medium" id="dormigoInitialTime">12:10 PM</span>
             </div>
@@ -295,4 +295,4 @@
 </div>
 
 <!-- Dormigo Frontend Script Controller -->
-<script src="/js/dormigo-chat.js?v=2"></script>
+<script src="/js/dormigo-chat.js?v=3"></script>
