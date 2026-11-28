@@ -667,7 +667,11 @@
           <option value="selected_barangays">Selected Barangays Only</option>
         </select>
         <p id="dataRequestTargetStatus" class="mt-2 text-sm text-slate-600" role="status"></p>
-        <div id="selectedBarangaysBox" class="hidden mt-2 p-3 border rounded-xl bg-slate-50 max-h-36 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-2"></div>
+        <div id="selectedBarangaysBox" class="hidden mt-2 space-y-2">
+          <input id="dataReqBarangaySearch" type="search" class="field" placeholder="Search barangays" aria-label="Search barangays">
+          <select id="dataReqBarangayOptions" class="field" aria-label="Add a target barangay"></select>
+          <ul id="dataReqBarangaySelection" class="flex flex-wrap gap-2" aria-label="Selected barangays"></ul>
+        </div>
       </div>
       <div>
         <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Purpose of Request</label>
@@ -1583,16 +1587,65 @@ async function loadDataRequests() {
   } catch (e) { toast(e.message, true); }
 }
 
+const dataRequestBarangaySearch = document.getElementById('dataReqBarangaySearch');
+const dataRequestBarangayOptions = document.getElementById('dataReqBarangayOptions');
+const dataRequestBarangaySelection = document.getElementById('dataReqBarangaySelection');
+const selectedRequestBarangays = new Set();
+let availableRequestBarangays = [];
+
+function renderDataRequestBarangayOptions() {
+  const search = dataRequestBarangaySearch.value.trim().toLocaleLowerCase();
+  const matches = availableRequestBarangays.filter(name =>
+    !selectedRequestBarangays.has(name) && name.toLocaleLowerCase().includes(search)
+  );
+  dataRequestBarangayOptions.replaceChildren(
+    new Option(matches.length ? 'Choose a barangay to add' : 'No matching barangays to add', ''),
+    ...matches.map(name => new Option(name, name))
+  );
+  dataRequestBarangayOptions.disabled = matches.length === 0;
+}
+
+function renderDataRequestBarangaySelection() {
+  dataRequestBarangaySelection.replaceChildren(...Array.from(selectedRequestBarangays, name => {
+    const item = document.createElement('li');
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'button secondary text-xs';
+    remove.textContent = name + ' ×';
+    remove.setAttribute('aria-label', 'Remove ' + name);
+    remove.addEventListener('click', () => {
+      selectedRequestBarangays.delete(name);
+      renderDataRequestBarangaySelection();
+      dataRequestBarangaySearch.focus();
+    });
+    item.append(remove);
+    return item;
+  }));
+  renderDataRequestBarangayOptions();
+}
+
+dataRequestBarangaySearch.addEventListener('input', renderDataRequestBarangayOptions);
+dataRequestBarangaySearch.addEventListener('keydown', event => {
+  if (event.key !== 'Enter' || event.isComposing) return;
+  event.preventDefault();
+  if (!dataRequestBarangayOptions.disabled) dataRequestBarangayOptions.focus();
+});
+dataRequestBarangayOptions.addEventListener('change', () => {
+  const name = dataRequestBarangayOptions.value;
+  if (!name) return;
+  selectedRequestBarangays.add(name);
+  dataRequestBarangaySearch.value = '';
+  document.getElementById('dataRequestTargetStatus').textContent = '';
+  renderDataRequestBarangaySelection();
+});
+
 async function openCreateDataRequestModal() {
   try {
     const { data } = await request(api + '/data-request-targets');
-    const box = document.getElementById('selectedBarangaysBox');
-    box.innerHTML = data.map(name => `
-      <label class="flex items-center gap-1.5 text-xs text-slate-700">
-        <input type="checkbox" name="selectedBarangayCheckbox" value="${esc(name)}">
-        ${esc(name)}
-      </label>
-    `).join('');
+    availableRequestBarangays = data.sort((a, b) => a.localeCompare(b));
+    selectedRequestBarangays.clear();
+    dataRequestBarangaySearch.value = '';
+    renderDataRequestBarangaySelection();
     const select = document.getElementById('dataReqTargetType');
     select.options[0].textContent = `All approved barangays (${data.length})`;
     document.getElementById('dataRequestTargetStatus').textContent = data.length ? '' : 'No approved barangay accounts are available.';
@@ -1613,12 +1666,11 @@ document.getElementById('createDataRequestForm').onsubmit = async (e) => {
   const payload = Object.fromEntries(formData);
 
   if (payload.targetType === 'selected_barangays') {
-    const checked = Array.from(form.querySelectorAll('input[name="selectedBarangayCheckbox"]:checked')).map(x => x.value);
-    if (!checked.length) {
+    if (!selectedRequestBarangays.size) {
       document.getElementById('dataRequestTargetStatus').textContent = 'Choose at least one barangay.';
       return;
     }
-    payload.targetBarangays = checked;
+    payload.targetBarangays = [...selectedRequestBarangays];
   }
 
   const save = form.querySelector('button[type="submit"]');

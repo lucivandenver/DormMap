@@ -1103,6 +1103,21 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
       ids.push(passwordTenant.id);
       assert.equal(passwordTenant.gender, 'male');
 
+      const adminCookie = await login(admin.email);
+      const analyticsQuery = new URLSearchParams({ role: 'tenant', search: email });
+      const analytics = await request('/admin/api/registration-analytics?' + analyticsQuery, adminCookie);
+      assert.equal(analytics.status, 200, await analytics.clone().text());
+      assert.equal((await analytics.json()).accounts[0].barangay, branch.barangay);
+
+      const { listRegistrationAnalytics, registrationFilters } = await import('../../services/adminRegistrationAnalytics.js');
+      for (const [barangay, total] of [[branch.barangay, 1], [sameNameBranch.barangay, 0]]) {
+        const filters = registrationFilters({ role: 'tenant', search: barangay });
+        filters.where.id = passwordTenant.id;
+        const result = await listRegistrationAnalytics(filters, 1, 5);
+        assert.equal(result.total, total);
+        assert.equal(result.accounts.length, total);
+      }
+
       const ownerCookie = await login(owner.email);
       const ownerReview = await request(`/owner-dashboard/api/pending-applications?boardingHouseId=${branch.id}`, ownerCookie);
       assert.equal(ownerReview.status, 200, await ownerReview.clone().text());
