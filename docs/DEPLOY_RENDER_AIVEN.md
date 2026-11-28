@@ -257,9 +257,7 @@ commands, pero huwag umasa sa local uploads: nawawala ang bagong files sa restar
 redeploy o spin-down. Hindi supported ang persistent disk sa Free. Kailangan ng
 external object storage integration bago iyon gamitin para sa durable uploads;
 hindi pa kasama ang S3/Cloudinary integration sa review na ito. Relational data
-at sessions ay nasa Aiven. Blocked din ang SMTP ports 465/587 sa Free, kaya ang
-current Gmail SMTP reset/verification emails ay nangangailangan ng paid compute
-o ibang email transport implementation.
+at sessions ay nasa Aiven. Blocked ang SMTP ports 465/587 sa Free. Gamitin ang Gmail API over HTTPS para sa verification at password reset.
 
 Kung naiwan ang `/var/data/uploads` at nagbalik iyon ng `EACCES`, `EPERM` o `EROFS`,
 ang app ay gagamit ng writable `public/uploads` fallback at maglalabas ng warning.
@@ -273,7 +271,11 @@ sa halip na gumamit ng temporary fallback. Enabled ito sa paid blueprint.
 - Google: set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, at
   `GOOGLE_CALLBACK_URL=https://YOUR-SERVICE.onrender.com/auth/google/callback`.
   Idagdag ang exact callback URI sa Google OAuth Console; hiwalay ang localhost URI.
-- Gmail SMTP: set `GMAIL_USER`, `GMAIL_PASS` gamit ang Gmail App Password, at
+- Gmail API: enable Gmail API, set `APP_BASE_URL` to the public HTTPS site, and configure
+  `GMAIL_OAUTH_CLIENT_ID`, `GMAIL_OAUTH_CLIENT_SECRET`, and `GMAIL_OAUTH_REFRESH_TOKEN`
+  with the `gmail.send` scope. The mailbox defaults to `bplobongabongmunicipality@gmail.com`.
+  Set `GMAIL_OAUTH_SENDER` if the refresh token belongs to a different mailbox.
+- Gmail SMTP fallback for account verification: set `GMAIL_USER`, `GMAIL_PASS` gamit ang Gmail App Password, at
   `EMAIL_FROM`. Hindi ito ang normal Gmail password.
 - PayMongo: set valid provider keys at `PAYMONGO_WEBHOOK_SECRET_KEY`; webhook URL:
   `https://YOUR-SERVICE.onrender.com/api/payments/paymongo/webhook`.

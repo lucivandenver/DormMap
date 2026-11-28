@@ -166,15 +166,19 @@ const createTransporter = () => {
   return nodemailer.createTransport({
     host: process.env.EMAIL_HOST || 'smtp.gmail.com',
     port: Number(process.env.EMAIL_PORT) || 587,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
     secure: process.env.EMAIL_SECURE === 'true',
     auth: { user: user || 'no-reply@example.com', pass: pass || 'password' }
   });
 };
 
 const sendVerificationEmail = async (email, token) => {
-  const transporter = createTransporter();
-  const verifyUrl = `${process.env.APP_URL || 'http://localhost:3000'}/verify-email?token=${token}`;
-  await transporter.sendMail({
+  const send = passwordResetDelivery() || (message => createTransporter().sendMail(message));
+  const verifyUrl = new URL('/verify-email', applicationBaseUrl());
+  verifyUrl.searchParams.set('token', token);
+  await send({
     from: process.env.EMAIL_FROM || 'DorMap <no-reply@example.com>',
     to: email,
     subject: '✅ Verify your DormMap Account',
@@ -242,6 +246,8 @@ export const registerPage = (req, res) => {
 };
 const resetTokenHash = token => createHash('sha256').update(token).digest('hex');
 const resetLifetime = 15 * 60 * 1000;
+const applicationBaseUrl = () => process.env.APP_BASE_URL || process.env.APP_URL || process.env.RENDER_EXTERNAL_URL ||
+  (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3000');
 
 export const forgotPasswordPage = (req, res) => res.render('forgotpassword', {
   title: 'Forgot Password', error: '', success: ''
@@ -258,11 +264,12 @@ export const sendPasswordResetLink = async (req, res) => {
     return reply(400, 'Enter your registered email address.');
   }
   const deliver = passwordResetDelivery();
-  const base = process.env.APP_BASE_URL || process.env.APP_URL || process.env.RENDER_EXTERNAL_URL ||
-    (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3000');
+  const base = applicationBaseUrl();
   if (!deliver || !base) return reply(503, 'Password reset email is temporarily unavailable. Please try again later.');
   const success = 'If the address is registered, a password reset link will arrive in your inbox. Check your spam folder too.';
   try {
+    const resetUrl = new URL('/reset-password', base);
+    if (process.env.NODE_ENV === 'production' && resetUrl.protocol !== 'https:') throw new Error('Password reset requires an HTTPS application URL.');
     const user = await User.findOne({
       attributes: ['id', 'email'],
       where: { isArchived: false, [Op.and]: sequelize.where(sequelize.fn('LOWER', sequelize.col('email')), email) }
@@ -270,8 +277,6 @@ export const sendPasswordResetLink = async (req, res) => {
     if (user) {
       const token = randomBytes(32).toString('hex');
       const digest = resetTokenHash(token);
-      const resetUrl = new URL('/reset-password', base);
-      if (process.env.NODE_ENV === 'production' && resetUrl.protocol !== 'https:') throw new Error('Password reset requires an HTTPS application URL.');
       resetUrl.searchParams.set('token', token);
       const now = Date.now();
       const [reserved] = await User.update({

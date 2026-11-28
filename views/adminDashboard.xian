@@ -1,6 +1,6 @@
 {{> head}}
-<link rel="stylesheet" href="/css/report-analytics.css?v=2">
-<script src="/js/report-analytics.js?v=2"></script>
+<link rel="stylesheet" href="/css/report-analytics.css?v=4">
+<script src="/js/report-analytics.js?v=4"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <body class="bg-slate-100 text-slate-800">
@@ -165,7 +165,7 @@
       <!-- VIEW 1: OVERVIEW -->
       <section data-view="overview" class="space-y-6">
         <div id="metricCards" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"></div>
-        <div class="grid gap-4 xl:grid-cols-2" aria-label="System analytics">
+        <div class="portal-analytics-grid grid gap-4 lg:grid-cols-2" aria-label="System analytics">
           <div id="registrationChart"></div>
           <div id="permitChart"></div>
           <div id="submissionStatusChart"></div>
@@ -1113,11 +1113,14 @@ async function loadRegistrationAnalytics(requestedPage = 1) {
     if (data.trend.length) {
       const allTime = !appliedRegistrationFilters.has('date');
       const trend = allTime ? data.trend.slice(-12) : data.trend;
-      registrationCharts.append(DormMapAnalytics.plot(
+      const grid = document.createElement('div');
+      grid.className = 'portal-analytics-grid grid gap-4 lg:grid-cols-2';
+      registrationCharts.append(grid);
+      grid.append(DormMapAnalytics.plot(
         trend.length < data.trend.length ? 'Registration trend · latest 12 months with registrations' : 'Registration trend',
         trend, [{ key: 'count', label: 'Registrations' }], formatCount, trend.length > 1 ? 'line' : 'bar'
       ));
-      registrationCharts.append(DormMapAnalytics.donut('Registrations by account type',
+      grid.append(DormMapAnalytics.donut('Registrations by account type',
         [...registrationRoleLabels].map(([key, label]) => ({ period: label, value: data.byRole[key] || 0 })), formatCount));
     }
     registrationRows.innerHTML = data.accounts.map(row => {

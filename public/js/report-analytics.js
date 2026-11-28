@@ -97,7 +97,7 @@
     const y = value => bottom - value / scale * (bottom - top);
     const x = index => left + step * (index + 0.5);
     const graphic = svg('svg', { viewBox: `0 0 ${width} 230`, 'aria-label': title });
-    graphic.style.minWidth = Math.min(width, Math.max(340, rows.length * 58 + 90)) + 'px';
+    graphic.style.minWidth = Math.min(width, Math.max(300, rows.length > 8 ? rows.length * 58 + 90 : 300)) + 'px';
 
     for (let tick = 0; tick <= 4; tick++) {
       const value = scale * tick / 4;

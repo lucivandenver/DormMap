@@ -732,23 +732,10 @@ export const houses = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-export const changeHouseStatus = async (req, res, next) => {
-  try { 
-    const barangay = await barangayOf(req); 
-    const owner = await User.findOne({ where: { id: req.params.id, ...ownersWhere(barangay) } }); 
-    if (!owner) return res.status(404).json({ error: 'Boarding house not found.' }); 
-    
-    if (typeof req.body.isSuspended !== 'boolean') return res.status(422).json({ error: 'isSuspended must be true or false.' });
-    const isSuspended = req.body.isSuspended;
-    await owner.update({ 
-      isSuspended, 
-      applicationStatus: isSuspended ? 'suspended' : owner.applicationStatus === 'suspended' ? 'pending' : owner.applicationStatus
-    }); 
-    
-    await audit(req, isSuspended ? 'suspend_house' : 'activate_house', 'User', owner.id, { barangay, isSuspended }); 
-    res.json({ data: owner, message: isSuspended ? 'Establishment suspended.' : 'Establishment activated.' }); 
-  } catch (error) { next(error); }
-};
+function permitWithExpiration(permit) {
+  const days = (Date.parse(permit.expirationDate) - Date.parse(reportDay())) / 86400000;
+  return { ...permit.get({ plain: true }), days, expired: days < 0 || permit.status === 'expired' };
+}
 
 export const permits = async (req, res, next) => {
   try { 
@@ -758,7 +745,7 @@ export const permits = async (req, res, next) => {
       where: { ownerId: { [Op.in]: ownerIds.length ? ownerIds : [0] } }, 
       order: [['expirationDate', 'ASC']] 
     }); 
-    res.json({ data }); 
+    res.json({ data: data.map(permitWithExpiration) });
   } catch (error) { next(error); }
 };
 
@@ -790,13 +777,8 @@ export const expiringNotifications = async (req, res, next) => {
     const barangay = await barangayOf(req); 
     const ownerIds = (await User.findAll({ where: ownersWhere(barangay), attributes: ['id'], raw: true })).map(x => x.id); 
     const permits = await BusinessPermit.findAll({ where: { ownerId: { [Op.in]: ownerIds.length ? ownerIds : [0] } } }); 
-    const today = new Date(); 
-    const alerts = permits.map(p => ({ 
-      ...p.get({ plain: true }), 
-      days: Math.ceil((new Date(p.expirationDate) - today) / 86400000) 
-    })).filter(p => [30, 15, 7, 1, 0].includes(p.days) || p.days < 0); 
-    
-    res.json({ barangay, data: alerts }); 
+    const alerts = permits.map(permitWithExpiration).filter(permit => permit.days <= 30);
+    res.json({ barangay, data: alerts });
   } catch (error) { next(error); }
 };
 

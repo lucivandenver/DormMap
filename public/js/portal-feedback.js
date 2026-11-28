@@ -1,5 +1,5 @@
 (() => {
-  const duration = 1000;
+  const duration = 800;
   let popupTimer;
 
   function show(message, status = 'success', description = '') {
@@ -21,8 +21,9 @@
     document.querySelector('.portal-feedback-popup')?.remove();
     const dialog = [...document.querySelectorAll('dialog[open]')].at(-1);
     const swal = window.Swal;
-    if (!dialog && swal?.fire && (!swal.isVisible?.() || swal.getPopup?.()?.classList.contains('portal-transient-alert'))) {
+    if (swal?.fire && (!swal.isVisible?.() || swal.getPopup?.()?.classList.contains('portal-transient-alert'))) {
       return swal.fire({
+        target: dialog || document.body,
         position: 'center',
         icon: status,
         titleText: message,
@@ -47,8 +48,9 @@
 
   async function confirm(message) {
     const openDialog = document.querySelector('dialog[open]');
-    if (window.Swal?.fire && !openDialog) {
+    if (window.Swal?.fire) {
       const result = await window.Swal.fire({
+        target: openDialog || document.body,
         title: 'Confirm action',
         text: message,
         icon: 'question',
@@ -57,6 +59,7 @@
         confirmButtonText: 'Continue',
         cancelButtonText: 'Cancel',
         focusCancel: true,
+        heightAuto: false,
         confirmButtonColor: '#047857'
       });
       return result.isConfirmed;
@@ -89,4 +92,8 @@
   }
 
   window.DormMapFeedback = { show, confirm };
+  document.addEventListener('DOMContentLoaded', () => {
+    const message = document.querySelector('[data-feedback-on-load]');
+    if (message) show(message.textContent.trim(), message.dataset.feedbackOnLoad);
+  });
 })();

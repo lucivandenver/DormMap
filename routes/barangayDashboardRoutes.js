@@ -35,7 +35,6 @@ router.get('/api/applications', controller.applications);
 router.patch('/api/applications/:id/review', controller.reviewApplication);
 router.patch('/api/houses/:id/map-status', controller.updatePublicMapStatus);
 router.get('/api/houses', controller.houses);
-router.patch('/api/houses/:id/status', controller.changeHouseStatus);
 router.get('/api/permits', controller.permits);
 router.patch('/api/permits/:id', controller.updatePermit);
 router.get('/api/permit-alerts', controller.expiringNotifications);
