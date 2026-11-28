@@ -1,15 +1,17 @@
 import nodemailer from 'nodemailer';
 
-const senderAddress = 'bplobongabongmunicipality@gmail.com';
+const defaultSender = 'bplobongabongmunicipality@gmail.com';
 const composer = nodemailer.createTransport({ streamTransport: true, buffer: true, newline: 'windows' });
 
 export function passwordResetDelivery() {
+  const senderAddress = process.env.GMAIL_OAUTH_SENDER?.trim() || defaultSender;
   const clientId = process.env.GMAIL_OAUTH_CLIENT_ID?.trim();
   const clientSecret = process.env.GMAIL_OAUTH_CLIENT_SECRET?.trim();
   const refreshToken = process.env.GMAIL_OAUTH_REFRESH_TOKEN?.trim();
   if (!clientId || !clientSecret || !refreshToken) return null;
 
   return async ({ to, subject, text, html }) => {
+    const signal = AbortSignal.timeout(12000);
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       body: new URLSearchParams({
@@ -18,7 +20,7 @@ export function passwordResetDelivery() {
         refresh_token: refreshToken,
         grant_type: 'refresh_token'
       }),
-      signal: AbortSignal.timeout(10000)
+      signal
     });
     if (!tokenResponse.ok) throw Object.assign(new Error('Gmail OAuth failed.'), { code: 'GMAIL_OAUTH_FAILED' });
     const { access_token: accessToken } = await tokenResponse.json();
@@ -33,8 +35,8 @@ export function passwordResetDelivery() {
       method: 'POST',
       headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ raw: message.toString('base64url') }),
-      signal: AbortSignal.timeout(10000)
+      signal
     });
-    if (!response.ok) throw Object.assign(new Error('Gmail could not send the reset email.'), { code: 'GMAIL_SEND_FAILED' });
+    if (!response.ok) throw Object.assign(new Error('Gmail could not send the email.'), { code: 'GMAIL_SEND_FAILED' });
   };
 }

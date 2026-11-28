@@ -15,3 +15,12 @@ table td button{min-height:36px;padding:.35rem .5rem;border-radius:.45rem}table 
 .portal-confirm-dialog form { display: flex; justify-content: center; gap: .65rem; margin-top: 1rem; }
 .portal-confirm-dialog button { border: 1px solid #cbd5e1; border-radius: .5rem; padding: .35rem .8rem; }
 .portal-confirm-dialog button[value="continue"] { background: #047857; color: white; }
+
+@media (max-width: 600px) {
+  .swal2-container .swal2-popup { width: min(22rem, calc(100vw - 2rem)); padding: .9rem; }
+  .swal2-container .swal2-title { padding: .55rem .3rem 0; font-size: 1.1rem; }
+  .swal2-container .swal2-html-container { margin: .5rem 0 0; font-size: .875rem; }
+  .swal2-container .swal2-icon { margin: .2rem auto .4rem; zoom: .65; }
+  .swal2-container .swal2-actions { margin-top: .75rem; }
+  .swal2-container .swal2-styled { padding: .45rem .8rem; font-size: .875rem; }
+}

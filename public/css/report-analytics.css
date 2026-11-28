@@ -38,5 +38,17 @@
 }
 
 .analytics-scatter svg { min-width: 290px; }
-.barangay-analytics-grid > div { min-width: 0; }
-.barangay-analytics-grid figure { height: 100%; margin: 0; }
+.portal-analytics-grid > * { min-width: 0; }
+.portal-analytics-grid .analytics-chart {
+  height: 100%; margin: 0; padding: clamp(.9rem, 2vw, 1.4rem);
+  border-radius: 1rem; font-size: .875rem; color: #475569;
+}
+.portal-analytics-grid figcaption { padding-bottom: .85rem; margin-bottom: .65rem; border-bottom: 1px solid #eef2f6; }
+.portal-analytics-grid .analytics-plot svg { height: clamp(10rem, 24vw, 16rem); }
+.portal-analytics-grid ul.analytics-legend { justify-content: center; }
+.portal-analytics-grid .analytics-donut-content { flex-direction: column-reverse; justify-content: center; gap: 1rem; }
+.portal-analytics-grid .analytics-donut-content ul.analytics-legend { flex-direction: row; }
+.portal-analytics-grid .analytics-donut { width: clamp(7rem, 18vw, 10rem); height: auto; aspect-ratio: 1; }
+.portal-analytics-grid .analytics-plot g:hover .analytics-plot-hit { fill: #0f766e0d; stroke: none; }
+.portal-analytics-grid .analytics-plot g:focus-visible .analytics-plot-hit { stroke: #047857; stroke-dasharray: 3 3; }
+.portal-analytics-grid .analytics-chart li { grid-template-columns: minmax(6rem, 9rem) minmax(1rem, 1fr) auto; }

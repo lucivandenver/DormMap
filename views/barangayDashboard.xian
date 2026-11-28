@@ -1,6 +1,6 @@
 {{> head}}
-<link rel="stylesheet" href="/css/report-analytics.css?v=3">
-<script src="/js/report-analytics.js?v=3"></script>
+<link rel="stylesheet" href="/css/report-analytics.css?v=4">
+<script src="/js/report-analytics.js?v=4"></script>
 <link rel="stylesheet" href="/css/report-print.css">
 <script src="/js/report-print.js?v=2"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
@@ -186,7 +186,7 @@
             <h2 id="barangayAnalyticsHeading" class="text-lg font-bold text-slate-900">Barangay Analytics</h2>
             <p class="text-sm text-slate-600">New records over the last 6 months and the latest permit and room counts.</p>
           </div>
-          <div class="barangay-analytics-grid grid gap-4 xl:grid-cols-2">
+          <div class="portal-analytics-grid grid gap-4 lg:grid-cols-2">
             <div id="barangayRegistrationChart"></div>
             <div id="barangayPermitChart"></div>
             <div id="barangayRoomChart"></div>
@@ -314,7 +314,6 @@
                   <th>Boarding House</th>
                   <th>Status</th>
                   <th>Registered Date</th>
-                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody id="ownerRows" data-paginate></tbody>
@@ -354,6 +353,9 @@
 
       <!-- PANEL 7: BUSINESS PERMIT MONITORING -->
       <section data-panel="permits" class="hidden space-y-6">
+        <label class="inline-flex items-center gap-2 text-sm font-semibold">
+          <input id="permitAlertsOnly" type="checkbox" onchange="renderPermits()"> Show expired and expiring permits only
+        </label>
         <div class="table-wrap">
           <table>
             <thead>
@@ -370,15 +372,6 @@
             <tbody id="permitRows" data-paginate></tbody>
           </table>
         </div>
-        <section class="rounded-2xl bg-white p-6 shadow-xs border border-slate-100" aria-labelledby="permitExpirationHeading">
-          <div class="flex items-center justify-between border-b pb-4">
-            <div>
-              <h2 id="permitExpirationHeading" class="font-bold text-slate-900">Automatic Expiration & Renewal Alerts</h2>
-              <p class="text-xs text-slate-500 mt-0.5">Automatic alerts for permits expiring in 30, 15, 7, and 1 day, or already expired.</p>
-            </div>
-          </div>
-          <div id="alertRows" data-paginate class="mt-4 divide-y divide-slate-100"></div>
-        </section>
       </section>
 
       <!-- PANEL 9: TENANT MONITORING -->
@@ -791,6 +784,7 @@
   .status-revision_requested, .status-revision_required { background: #fffbeb; color: #92400e; }
   .status-approved_barangay, .status-forwarded_to_bplo, .status-approved, .status-bplo_approved, .status-active { background: #dcfce7; color: #166534; }
   .status-rejected, .status-suspended, .status-expired, .status-overdue { background: #fee2e2; color: #991b1b; }
+.permit-expired-row td { background: #fff1f2; color: #9f1239; }
 </style>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
@@ -1207,7 +1201,7 @@ function loadOwnerApplications() {
 }
 
 function loadPermitMonitoring() {
-  return Promise.all([loadPermits(), loadAlerts()]);
+  return loadPermits();
 }
 
 async function loadApplications() {
@@ -1355,13 +1349,8 @@ function filterOwnersTable() {
       <td class="text-xs">${esc(x.boardingHouseName || '—')}</td>
       <td><span class="badge status-${esc(x.applicationStatus)}">${esc(x.applicationStatus)}</span></td>
       <td class="text-xs">${new Date(x.createdAt).toLocaleDateString()}</td>
-      <td>
-        <button class="text-xs font-bold ${x.isSuspended ? 'text-emerald-700' : 'text-rose-700'}" onclick="houseStatus(${x.id}, ${!x.isSuspended})">
-          ${x.isSuspended ? 'Activate' : 'Suspend'}
-        </button>
-      </td>
     </tr>
-  `).join('') : '<tr><td colspan="6" class="text-slate-400 text-center py-4">No owners matching filter.</td></tr>';
+  `).join('') : '<tr><td colspan="5" class="text-slate-400 text-center py-4">No owners matching filter.</td></tr>';
 }
 
 // 6. HOUSES
@@ -1410,9 +1399,6 @@ async function loadHouses() {
           <p class="text-xs font-semibold ${x.publicMapUnregistered ? 'text-red-700' : 'text-emerald-700'}">${x.publicMapUnregistered ? 'Unregistered' : 'Registered status'} · ${x.publicMapPublished ? 'Map published' : 'No unregistered notice published'}</p>
           <button class="text-xs text-red-700 font-bold" onclick="setHouseMapStatus(${x.id}, '${x.publicMapUnregistered ? 'registered' : 'unregistered'}')">${x.publicMapUnregistered ? 'Mark registered' : 'Mark unregistered'}</button>
           ${x.publicMapUnregistered ? `<button class="text-xs font-bold text-slate-700" onclick="setHouseMapStatus(${x.id}, '${x.publicMapPublished ? 'hide' : 'publish'}')">${x.publicMapPublished ? 'Hide red pin' : 'Publish red pin'}</button>` : ''}
-          <button class="text-xs font-bold ${x.isSuspended ? 'text-emerald-700' : 'text-rose-700'}" onclick="houseStatus(${x.id}, ${!x.isSuspended})">
-            ${x.isSuspended ? 'Activate' : 'Suspend'}
-          </button>
         </td>
       </tr>
       ${branchDetailRow(x.id, ownerBranches)}
@@ -1472,33 +1458,39 @@ async function setHouseMapStatus(id, action) {
   catch (e) { toast(e.message, true); }
 }
 
-async function houseStatus(id, isSuspended) {
-  if (!await DormMapFeedback.confirm(isSuspended ? 'Suspend this boarding house owner account?' : 'Activate this boarding house owner account?')) return;
-  try {
-    await req(`${api}/houses/${id}/status`, { method: 'PATCH', body: JSON.stringify({ isSuspended }) });
-    toast('Status updated successfully.');
-    loadHouses(); loadOwners(); loadOverview();
-  } catch (e) { toast(e.message, true); }
-}
-
 // 7. PERMITS
 let permitCache = [];
 async function loadPermits() {
   try {
     let d = await req(api + '/permits');
     permitCache = d.data || [];
-    document.getElementById('permitRows').innerHTML = d.data.length ? d.data.map(x => `
-      <tr>
+    renderPermits();
+  } catch (e) { toast(e.message, true); }
+}
+
+function renderPermits() {
+  const rows = document.getElementById('permitRows');
+  const filtered = document.getElementById('permitAlertsOnly').checked
+    ? permitCache.filter(permit => permit.expired || permit.days <= 30) : permitCache;
+  rows.innerHTML = filtered.length ? filtered.map(x => {
+    const status = x.expired ? 'expired' : x.status;
+    return `
+      <tr class="${x.expired ? 'permit-expired-row' : ''}">
         <td><b>${esc(x.permitNumber)}</b></td>
         <td>Owner ID #${x.ownerId}</td>
         <td class="text-xs">${esc(x.issueDate || '—')}</td>
-        <td class="text-xs font-bold text-emerald-950">${esc(x.expirationDate)}</td>
-        <td><span class="badge status-${esc(x.status)}">${esc(x.status)}</span></td>
+        <td class="text-xs font-bold">${esc(x.expirationDate)}
+          ${!x.expired && x.days === 0
+            ? '<span class="block text-amber-800">Expires today</span>' : !x.expired && x.days > 0 && x.days <= 30
+              ? `<span class="block text-amber-800">Expires in ${x.days} day(s)</span>` : ''}
+        </td>
+        <td><span class="badge status-${esc(status)}">${esc(status)}</span></td>
         <td>${x.documentUrl ? `<a class="text-xs font-bold text-emerald-700 underline" target="_blank" href="${esc(x.documentUrl)}">View File</a>` : '—'}</td>
         <td><button class="button text-xs py-1 px-2 secondary font-bold" onclick="openPermitEditModal(${x.id})">Edit Dates</button></td>
       </tr>
-    `).join('') : '<tr><td colspan="7" class="text-slate-400 text-center py-4">No business permit records found.</td></tr>';
-  } catch (e) { toast(e.message, true); }
+    `;
+  }).join('') : '<tr><td colspan="7" class="text-slate-400 text-center py-4">No matching business permits.</td></tr>';
+  window.DormMapPagination?.reset(rows);
 }
 
 function openPermitEditModal(id) {
@@ -1521,30 +1513,9 @@ document.getElementById('permitEditForm').onsubmit = async e => {
     await req(`${api}/permits/${id}`, { method: 'PATCH', body: JSON.stringify(Object.fromEntries(new FormData(e.target))) });
     closePermitEditModal();
     toast('Business permit record updated.');
-    loadPermits(); loadAlerts(); loadOverview();
+    loadPermits(); loadOverview();
   } catch (err) { toast(err.message, true); }
 };
-
-// 8. ALERTS
-async function loadAlerts() {
-  try {
-    let d = await req(api + '/permit-alerts');
-    document.getElementById('alertRows').innerHTML = d.data.length ? d.data.map(x => `
-      <div class="flex items-center justify-between py-3">
-        <div>
-          <b class="text-sm text-slate-900">${esc(x.permitNumber)}</b>
-          <p class="text-xs text-slate-500">Expiration Date: ${esc(x.expirationDate)} (Owner ID: #${x.ownerId})</p>
-        </div>
-        <div class="flex items-center gap-3">
-          <span class="badge status-${x.days < 0 ? 'expired' : 'pending'}">
-            ${x.days < 0 ? 'Expired' : x.days === 0 ? 'Expires Today' : x.days + ' Days Left'}
-          </span>
-          <button onclick="openPermitEditModal(${x.id})" class="button text-xs py-1 px-2 secondary font-bold">Manage Permit</button>
-        </div>
-      </div>
-    `).join('') : '<p class="py-4 text-xs text-slate-400 text-center">No active expiration reminders.</p>';
-  } catch (e) { toast(e.message, true); }
-}
 
 // 9. TENANTS
 async function loadTenants() {

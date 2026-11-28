@@ -11,8 +11,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DormMap</title>
-  <link rel="stylesheet" href="/css/portal-updates.css?v=4">
-  <script src="/js/portal-feedback.js?v=4"></script>
+  <link rel="stylesheet" href="/css/portal-updates.css?v=5">
+  <script src="/js/portal-feedback.js?v=5"></script>
   <script src="/js/portal-updates.js?v=4" defer></script>
   <link rel="stylesheet" href="/css/portal-pagination.css">
   <script src="/js/portal-pagination.js" defer></script>

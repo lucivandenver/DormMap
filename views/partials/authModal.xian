@@ -161,10 +161,10 @@
         </div>
 
         {{#if authError}}
-        <div class="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 leading-relaxed">{{{authError}}}</div>
+        <div class="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 leading-relaxed" data-feedback-on-load="error">{{{authError}}}</div>
         {{/if}}
         {{#if authSuccess}}
-        <div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 leading-relaxed">{{{authSuccess}}}</div>
+        <div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 leading-relaxed" data-feedback-on-load="success">{{{authSuccess}}}</div>
         {{/if}}
 
         <form id="loginForm" class="mt-3 hidden space-y-3" method="POST" action="/login">
@@ -984,26 +984,30 @@
             'Content-Type': 'application/x-www-form-urlencoded',
             'Accept': 'application/json'
           },
-          body: new URLSearchParams({ email })
+          body: new URLSearchParams({ email }),
+          signal: AbortSignal.timeout(18000)
         });
         const data = await res.json().catch(() => ({}));
 
         if (res.ok && data.success) {
           const sentDisplay = document.getElementById('forgotSentEmailDisplay');
           if (sentDisplay) sentDisplay.textContent = email;
+          DormMapFeedback.show(data.message);
           document.getElementById('forgotStep1Form')?.classList.add('hidden');
           document.getElementById('forgotSuccessState')?.classList.remove('hidden');
           window.lucide?.createIcons();
         } else {
           statusMsg.classList.remove('hidden', 'bg-emerald-50', 'text-emerald-700', 'border-emerald-200');
           statusMsg.classList.add('bg-rose-50', 'text-rose-700', 'border', 'border-rose-200');
-          statusMsg.textContent = data.error || 'Failed to send the reset link. Please check your email address and try again.';
+          statusMsg.textContent = data.error || 'Unable to request a reset link. Please try again.';
+          DormMapFeedback.show(statusMsg.textContent, 'error');
         }
       } catch (err) {
         if (statusMsg) {
           statusMsg.classList.remove('hidden');
           statusMsg.classList.add('bg-rose-50', 'text-rose-700', 'border', 'border-rose-200');
           statusMsg.textContent = 'Network error. Please check your connection and try again.';
+          DormMapFeedback.show(statusMsg.textContent, 'error');
         }
       } finally {
         btn.disabled = false;
