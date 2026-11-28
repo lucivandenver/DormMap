@@ -43,13 +43,22 @@ export const handleDormigoPortalChat = async (req, res, next) => {
   }
 
   try {
-    const user = await User.findByPk(userId, { attributes: ['accountType', 'isArchived', 'isSuspended'] });
+    const user = await User.findByPk(userId, { attributes: ['accountType', 'isArchived', 'isSuspended', 'applicationStatus', 'barangay', 'boardingHouseName', 'mapPin'] });
     const policy = dormigoPortalPolicy(user?.accountType);
     if (!policy || user.isArchived || user.isSuspended) {
       return res.status(403).json({ success: false, error: 'Portal assistant access is unavailable for this account.' });
     }
 
-    const data = await processDormigoPortalChat(message, policy);
+    const barangay = user.barangay;
+    if (policy.scope === 'barangay' && (!barangay?.trim() || user.applicationStatus !== 'approved')) {
+      return res.status(403).json({ success: false, error: 'An approved account with an assigned barangay is required.' });
+    }
+    if (policy.scope === 'owner' && (!barangay?.trim() || !user.boardingHouseName || !user.mapPin ||
+      !['approved', 'approved_barangay', 'forwarded_to_bplo'].includes(user.applicationStatus))) {
+      return res.status(403).json({ success: false, error: 'An approved owner account with a complete property profile is required.' });
+    }
+
+    const data = await processDormigoPortalChat(message, policy, { userId, barangay });
     return res.json({ success: true, data });
   } catch (error) { next(error); }
 };

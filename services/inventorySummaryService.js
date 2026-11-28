@@ -1,6 +1,39 @@
 import { Op } from 'sequelize';
 import { reportDay } from './reportCalendar.js';
 import { BoardingHouse, OwnerRoom, OwnerTenant } from '../models/ownerModels.js';
+import { User } from '../models/userModel.js';
+import { submittedOwnerWhere } from './registrationPolicy.js';
+
+export async function barangayInventoryOwners(barangay) {
+  const branches = await BoardingHouse.findAll({
+    where: { barangay }, attributes: ['ownerId'], group: ['ownerId'], raw: true
+  });
+  return User.findAll({
+    where: {
+      accountType: 'boarding_house_owner', isArchived: false,
+      [Op.or]: [{ barangay }, { id: { [Op.in]: branches.map(branch => branch.ownerId) } }]
+    },
+    attributes: ['id', 'barangay', 'applicationStatus', 'boardingHouseName', 'createdAt'],
+    raw: true
+  });
+}
+
+export async function municipalInventory() {
+  const owners = await User.findAll({
+    where: submittedOwnerWhere,
+    attributes: ['id', 'boardingHouseName', 'applicationStatus', 'isSuspended', 'publicMapUnregistered']
+  });
+  return inventorySummary(owners);
+}
+
+export function ownerRoomCounts(rooms) {
+  return {
+    totalRooms: rooms.length,
+    availableRooms: rooms.filter(room => room.status === 'available' && room.availableSlots > 0).length,
+    occupiedRooms: rooms.filter(room => room.status === 'occupied').length
+  };
+}
+
 export async function inventorySummary(owners, { barangay } = {}) {
   const ids = owners.map(owner => owner.id);
   const [year, month] = barangay ? reportDay().slice(0, 7).split('-').map(Number) : [];
@@ -29,6 +62,7 @@ export async function inventorySummary(owners, { barangay } = {}) {
   const represented = new Set(houses.map(house => house.ownerId));
   const legacy = owners.filter(owner => owner.boardingHouseName && !represented.has(owner.id));
   return {
+    totalRooms: rooms.length,
     houses: houses.length + legacy.length,
     activeHouses: houses.filter(house => approvedIds.has(house.ownerId) && house.approvalStatus === 'approved').length + legacy.filter(owner => approvedIds.has(owner.id)).length,
     tenants: tenants.reduce((sum, tenant) => sum + Number(tenant.occupantCount || 1), 0),
@@ -90,6 +124,7 @@ function barangayInventory(owners, houses, rooms, tenants, barangay, periods) {
   }
 
   return {
+    totalRooms: roomsById.size,
     houses: properties.length,
     tenants: localTenants.filter(tenant => tenant.status === 'active')
       .reduce((sum, tenant) => sum + Number(tenant.occupantCount || 1), 0),

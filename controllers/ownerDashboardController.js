@@ -1,3 +1,5 @@
+import { approvedReservations } from '../services/ownerIncomeRecords.js';
+import { ownerRoomCounts } from '../services/inventorySummaryService.js';
 import { activityPage } from '../services/logPagination.js';
 import { groupIncome, incomeAnalytics, incomeEntries } from '../services/incomeReport.js';
 import { isReportDay } from '../services/reportCalendar.js';
@@ -27,13 +29,6 @@ import { TenantApplication, MaintenanceRequest } from '../models/tenantModels.js
 import { sequelize } from '../models/db.js';
 
 const oid = (req) => req.session.userId;
-
-function approvedReservations(ownerId) {
-  return TenantApplication.findAll({
-    where: { ownerId, reservationApprovedAt: { [Op.ne]: null } },
-    attributes: ['boardingHouseId', 'reservationRoomId', 'reservationApprovedAt', 'reservationFee', 'reservationAmountPaid'],
-  });
-}
 
 function reportDate(value) {
   if (value === undefined || value === '') return '';
@@ -109,9 +104,7 @@ export const overview = async (req, res, next) => {
       approvedReservations(id),
     ]);
 
-    const totalRooms    = rooms.length;
-    const availableRooms = rooms.filter(r => r.status === 'available' && r.availableSlots > 0).length;
-    const occupiedRooms  = rooms.filter(r => r.status === 'occupied').length;
+    const { totalRooms, availableRooms, occupiedRooms } = ownerRoomCounts(rooms);
     const income = groupIncome(incomeEntries(payments, reservations));
     const currentMonth = manilaToday().slice(0, 7);
     const monthlyIncome = income.get(currentMonth) || 0;

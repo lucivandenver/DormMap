@@ -970,6 +970,23 @@ test('MySQL migration, tenant shortlist, permissions, restart and uploads', {
 
       const branchTenant = await saveTenant(owner.id, null, { fullName: 'Branch resident A', roomId: branchRoom.id });
       const otherTenant = await saveTenant(owner.id, null, { fullName: 'Branch resident B', roomId: branchRoom.id });
+
+      const askPortal = async (message, portalCookie) => {
+        const response = await request('/api/dormigo/portal-chat', portalCookie, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, barangay: 'Orconuma', ownerId: pending.id })
+        });
+        assert.equal(response.status, 200, await response.clone().text());
+        const { data } = await response.json();
+        assert.deepEqual(data.actionCards, []);
+        return data.reply;
+      };
+      const ownerRoomCount = await OwnerRoom.count({ where: { ownerId: owner.id } });
+      assert.equal(await askPortal('Ilan na ang total room ko ngayon?', ownerCookie), `**Total rooms**: ${ownerRoomCount}.`);
+      const localOverview = await (await request('/barangay-dashboard/api/overview', localCookie)).json();
+      assert.equal(await askPortal('How many active tenants?', localCookie), `**Active tenants**: ${localOverview.cards.tenants}.`);
+      const municipal = await (await request('/admin/api/overview', adminCookie)).json();
+      assert.equal(await askPortal('How many active tenants?', adminCookie), `**Active tenants**: ${municipal.cards.tenants}.`);
       const loadBranch = async (endpoint, id) => (await (await request(
         `/owner-dashboard/api/${endpoint}?boardingHouseId=${id}`, ownerCookie
       )).json()).data;
